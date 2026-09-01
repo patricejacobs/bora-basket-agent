@@ -3,6 +3,8 @@ import { config } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
 import { TOOL_DEFS, executeTool, type ToolContext } from './tools.ts';
+import { buildConversationContext } from './context.ts';
+import { splitReply } from './pacing.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey || undefined });
@@ -122,7 +124,16 @@ export async function runAgent(phone: string, userText: string): Promise<AgentRe
     ? []
     : sanitizeHistory(trimHistory(stored.history as Anthropic.MessageParam[]));
 
+  const startingFresh = messages.length === 0;
   messages.push({ role: 'user', content: userText });
+
+  // On the first turn of a session, tell the agent the time and who this is, so
+  // a regular is greeted as one instead of being asked their name again. Sent as
+  // a mid-conversation system message: it must follow a user turn and be last,
+  // and it keeps the volatile clock out of the cached system prefix.
+  if (startingFresh) {
+    messages.push({ role: 'system', content: buildConversationContext(phone) });
+  }
 
   const ctx: ToolContext = { phone, outbound: [] };
   let finalText = '';
@@ -202,7 +213,7 @@ export async function runAgent(phone: string, userText: string): Promise<AgentRe
     if (!isRestatement && !isFiller) outbound.push({ kind: 'text', text: finalText });
     outbound.push(...buttonMessages);
   } else if (finalText) {
-    outbound.push({ kind: 'text', text: finalText });
+    for (const part of splitReply(finalText)) outbound.push({ kind: 'text', text: part });
   } else {
     outbound.push({
       kind: 'text',

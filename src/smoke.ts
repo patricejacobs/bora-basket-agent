@@ -28,6 +28,7 @@ const repo = await import('./db/repo.ts');
 const { executeTool } = await import('./agent/tools.ts');
 const { importCsvText, parseCsv } = await import('./catalog/import-csv.ts');
 const { parseWebhook, chunkText, verifySignature } = await import('./channels/whatsapp.ts');
+const { splitReply, typingDelayMs } = await import('./agent/pacing.ts');
 
 let passed = 0;
 const failures: string[] = [];
@@ -323,6 +324,44 @@ section('Message chunking');
   check('long text is split', chunks.length > 1, `${chunks.length} chunks`);
   check('every chunk fits the 4096 limit', chunks.every((c) => c.length <= 4096));
   check('no words are lost', chunks.join(' ').split(/\s+/).length === long.split(/\s+/).length);
+}
+
+/* ----------------------------------------------------------------- pacing */
+
+section('Reply pacing');
+{
+  check('leaves a short reply whole', splitReply('Added 2 bags of rice.').length === 1);
+
+  // Verbatim shape of a real reply from the deployed agent.
+  const listThenQuestion = [
+    "Here's what we have:",
+    '',
+    '*Rice*',
+    '• Karibee Parboiled, 5kg — $1,850',
+    '• White Rice, 2kg — $780',
+    '• Brown Rice, 1kg — $620',
+    '',
+    '*Chicken*',
+    '• Whole Chicken, per kg — $1,120',
+    '• Chicken Wings, 1kg pack — $1,240',
+    '',
+    'Which ones, and how much of each?',
+  ].join('\n');
+
+  const split = splitReply(listThenQuestion);
+  check('splits a closing question onto its own message', split.length === 2, JSON.stringify(split));
+  check('the closing line is the question', split[1] === 'Which ones, and how much of each?', split[1]);
+  check(
+    'nothing is lost in the split',
+    split.join('\n\n').replace(/\s+/g, '') === listThenQuestion.replace(/\s+/g, ''),
+  );
+
+  const twoParagraphs = 'a'.repeat(120) + '\n\n' + 'b'.repeat(200);
+  check('does not split two full paragraphs', splitReply(twoParagraphs).length === 1);
+
+  check('delay grows with length', typingDelayMs('a'.repeat(120)) > typingDelayMs('ok'));
+  check('delay is floored', typingDelayMs('ok') >= 700);
+  check('delay is capped', typingDelayMs('a'.repeat(5000)) <= 2600);
 }
 
 /* ------------------------------------------------------------------ report */

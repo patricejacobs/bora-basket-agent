@@ -3,6 +3,7 @@ import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
 import { handleIncoming } from '../conversation.ts';
+import { typingDelayMs, wait } from '../agent/pacing.ts';
 import type { OutboundMessage } from './types.ts';
 
 /** WhatsApp hard-limits a text body to 4096 characters. */
@@ -97,7 +98,12 @@ async function markReadAndTyping(messageId: string): Promise<void> {
 }
 
 export async function deliver(to: string, messages: OutboundMessage[]): Promise<void> {
-  for (const msg of messages) {
+  for (const [index, msg] of messages.entries()) {
+    // The first message needs no delay — the model has already spent a few
+    // seconds thinking, which reads as typing. Later ones would otherwise all
+    // land in the same instant, which nothing human does. The typing indicator
+    // raised when the message arrived runs for ~25s, covering these pauses.
+    if (index > 0) await wait(typingDelayMs(msg.text));
     if (msg.kind === 'buttons') await sendButtons(to, msg.text, msg.buttons);
     else await sendText(to, msg.text);
   }

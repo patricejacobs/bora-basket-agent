@@ -66,6 +66,8 @@ export const config = {
   store: {
     name: str('STORE_NAME', 'Our Grocery Store'),
     hours: str('STORE_HOURS', 'Mon-Sat 8:00am - 8:00pm'),
+    /** IANA zone, so the agent can greet by time of day and warn before closing. */
+    timezone: str('STORE_TIMEZONE', 'America/Guyana'),
     deliveryAreas: str('DELIVERY_AREAS', 'local delivery area'),
     /** All money below is in minor units (see CURRENCY_DECIMALS). */
     deliveryFee: Math.round(num('DELIVERY_FEE', 0) * minorPerUnit),
