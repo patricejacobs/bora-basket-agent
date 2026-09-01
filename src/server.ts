@@ -5,6 +5,7 @@ import { config, assertWhatsAppConfigured, money } from './config.ts';
 import { productCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
+import { sendStats } from './channels/whatsapp-send.ts';
 import { simulatorRouter } from './channels/simulator.ts';
 
 /** First boot on a hosted disk has no catalogue and often no shell to load one. */
@@ -75,6 +76,7 @@ app.get('/health', (_req: Request, res: Response) => {
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,
+    outbound: sendStats,
     commit: (process.env.RENDER_GIT_COMMIT ?? 'local').slice(0, 7),
     uptimeSeconds: Math.round(process.uptime()),
   });

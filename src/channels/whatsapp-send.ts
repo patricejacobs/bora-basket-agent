@@ -15,12 +15,41 @@ const MAX_TEXT_LENGTH = 4096;
 const graphUrl = (): string =>
   `https://graph.facebook.com/${config.whatsapp.graphVersion}/${config.whatsapp.phoneNumberId}/messages`;
 
+/**
+ * Outbound tally, surfaced on /health. An inbound webhook can succeed while every
+ * reply silently fails on a token or permission problem, which looks identical
+ * from outside to a bot that is simply not answering.
+ */
+export const sendStats = {
+  attempted: 0,
+  sent: 0,
+  failed: 0,
+  lastError: null as string | null,
+  lastErrorAt: null as string | null,
+};
+
+/** Meta's own error code, which is what distinguishes the failure modes. */
+function summariseGraphError(status: number, body: string): string {
+  const match = body.match(/"code"\s*:\s*(\d+)/);
+  const code = match?.[1];
+  if (code === '190') return `${status} (code 190) access token invalid or expired`;
+  if (code === '10') return `${status} (code 10) app lacks permission for this action`;
+  if (code === '131005') return `${status} (code 131005) token has no access to this phone number`;
+  if (code === '131047') return `${status} (code 131047) outside the 24h window — needs a template`;
+  return code ? `${status} (code ${code})` : String(status);
+}
+
 /** Returns true when the send succeeded, so callers can fall back. */
 export async function callGraph(payload: Record<string, unknown>): Promise<boolean> {
   if (!config.whatsapp.accessToken || !config.whatsapp.phoneNumberId) {
     console.warn('[whatsapp] not configured — dropping outbound message:', JSON.stringify(payload));
+    sendStats.failed++;
+    sendStats.lastError = 'WhatsApp credentials not configured';
+    sendStats.lastErrorAt = new Date().toISOString();
     return false;
   }
+
+  sendStats.attempted++;
 
   const res = await fetch(graphUrl(), {
     method: 'POST',
@@ -35,8 +64,13 @@ export async function callGraph(payload: Record<string, unknown>): Promise<boole
     const detail = await res.text().catch(() => '');
     // Logged rather than thrown: one failed send should not abort the rest of the reply.
     console.error(`[whatsapp] send failed ${res.status}: ${detail}`);
+    sendStats.failed++;
+    sendStats.lastError = summariseGraphError(res.status, detail);
+    sendStats.lastErrorAt = new Date().toISOString();
     return false;
   }
+
+  sendStats.sent++;
   return true;
 }
 
