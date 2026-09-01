@@ -50,9 +50,9 @@ No build step: Node 24 strips the TypeScript types natively.
 npm run smoke
 ```
 
-53 checks over catalogue import, search ranking, cart maths, stock limits, checkout,
-webhook parsing, signature verification, replay protection, and message chunking. Makes no
-API calls.
+104 checks over catalogue import, search ranking, cart maths, stock limits, checkout,
+webhook parsing, signature verification, replay protection, message chunking, reply pacing,
+staff dispatch commands and the action buttons. Makes no API calls.
 
 ---
 
@@ -85,6 +85,8 @@ from memory. That is what stops it inventing a product or quoting a stale price.
 | `place_order` | Transactional checkout |
 | `list_recent_orders` | Order history and status |
 | `send_buttons` | Native WhatsApp tap-to-reply buttons |
+
+Placing an order also pushes an alert to `STAFF_NUMBERS` — see **Running the shop** below.
 
 **Safeguards already in place**
 
@@ -184,7 +186,13 @@ All of this lives in `.env`.
 | `CURRENCY_DECIMALS` | `0` | `0` for GYD; set `2` for currencies with cents |
 | `PORT` | 3000 | |
 | `DATABASE_PATH` | ./data/store.db | |
-| `ENABLE_SIMULATOR` | true | **Set to `false` in production** |
+| `ENABLE_SIMULATOR` | true | Refused for non-local requests regardless; `false` removes the route |
+| `STAFF_NUMBERS` | — | Comma-separated E.164 digits. Empty means nobody is told about orders |
+| `STORE_TIMEZONE` | `America/Guyana` | Used for greetings and the closing-time reminder |
+| `TEMPLATE_ORDER_ON_THE_WAY` | — | Approved template, used only outside the 24h window |
+| `TEMPLATE_ORDER_DELIVERED` | — | As above |
+| `TEMPLATE_LANGUAGE` | `en` | Template language code |
+| `SEED_CATALOG_PATH` | — | CSV imported at boot when the catalogue is empty |
 
 ### A note on `AGENT_EFFORT`
 
