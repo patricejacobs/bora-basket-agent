@@ -174,6 +174,29 @@ function signatureIsValid(req: WebhookRequest): SignatureCheck {
   );
 }
 
+/**
+ * In-memory tally of what the webhook endpoint has actually seen, surfaced on
+ * /health so a deployment can be diagnosed without log access. Deliberately
+ * carries only the *category* of a rejection — the detail that would identify
+ * the loaded secret stays in the logs, which are private.
+ */
+export const webhookStats = {
+  received: 0,
+  accepted: 0,
+  rejected: 0,
+  messagesHandled: 0,
+  lastRejection: null as string | null,
+  lastEventAt: null as string | null,
+};
+
+function rejectionCategory(reason: string): string {
+  if (reason.includes('not set')) return 'app secret not configured';
+  if (reason.includes('no X-Hub-Signature-256')) return 'no signature header';
+  if (reason.includes('raw body')) return 'body not captured';
+  if (reason.includes('mismatch')) return 'signature mismatch (wrong app secret)';
+  return 'unknown';
+}
+
 type ParsedInbound = { phone: string; text: string; messageId: string; profileName?: string };
 
 /** Pulls the customer-authored messages out of a webhook payload, ignoring status events. */
@@ -241,18 +264,26 @@ whatsappRouter.get('/webhook', (req: Request, res: Response) => {
 });
 
 whatsappRouter.post('/webhook', (req: Request, res: Response) => {
+  webhookStats.received++;
+  webhookStats.lastEventAt = new Date().toISOString();
+
   const check = signatureIsValid(req as WebhookRequest);
   if (!check.valid) {
+    webhookStats.rejected++;
+    webhookStats.lastRejection = rejectionCategory(check.reason);
     console.warn(`[whatsapp] REJECTED webhook — ${check.reason}`);
     console.warn(`[whatsapp] fix: ${check.fix}`);
     res.sendStatus(401);
     return;
   }
 
+  webhookStats.accepted++;
+
   // Meta retries anything that is not a prompt 200, so acknowledge before working.
   res.sendStatus(200);
 
   const inbound = parseWebhook(req.body);
+  webhookStats.messagesHandled += inbound.length;
   for (const msg of inbound) {
     if (!claimEvent(msg.messageId)) {
       console.log(`[whatsapp] duplicate delivery ${msg.messageId} ignored`);

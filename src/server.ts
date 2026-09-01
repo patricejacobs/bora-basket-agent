@@ -4,7 +4,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { config, assertWhatsAppConfigured, money } from './config.ts';
 import { productCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
-import { whatsappRouter } from './channels/whatsapp.ts';
+import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { simulatorRouter } from './channels/simulator.ts';
 
 /** First boot on a hosted disk has no catalogue and often no shell to load one. */
@@ -72,6 +72,7 @@ app.get('/health', (_req: Request, res: Response) => {
       simulatorEnabled: config.enableSimulator,
       databasePath: config.databasePath,
     },
+    webhooks: webhookStats,
     commit: (process.env.RENDER_GIT_COMMIT ?? 'local').slice(0, 7),
     uptimeSeconds: Math.round(process.uptime()),
   });
