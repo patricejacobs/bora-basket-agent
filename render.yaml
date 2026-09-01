@@ -59,6 +59,16 @@ services:
         sync: false
 
       # --- store settings: safe to keep in version control ---------------
+      - key: STAFF_NUMBERS
+        value: "5926497570"
+      - key: TEMPLATE_ORDER_ON_THE_WAY
+        value: ""
+      - key: TEMPLATE_ORDER_DELIVERED
+        value: ""
+      - key: TEMPLATE_LANGUAGE
+        value: en
+      - key: STORE_TIMEZONE
+        value: America/Guyana
       - key: AGENT_EFFORT
         value: low
       - key: WHATSAPP_GRAPH_VERSION

@@ -21,6 +21,7 @@ for (const suffix of ['', '-wal', '-shm']) {
 }
 process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
+process.env.STAFF_NUMBERS = '5926497570';
 
 const { money } = await import('./config.ts');
 const { db } = await import('./db/index.ts');
@@ -362,6 +363,64 @@ section('Reply pacing');
   check('delay grows with length', typingDelayMs('a'.repeat(120)) > typingDelayMs('ok'));
   check('delay is floored', typingDelayMs('ok') >= 700);
   check('delay is capped', typingDelayMs('a'.repeat(5000)) <= 2600);
+}
+
+/* ------------------------------------------------------------------ staff */
+
+section('Staff dispatch');
+{
+  const { handleStaffMessage, isStaff } = await import('./staff.ts');
+
+  check('recognises a configured staff number', isStaff('5926497570'));
+  check('does not treat a customer as staff', !isStaff('5926005555'));
+
+  const help = (await handleStaffMessage('help'))[0]?.text ?? '';
+  check('help lists the commands', help.includes('orders') && help.includes('on the way'));
+
+  // The order placed in the checkout section above is ORD-00001.
+  const one = (await handleStaffMessage('1'))[0]?.text ?? '';
+  check('shows a single order', one.includes('ORD-00001'), one.slice(0, 60));
+  check('shows the delivery address', one.includes('Georgetown'));
+
+  const open = (await handleStaffMessage('orders'))[0]?.text ?? '';
+  check('lists open orders', open.includes('ORD-00001'), open.slice(0, 60));
+
+  const missing = (await handleStaffMessage('999 delivered'))[0]?.text ?? '';
+  check('reports an unknown order', missing.toLowerCase().includes('no order'), missing);
+
+  const garbage = (await handleStaffMessage('what is going on'))[0]?.text ?? '';
+  check('asks for an order number when none is given', garbage.includes('order number'), garbage.slice(0, 60));
+
+  // Status transitions. WhatsApp sending is unconfigured here, so the customer
+  // notification degrades to a warning rather than throwing.
+  const otw = (await handleStaffMessage('1 on the way'))[0]?.text ?? '';
+  check('moves an order to on the way', otw.includes('on the way'), otw);
+  check('order status persisted', repo.findOrder('1')?.status === 'on_the_way');
+
+  const repeated = (await handleStaffMessage('ORD-00001 otw'))[0]?.text ?? '';
+  check('rejects a repeated transition', repeated.includes('already'), repeated);
+
+  const delivered = (await handleStaffMessage('ord-1 delivered'))[0]?.text ?? '';
+  check('accepts the ORD- prefix and shorthand', delivered.includes('delivered'), delivered);
+  check('delivered status persisted', repo.findOrder('ORD-00001')?.status === 'delivered');
+
+  const closed = (await handleStaffMessage('orders'))[0]?.text ?? '';
+  check('a delivered order leaves the queue', closed.includes('No open orders'), closed.slice(0, 60));
+}
+
+/* --------------------------------------------------- 24-hour service window */
+
+section('Service window');
+{
+  const FRESH = '5920009999';
+  check('no inbound history means outside the window', !repo.withinServiceWindow(FRESH));
+
+  repo.logMessage(FRESH, 'in', 'whatsapp', 'hello');
+  check('a message just now is inside the window', repo.withinServiceWindow(FRESH));
+
+  check('order lookup tolerates plain numbers', repo.findOrder('1')?.orderNo === 'ORD-00001');
+  check('order lookup tolerates the padded form', repo.findOrder('ORD-00001')?.orderNo === 'ORD-00001');
+  check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
 /* ------------------------------------------------------------------ report */

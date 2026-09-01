@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
+import { notifyStaffOfNewOrder } from '../notifications.ts';
 
 export type ToolContext = {
   phone: string;
@@ -349,6 +350,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           deliveryNote: asString(input.delivery_note),
           paymentMethod,
         });
+        // Fire-and-forget: the shop needs to know immediately, but the customer
+        // should not wait on a Graph API round trip to see their confirmation.
+        void notifyStaffOfNewOrder(order.orderNo).catch((err) =>
+          console.error('[tools] staff notification failed:', err),
+        );
+
         return ok({
           placed: true,
           order_number: order.orderNo,

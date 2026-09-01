@@ -63,6 +63,26 @@ export const config = {
     graphVersion: str('WHATSAPP_GRAPH_VERSION', 'v23.0'),
   },
 
+  /**
+   * Staff who receive new-order alerts and may drive order status by texting the
+   * shop number. E.164 digits, no '+', comma separated.
+   */
+  staffNumbers: str('STAFF_NUMBERS')
+    .split(',')
+    .map((n) => n.replace(/[^0-9]/g, ''))
+    .filter(Boolean),
+
+  /**
+   * Approved WhatsApp template names, used when a customer notification falls
+   * outside the 24-hour service window. Leave unset and out-of-window updates
+   * are skipped rather than failing.
+   */
+  templates: {
+    onTheWay: str('TEMPLATE_ORDER_ON_THE_WAY'),
+    delivered: str('TEMPLATE_ORDER_DELIVERED'),
+    language: str('TEMPLATE_LANGUAGE', 'en'),
+  },
+
   store: {
     name: str('STORE_NAME', 'Our Grocery Store'),
     hours: str('STORE_HOURS', 'Mon-Sat 8:00am - 8:00pm'),

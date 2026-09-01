@@ -400,3 +400,102 @@ export function logMessage(
     `INSERT INTO message_log (phone, direction, channel, body, created_at) VALUES (?, ?, ?, ?, ?)`,
   ).run(phone, direction, channel, body, nowIso());
 }
+
+/* ------------------------------------------------------------ order status */
+
+/** The lifecycle a staff member can move an order through. */
+export const ORDER_STATUSES = ['pending', 'confirmed', 'on_the_way', 'delivered', 'cancelled'] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+export type OrderRecord = {
+  orderNo: string;
+  phone: string;
+  customerName: string;
+  address: string;
+  deliveryNote: string;
+  total: number;
+  status: OrderStatus;
+  placedAt: string;
+  items: { name: string; qty: number; unit: string; lineTotal: number }[];
+};
+
+function hydrateOrder(row: {
+  id: number;
+  order_no: string;
+  phone: string;
+  customer_name: string;
+  address: string;
+  delivery_note: string;
+  total: number;
+  status: string;
+  created_at: string;
+}): OrderRecord {
+  return {
+    orderNo: row.order_no,
+    phone: row.phone,
+    customerName: row.customer_name,
+    address: row.address,
+    deliveryNote: row.delivery_note,
+    total: row.total,
+    status: row.status as OrderStatus,
+    placedAt: row.created_at,
+    items: (
+      db
+        .prepare(`SELECT name, qty, unit, line_total FROM order_items WHERE order_id = ?`)
+        .all(row.id) as unknown as { name: string; qty: number; unit: string; line_total: number }[]
+    ).map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, lineTotal: i.line_total })),
+  };
+}
+
+/** Accepts "ORD-00007", "ord-7" or plain "7" — dispatchers will not type the padding. */
+export function findOrder(reference: string): OrderRecord | null {
+  const digits = reference.replace(/[^0-9]/g, '');
+  if (!digits) return null;
+  const orderNo = `ORD-${String(Number(digits)).padStart(5, '0')}`;
+
+  const row = db.prepare(`SELECT * FROM orders WHERE order_no = ?`).get(orderNo) as
+    | Parameters<typeof hydrateOrder>[0]
+    | undefined;
+  return row ? hydrateOrder(row) : null;
+}
+
+export function setOrderStatus(orderNo: string, status: OrderStatus): void {
+  db.prepare(`UPDATE orders SET status = ?, updated_at = ? WHERE order_no = ?`).run(
+    status,
+    nowIso(),
+    orderNo,
+  );
+}
+
+/** Orders still needing action, oldest first — the dispatcher's work queue. */
+export function openOrders(limit = 10): OrderRecord[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders WHERE status IN ('pending','confirmed','on_the_way')
+       ORDER BY id ASC LIMIT ?`,
+    )
+    .all(limit) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
+}
+
+/**
+ * When this customer last messaged us. WhatsApp only permits free-form replies
+ * within 24 hours of that moment; outside it a approved template is required.
+ */
+export function lastInboundAt(phone: string): Date | null {
+  const row = db
+    .prepare(
+      `SELECT created_at FROM message_log WHERE phone = ? AND direction = 'in'
+       ORDER BY id DESC LIMIT 1`,
+    )
+    .get(phone) as { created_at: string } | undefined;
+  if (!row) return null;
+  const at = new Date(row.created_at);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+export function withinServiceWindow(phone: string): boolean {
+  const last = lastInboundAt(phone);
+  if (!last) return false;
+  return Date.now() - last.getTime() < 24 * 60 * 60 * 1000;
+}

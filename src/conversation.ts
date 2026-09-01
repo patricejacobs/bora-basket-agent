@@ -1,4 +1,5 @@
 import { runAgent, friendlyErrorMessage } from './agent/run.ts';
+import { isStaff, handleStaffMessage } from './staff.ts';
 import * as repo from './db/repo.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
@@ -21,6 +22,13 @@ export function handleIncoming(msg: IncomingMessage): Promise<OutboundMessage[]>
 
 async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> {
   repo.logMessage(msg.phone, 'in', msg.channel, msg.text);
+
+  // Staff share the shop number but get the dispatch queue, not the shopping agent.
+  if (isStaff(msg.phone)) {
+    const staffReply = await handleStaffMessage(msg.text);
+    for (const out of staffReply) repo.logMessage(msg.phone, 'out', msg.channel, out.text);
+    return staffReply;
+  }
 
   // Seed the delivery name from the WhatsApp profile so we don't ask for what we know.
   if (msg.profileName) {

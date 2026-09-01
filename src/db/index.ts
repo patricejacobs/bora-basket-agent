@@ -96,4 +96,17 @@ CREATE TABLE IF NOT EXISTS message_log (
 CREATE INDEX IF NOT EXISTS idx_message_log_phone ON message_log(phone);
 `);
 
+/**
+ * Additive migrations for databases created by an earlier build. SQLite has no
+ * "ADD COLUMN IF NOT EXISTS", so each column is checked before it is added.
+ */
+function addColumnIfMissing(table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (columns.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  console.log(`[db] migrated: added ${table}.${column}`);
+}
+
+addColumnIfMissing('orders', 'updated_at', "TEXT NOT NULL DEFAULT ''");
+
 export const nowIso = (): string => new Date().toISOString();
