@@ -70,6 +70,8 @@ app.get('/health', (_req: Request, res: Response) => {
       effort: config.anthropic.effort,
       whatsapp,
       simulatorEnabled: config.enableSimulator,
+      // A count, never the numbers — enough to confirm dispatch is wired up.
+      staffNumbers: config.staffNumbers.length,
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,

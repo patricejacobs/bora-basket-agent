@@ -60,7 +60,7 @@ services:
 
       # --- store settings: safe to keep in version control ---------------
       - key: STAFF_NUMBERS
-        value: "5926497570"
+        value: ""
       - key: TEMPLATE_ORDER_ON_THE_WAY
         value: ""
       - key: TEMPLATE_ORDER_DELIVERED
