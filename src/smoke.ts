@@ -27,7 +27,7 @@ const { db } = await import('./db/index.ts');
 const repo = await import('./db/repo.ts');
 const { executeTool } = await import('./agent/tools.ts');
 const { importCsvText, parseCsv } = await import('./catalog/import-csv.ts');
-const { parseWebhook, chunkText } = await import('./channels/whatsapp.ts');
+const { parseWebhook, chunkText, verifySignature } = await import('./channels/whatsapp.ts');
 
 let passed = 0;
 const failures: string[] = [];
@@ -265,16 +265,52 @@ section('WhatsApp webhook');
   check('claims a new event id', repo.claimEvent('wamid.unique') === true);
   check('rejects a redelivered event id', repo.claimEvent('wamid.unique') === false);
 
+  // Signature verification, against the exact shape Meta sends: a 32-hex-char
+  // app secret over the raw request bytes.
+  const SECRET = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
   const body = Buffer.from(JSON.stringify(payload));
-  const sig =
-    'sha256=' + crypto.createHmac('sha256', 'smoke-test-secret').update(body).digest('hex');
-  const recomputed =
-    'sha256=' + crypto.createHmac('sha256', 'smoke-test-secret').update(body).digest('hex');
-  check('signature is reproducible', sig === recomputed);
-  const tampered = Buffer.from(JSON.stringify({ ...payload, extra: 1 }));
-  const badSig =
-    'sha256=' + crypto.createHmac('sha256', 'smoke-test-secret').update(tampered).digest('hex');
-  check('signature changes when the body changes', sig !== badSig);
+  const sign = (buf: Buffer, secret: string): string =>
+    'sha256=' + crypto.createHmac('sha256', secret).update(buf).digest('hex');
+
+  check('accepts a correctly signed body', verifySignature(body, sign(body, SECRET), SECRET).valid);
+
+  const wrongSecret = verifySignature(body, sign(body, 'a-different-secret'), SECRET);
+  check('rejects a signature made with the wrong secret', !wrongSecret.valid);
+  check(
+    'names the wrong secret as the cause',
+    !wrongSecret.valid && wrongSecret.reason.includes('mismatch'),
+    !wrongSecret.valid ? wrongSecret.reason : '',
+  );
+
+  const tampered = Buffer.from(JSON.stringify({ ...payload, injected: true }));
+  check('rejects a tampered body', !verifySignature(tampered, sign(body, SECRET), SECRET).valid);
+
+  const noSecret = verifySignature(body, sign(body, SECRET), '');
+  check(
+    'reports an unset app secret distinctly',
+    !noSecret.valid && noSecret.reason.includes('not set'),
+    !noSecret.valid ? noSecret.reason : '',
+  );
+
+  const noHeader = verifySignature(body, undefined, SECRET);
+  check(
+    'reports a missing signature header distinctly',
+    !noHeader.valid && noHeader.reason.includes('no X-Hub-Signature-256'),
+    !noHeader.valid ? noHeader.reason : '',
+  );
+
+  const noBody = verifySignature(undefined, sign(body, SECRET), SECRET);
+  check(
+    'reports an uncaptured body distinctly',
+    !noBody.valid && noBody.reason.includes('raw body'),
+    !noBody.valid ? noBody.reason : '',
+  );
+
+  // A trailing space is the classic copy-paste failure, and config trims for it.
+  check(
+    'a padded secret would otherwise fail (config trims it)',
+    !verifySignature(body, sign(body, SECRET), SECRET + ' ').valid,
+  );
 }
 
 /* ------------------------------------------------------------- text chunks */

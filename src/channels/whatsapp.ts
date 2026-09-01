@@ -111,21 +111,67 @@ type WebhookRequest = Request & { rawBody?: Buffer };
  * Meta signs every webhook body with the app secret. An unsigned or mismatched
  * request means someone other than Meta is posting to this endpoint.
  */
-function signatureIsValid(req: WebhookRequest): boolean {
+export type SignatureCheck = { valid: true } | { valid: false; reason: string; fix: string };
+
+/**
+ * Verifies Meta's X-Hub-Signature-256 over the exact bytes received.
+ *
+ * Returns *why* a check failed rather than a bare boolean: the four causes need
+ * four different fixes and are indistinguishable from outside the server, which
+ * made a rejected webhook impossible to diagnose from the logs alone.
+ */
+export function verifySignature(
+  rawBody: Buffer | undefined,
+  header: string | undefined,
+  secret: string,
+): SignatureCheck {
   // Without a configured secret every signature would "match" the empty-key HMAC,
   // so an unconfigured deployment must reject webhooks outright rather than trust them.
-  if (!config.whatsapp.appSecret) return false;
+  if (!secret) {
+    return {
+      valid: false,
+      reason: 'WHATSAPP_APP_SECRET is not set on this instance',
+      fix: 'Add it in Render → Environment, from Meta → App settings → Basic → Show',
+    };
+  }
+  if (!header) {
+    return {
+      valid: false,
+      reason: 'no X-Hub-Signature-256 header on the request',
+      fix: 'This did not come from Meta — check what else is posting to this URL',
+    };
+  }
+  if (!rawBody) {
+    return {
+      valid: false,
+      reason: 'raw body was not captured, so there was nothing to verify',
+      fix: 'Content-Type was probably not application/json',
+    };
+  }
 
-  const header = req.get('x-hub-signature-256');
-  if (!header || !req.rawBody) return false;
+  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  const received = Buffer.from(header);
+  const computed = Buffer.from(expected);
 
-  const expected =
-    'sha256=' +
-    crypto.createHmac('sha256', config.whatsapp.appSecret).update(req.rawBody).digest('hex');
+  if (received.length !== computed.length || !crypto.timingSafeEqual(received, computed)) {
+    return {
+      valid: false,
+      // Length is the giveaway when someone pastes the App ID instead of the
+      // secret; a Meta app secret is 32 hex characters.
+      reason: `signature mismatch over ${rawBody.length} bytes (loaded secret is ${secret.length} chars, ending "${secret.slice(-4)}")`,
+      fix: 'The app secret in Render differs from the one in Meta — re-copy it, watching for a trailing space',
+    };
+  }
 
-  const a = Buffer.from(header);
-  const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  return { valid: true };
+}
+
+function signatureIsValid(req: WebhookRequest): SignatureCheck {
+  return verifySignature(
+    req.rawBody,
+    req.get('x-hub-signature-256'),
+    config.whatsapp.appSecret,
+  );
 }
 
 type ParsedInbound = { phone: string; text: string; messageId: string; profileName?: string };
@@ -195,8 +241,10 @@ whatsappRouter.get('/webhook', (req: Request, res: Response) => {
 });
 
 whatsappRouter.post('/webhook', (req: Request, res: Response) => {
-  if (!signatureIsValid(req as WebhookRequest)) {
-    console.warn('[whatsapp] rejected webhook with bad or missing signature');
+  const check = signatureIsValid(req as WebhookRequest);
+  if (!check.valid) {
+    console.warn(`[whatsapp] REJECTED webhook — ${check.reason}`);
+    console.warn(`[whatsapp] fix: ${check.fix}`);
     res.sendStatus(401);
     return;
   }
