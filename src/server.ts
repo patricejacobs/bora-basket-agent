@@ -44,8 +44,37 @@ app.use(
   }),
 );
 
+/**
+ * Health and configuration status.
+ *
+ * Reports only whether each secret is *present*, never its value — enough to
+ * diagnose a half-configured deploy from outside without leaking anything. The
+ * commit hash comes from Render and confirms which build is actually serving.
+ */
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ ok: true, products: productCount(), store: config.store.name });
+  const wa = config.whatsapp;
+  const whatsapp = {
+    phoneNumberId: Boolean(wa.phoneNumberId),
+    accessToken: Boolean(wa.accessToken),
+    appSecret: Boolean(wa.appSecret),
+    verifyToken: Boolean(wa.verifyToken),
+  };
+
+  res.json({
+    ok: true,
+    store: config.store.name,
+    products: productCount(),
+    whatsappReady: Object.values(whatsapp).every(Boolean),
+    config: {
+      anthropicKey: Boolean(config.anthropic.apiKey),
+      effort: config.anthropic.effort,
+      whatsapp,
+      simulatorEnabled: config.enableSimulator,
+      databasePath: config.databasePath,
+    },
+    commit: (process.env.RENDER_GIT_COMMIT ?? 'local').slice(0, 7),
+    uptimeSeconds: Math.round(process.uptime()),
+  });
 });
 
 app.use('/whatsapp', whatsappRouter);
