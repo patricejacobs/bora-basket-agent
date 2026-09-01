@@ -1,0 +1,74 @@
+sku,name,description,category,unit,price,stock,keywords,active
+RIC-001,Karibee Parboiled Rice,Long grain parboiled rice,Rice & Grains,5 kg bag,1850,120,rice parboiled karibee grain,1
+RIC-002,White Rice,Local white rice,Rice & Grains,2 kg bag,780,200,rice white local,1
+RIC-003,Brown Rice,Wholegrain brown rice,Rice & Grains,1 kg bag,620,45,rice brown wholegrain healthy,1
+GRA-001,Split Peas,Yellow split peas,Rice & Grains,500 g pack,340,90,peas split dhal yellow,1
+GRA-002,Black Eye Peas,Dried black eye peas,Rice & Grains,500 g pack,380,70,peas blackeye beans dried,1
+GRA-003,Red Kidney Beans,Dried red kidney beans,Rice & Grains,500 g pack,420,65,beans kidney red dried,1
+FLR-001,All Purpose Flour,Enriched all purpose flour,Baking,2 kg bag,690,110,flour baking bread roti,1
+FLR-002,Self Rising Flour,Self rising flour,Baking,1 kg bag,420,55,flour self rising baking,1
+SUG-001,Demerara Gold Brown Sugar,Local demerara brown sugar,Baking,2 kg bag,760,140,sugar brown demerara sweet,1
+SUG-002,White Granulated Sugar,Refined white sugar,Baking,1 kg bag,430,95,sugar white granulated,1
+OIL-001,Vegetable Cooking Oil,Blended vegetable oil,Cooking Essentials,1.8 L bottle,1450,80,oil cooking vegetable frying,1
+OIL-002,Coconut Oil,Pure coconut oil,Cooking Essentials,500 ml bottle,980,35,oil coconut cooking,1
+SLT-001,Table Salt,Iodised table salt,Cooking Essentials,500 g pack,180,150,salt iodised seasoning,1
+SEA-001,Green Seasoning,Fresh blended green seasoning,Cooking Essentials,250 ml jar,520,40,seasoning green herbs marinade,1
+SEA-002,Curry Powder,Madras style curry powder,Cooking Essentials,200 g pack,460,60,curry powder masala spice,1
+SEA-003,Black Pepper Ground,Ground black pepper,Cooking Essentials,100 g pack,390,55,pepper black spice ground,1
+SAU-001,Tomato Ketchup,Thick tomato ketchup,Cooking Essentials,500 ml bottle,540,70,ketchup tomato sauce,1
+SAU-002,Pepper Sauce,Hot wiri wiri pepper sauce,Cooking Essentials,150 ml bottle,410,48,pepper sauce hot wiri spicy,1
+SAU-003,Soy Sauce,Dark soy sauce,Cooking Essentials,300 ml bottle,480,52,soy sauce chinese cassareep,1
+MET-001,Whole Chicken,Fresh whole broiler chicken,Meat & Poultry,per kg,1120,60,chicken whole broiler poultry fresh,1
+MET-002,Chicken Breast,Boneless skinless chicken breast,Meat & Poultry,per kg,1680,40,chicken breast boneless white meat,1
+MET-003,Chicken Wings,Fresh chicken wings,Meat & Poultry,1 kg pack,1240,35,chicken wings fry bbq,1
+MET-004,Beef Stew Cut,Cubed stewing beef,Meat & Poultry,per kg,2350,22,beef stew meat cubed,1
+MET-005,Pork Chops,Bone in pork chops,Meat & Poultry,per kg,2100,18,pork chops meat,1
+FSH-001,Bangamary Fish,Fresh bangamary,Fish & Seafood,per kg,1450,25,fish bangamary fresh seafood,1
+FSH-002,Snapper,Whole red snapper,Fish & Seafood,per kg,2650,12,fish snapper red seafood,1
+FSH-003,Shrimp,Peeled medium shrimp,Fish & Seafood,500 g pack,2200,15,shrimp prawns seafood,1
+DAI-001,Fresh Milk,Pasteurised full cream milk,Dairy & Eggs,1 L carton,780,60,milk fresh dairy full cream,1
+DAI-002,Powdered Milk,Full cream milk powder,Dairy & Eggs,900 g tin,2450,44,milk powder klim dairy,1
+DAI-003,Salted Butter,Creamy salted butter,Dairy & Eggs,227 g block,890,38,butter salted dairy spread,1
+DAI-004,Cheddar Cheese,Mature cheddar block,Dairy & Eggs,250 g block,1350,26,cheese cheddar dairy,1
+DAI-005,Eggs,Farm fresh large eggs,Dairy & Eggs,dozen,960,80,eggs dozen fresh farm,1
+BRD-001,Sliced White Bread,Soft sliced white loaf,Bakery,600 g loaf,480,55,bread white sliced loaf,1
+BRD-002,Whole Wheat Bread,Whole wheat sliced loaf,Bakery,600 g loaf,560,30,bread wheat brown healthy,1
+BRD-003,Tennis Rolls,Sweet tennis rolls,Bakery,pack of 6,420,40,rolls tennis bread sweet,1
+VEG-001,Tomatoes,Fresh local tomatoes,Fresh Produce,per kg,680,50,tomato tomatoes vegetable fresh,1
+VEG-002,Onions,Yellow cooking onions,Fresh Produce,per kg,540,75,onion onions vegetable,1
+VEG-003,Garlic,Fresh garlic bulbs,Fresh Produce,250 g pack,460,42,garlic seasoning fresh,1
+VEG-004,Potatoes,Washed white potatoes,Fresh Produce,per kg,520,90,potato potatoes vegetable,1
+VEG-005,Carrots,Fresh carrots,Fresh Produce,per kg,580,48,carrot carrots vegetable,1
+VEG-006,Bora,Fresh bora beans,Fresh Produce,bundle,320,30,bora beans long vegetable greens,1
+VEG-007,Callaloo,Fresh callaloo greens,Fresh Produce,bundle,280,25,callaloo greens spinach vegetable,1
+VEG-008,Plantain,Green cooking plantain,Fresh Produce,per kg,620,44,plantain green cooking banana,1
+FRU-001,Bananas,Ripe local bananas,Fresh Produce,per kg,420,60,banana bananas fruit ripe,1
+FRU-002,Oranges,Sweet local oranges,Fresh Produce,per kg,560,40,orange oranges fruit citrus,1
+FRU-003,Watermelon,Whole seedless watermelon,Fresh Produce,each,1200,14,watermelon melon fruit,1
+FRU-004,Pineapple,Fresh whole pineapple,Fresh Produce,each,780,20,pineapple fruit fresh,1
+BEV-001,Banks Beer,Banks lager beer,Beverages,6 pack,2400,50,beer banks lager alcohol,1
+BEV-002,Pepsi,Pepsi cola soft drink,Beverages,2 L bottle,680,70,pepsi cola soda softdrink,1
+BEV-003,Orange Juice,100 percent orange juice,Beverages,1 L carton,890,45,juice orange drink,1
+BEV-004,Bottled Water,Purified drinking water,Beverages,6 x 1.5 L,780,85,water bottled drinking,1
+BEV-005,Coffee,Instant coffee granules,Beverages,200 g jar,1650,30,coffee instant drink,1
+BEV-006,Black Tea Bags,Loose black tea bags,Beverages,box of 100,940,36,tea black bags drink,1
+SNK-001,Plantain Chips,Salted plantain chips,Snacks,100 g pack,320,64,chips plantain snack salty,1
+SNK-002,Cassava Chips,Crispy cassava chips,Snacks,100 g pack,340,50,chips cassava snack crispy,1
+SNK-003,Cream Biscuits,Assorted cream biscuits,Snacks,200 g pack,410,58,biscuits cookies cream snack,1
+SNK-004,Salted Peanuts,Roasted salted peanuts,Snacks,150 g pack,380,42,peanuts nuts snack salted,1
+CAN-001,Canned Sardines,Sardines in tomato sauce,Canned & Packaged,155 g tin,420,90,sardine sardines fish tin canned,1
+CAN-002,Corned Beef,Canned corned beef,Canned & Packaged,340 g tin,1180,55,corned beef tin canned meat,1
+CAN-003,Baked Beans,Baked beans in tomato sauce,Canned & Packaged,400 g tin,480,68,beans baked tin canned,1
+CAN-004,Tuna Chunks,Tuna chunks in water,Canned & Packaged,142 g tin,620,47,tuna fish tin canned,1
+PAS-001,Spaghetti,Durum wheat spaghetti,Canned & Packaged,500 g pack,460,72,pasta spaghetti noodles,1
+PAS-002,Macaroni,Elbow macaroni,Canned & Packaged,500 g pack,470,64,pasta macaroni cheese noodles,1
+HOU-001,Laundry Detergent,Powder laundry detergent,Household,1 kg pack,980,52,detergent soap laundry washing powder,1
+HOU-002,Dish Liquid,Lemon dishwashing liquid,Household,750 ml bottle,640,58,dish liquid soap washing up,1
+HOU-003,Bleach,Household bleach,Household,1 L bottle,520,44,bleach clorox cleaning disinfectant,1
+HOU-004,Toilet Paper,Two ply toilet tissue,Household,pack of 4,720,66,toilet paper tissue bathroom,1
+HOU-005,Garbage Bags,Heavy duty garbage bags,Household,pack of 20,680,38,garbage bags trash bin,1
+PER-001,Bath Soap,Moisturising bath soap,Personal Care,pack of 3,590,60,soap bath bathing personal,1
+PER-002,Toothpaste,Fluoride toothpaste,Personal Care,100 ml tube,680,55,toothpaste dental teeth,1
+PER-003,Shampoo,Everyday care shampoo,Personal Care,400 ml bottle,1150,32,shampoo hair wash,1
+BAB-001,Baby Diapers Medium,Disposable diapers size medium,Baby,pack of 30,3200,20,diapers pampers baby nappies,1
+BAB-002,Baby Wipes,Fragrance free baby wipes,Baby,pack of 80,780,28,wipes baby cleaning,1
