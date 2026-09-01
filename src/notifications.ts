@@ -1,6 +1,7 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { sendText, sendTemplate } from './channels/whatsapp-send.ts';
+import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
+import { nextActions } from './order-status.ts';
 
 /**
  * Tells the shop an order came in.
@@ -29,11 +30,16 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     `📞 +${order.phone}`,
   ];
   if (order.deliveryNote) lines.push(`Note: ${order.deliveryNote}`);
-  lines.push('', `Reply "${order.orderNo} on the way" or "${order.orderNo} delivered".`);
 
   const body = lines.join('\n');
+  const actions = nextActions(order.orderNo, order.status);
+
   for (const staff of config.staffNumbers) {
-    await sendText(staff, body);
+    // Buttons so dispatch is a tap rather than a typed command. Their titles are
+    // themselves valid commands, so tapping and typing go through one parser and
+    // anyone who prefers typing still can.
+    if (actions.length > 0) await sendButtons(staff, body, actions);
+    else await sendText(staff, body);
   }
 }
 

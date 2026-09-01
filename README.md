@@ -202,18 +202,55 @@ request's input tokens on a short chat turn.
 
 ---
 
+## Running the shop
+
+Staff share the customer-facing WhatsApp number. Any number listed in `STAFF_NUMBERS`
+reaches a dispatch queue instead of the shopping agent.
+
+**A new order arrives as a push message** with the items, total, customer, address and
+phone, followed by tappable buttons for the next action. Dispatch is a tap.
+
+The same actions can be typed, which is faster once you know them:
+
+| Command | Effect |
+|---|---|
+| `orders` | List everything not yet delivered or cancelled |
+| `7` | Show one order |
+| `7 confirmed` | Accept it — customer is told |
+| `7 on the way` | Dispatch it — customer is told |
+| `7 delivered` | Close it — customer is told |
+| `7 cancel` | Cancel it — customer is told |
+| `help` | Print the list |
+
+Order numbers work as `7`, `ORD-7` or `ORD-00007`. Status words are matched loosely, so
+`7 otw`, `7 out for delivery` and `7 dispatched` all mean the same thing.
+
+Button titles *are* the typed commands, so a tap and a typed message go through one parser.
+
+These are parsed rather than sent to the model: a dispatcher clearing twenty orders needs
+the same words to do the same thing every time, instantly, and at no per-message cost.
+
+### The 24-hour rule
+
+WhatsApp only permits free-form messages within 24 hours of the customer's last message.
+Outside that window an approved template is the only route.
+
+The notifier picks automatically. Same-day delivery is almost always inside the window, so
+most updates need no template at all. For next-day updates, create two **Utility** templates
+in WhatsApp Manager and set `TEMPLATE_ORDER_ON_THE_WAY` and `TEMPLATE_ORDER_DELIVERED`.
+Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
+
+With no template configured, an out-of-window update is skipped and logged rather than
+failing silently.
+
 ## What is not built yet
 
 Named plainly, because you will want some of these before going live:
 
-- **No staff-facing admin.** Orders land in the `orders` table and nothing tells your team
-  they arrived. This is the biggest gap between the prototype and a working shop — the
-  agent takes orders perfectly and nobody finds out. A dashboard, an email, or even a
-  WhatsApp message to a staff number would close it.
-- **No order status updates.** `status` is a column that only ever says `pending`. Nothing
-  moves it, and nothing notifies the customer.
 - **No human handoff.** The agent tells customers "a staff member will follow up", but
   nothing routes that anywhere.
+- **No staff dashboard.** The WhatsApp queue works well for one shop; volume would want a
+  screen.
 - **No payments.** Deliberate — cash or card to the driver, as chosen.
 - **SQLite, single process.** Fine for one store and a few thousand products. Multiple
   instances behind a load balancer would need Postgres and a shared lock for the
@@ -232,12 +269,18 @@ src/
   conversation.ts        Shared entry point for every channel
   agent/
     run.ts               The agent loop (tool calls, history, error mapping)
+    context.ts           Local time and returning-customer recognition
+    pacing.ts            Reply splitting and typing delays
     tools.ts             Tool definitions and their implementations
     system-prompt.ts     Behaviour, tone, guard rails
   channels/
-    whatsapp.ts          Webhook verification, parsing, Graph API sending
+    whatsapp.ts          Webhook verification, parsing, routing
+    whatsapp-send.ts     Graph API sending (text, buttons, templates)
     simulator.ts         Browser test channel
     types.ts             Channel-neutral message shapes
+  notifications.ts       Staff alerts and customer status updates
+  staff.ts               Dispatch commands over WhatsApp
+  order-status.ts        Order lifecycle vocabulary and action buttons
   catalog/
     import-csv.ts        CSV parser and importer (also a CLI)
   db/
@@ -257,5 +300,6 @@ npm start                                              # run the server
 npm run dev                                            # run with auto-restart on change
 npm run import:catalog -- ./data/sample-products.csv   # load or refresh the catalogue
 npm run smoke                                          # offline test suite
+npm run check                                          # configuration doctor
 npm run typecheck                                      # tsc --noEmit
 ```

@@ -8,17 +8,10 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus } from './notifications.ts';
+import { STATUS_LABEL, STATUS_WORDS, nextActions } from './order-status.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 export const isStaff = (phone: string): boolean => config.staffNumbers.includes(phone);
-
-/** Words a dispatcher might actually type, mapped to a status. */
-const STATUS_WORDS: [RegExp, repo.OrderStatus][] = [
-  [/\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone)\b/i, 'on_the_way'],
-  [/\b(delivered|done|complete[d]?|dropped)\b/i, 'delivered'],
-  [/\b(confirm(ed)?|accept(ed)?|packing)\b/i, 'confirmed'],
-  [/\b(cancel(led)?|void)\b/i, 'cancelled'],
-];
 
 const HELP = [
   '*Staff commands*',
@@ -42,14 +35,6 @@ const describe = (o: repo.OrderRecord): string =>
     `📞 +${o.phone}`,
     ...(o.deliveryNote ? [`Note: ${o.deliveryNote}`] : []),
   ].join('\n');
-
-const STATUS_LABEL: Record<repo.OrderStatus, string> = {
-  pending: 'new, not yet confirmed',
-  confirmed: 'confirmed',
-  on_the_way: 'on the way',
-  delivered: 'delivered',
-  cancelled: 'cancelled',
-};
 
 /** Never throws — a staff member always gets a readable answer. */
 export async function handleStaffMessage(text: string): Promise<OutboundMessage[]> {
@@ -98,5 +83,7 @@ export async function handleStaffMessage(text: string): Promise<OutboundMessage[
     told = '⚠️ Status saved, but notifying the customer failed.';
   }
 
-  return reply(`${order.orderNo} → *${STATUS_LABEL[status]}*.\n${told}`);
+  const body = `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${told}`;
+  const actions = nextActions(order.orderNo, status);
+  return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
 }

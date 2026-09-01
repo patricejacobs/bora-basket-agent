@@ -408,6 +408,49 @@ section('Staff dispatch');
   check('a delivered order leaves the queue', closed.includes('No open orders'), closed.slice(0, 60));
 }
 
+/* ---------------------------------------------------------- staff buttons */
+
+section('Staff action buttons');
+{
+  const { nextActions, STATUS_WORDS } = await import('./order-status.ts');
+
+  const pending = nextActions('ORD-00007', 'pending');
+  check('a new order offers three actions', pending.length === 3, JSON.stringify(pending));
+  check('a confirmed order drops "confirm"', nextActions('ORD-00007', 'confirmed').length === 2);
+  check('an order on the way offers only delivered', nextActions('ORD-00007', 'on_the_way').length === 1);
+  check('a delivered order offers nothing', nextActions('ORD-00007', 'delivered').length === 0);
+  check('a cancelled order offers nothing', nextActions('ORD-00007', 'cancelled').length === 0);
+
+  // WhatsApp caps buttons at 3 and titles at 20 characters; a longer title is
+  // silently truncated, which would corrupt the command it has to parse as.
+  for (const status of ['pending', 'confirmed', 'on_the_way'] as const) {
+    const actions = nextActions('ORD-99999', status);
+    check(
+      `${status}: at most 3 buttons`,
+      actions.length <= 3,
+      String(actions.length),
+    );
+    check(
+      `${status}: every title fits 20 chars`,
+      actions.every((a) => a.title.length <= 20),
+      JSON.stringify(actions.map((a) => `${a.title} (${a.title.length})`)),
+    );
+  }
+
+  // The whole design rests on this: tapping a button sends its title back as an
+  // ordinary message, so each title must parse as the command it claims to be.
+  const roundTrip = nextActions('ORD-00042', 'pending');
+  for (const action of roundTrip) {
+    const matched = STATUS_WORDS.find(([pattern]) => pattern.test(action.title));
+    check(`"${action.title}" parses as a status command`, matched !== undefined);
+    check(
+      `"${action.title}" carries the order number`,
+      /42/.test(action.title),
+      action.title,
+    );
+  }
+}
+
 /* --------------------------------------------------- 24-hour service window */
 
 section('Service window');
