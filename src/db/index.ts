@@ -109,4 +109,21 @@ function addColumnIfMissing(table: string, column: string, definition: string): 
 
 addColumnIfMissing('orders', 'updated_at', "TEXT NOT NULL DEFAULT ''");
 
+/**
+ * One-off compliance removal.
+ *
+ * BEV-001 (Banks Beer) shipped in the original sample catalogue, and WhatsApp's
+ * Commerce Policy prohibits selling alcohol over the channel — a violation can
+ * cost the phone number. It is removed from the CSV, but a database seeded
+ * before that still holds it, and a hosted deployment has no shell to fix it
+ * from. This runs on every boot regardless of configuration.
+ *
+ * Deactivated rather than deleted, so past orders keep their item history.
+ * Idempotent, and cheap enough to leave in place.
+ */
+{
+  const info = db.prepare(`UPDATE products SET active = 0 WHERE sku = 'BEV-001' AND active = 1`).run();
+  if (info.changes > 0) console.log('[db] deactivated BEV-001 — alcohol is not permitted on WhatsApp');
+}
+
 export const nowIso = (): string => new Date().toISOString();

@@ -22,7 +22,7 @@
   "staffNumbers": [],
 
   "_restricted": "SKUs excluded from the catalogue. WhatsApp's Commerce Policy prohibits alcohol and tobacco; selling them can cost you the number.",
-  "restrictedSkus": ["BEV-001"],
+  "restrictedSkus": [],
 
   "_templates": "Approved WhatsApp template names, used only outside the 24-hour service window. Leave empty until they are approved.",
   "templates": {
