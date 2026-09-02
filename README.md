@@ -116,9 +116,10 @@ sku,name,description,category,unit,price,stock,keywords,active,image
 RIC-001,Karibee Parboiled Rice,Long grain parboiled,Rice & Grains,5 kg bag,1850,120,rice parboiled grain,1,https://cdn.example.com/rice.jpg
 ```
 
-- **`keywords`** is what customers actually say. `pampers` finding the diapers row, `dhal`
-  finding split peas — that comes from here, and it is the single highest-leverage column
-  for search quality. Spend time on it.
+- **`keywords`** is what customers actually say about *this* product — a brand you carry, a
+  local name, what people call it at the counter. Search reads it second only to the name,
+  so it is the highest-leverage column in the file. Spend time on it. General terms
+  (`washing powder`, `bully beef`, `fig`) are already understood without it — see below.
 - **`unit`** is displayed with the price (`$1,850 / 5 kg bag`), so it should read naturally.
 - **`image`** is optional: a publicly reachable **https** URL. WhatsApp fetches the
   address itself, so a link behind a login, on localhost, or over plain http silently
@@ -134,6 +135,36 @@ npm run import:catalog -- ./data/your-products.csv
 Rows are matched on SKU and upserted — re-run the import whenever prices or stock change.
 Products missing from the file are left alone; add `--deactivate-missing` to retire them
 instead. Bad rows are skipped and reported by line number rather than failing the import.
+
+## How search reads a customer
+
+Nobody types the shelf label. Search is built for what people actually send:
+
+| They type | They get | Why |
+|---|---|---|
+| `chiken`, `tomatos`, `spagetti` | Chicken, Tomatoes, Spaghetti | Spelling is repaired |
+| `egg` / `eggs`, `plantains` | Eggs, Plantain | Plurals fold together |
+| `2 lbs channa`, `5kg rice` | the product | Quantities are stripped |
+| `do you have any fresh bread` | Bread | Filler words are ignored |
+| `washing powder` | Laundry Detergent | Everyday name for the thing |
+| `bully beef`, `fig`, `dhal`, `greens` | Corned Beef, Bananas, Split Peas, Callaloo | Local names |
+| `colgate`, `clorox`, `pampers` | Toothpaste, Bleach, Diapers | Brand used as the word |
+
+Forgiving, but not loose — **a wrong match is worse than none.** Somebody shown ketchup
+when they asked for tomatoes stops trusting the rest of the screen. So spelling is only
+repaired on words long enough for it to be safe (`rise` will not become `rice`), a listed
+keyword always outranks a coincidental near-spelling, and every word of the query has to
+be accounted for.
+
+When a word cannot be accounted for, the shortfall is reported rather than hidden. Ask for
+**cassava bread** and you are told plainly it is not stocked, shown Cassava Chips as the
+nearest thing, and the phrase is added to the `wanted` report. That is the difference
+between a shop that says "we don't have that, will this do?" and one that quietly hands
+you the wrong item.
+
+Two knobs, if you ever need them: per-product aliases go in the CSV `keywords` column;
+the general vocabulary — Creole names, brand-as-generic, British/American splits — is
+`SYNONYM_GROUPS` in [`src/catalog/search.ts`](src/catalog/search.ts).
 
 ## Product photos
 
@@ -300,10 +331,12 @@ they are rephrasing because they cannot find something you already sell.
 Phrasings are grouped, so "Channa", "channa?" and "2 lbs channa" are one line. Staff
 searches are excluded — a dispatcher checking stock is not a customer wanting to buy.
 
-Two honest limits. It only catches searches that return *nothing*: if someone asks for
-cassava bread and the catalogue answers with Cassava Chips, that demand is invisible.
-And `/health` reports the count but never the phrases, since those are customer-typed text
-and that URL is public.
+Near misses count too. Ask for cassava bread and the catalogue offers Cassava Chips — the
+customer is told plainly it is not the same thing, *and* "cassava bread" goes on this list.
+A half-answer is still a thing you were asked for and did not have.
+
+`/health` reports the count but never the phrases, since those are customer-typed text and
+that URL is public.
 
 ### "Where is my order?"
 
@@ -341,9 +374,6 @@ Named plainly, because you will want some of these before going live:
 - **SQLite, single process.** Fine for one store and a few thousand products. Multiple
   instances behind a load balancer would need Postgres and a shared lock for the
   per-customer serialisation.
-- **Search is literal.** It matches substrings and keywords, so "tomatos" finds nothing and
-  "cassava bread" finds Cassava Chips. Typo tolerance and synonyms are the next real win —
-  and the `wanted` report tells you which misses to fix first.
 - **Voice notes are built but switched off.** Set `TRANSCRIBE_PROVIDER` and the matching
   key to turn them on; without it a voice note gets a polite "could you type that".
 
@@ -372,6 +402,7 @@ src/
   order-status.ts        Order lifecycle vocabulary and action buttons
   catalog/
     import-csv.ts        CSV parser and importer (also a CLI)
+    search.ts            Typo, plural and synonym matching
   db/
     index.ts             Schema
     repo.ts              All queries

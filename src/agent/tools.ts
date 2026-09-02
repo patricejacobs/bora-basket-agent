@@ -5,6 +5,7 @@ import type { OutboundMessage } from '../channels/types.ts';
 import { notifyStaffOfNewOrder } from '../notifications.ts';
 import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
+import { searchCatalog } from '../catalog/search.ts';
 
 export type ToolContext = {
   phone: string;
@@ -352,12 +353,23 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!query) return fail('query is required.');
       const limit = Math.min(Math.max(asInt(input.limit) ?? 8, 1), 15);
       const category = asString(input.category) || undefined;
-      const results = repo.searchProducts(query, category, limit);
+      const { results, unmatched } = searchCatalog(query, category, limit);
       if (results.length === 0) {
         recordMiss(ctx.phone, query);
         return ok({
           results: [],
           note: `No match for "${query}". Suggest a related item or offer to check a category — do not invent products.`,
+        });
+      }
+
+      // Something came back, but not the thing they named — "cassava bread"
+      // answered with cassava chips. Worth showing, and worth recording: the
+      // shop was asked for something it does not sell.
+      if (unmatched.length > 0) {
+        recordMiss(ctx.phone, query);
+        return ok({
+          results: results.map(productView),
+          note: `No "${query}" in the catalogue. What follows are near matches, not the thing asked for — say plainly that you do not have it, then offer these as alternatives.`,
         });
       }
       return ok({ results: results.map(productView) });
@@ -372,10 +384,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // and a wall of options per line is unreadable on a phone.
       return ok({
         searches: queries.map((query) => {
-          const results = repo.searchProducts(query, undefined, 3);
-          if (results.length > 0) return { query, results: results.map(productView) };
-          recordMiss(ctx.phone, query);
-          return { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
+          const { results, unmatched } = searchCatalog(query, undefined, 3);
+          if (results.length === 0) {
+            recordMiss(ctx.phone, query);
+            return { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
+          }
+          if (unmatched.length > 0) {
+            recordMiss(ctx.phone, query);
+            return {
+              query,
+              results: results.map(productView),
+              note: `No "${query}" in the catalogue — these are near matches only. Do not add one without asking.`,
+            };
+          }
+          return { query, results: results.map(productView) };
         }),
       });
     }

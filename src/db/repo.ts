@@ -1,5 +1,6 @@
 import { db, nowIso } from './index.ts';
 import { config } from '../config.ts';
+import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 
 export type Product = {
   id: number;
@@ -53,63 +54,13 @@ export function getProductBySku(sku: string): Product | null {
 }
 
 /**
- * Ranked keyword search. Candidates are pulled with a broad LIKE, then scored in
- * JS so a name hit can be weighted far above a description hit without pushing a
- * pile of CASE expressions into SQL.
+ * Ranked catalogue search. The matching itself lives in catalog/search.ts.
+ *
+ * Kept here as a thin pass-through so callers that only want products are not
+ * forced to think about which query words went unanswered.
  */
 export function searchProducts(query: string, category?: string, limit = 8): Product[] {
-  const tokens = query
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 1);
-
-  const params: string[] = [];
-  const where: string[] = ['active = 1'];
-
-  if (category) {
-    where.push('category = ? COLLATE NOCASE');
-    params.push(category.trim());
-  }
-
-  if (tokens.length > 0) {
-    const ors = tokens.map(
-      () => `(name LIKE ? OR keywords LIKE ? OR category LIKE ? OR description LIKE ?)`,
-    );
-    where.push(`(${ors.join(' OR ')})`);
-    for (const t of tokens) params.push(`%${t}%`, `%${t}%`, `%${t}%`, `%${t}%`);
-  }
-
-  const rows = db
-    .prepare(`SELECT *, image_url AS imageUrl FROM products WHERE ${where.join(' AND ')} LIMIT 200`)
-    .all(...params) as unknown as Product[];
-
-  if (tokens.length === 0) return rows.slice(0, limit);
-
-  const scored = rows.map((p) => {
-    const name = p.name.toLowerCase();
-    const keywords = p.keywords.toLowerCase();
-    const cat = p.category.toLowerCase();
-    const desc = p.description.toLowerCase();
-    let score = 0;
-    for (const t of tokens) {
-      if (name === t) score += 100;
-      else if (name.startsWith(t)) score += 40;
-      else if (name.includes(t)) score += 25;
-      if (keywords.includes(t)) score += 12;
-      if (cat.includes(t)) score += 6;
-      if (desc.includes(t)) score += 3;
-    }
-    // Prefer things the customer can actually buy today.
-    if (p.stock <= 0) score -= 15;
-    return { p, score };
-  });
-
-  return scored
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name))
-    .slice(0, limit)
-    .map((s) => s.p);
+  return searchCatalog(query, category, limit).results;
 }
 
 export function upsertProduct(p: {
@@ -145,6 +96,7 @@ export function upsertProduct(p: {
     p.imageUrl ?? '',
     nowIso(),
   );
+  invalidateSearchIndex();
 }
 
 /** How much of the catalogue has a photo — the number that tells you if it is worth using. */
@@ -339,6 +291,8 @@ export function placeOrder(args: {
 
     db.prepare(`DELETE FROM cart_items WHERE phone = ?`).run(args.phone);
     db.exec('COMMIT');
+    // Stock moved, and stock affects ranking — the next search should see it.
+    invalidateSearchIndex();
 
     return {
       orderNo,

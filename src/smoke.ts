@@ -856,6 +856,120 @@ section('Customer identity');
   check('the order stored a contact number', repo.findOrder('1') !== null);
 }
 
+/* -------------------------------------------------------- search behaviour */
+
+section('Search behaviour');
+{
+  const { searchCatalog, singular, queryTokens, editDistance, normalizeToken } = await import(
+    './catalog/search.ts'
+  );
+
+  const names = (query: string, limit = 5): string[] =>
+    searchCatalog(query, undefined, limit).results.map((p) => p.name);
+  const first = (query: string): string => names(query, 1)[0] ?? '—';
+  const finds = (query: string, name: string): boolean => names(query).includes(name);
+
+  // Normalisation.
+  check('folds plurals together', singular('tomatoes') === singular('tomato'));
+  check('folds -ies plurals', singular('berries') === 'berry');
+  check('leaves short words alone', singular('gas') === 'gas');
+  check('does not strip a double s', singular('glass') === 'glass');
+  check('strips accents', normalizeToken('Café') === 'cafe');
+  check('drops conversational filler', !queryTokens('do you have any rice').includes('have'));
+  check('keeps the actual product word', queryTokens('do you have any rice').includes('rice'));
+  check('drops quantities and units', queryTokens('2 lbs channa').join(' ') === 'channa');
+  check('a query of pure filler still searches', queryTokens('any please').length > 0);
+
+  check('measures a transposition as one edit', editDistance('brwon', 'brown') === 1);
+  check('abandons a hopeless comparison', editDistance('rice', 'detergent', 2) > 2);
+
+  // Typos — the single most common reason a real search finds nothing.
+  check('finds through a missing letter', first('chiken').includes('Chicken'), first('chiken'));
+  check('finds through a wrong vowel', first('detergant') === 'Laundry Detergent', first('detergant'));
+  check('finds through a transposition', first('spagetti') === 'Spaghetti', first('spagetti'));
+  check('finds through a truncation', first('shampo') === 'Shampoo', first('shampo'));
+  check('finds a misspelled plural', first('tomatos') === 'Tomatoes', first('tomatos'));
+
+  // A short word is left alone: one letter apart is a different product.
+  check('does not fuzzy-match short words', !finds('rise', 'Brown Rice'), names('rise').join(','));
+
+  // Plurals in both directions.
+  check('singular query finds a plural product', first('egg') === 'Eggs', first('egg'));
+  check('plural query finds a singular product', finds('plantains', 'Plantain'), names('plantains').join(','));
+
+  // Local and everyday names for things the shelf label calls something else.
+  check('washing powder is laundry detergent', first('washing powder') === 'Laundry Detergent', first('washing powder'));
+  check('toilet tissue is toilet paper', first('toilet tissue') === 'Toilet Paper', first('toilet tissue'));
+  check('sweet drink is a soft drink', first('sweet drink') === 'Pepsi', first('sweet drink'));
+  check('bully beef is corned beef', first('bully beef') === 'Corned Beef', first('bully beef'));
+  check('fig is a banana here', first('fig') === 'Bananas', first('fig'));
+  check('dhal is split peas', first('dhal') === 'Split Peas', first('dhal'));
+  check('a brand name finds the generic', first('colgate') === 'Toothpaste', first('colgate'));
+  check('clorox finds bleach', first('clorox') === 'Bleach', first('clorox'));
+  check('greens reaches callaloo', finds('greens', 'Callaloo'), names('greens').join(','));
+
+  // Ranking: a listed keyword must beat a coincidental near-spelling.
+  check(
+    'an exact keyword outranks a one-letter name collision',
+    first('pampers') === 'Baby Diapers Medium',
+    names('pampers').join(','),
+  );
+  check(
+    'a literal keyword outranks a synonym reaching the same shelf',
+    names('dhal').indexOf('Split Peas') < names('dhal').indexOf('Black Eye Peas'),
+    names('dhal').join(','),
+  );
+
+  // Precision. A wrong match is worse than no match.
+  check('does not answer tomatoes with ketchup', first('tomatoes') === 'Tomatoes', first('tomatoes'));
+  check('a word prefix is not a match', !finds('saltfish', 'Table Salt'), names('saltfish').join(','));
+  check('asking for eggs does not return the dairy aisle', names('eggs').length === 1, names('eggs').join(','));
+  check('nonsense still finds nothing', names('zzzznotathing').length === 0);
+
+  // Partial answers are reported, not smoothed over. This is what feeds the
+  // unmet-demand log for things the catalogue half-matches.
+  const cassava = searchCatalog('cassava bread', undefined, 5);
+  check('offers the nearest things to an unstocked item', cassava.results.length > 0);
+  check('including the closest one', cassava.results.some((p) => p.name === 'Cassava Chips'));
+  // Which of the two words goes unanswered depends on which near-match ranks
+  // first; that one is left over either way is the signal that matters.
+  check('but flags the query as only half answered', cassava.unmatched.length === 1, JSON.stringify(cassava.unmatched));
+
+  const stocked = searchCatalog('white rice', undefined, 5);
+  check('a fully answered query reports nothing unmatched', stocked.unmatched.length === 0, JSON.stringify(stocked.unmatched));
+  check('and puts the exact product first', stocked.results[0]?.name === 'White Rice', stocked.results[0]?.name);
+
+  const absent = searchCatalog('quinoa', undefined, 5);
+  check('an absent product is wholly unmatched', absent.unmatched.length === 1 && absent.results.length === 0);
+
+  // A near-match still counts as demand: the shop was asked for something it
+  // does not sell, even though it had something to show.
+  const partialPhone = '5920007001';
+  JSON.parse(executeTool('search_products', { query: 'cassava bread' }, { phone: partialPhone, outbound: [] }));
+  check(
+    'a partial match is recorded as unmet demand',
+    repo.topSearchMisses(30, 50).some((m) => m.normalized === 'cassava bread'),
+    repo.topSearchMisses(30, 50).map((m) => m.normalized).join(','),
+  );
+  const answered = repo.searchMissCount(30);
+  JSON.parse(executeTool('search_products', { query: 'white rice' }, { phone: partialPhone, outbound: [] }));
+  check('a fully answered query is not recorded', repo.searchMissCount(30) === answered);
+
+  // The index must notice the catalogue changing underneath it.
+  repo.upsertProduct({
+    sku: 'NEW-001', name: 'Cassava Bread', description: '', category: 'Bakery',
+    unit: 'each', price: 400, stock: 10, active: 1, keywords: 'cassava bread bake',
+  });
+  const afterAdd = searchCatalog('cassava bread', undefined, 5);
+  check('a newly imported product is searchable at once', afterAdd.results[0]?.name === 'Cassava Bread', afterAdd.results[0]?.name);
+  check('and the query is no longer partial', afterAdd.unmatched.length === 0);
+
+  // Category filter still applies.
+  const scoped = searchCatalog('chicken', 'Meat & Poultry', 5);
+  check('honours a category filter', scoped.results.every((p) => p.category === 'Meat & Poultry'));
+  check('a category filter can exclude everything', searchCatalog('chicken', 'Bakery', 5).results.length === 0);
+}
+
 /* ---------------------------------------------------------- opening hours */
 
 section('Opening hours');
