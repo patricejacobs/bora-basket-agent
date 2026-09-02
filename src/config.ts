@@ -61,6 +61,22 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
 
+  /**
+   * Voice notes. Claude reads images and documents but not audio, so a voice
+   * note must be transcribed first — the one external service in this project
+   * besides Anthropic. Leave the provider as "none" and voice notes get a
+   * polite "please type that" instead.
+   */
+  transcription: {
+    provider: (['openai', 'deepgram'] as const).find(
+      (p) => p === str('TRANSCRIBE_PROVIDER').toLowerCase(),
+    ) ?? ('none' as const),
+    openaiKey: str('OPENAI_API_KEY'),
+    deepgramKey: str('DEEPGRAM_API_KEY'),
+    /** Blank uses each provider's sensible default. */
+    model: str('TRANSCRIBE_MODEL'),
+  },
+
   anthropic: {
     apiKey: str('ANTHROPIC_API_KEY'),
     model: 'claude-opus-5',

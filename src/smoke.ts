@@ -360,6 +360,31 @@ section('WhatsApp webhook');
   check('an uncaptioned photo is not dropped', noCaption.length === 1, JSON.stringify(noCaption));
   check('uncaptioned photo still has its media id', noCaption[0]?.imageId === 'media-456');
 
+  // A voice note carries no text at all — only a media id.
+  const voice = parseWebhook({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messages: [
+                {
+                  from: '592',
+                  id: 'wamid.voice',
+                  type: 'audio',
+                  audio: { id: 'audio-789', mime_type: 'audio/ogg; codecs=opus', voice: true },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  check('parses a voice note', voice.length === 1, JSON.stringify(voice));
+  check('carries the audio id', voice[0]?.audioId === 'audio-789', voice[0]?.audioId);
+  check('a voice note is not dropped for having no text', voice[0]?.text === '', JSON.stringify(voice[0]?.text));
+
   check('claims a new event id', repo.claimEvent('wamid.unique') === true);
   check('rejects a redelivered event id', repo.claimEvent('wamid.unique') === false);
 

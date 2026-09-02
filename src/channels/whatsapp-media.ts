@@ -11,6 +11,9 @@ import { config } from '../config.ts';
 /** Formats Claude can read. WhatsApp photos are jpeg in practice. */
 const READABLE = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
+/** WhatsApp voice notes are audio/ogg; codecs=opus. */
+const HEARABLE = new Set(['audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/amr', 'audio/aac', 'audio/wav', 'audio/webm']);
+
 /**
  * Beyond this we ask the customer to retake it rather than spend the tokens.
  * WhatsApp caps images at 5MB; base64 inflates by about a third on top.
@@ -18,6 +21,8 @@ const READABLE = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const MAX_BYTES = 4 * 1024 * 1024;
 
 export type DownloadedMedia = { base64: string; mediaType: string };
+/** Voice notes are handed to a transcription service as bytes, not base64. */
+export type DownloadedBytes = { bytes: Buffer; mediaType: string };
 
 export type MediaFailure =
   | 'not-configured'
@@ -30,13 +35,38 @@ export type MediaResult =
   | { ok: true; media: DownloadedMedia }
   | { ok: false; reason: MediaFailure };
 
+/** Fetches audio for transcription. Same two-step dance, different accept list. */
+export async function downloadAudio(
+  mediaId: string,
+): Promise<{ ok: true; audio: DownloadedBytes } | { ok: false; reason: MediaFailure }> {
+  const raw = await fetchMedia(mediaId, HEARABLE);
+  if (!raw.ok) return raw;
+  return { ok: true, audio: { bytes: raw.bytes, mediaType: raw.mediaType } };
+}
+
 export async function downloadMedia(mediaId: string): Promise<MediaResult> {
+  const raw = await fetchMedia(mediaId, READABLE);
+  if (!raw.ok) return raw;
+  return {
+    ok: true,
+    media: { base64: raw.bytes.toString('base64'), mediaType: raw.mediaType },
+  };
+}
+
+/**
+ * The two authenticated steps every media fetch needs: resolve the id to a
+ * short-lived URL, then fetch that URL. Both require the access token; the URL
+ * alone is useless.
+ */
+async function fetchMedia(
+  mediaId: string,
+  accept: Set<string>,
+): Promise<{ ok: true; bytes: Buffer; mediaType: string } | { ok: false; reason: MediaFailure }> {
   const { accessToken, graphVersion } = config.whatsapp;
   if (!accessToken) return { ok: false, reason: 'not-configured' };
 
   const auth = { Authorization: `Bearer ${accessToken}` };
 
-  // Step 1: the id resolves to a temporary, token-gated download URL.
   const lookup = await fetch(`https://graph.facebook.com/${graphVersion}/${mediaId}`, {
     headers: auth,
   });
@@ -49,15 +79,12 @@ export async function downloadMedia(mediaId: string): Promise<MediaResult> {
   const mediaType = (meta.mime_type ?? '').split(';')[0]?.trim() ?? '';
 
   if (!meta.url) return { ok: false, reason: 'lookup-failed' };
-  if (!READABLE.has(mediaType)) {
-    console.warn(`[media] ${mediaId} is ${mediaType || 'an unknown type'}, which cannot be read`);
+  if (!accept.has(mediaType)) {
+    console.warn(`[media] ${mediaId} is ${mediaType || 'an unknown type'}, which cannot be used here`);
     return { ok: false, reason: 'unsupported-type' };
   }
-  if ((meta.file_size ?? 0) > MAX_BYTES) {
-    return { ok: false, reason: 'too-large' };
-  }
+  if ((meta.file_size ?? 0) > MAX_BYTES) return { ok: false, reason: 'too-large' };
 
-  // Step 2: the bytes. This URL also requires the token.
   const download = await fetch(meta.url, { headers: auth });
   if (!download.ok) {
     console.error(`[media] download failed ${download.status}`);
@@ -69,7 +96,7 @@ export async function downloadMedia(mediaId: string): Promise<MediaResult> {
   if (bytes.byteLength > MAX_BYTES) return { ok: false, reason: 'too-large' };
 
   console.log(`[media] read ${mediaType}, ${Math.round(bytes.byteLength / 1024)}KB`);
-  return { ok: true, media: { base64: bytes.toString('base64'), mediaType } };
+  return { ok: true, bytes, mediaType };
 }
 
 /** What to tell the customer when a photo could not be read. */

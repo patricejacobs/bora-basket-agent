@@ -4,7 +4,8 @@ import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
 import { handleIncoming } from '../conversation.ts';
 import { deliver, markReadAndTyping } from './whatsapp-send.ts';
-import { downloadMedia, mediaFailureMessage } from './whatsapp-media.ts';
+import { downloadMedia, downloadAudio, mediaFailureMessage } from './whatsapp-media.ts';
+import { transcribeAudio, transcriptionAvailable } from '../transcribe.ts';
 
 // Re-exported so the webhook module stays the single import point for callers.
 export { chunkText, deliver, sendText, sendButtons, sendTemplate } from './whatsapp-send.ts';
@@ -110,6 +111,8 @@ type ParsedInbound = {
   profileName?: string;
   /** Set when the customer sent a photo; the bytes are fetched separately. */
   imageId?: string;
+  /** Set when the customer sent a voice note. */
+  audioId?: string;
 };
 
 /** Pulls the customer-authored messages out of a webhook payload, ignoring status events. */
@@ -138,6 +141,7 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
 
         let text = '';
         let imageId: string | undefined;
+        let audioId: string | undefined;
 
         switch (m.type) {
           case 'text':
@@ -155,18 +159,23 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
             imageId = m.image?.id;
             text = m.image?.caption ?? '';
             break;
+          case 'audio':
+            // A spoken shopping list. Transcribed before the agent runs.
+            audioId = m.audio?.id;
+            break;
           default:
-            // Voice notes, locations and the rest: acknowledge rather than ignore.
+            // Locations, contacts, documents and the rest: acknowledge rather than ignore.
             text = `[The customer sent a ${m.type} message, which you cannot open. Ask them to type what they need.]`;
         }
 
-        if (text || imageId) {
+        if (text || imageId || audioId) {
           out.push({
             phone,
             text,
             messageId,
             ...(profileName ? { profileName } : {}),
             ...(imageId ? { imageId } : {}),
+            ...(audioId ? { audioId } : {}),
           });
         }
       }
@@ -222,6 +231,35 @@ whatsappRouter.post('/webhook', (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Turns a voice note into the words the agent will act on.
+ *
+ * The transcript is marked as spoken rather than typed, because that changes how
+ * it should be treated: speech recognition mishears product names, and a
+ * misheard item silently added to a cart is worse than one confirmed aloud.
+ */
+async function transcribeVoiceNote(audioId: string): Promise<string> {
+  if (!transcriptionAvailable()) {
+    return '[The customer sent a voice note, but this shop cannot listen to recordings. Apologise briefly and ask them to type or photograph their list.]';
+  }
+
+  const downloaded = await downloadAudio(audioId);
+  if (!downloaded.ok) {
+    console.warn(`[voice] could not fetch ${audioId}: ${downloaded.reason}`);
+    return '[The customer sent a voice note that could not be opened. Apologise briefly and ask them to send it again or type the list.]';
+  }
+
+  const result = await transcribeAudio(downloaded.audio.bytes, downloaded.audio.mediaType);
+  if (!result.ok) {
+    console.error(`[voice] transcription failed: ${result.reason}`);
+    return '[The customer sent a voice note that could not be understood. Apologise briefly and ask them to type the list or send it again.]';
+  }
+
+  const { text, language } = result.transcription;
+  console.log(`[voice] transcribed ${language ?? 'unknown language'}: ${text.slice(0, 80)}`);
+  return `[Voice note, transcribed${language ? ` from ${language}` : ''}] ${text}`;
+}
+
 async function processInbound(msg: ParsedInbound): Promise<void> {
   try {
     await markReadAndTyping(msg.messageId);
@@ -238,6 +276,10 @@ async function processInbound(msg: ParsedInbound): Promise<void> {
       } else {
         text = mediaFailureMessage(result.reason);
       }
+    }
+
+    if (msg.audioId) {
+      text = await transcribeVoiceNote(msg.audioId);
     }
 
     const outbound = await handleIncoming({

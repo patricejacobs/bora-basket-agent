@@ -63,6 +63,12 @@ services:
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false
+      # Voice-note transcription. Claude cannot hear audio, so this is the
+      # one external service besides Anthropic. Unset = voice notes decline.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
 
       # --- store settings: safe to keep in version control ---------------
       - key: STAFF_NUMBERS
