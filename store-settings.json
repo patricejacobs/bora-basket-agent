@@ -1,0 +1,35 @@
+{
+  "_comment": "Edit this file, then run: npm run settings:apply",
+  "_warning": "Every value here is quoted to real customers as fact. Check each one.",
+
+  "storeName": "Bora Basket",
+  "hours": "Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm",
+  "timezone": "America/Guyana",
+  "deliveryAreas": "Georgetown, East Bank Demerara, East Coast Demerara",
+
+  "_money": "Plain numbers in your display currency, not minor units. 500 means $500.",
+  "deliveryFee": 500,
+  "freeDeliveryOver": 10000,
+  "minOrderTotal": 1000,
+
+  "currency": {
+    "code": "GYD",
+    "symbol": "$",
+    "decimals": 0
+  },
+
+  "_staff": "Who receives new-order alerts and can drive order status. E.164 digits, no '+'. Empty means nobody is told about orders.",
+  "staffNumbers": [],
+
+  "_restricted": "SKUs excluded from the catalogue. WhatsApp's Commerce Policy prohibits alcohol and tobacco; selling them can cost you the number.",
+  "restrictedSkus": ["BEV-001"],
+
+  "_templates": "Approved WhatsApp template names, used only outside the 24-hour service window. Leave empty until they are approved.",
+  "templates": {
+    "onTheWay": "",
+    "delivered": "",
+    "language": "en"
+  },
+
+  "agentEffort": "low"
+}

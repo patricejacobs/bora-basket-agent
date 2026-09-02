@@ -96,7 +96,12 @@ const normalizeHeader = (h: string): string =>
 
 export type ImportResult = { imported: number; skipped: { line: number; reason: string }[] };
 
-export function importCsvText(text: string, deactivateMissing = false): ImportResult {
+export function importCsvText(
+  text: string,
+  deactivateMissing = false,
+  excludeSkus: string[] = [],
+): ImportResult {
+  const excluded = new Set(excludeSkus.map((s) => s.trim().toLowerCase()).filter(Boolean));
   const rows = parseCsv(text);
   const headerRow = rows[0];
   if (!headerRow) throw new Error('CSV file is empty.');
@@ -133,6 +138,12 @@ export function importCsvText(text: string, deactivateMissing = false): ImportRe
       }
       if (seenSkus.has(sku.toLowerCase())) {
         skipped.push({ line: r + 1, reason: `duplicate sku "${sku}"` });
+        continue;
+      }
+      // Restricted goods (alcohol, tobacco) must not reach the catalogue at all:
+      // WhatsApp's Commerce Policy prohibits selling them over the channel.
+      if (excluded.has(sku.toLowerCase())) {
+        skipped.push({ line: r + 1, reason: `excluded sku "${sku}" (restricted)` });
         continue;
       }
       const price = toMinorUnits(priceRaw);
@@ -185,16 +196,29 @@ const isCli = process.argv[1] && path.resolve(process.argv[1]).endsWith('import-
 if (isCli) {
   const args = process.argv.slice(2);
   const deactivateMissing = args.includes('--deactivate-missing');
-  const file = args.find((a) => !a.startsWith('--')) ?? './data/sample-products.csv';
+
+  // --exclude-sku BEV-001 --exclude-sku TOB-002
+  const excludeSkus: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--exclude-sku' && args[i + 1]) {
+      excludeSkus.push(args[i + 1] as string);
+      i++;
+    }
+  }
+
+  const positional = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--exclude-sku');
+  const file = positional[0] ?? './data/sample-products.csv';
   const resolved = path.resolve(file);
 
   if (!fs.existsSync(resolved)) {
     console.error(`No such file: ${resolved}`);
-    console.error('Usage: npm run import:catalog -- ./path/to/products.csv [--deactivate-missing]');
+    console.error(
+      'Usage: npm run import:catalog -- ./path/to/products.csv [--deactivate-missing] [--exclude-sku SKU]...',
+    );
     process.exit(1);
   }
 
-  const result = importCsvText(fs.readFileSync(resolved, 'utf8'), deactivateMissing);
+  const result = importCsvText(fs.readFileSync(resolved, 'utf8'), deactivateMissing, excludeSkus);
   console.log(`Imported ${result.imported} product(s) from ${path.basename(resolved)}.`);
   if (result.skipped.length > 0) {
     console.log(`Skipped ${result.skipped.length} row(s):`);

@@ -66,19 +66,19 @@ services:
       - key: TEMPLATE_ORDER_DELIVERED
         value: ""
       - key: TEMPLATE_LANGUAGE
-        value: en
+        value: "en"
       - key: STORE_TIMEZONE
-        value: America/Guyana
+        value: "America/Guyana"
       - key: AGENT_EFFORT
-        value: low
+        value: "low"
       - key: WHATSAPP_GRAPH_VERSION
         value: v23.0
       - key: STORE_NAME
-        value: Bora Basket
+        value: "Bora Basket"
       - key: STORE_HOURS
-        value: Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm
+        value: "Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm"
       - key: DELIVERY_AREAS
-        value: Georgetown, East Bank Demerara, East Coast Demerara
+        value: "Georgetown, East Bank Demerara, East Coast Demerara"
       - key: DELIVERY_FEE
         value: "500"
       - key: FREE_DELIVERY_OVER
@@ -86,7 +86,7 @@ services:
       - key: MIN_ORDER_TOTAL
         value: "1000"
       - key: CURRENCY_CODE
-        value: GYD
+        value: "GYD"
       - key: CURRENCY_SYMBOL
         value: "$"
       - key: CURRENCY_DECIMALS
