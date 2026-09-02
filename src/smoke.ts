@@ -134,6 +134,59 @@ section('Cart operations');
   check('quantity 0 removes the line', removed.cart?.items?.length === 1);
 }
 
+/* ------------------------------------------------------------ bulk actions */
+
+section('Bulk list handling');
+{
+  // Its own customer: this section builds and clears a cart, and the checkout
+  // section below depends on the cart PHONE is carrying.
+  const bulkCtx: ToolContext = { phone: '5920007777', outbound: [] };
+  const call = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, bulkCtx));
+
+  const many = call('search_many', {
+    queries: ['rice', 'chicken', 'eggs', 'milk', 'zzznothing'],
+  });
+  check('searches every query in one call', many.searches?.length === 5, JSON.stringify(many.searches?.length));
+  check('keeps queries in order', many.searches?.[0]?.query === 'rice', many.searches?.[0]?.query);
+  check('finds results per query', many.searches?.[1]?.results?.length > 0);
+  check(
+    'reports a miss without substituting',
+    many.searches?.[4]?.results?.length === 0 && !!many.searches?.[4]?.note,
+    JSON.stringify(many.searches?.[4]),
+  );
+  check('empty queries rejected', typeof call('search_many', { queries: [] }).error === 'string');
+
+  const bulk = call('add_items_to_cart', {
+    items: [
+      { sku: 'RIC-002', quantity: 1 },
+      { sku: 'MET-001', quantity: 1 },
+      { sku: 'DAI-005', quantity: 1 },
+    ],
+  });
+  check('adds several items in one call', bulk.added?.length === 3, JSON.stringify(bulk.added));
+  check('returns the cart once', bulk.cart?.items?.length === 3);
+
+  // A bad line must not lose the good ones — a photographed list will contain
+  // items the shop does not stock, and dropping the whole cart would be worse.
+  const partial = call('add_items_to_cart', {
+    items: [
+      { sku: 'BRD-001', quantity: 1 },
+      { sku: 'NOPE-404', quantity: 1 },
+      { sku: 'FSH-002', quantity: 99 },
+    ],
+  });
+  check('adds the good lines', partial.added?.length === 1, JSON.stringify(partial.added));
+  check('reports the bad lines separately', partial.could_not_add?.length === 2, JSON.stringify(partial.could_not_add));
+  check(
+    'says why each failed',
+    partial.could_not_add?.every((f: any) => typeof f.reason === 'string' && f.reason.length > 0),
+  );
+  check('cart survived the partial failure', partial.cart?.items?.length === 4);
+
+  check('rejects an empty list', typeof call('add_items_to_cart', { items: [] }).error === 'string');
+}
+
 /* ---------------------------------------------------------------- checkout */
 
 section('Checkout');

@@ -46,6 +46,23 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'search_many',
+    description:
+      'Search for several different items in one call. Use this whenever the customer gives you a list — typed or photographed — instead of calling search_products once per item. One call is far faster for the customer than ten.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        queries: {
+          type: 'array',
+          description: 'One search phrase per item on the list, in the order they appear.',
+          items: { type: 'string' },
+        },
+      },
+      required: ['queries'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_product',
     description: 'Fetch one product by its exact SKU, including live price and stock.',
     input_schema: {
@@ -72,6 +89,31 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         quantity: { type: 'integer', description: 'How many units to add (1-99).' },
       },
       required: ['sku', 'quantity'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_items_to_cart',
+    description:
+      'Add several products to the cart in one call. Use this after search_many rather than calling add_to_cart repeatedly. Items that cannot be added are reported individually, so a single bad line does not lose the rest.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          description: 'The products to add.',
+          items: {
+            type: 'object',
+            properties: {
+              sku: { type: 'string' },
+              quantity: { type: 'integer', description: 'How many units (1-99).' },
+            },
+            required: ['sku', 'quantity'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['items'],
       additionalProperties: false,
     },
   },
@@ -253,6 +295,67 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         });
       }
       return ok({ results: results.map(productView) });
+    }
+
+    case 'search_many': {
+      const raw = Array.isArray(input.queries) ? input.queries : [];
+      const queries = raw.map(asString).filter(Boolean).slice(0, 20);
+      if (queries.length === 0) return fail('queries must contain at least one search phrase.');
+
+      // Fewer results each than a single search: a list needs breadth, not depth,
+      // and a wall of options per line is unreadable on a phone.
+      return ok({
+        searches: queries.map((query) => {
+          const results = repo.searchProducts(query, undefined, 3);
+          return results.length > 0
+            ? { query, results: results.map(productView) }
+            : { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
+        }),
+      });
+    }
+
+    case 'add_items_to_cart': {
+      const raw = Array.isArray(input.items) ? input.items : [];
+      if (raw.length === 0) return fail('items must contain at least one product.');
+      if (raw.length > 30) return fail('Too many items at once. Add up to 30 and repeat.');
+
+      const added: { sku: string; name: string; quantity: number }[] = [];
+      const failed: { sku: string; reason: string }[] = [];
+
+      for (const entry of raw) {
+        const obj = (entry ?? {}) as Record<string, unknown>;
+        const sku = asString(obj.sku);
+        const qty = asInt(obj.quantity);
+
+        if (!sku || qty === null || qty < 1 || qty > 99) {
+          failed.push({ sku: sku || '(missing)', reason: 'needs a sku and a quantity of 1-99' });
+          continue;
+        }
+        const product = repo.getProductBySku(sku);
+        if (!product) {
+          failed.push({ sku, reason: 'no such product' });
+          continue;
+        }
+        const target = repo.getCartQty(ctx.phone, product.id) + qty;
+        if (product.stock <= 0) {
+          failed.push({ sku, reason: `${product.name} is out of stock` });
+          continue;
+        }
+        if (target > product.stock) {
+          failed.push({ sku, reason: `only ${product.stock} x ${product.name} in stock` });
+          continue;
+        }
+        repo.setCartQty(ctx.phone, product.id, Math.min(target, 99));
+        added.push({ sku: product.sku, name: product.name, quantity: Math.min(target, 99) });
+      }
+
+      // A partial result is still useful: report what failed so the customer can
+      // be told about those lines specifically, rather than losing the whole list.
+      return ok({
+        added,
+        ...(failed.length > 0 ? { could_not_add: failed } : {}),
+        cart: cartView(ctx.phone),
+      });
     }
 
     case 'get_product': {
