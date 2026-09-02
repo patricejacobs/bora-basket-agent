@@ -21,7 +21,7 @@ export function handleIncoming(msg: IncomingMessage): Promise<OutboundMessage[]>
 }
 
 async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> {
-  repo.logMessage(msg.phone, 'in', msg.channel, msg.text);
+  repo.logMessage(msg.phone, 'in', msg.channel, msg.image ? `[photo] ${msg.text}` : msg.text);
 
   // Staff share the shop number but get the dispatch queue, not the shopping agent.
   if (isStaff(msg.phone)) {
@@ -51,7 +51,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
 
   let outbound: OutboundMessage[];
   try {
-    const result = await runAgent(msg.phone, text);
+    const result = await runAgent(msg.phone, text, msg.image);
     outbound = result.outbound;
   } catch (err) {
     outbound = [{ kind: 'text', text: friendlyErrorMessage(err) }];

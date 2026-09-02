@@ -70,7 +70,9 @@ app.disable('x-powered-by');
 // the exact bytes Meta signed — a re-serialised object would not match.
 app.use(
   express.json({
-    limit: '1mb',
+    // A base64 photo of a shopping list runs to several megabytes; the default
+    // 100kb, and even 1mb, silently rejects them.
+    limit: '8mb',
     verify: (req, _res, buf) => {
       (req as Request & { rawBody?: Buffer }).rawBody = buf;
     },

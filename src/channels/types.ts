@@ -6,6 +6,9 @@ export type OutboundMessage =
   | { kind: 'text'; text: string }
   | { kind: 'buttons'; text: string; buttons: { id: string; title: string }[] };
 
+/** A photo the customer sent, already fetched and base64-encoded. */
+export type IncomingImage = { base64: string; mediaType: string };
+
 export type IncomingMessage = {
   /** E.164 digits without '+', e.g. "5926001234". The stable customer key. */
   phone: string;
@@ -13,4 +16,6 @@ export type IncomingMessage = {
   channel: 'whatsapp' | 'simulator';
   /** Display name from the channel, if it offers one. */
   profileName?: string;
+  /** A photographed shopping list, if one came with the message. */
+  image?: IncomingImage;
 };

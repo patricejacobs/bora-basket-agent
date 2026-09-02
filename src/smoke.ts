@@ -264,6 +264,49 @@ section('WhatsApp webhook');
   check('ignores delivery-status events', statusOnly.length === 0);
   check('survives a malformed payload', parseWebhook({ nonsense: true }).length === 0);
 
+  // A photographed shopping list arrives as a media id, not bytes.
+  const withPhoto = parseWebhook({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messages: [
+                {
+                  from: '592',
+                  id: 'wamid.img',
+                  type: 'image',
+                  image: { id: 'media-123', mime_type: 'image/jpeg', caption: 'my list' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  check('parses an image message', withPhoto.length === 1, JSON.stringify(withPhoto));
+  check('carries the media id', withPhoto[0]?.imageId === 'media-123', withPhoto[0]?.imageId);
+  check('keeps the caption as the text', withPhoto[0]?.text === 'my list', withPhoto[0]?.text);
+
+  // A photo with no caption has no text at all; it must still be delivered, or
+  // a customer who just sends a picture gets silence.
+  const noCaption = parseWebhook({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messages: [{ from: '592', id: 'wamid.img2', type: 'image', image: { id: 'media-456' } }],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  check('an uncaptioned photo is not dropped', noCaption.length === 1, JSON.stringify(noCaption));
+  check('uncaptioned photo still has its media id', noCaption[0]?.imageId === 'media-456');
+
   check('claims a new event id', repo.claimEvent('wamid.unique') === true);
   check('rejects a redelivered event id', repo.claimEvent('wamid.unique') === false);
 

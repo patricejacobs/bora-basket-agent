@@ -4,6 +4,7 @@ import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
 import { handleIncoming } from '../conversation.ts';
 import { deliver, markReadAndTyping } from './whatsapp-send.ts';
+import { downloadMedia, mediaFailureMessage } from './whatsapp-media.ts';
 
 // Re-exported so the webhook module stays the single import point for callers.
 export { chunkText, deliver, sendText, sendButtons, sendTemplate } from './whatsapp-send.ts';
@@ -102,7 +103,14 @@ function rejectionCategory(reason: string): string {
   return 'unknown';
 }
 
-type ParsedInbound = { phone: string; text: string; messageId: string; profileName?: string };
+type ParsedInbound = {
+  phone: string;
+  text: string;
+  messageId: string;
+  profileName?: string;
+  /** Set when the customer sent a photo; the bytes are fetched separately. */
+  imageId?: string;
+};
 
 /** Pulls the customer-authored messages out of a webhook payload, ignoring status events. */
 export function parseWebhook(body: unknown): ParsedInbound[] {
@@ -129,6 +137,8 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
         if (!phone || !messageId) continue;
 
         let text = '';
+        let imageId: string | undefined;
+
         switch (m.type) {
           case 'text':
             text = m.text?.body ?? '';
@@ -139,12 +149,26 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
           case 'button':
             text = m.button?.text ?? '';
             break;
+          case 'image':
+            // A photographed shopping list. The caption, if any, is the customer's
+            // own words about it; the bytes are fetched before the agent runs.
+            imageId = m.image?.id;
+            text = m.image?.caption ?? '';
+            break;
           default:
-            // Voice notes, images, locations and the rest: acknowledge rather than ignore.
+            // Voice notes, locations and the rest: acknowledge rather than ignore.
             text = `[The customer sent a ${m.type} message, which you cannot open. Ask them to type what they need.]`;
         }
 
-        if (text) out.push({ phone, text, messageId, ...(profileName ? { profileName } : {}) });
+        if (text || imageId) {
+          out.push({
+            phone,
+            text,
+            messageId,
+            ...(profileName ? { profileName } : {}),
+            ...(imageId ? { imageId } : {}),
+          });
+        }
       }
     }
   }
@@ -201,11 +225,27 @@ whatsappRouter.post('/webhook', (req: Request, res: Response) => {
 async function processInbound(msg: ParsedInbound): Promise<void> {
   try {
     await markReadAndTyping(msg.messageId);
+
+    let text = msg.text;
+    let image: { base64: string; mediaType: string } | undefined;
+
+    if (msg.imageId) {
+      const result = await downloadMedia(msg.imageId);
+      if (result.ok) {
+        image = result.media;
+        // A photo with no caption still needs a prompt, or the turn has no words.
+        if (!text) text = 'I sent a photo of my shopping list.';
+      } else {
+        text = mediaFailureMessage(result.reason);
+      }
+    }
+
     const outbound = await handleIncoming({
       phone: msg.phone,
-      text: msg.text,
+      text,
       channel: 'whatsapp',
       ...(msg.profileName ? { profileName: msg.profileName } : {}),
+      ...(image ? { image } : {}),
     });
     await deliver(msg.phone, outbound);
   } catch (err) {

@@ -73,6 +73,13 @@
     border-radius: 20px; padding: 10px 20px; cursor: pointer;
   }
   form button:disabled { opacity: .5; cursor: default; }
+  #attach {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 20px; padding: 10px 14px; font-size: 16px; cursor: pointer;
+  }
+  #attach:hover { color: var(--text); border-color: var(--muted); }
+  #attach.armed { color: var(--accent); border-color: var(--accent); }
+  .bubble img { max-width: 240px; border-radius: 6px; display: block; margin-bottom: 6px; }
 
   aside {
     width: 300px; flex: 0 0 300px; background: var(--panel); border-left: 1px solid var(--border);
@@ -106,6 +113,8 @@
     </div>
 
     <form id="composer">
+      <input type="file" id="file" accept="image/*" hidden />
+      <button id="attach" type="button" title="Attach a photo of a shopping list">📎</button>
       <input id="text" placeholder="Type a message" autocomplete="off" autofocus />
       <button id="send" type="submit">Send</button>
     </form>
@@ -195,10 +204,20 @@ function renderState(state) {
 
 let busy = false;
 async function send(text) {
-  if (busy || !text.trim()) return;
+  if (busy || (!text.trim() && !pending)) return;
   busy = true;
   sendBtn.disabled = true;
-  bubble('out', waFormat(text));
+
+  const attached = pending;
+  pending = null;
+  attachBtn.classList.remove('armed');
+  attachBtn.title = 'Attach a photo of a shopping list';
+  input.placeholder = 'Type a message';
+
+  const preview = attached
+    ? '<img src="data:' + attached.mediaType + ';base64,' + attached.base64 + '" alt="attached photo">'
+    : '';
+  bubble('out', preview + waFormat(text));
 
   const typing = document.createElement('div');
   typing.className = 'meta typing';
@@ -210,7 +229,11 @@ async function send(text) {
     const res = await fetch('./api/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: phoneEl.value, text }),
+      body: JSON.stringify({
+        phone: phoneEl.value,
+        text,
+        ...(attached ? { image: { base64: attached.base64, mediaType: attached.mediaType } } : {}),
+      }),
     });
     const data = await res.json();
     typing.remove();
@@ -228,6 +251,26 @@ async function send(text) {
     input.focus();
   }
 }
+
+// Attaching a photo of a handwritten list — the same path WhatsApp images take.
+const fileEl = document.getElementById('file');
+const attachBtn = document.getElementById('attach');
+let pending = null;
+
+attachBtn.onclick = () => fileEl.click();
+fileEl.onchange = () => {
+  const f = fileEl.files && fileEl.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    pending = { base64: String(reader.result).split(',')[1], mediaType: f.type, name: f.name };
+    attachBtn.classList.add('armed');
+    attachBtn.title = 'Attached: ' + f.name;
+    input.placeholder = f.name + ' attached — add a note or just send';
+    input.focus();
+  };
+  reader.readAsDataURL(f);
+};
 
 form.onsubmit = (e) => { e.preventDefault(); const t = input.value; input.value = ''; send(t); };
 

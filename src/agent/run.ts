@@ -5,7 +5,7 @@ import { SYSTEM_PROMPT } from './system-prompt.ts';
 import { TOOL_DEFS, executeTool, type ToolContext } from './tools.ts';
 import { buildConversationContext } from './context.ts';
 import { splitReply } from './pacing.ts';
-import type { OutboundMessage } from '../channels/types.ts';
+import type { OutboundMessage, IncomingImage } from '../channels/types.ts';
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey || undefined });
 
@@ -31,11 +31,36 @@ function trimHistory(history: Anthropic.MessageParam[]): Anthropic.MessageParam[
   let start = history.length - MAX_HISTORY_MESSAGES;
   while (start < history.length) {
     const msg = history[start];
-    if (msg && msg.role === 'user' && typeof msg.content === 'string') break;
+    // A customer turn is a valid cut point; a tool_result turn is not, because
+    // it must stay attached to the assistant message that requested it. Photo
+    // turns carry array content, so testing for a plain string is not enough.
+    const isCustomerTurn =
+      msg?.role === 'user' &&
+      (typeof msg.content === 'string' || !msg.content.some((b) => b.type === 'tool_result'));
+    if (isCustomerTurn) break;
     start++;
   }
   // No clean cut point found — safest is to start over rather than send a broken transcript.
   return start >= history.length ? [] : history.slice(start);
+}
+
+/**
+ * Narrows a MIME type to what the API accepts. The channel already filters, but
+ * this keeps the guarantee at the boundary where it is actually used, rather
+ * than asserting a type we merely hope is right.
+ */
+type ClaudeMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+function toClaudeMediaType(mime: string): ClaudeMediaType {
+  switch (mime) {
+    case 'image/png':
+      return 'image/png';
+    case 'image/gif':
+      return 'image/gif';
+    case 'image/webp':
+      return 'image/webp';
+    default:
+      return 'image/jpeg';
+  }
 }
 
 function normalize(s: string): string {
@@ -55,6 +80,27 @@ function sanitizeBlocks(
   const kept = content.filter((b) => b.type !== 'text' || b.text.trim().length > 0);
   if (kept.length > 0) return kept as unknown as Anthropic.ContentBlockParam[];
   return [{ type: 'text', text: fallbackText.trim() || '(sent without text)' }];
+}
+
+/**
+ * Replaces image blocks with a short note before the transcript is stored.
+ *
+ * A photographed list is a megabyte or more of base64. Keeping it in history
+ * would persist it to disk and re-send it on every later turn of the
+ * conversation, which is slow and expensive for no benefit — the model has
+ * already read it, and what matters afterwards is what it found.
+ */
+function stripImages(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  return messages.map((msg) => {
+    if (typeof msg.content === 'string') return msg;
+    if (!msg.content.some((b) => b.type === 'image')) return msg;
+    return {
+      ...msg,
+      content: msg.content.map((b) =>
+        b.type === 'image' ? { type: 'text' as const, text: '[photo of a shopping list]' } : b,
+      ),
+    };
+  });
 }
 
 /** Repairs transcripts written before the sanitiser existed, or by an older build. */
@@ -115,7 +161,11 @@ export type AgentResult = { outbound: OutboundMessage[] };
  * Runs one customer message through the agent loop and returns everything that
  * should be sent back. Persisting conversation state is part of this call.
  */
-export async function runAgent(phone: string, userText: string): Promise<AgentResult> {
+export async function runAgent(
+  phone: string,
+  userText: string,
+  image?: IncomingImage,
+): Promise<AgentResult> {
   const stored = repo.loadHistory(phone);
   const expired =
     stored.updatedAt !== null && Date.now() - new Date(stored.updatedAt).getTime() > SESSION_TTL_MS;
@@ -125,7 +175,27 @@ export async function runAgent(phone: string, userText: string): Promise<AgentRe
     : sanitizeHistory(trimHistory(stored.history as Anthropic.MessageParam[]));
 
   const startingFresh = messages.length === 0;
-  messages.push({ role: 'user', content: userText });
+
+  // The image goes before the text: Claude reads a document more reliably when
+  // it arrives before the question about it.
+  messages.push(
+    image
+      ? {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: toClaudeMediaType(image.mediaType),
+                data: image.base64,
+              },
+            },
+            { type: 'text', text: userText },
+          ],
+        }
+      : { role: 'user', content: userText },
+  );
 
   // On the first turn of a session, tell the agent the time and who this is, so
   // a regular is greeted as one instead of being asked their name again. Sent as
@@ -142,7 +212,7 @@ export async function runAgent(phone: string, userText: string): Promise<AgentRe
     const response = await createMessage(messages);
 
     if (response.stop_reason === 'refusal') {
-      repo.saveHistory(phone, messages);
+      repo.saveHistory(phone, stripImages(messages));
       return {
         outbound: [
           {
@@ -194,7 +264,7 @@ export async function runAgent(phone: string, userText: string): Promise<AgentRe
     messages.push({ role: 'user', content: toolResults });
   }
 
-  repo.saveHistory(phone, trimHistory(messages));
+  repo.saveHistory(phone, stripImages(trimHistory(messages)));
 
   // Assemble the reply. Buttons queued via send_buttons carry their own body text,
   // so drop trailing prose that just restates it.

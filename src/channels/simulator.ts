@@ -47,13 +47,27 @@ simulatorRouter.get('/', (_req: Request, res: Response) => {
 simulatorRouter.post('/api/message', async (req: Request, res: Response) => {
   const phone = String(req.body?.phone ?? '').trim() || '5920000000';
   const text = String(req.body?.text ?? '').trim();
-  if (!text) {
-    res.status(400).json({ error: 'text is required' });
+
+  // An attached photo, base64-encoded by the browser — the same shape the
+  // WhatsApp channel produces after fetching media from Meta.
+  const rawImage = req.body?.image as { base64?: string; mediaType?: string } | undefined;
+  const image =
+    rawImage?.base64 && rawImage?.mediaType
+      ? { base64: rawImage.base64, mediaType: rawImage.mediaType }
+      : undefined;
+
+  if (!text && !image) {
+    res.status(400).json({ error: 'text or image is required' });
     return;
   }
 
   try {
-    const outbound = await handleIncoming({ phone, text, channel: 'simulator' });
+    const outbound = await handleIncoming({
+      phone,
+      text: text || 'I sent a photo of my shopping list.',
+      channel: 'simulator',
+      ...(image ? { image } : {}),
+    });
     res.json({ outbound, state: stateFor(phone) });
   } catch (err) {
     console.error('[simulator] handler failed:', err);
