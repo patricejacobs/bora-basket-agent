@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node --env-file-if-exists=.env src/smoke.ts",
     "check": "node --env-file-if-exists=.env src/check-config.ts",
-    "settings:apply": "node --env-file-if-exists=.env src/apply-settings.ts"
+    "settings:apply": "node --env-file-if-exists=.env src/apply-settings.ts",
+    "eval": "node --env-file-if-exists=.env src/eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
