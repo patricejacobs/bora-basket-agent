@@ -20,7 +20,10 @@ export const CONTEXT_MARKER = '[Shop context';
  * not change mid-conversation and would nag if repeated every turn.
  */
 export function buildTimeContext(): string {
-  const lines = [`${CONTEXT_MARKER} — the customer cannot see this]`, `Local time: ${localTime()}.`];
+  const lines = [
+    `${CONTEXT_MARKER} — the customer cannot see this]`,
+    `Local time: ${localTime()} — ${partOfDay()}.`,
+  ];
   const closing = minutesUntilClosing();
   if (closing !== null && closing <= 60) {
     lines.push(`The shop closes in about ${closing} minutes — mention it if they are still browsing.`);
@@ -73,6 +76,24 @@ function localTime(): string {
     minute: '2-digit',
     hour12: true,
   }).format(new Date());
+}
+
+/**
+ * Which greeting the hour calls for, stated outright.
+ *
+ * The local time alone leaves the model to do the arithmetic, and "8:15 pm"
+ * occasionally came back as "Good afternoon". Naming it removes the guess.
+ */
+function partOfDay(): string {
+  const hour = Number(
+    formatter({ hour: '2-digit', hour12: false }).formatToParts(new Date()).find((p) => p.type === 'hour')
+      ?.value,
+  );
+  if (!Number.isFinite(hour)) return 'greet without naming the time of day';
+  // Some ICU builds render midnight as 24 rather than 00.
+  if (hour < 12 || hour === 24) return 'greet with "Good morning"';
+  if (hour < 17) return 'greet with "Good afternoon"';
+  return 'greet with "Good evening"';
 }
 
 /** "yesterday", "3 days ago", "on 14 August" — how a person would say it. */

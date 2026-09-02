@@ -615,9 +615,36 @@ section('Guyana clock');
     check(`UTC and Guyana share a date right now (${guyanaDay})`, true);
   }
 
+  // The greeting is named outright rather than left to the model to infer, so
+  // "Good afternoon" at 8pm cannot happen. It must agree with Guyana's hour.
+  const guyanaHour = Number(
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Guyana', hour: '2-digit', hour12: false })
+      .format(new Date())
+      .replace(/\D/g, ''),
+  );
+  const expected =
+    guyanaHour < 12 || guyanaHour === 24 ? 'Good morning' : guyanaHour < 17 ? 'Good afternoon' : 'Good evening';
+  check(
+    `names the greeting for the hour ("${expected}" at ${guyanaHour}:00)`,
+    ctxText.includes(`greet with "${expected}"`),
+    ctxText.split('\n')[1],
+  );
+
+  const clipped = ['"Morning"', '"Afternoon"', '"Evening"'].filter((g) => ctxText.includes(`with ${g}`));
+  check('never proposes the clipped form', clipped.length === 0, clipped.join(', '));
+
   const full = buildConversationContext('5920009999');
   check('full context also carries the clock', full.includes(guyanaDay));
   check('full context is tagged the same way', full.startsWith(CONTEXT_MARKER));
+  check('full context names the greeting too', full.includes(`greet with "${expected}"`));
+
+  // The rule the model reads has to match the context line, or one overrides
+  // the other in whichever direction the wind blows.
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+  check(
+    'system prompt spells out the full greeting forms',
+    ['Good morning', 'Good afternoon', 'Good evening'].every((g) => SYSTEM_PROMPT.includes(g)),
+  );
 }
 
 /* ----------------------------------------------------------------- pacing */
