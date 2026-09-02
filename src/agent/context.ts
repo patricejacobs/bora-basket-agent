@@ -9,16 +9,29 @@ import * as repo from '../db/repo.ts';
  * message — slower and more expensive on every turn. It goes in the messages
  * array instead, where it costs nothing to vary.
  */
-export function buildConversationContext(phone: string): string {
-  const lines: string[] = ['[Shop context — the customer cannot see this]'];
+export const CONTEXT_MARKER = '[Shop context';
 
-  lines.push(`Local time: ${localTime()}.`);
+/**
+ * The clock, refreshed on every turn.
+ *
+ * A conversation can run for hours, and a time fixed at the first message drifts
+ * — "we close in 40 minutes" is wrong an hour later, and "tomorrow" changes
+ * meaning at midnight. Kept separate from the customer details below, which do
+ * not change mid-conversation and would nag if repeated every turn.
+ */
+export function buildTimeContext(): string {
+  const lines = [`${CONTEXT_MARKER} — the customer cannot see this]`, `Local time: ${localTime()}.`];
   const closing = minutesUntilClosing();
   if (closing !== null && closing <= 60) {
-    lines.push(
-      `The shop closes in about ${closing} minutes — mention it if they are still browsing.`,
-    );
+    lines.push(`The shop closes in about ${closing} minutes — mention it if they are still browsing.`);
+  } else if (closing === null) {
+    lines.push('The shop is closed now — any order will go out when it next opens.');
   }
+  return lines.join('\n');
+}
+
+export function buildConversationContext(phone: string): string {
+  const lines: string[] = [buildTimeContext()];
 
   const customer = repo.getCustomer(phone);
   const orders = repo.recentOrders(phone, 1);

@@ -448,6 +448,53 @@ section('Message chunking');
   check('no words are lost', chunks.join(' ').split(/\s+/).length === long.split(/\s+/).length);
 }
 
+/* ------------------------------------------------------------------ clock */
+
+section('Guyana clock');
+{
+  const { buildTimeContext, buildConversationContext, CONTEXT_MARKER } = await import(
+    './agent/context.ts'
+  );
+
+  const ctxText = buildTimeContext();
+  check('context is tagged so stale copies can be found', ctxText.startsWith(CONTEXT_MARKER));
+
+  // The date must be Guyana's, not the server's and not UTC. These differ for
+  // four hours of every day, and getting it wrong makes "tomorrow" wrong.
+  const guyanaDay = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Guyana',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date());
+  check('reports the Guyana date', ctxText.includes(guyanaDay), `${guyanaDay} not in "${ctxText.split('\n')[1]}"`);
+
+  const guyanaWeekday = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Guyana',
+    weekday: 'long',
+  }).format(new Date());
+  check('reports the Guyana weekday', ctxText.includes(guyanaWeekday), guyanaWeekday);
+
+  // Between 20:00 and midnight in Guyana it is already the next day in UTC.
+  const utcDay = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date());
+  if (utcDay !== guyanaDay) {
+    check(
+      'does NOT report the UTC date when the two differ',
+      !ctxText.includes(utcDay),
+      `UTC says ${utcDay}, Guyana says ${guyanaDay}`,
+    );
+  } else {
+    check(`UTC and Guyana share a date right now (${guyanaDay})`, true);
+  }
+
+  const full = buildConversationContext('5920009999');
+  check('full context also carries the clock', full.includes(guyanaDay));
+  check('full context is tagged the same way', full.startsWith(CONTEXT_MARKER));
+}
+
 /* ----------------------------------------------------------------- pacing */
 
 section('Reply pacing');

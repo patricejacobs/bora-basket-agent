@@ -3,7 +3,7 @@ import { config } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
 import { TOOL_DEFS, executeTool, type ToolContext } from './tools.ts';
-import { buildConversationContext } from './context.ts';
+import { buildConversationContext, buildTimeContext, CONTEXT_MARKER } from './context.ts';
 import { splitReply } from './pacing.ts';
 import type { OutboundMessage, IncomingImage } from '../channels/types.ts';
 
@@ -61,6 +61,20 @@ function toClaudeMediaType(mime: string): ClaudeMediaType {
     default:
       return 'image/jpeg';
   }
+}
+
+/**
+ * Removes context notes from earlier turns.
+ *
+ * Each turn injects the current time. Without this the transcript would fill
+ * with stale timestamps that contradict the newest one, and a model reading back
+ * over them has no way to tell which is now.
+ */
+function dropStaleContext(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  return messages.filter(
+    (m) =>
+      !(m.role === 'system' && typeof m.content === 'string' && m.content.startsWith(CONTEXT_MARKER)),
+  );
 }
 
 function normalize(s: string): string {
@@ -172,7 +186,7 @@ export async function runAgent(
 
   const messages: Anthropic.MessageParam[] = expired
     ? []
-    : sanitizeHistory(trimHistory(stored.history as Anthropic.MessageParam[]));
+    : dropStaleContext(sanitizeHistory(trimHistory(stored.history as Anthropic.MessageParam[])));
 
   const startingFresh = messages.length === 0;
 
@@ -197,13 +211,17 @@ export async function runAgent(
       : { role: 'user', content: userText },
   );
 
-  // On the first turn of a session, tell the agent the time and who this is, so
-  // a regular is greeted as one instead of being asked their name again. Sent as
-  // a mid-conversation system message: it must follow a user turn and be last,
-  // and it keeps the volatile clock out of the cached system prefix.
-  if (startingFresh) {
-    messages.push({ role: 'system', content: buildConversationContext(phone) });
-  }
+  // Every turn gets the current time; the first also gets who this customer is,
+  // so a regular is greeted as one rather than asked their name again.
+  //
+  // Sent as a mid-conversation system message: it must follow a user turn and be
+  // last, and it keeps the volatile clock out of the cached system prefix. The
+  // previous turn's copy is dropped first (see dropStaleContext) so the
+  // transcript never accumulates contradicting timestamps.
+  messages.push({
+    role: 'system',
+    content: startingFresh ? buildConversationContext(phone) : buildTimeContext(),
+  });
 
   const ctx: ToolContext = { phone, outbound: [] };
   let finalText = '';
