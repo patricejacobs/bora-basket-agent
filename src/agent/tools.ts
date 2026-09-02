@@ -4,6 +4,7 @@ import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import { notifyStaffOfNewOrder } from '../notifications.ts';
 import { productImageUrl } from '../product-images.ts';
+import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 
 export type ToolContext = {
   phone: string;
@@ -216,8 +217,18 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'list_recent_orders',
     description:
-      "Look up this customer's recent orders and their status. Useful for 'where is my order' and for reordering the same items.",
-    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+      "Look up this customer's own recent orders, with where each one has got to. Call this whenever they ask about an order — 'where is my order', 'has it left yet', 'did it go through' — and when they want to reorder the same items. Never answer from memory: a status can change between messages.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        order_number: {
+          type: 'string',
+          description:
+            "Optional. A specific order the customer named, e.g. 'ORD-00007' or '7'. Omit to list their recent orders.",
+        },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: 'send_buttons',
@@ -287,6 +298,25 @@ function cartView(phone: string) {
 const ok = (data: unknown): string => JSON.stringify(data);
 const fail = (message: string): string => JSON.stringify({ error: message });
 
+/**
+ * Notes a search that found nothing, for the unmet-demand report.
+ *
+ * Staff are excluded: a dispatcher checking whether something is in stock is not
+ * a customer wanting to buy it, and their probing would drown out the signal.
+ *
+ * Wrapped because this is bookkeeping. A customer asking for peanut butter must
+ * get an answer even if the write fails; losing a row of analytics is nothing,
+ * losing the reply is the whole conversation.
+ */
+function recordMiss(phone: string, query: string): void {
+  if (config.staffNumbers.includes(phone)) return;
+  try {
+    repo.logSearchMiss(phone, query);
+  } catch (err) {
+    console.error('[demand] could not record a search miss:', err);
+  }
+}
+
 const asString = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /**
@@ -324,6 +354,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const category = asString(input.category) || undefined;
       const results = repo.searchProducts(query, category, limit);
       if (results.length === 0) {
+        recordMiss(ctx.phone, query);
         return ok({
           results: [],
           note: `No match for "${query}". Suggest a related item or offer to check a category — do not invent products.`,
@@ -342,9 +373,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       return ok({
         searches: queries.map((query) => {
           const results = repo.searchProducts(query, undefined, 3);
-          return results.length > 0
-            ? { query, results: results.map(productView) }
-            : { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
+          if (results.length > 0) return { query, results: results.map(productView) };
+          recordMiss(ctx.phone, query);
+          return { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
         }),
       });
     }
@@ -596,16 +627,50 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     }
 
     case 'list_recent_orders': {
+      const reference = asString(input.order_number);
+
+      // A named order is looked up scoped to this phone. Order numbers are
+      // sequential and get read aloud, so an unscoped lookup would hand any
+      // customer their neighbour's name, address and shopping.
+      if (reference) {
+        const found = repo.customerOrder(ctx.phone, reference);
+        if (!found) {
+          return ok({
+            orders: [],
+            note: `No order ${reference} on this number. Ask them to check the number, or offer to list their recent orders.`,
+          });
+        }
+        return ok({
+          orders: [
+            {
+              order_number: found.orderNo,
+              status: found.status,
+              status_means: CUSTOMER_STATUS[found.status],
+              placed: describeAge(found.placedAt),
+              total: money(found.total),
+              delivering_to: found.address,
+              items: found.items.map((i) => `${i.qty} x ${i.name}`),
+            },
+          ],
+        });
+      }
+
       const orders = repo.recentOrders(ctx.phone, 5);
       if (orders.length === 0) return ok({ orders: [], note: 'This customer has no previous orders.' });
       return ok({
         orders: orders.map((o) => ({
           order_number: o.orderNo,
           status: o.status,
-          placed_at: o.placedAt,
+          // Spelled out because the raw status is a database word. Left to
+          // itself the model says "your order is pending", which sounds to a
+          // customer like something has gone wrong.
+          status_means: CUSTOMER_STATUS[o.status as repo.OrderStatus] ?? o.status,
+          placed: describeAge(o.placedAt),
+          status_changed: describeAge(o.statusChangedAt),
           total: money(o.total),
           items: o.items.map((i) => `${i.qty} x ${i.name}`),
         })),
+        note: 'Report the status as it is. Do not promise a delivery time — you have no ETA.',
       });
     }
 

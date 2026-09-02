@@ -23,8 +23,42 @@ const HELP = [
   '`7 cancel` — cancel it',
   '`7` — show one order',
   '',
+  '`wanted` — what customers asked for and we did not have',
+  '',
   'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
 ].join('\n');
+
+/**
+ * The unmet-demand report.
+ *
+ * The one thing a shop cannot read off its own till roll: what people came in
+ * for and left without. Ranked by how many different people asked, because that
+ * is the number that justifies buying stock — one person asking six times is a
+ * search problem, six people asking once each is a shelf.
+ */
+function demandReport(days: number): string {
+  const misses = repo.topSearchMisses(days, 15);
+  const window = days === 1 ? 'today' : `the last ${days} days`;
+
+  if (misses.length === 0) {
+    return `Nothing came up empty in ${window}. Either the catalogue is covering it or nobody has asked.`;
+  }
+
+  const lines = misses.map((m) => {
+    const who = m.people === 1 ? '1 person' : `${m.people} people`;
+    const repeats = m.times > m.people ? `, ${m.times} times` : '';
+    return `• *${m.example}* — ${who}${repeats}`;
+  });
+
+  return [
+    `*Asked for, not in stock* — ${window}`,
+    '',
+    ...lines,
+    '',
+    `${repo.searchMissCount(days)} empty search(es) in total.`,
+    'Ranked by how many different people asked.',
+  ].join('\n');
+}
 
 const describe = (o: repo.OrderRecord): string =>
   [
@@ -50,6 +84,14 @@ export async function handleStaffMessage(text: string): Promise<OutboundMessage[
       [`*${open.length} open order(s)*`, ...open.map(describe)].join('\n\n') +
         '\n\nReply e.g. `7 on the way`.',
     );
+  }
+
+  // Before the order-number match below, which would otherwise read the day
+  // count in "wanted 7" as order 7.
+  const demand = trimmed.match(/^(?:wanted|demand|misses|missing)(?:\s+(\d{1,3}))?$/i);
+  if (demand) {
+    const days = Math.min(Math.max(Number(demand[1] ?? 30), 1), 365);
+    return reply(demandReport(days));
   }
 
   const orderRef = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);

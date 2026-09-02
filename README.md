@@ -261,6 +261,7 @@ The same actions can be typed, which is faster once you know them:
 | `7 on the way` | Dispatch it — customer is told |
 | `7 delivered` | Close it — customer is told |
 | `7 cancel` | Cancel it — customer is told |
+| `wanted` | What customers asked for and you did not have |
 | `help` | Print the list |
 
 Order numbers work as `7`, `ORD-7` or `ORD-00007`. Status words are matched loosely, so
@@ -270,6 +271,50 @@ Button titles *are* the typed commands, so a tap and a typed message go through 
 
 These are parsed rather than sent to the model: a dispatcher clearing twenty orders needs
 the same words to do the same thing every time, instantly, and at no per-message cost.
+
+### What customers asked for and you did not have
+
+Every search that comes back empty is recorded. It is the one number a shop cannot read
+off its own till roll — sales tell you what people bought, not what they came in for and
+left without.
+
+Send `wanted` on a staff number:
+
+```
+*Asked for, not in stock* — the last 30 days
+
+• *channa* — 6 people
+• *cassareep* — 4 people, 7 times
+• *quinoa* — 1 person, 9 times
+
+24 empty search(es) in total.
+Ranked by how many different people asked.
+```
+
+`wanted 7` narrows it to the last week.
+
+**Ranked by people, not by count, and the difference matters.** Six people asking once is
+a gap on your shelf — stock it. One person asking nine times is a gap in the *search* —
+they are rephrasing because they cannot find something you already sell.
+
+Phrasings are grouped, so "Channa", "channa?" and "2 lbs channa" are one line. Staff
+searches are excluded — a dispatcher checking stock is not a customer wanting to buy.
+
+Two honest limits. It only catches searches that return *nothing*: if someone asks for
+cassava bread and the catalogue answers with Cassava Chips, that demand is invisible.
+And `/health` reports the count but never the phrases, since those are customer-typed text
+and that URL is public.
+
+### "Where is my order?"
+
+The agent answers this itself, from the live database rather than from memory, because a
+dispatcher may have moved the order along mid-conversation. It reports status in plain
+words — "out with the driver", never "pending" — and **will not give a delivery time**,
+since it has no way to know one and a guess becomes a promise.
+
+A customer can name an order (`ORD-00007`), but the lookup is scoped to the number they
+are messaging from. Order numbers are sequential and get read aloud, so an unscoped
+lookup would hand anyone their neighbour's name and address for the price of a guess.
 
 ### The 24-hour rule
 
@@ -296,8 +341,11 @@ Named plainly, because you will want some of these before going live:
 - **SQLite, single process.** Fine for one store and a few thousand products. Multiple
   instances behind a load balancer would need Postgres and a shared lock for the
   per-customer serialisation.
-- **Text only.** Voice notes and photos get a polite "please type that" reply. Transcribing
-  voice notes would be a genuine win for grocery ordering.
+- **Search is literal.** It matches substrings and keywords, so "tomatos" finds nothing and
+  "cassava bread" finds Cassava Chips. Typo tolerance and synonyms are the next real win —
+  and the `wanted` report tells you which misses to fix first.
+- **Voice notes are built but switched off.** Set `TRANSCRIBE_PROVIDER` and the matching
+  key to turn them on; without it a voice note gets a polite "could you type that".
 
 ---
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
@@ -102,6 +102,9 @@ app.get('/health', (_req: Request, res: Response) => {
     products: productCount(),
     productsWithPhotos: photoCoverage().withPhoto,
     localImageFiles: imageCount(),
+    // A count only. The phrases themselves are customer-typed text and go to
+    // staff over WhatsApp, not onto a public URL.
+    unmetSearches30d: searchMissCount(30),
     whatsappReady: Object.values(whatsapp).every(Boolean),
     config: {
       anthropicKey: Boolean(config.anthropic.apiKey),

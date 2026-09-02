@@ -370,6 +370,7 @@ export function recentOrders(phone: string, limit = 5) {
     total: number;
     status: string;
     created_at: string;
+    updated_at: string;
   }[];
 
   return orders.map((o) => ({
@@ -377,6 +378,9 @@ export function recentOrders(phone: string, limit = 5) {
     total: o.total,
     status: o.status,
     placedAt: o.created_at,
+    // Empty on orders placed before the column existed, and on any order whose
+    // status has never been touched. Callers fall back to placedAt.
+    statusChangedAt: o.updated_at || o.created_at,
     items: db
       .prepare(`SELECT name, qty, unit, line_total FROM order_items WHERE order_id = ?`)
       .all(o.id) as unknown as { name: string; qty: number; unit: string; line_total: number }[],
@@ -433,6 +437,102 @@ export function logMessage(
   db.prepare(
     `INSERT INTO message_log (phone, direction, channel, body, created_at) VALUES (?, ?, ?, ?, ?)`,
   ).run(phone, direction, channel, body, nowIso());
+}
+
+/* ------------------------------------------------------------ unmet demand */
+
+/**
+ * Reduces a search phrase to a grouping key.
+ *
+ * People type "Channa", "channa?", "CHANNA 1kg". Those are one request, and a
+ * report that lists them as three tells you nothing. Quantities and units go
+ * because "2 lbs channa" and "channa" are the same want.
+ */
+const UNITS = /\b(\d+(\.\d+)?)?\s*(kg|kgs|g|gram[s]?|lb[s]?|pound[s]?|ml|l|litre[s]?|liter[s]?|pack[s]?|tin[s]?|bottle[s]?|box(es)?|dozen|each)\b/g;
+
+export function normalizeQuery(query: string): string {
+  return query
+    .toLowerCase()
+    .replace(UNITS, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Records a search that found nothing.
+ *
+ * Silently ignores anything too short or too long to be a real product request,
+ * so the report stays readable — a stray "?" or a pasted paragraph is noise, not
+ * demand.
+ */
+export function logSearchMiss(phone: string, query: string): void {
+  const normalized = normalizeQuery(query);
+  if (normalized.length < 2 || normalized.length > 60) return;
+
+  db.prepare(
+    `INSERT INTO search_misses (phone, query, normalized, created_at) VALUES (?, ?, ?, ?)`,
+  ).run(phone, query.slice(0, 200), normalized, nowIso());
+}
+
+export type SearchMiss = {
+  normalized: string;
+  /** The most recent raw phrasing, for reading back in the shop's own words. */
+  example: string;
+  /** How many times it was asked for. */
+  times: number;
+  /** How many different people asked. The number that decides whether to stock it. */
+  people: number;
+  lastAskedAt: string;
+};
+
+/**
+ * What customers asked for and did not find, most-wanted first.
+ *
+ * Ordered by distinct people rather than raw count on purpose. Twelve people
+ * asking for one thing is a gap in the catalogue; one person asking twelve times
+ * is a gap in the search. Ranking by people separates the two at a glance.
+ */
+export function topSearchMisses(days = 30, limit = 20): SearchMiss[] {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const rows = db
+    .prepare(
+      `SELECT normalized,
+              COUNT(*)              AS times,
+              COUNT(DISTINCT phone) AS people,
+              MAX(created_at)       AS last_asked_at,
+              (SELECT query FROM search_misses inner_m
+                WHERE inner_m.normalized = m.normalized
+                ORDER BY inner_m.id DESC LIMIT 1) AS example
+         FROM search_misses m
+        WHERE created_at >= ?
+        GROUP BY normalized
+        ORDER BY people DESC, times DESC, last_asked_at DESC
+        LIMIT ?`,
+    )
+    .all(since, limit) as unknown as {
+    normalized: string;
+    times: number;
+    people: number;
+    last_asked_at: string;
+    example: string;
+  }[];
+
+  return rows.map((r) => ({
+    normalized: r.normalized,
+    example: r.example ?? r.normalized,
+    times: r.times,
+    people: r.people,
+    lastAskedAt: r.last_asked_at,
+  }));
+}
+
+export function searchMissCount(days = 30): number {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM search_misses WHERE created_at >= ?`)
+    .get(since) as { n: number } | undefined;
+  return row?.n ?? 0;
 }
 
 /* ------------------------------------------------------------ order status */
@@ -494,6 +594,19 @@ export function findOrder(reference: string): OrderRecord | null {
     | Parameters<typeof hydrateOrder>[0]
     | undefined;
   return row ? hydrateOrder(row) : null;
+}
+
+/**
+ * One order, but only if it belongs to this phone.
+ *
+ * Order numbers are sequential and are read out to customers, so guessing a
+ * neighbour's is trivial. Everything a customer-facing tool looks up must be
+ * scoped to the number they are messaging from — this is that scope, kept in one
+ * place so no caller can forget it.
+ */
+export function customerOrder(phone: string, reference: string): OrderRecord | null {
+  const order = findOrder(reference);
+  return order && order.phone === phone ? order : null;
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {

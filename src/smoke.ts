@@ -856,6 +856,198 @@ section('Customer identity');
   check('the order stored a contact number', repo.findOrder('1') !== null);
 }
 
+/* ---------------------------------------------------------- opening hours */
+
+section('Opening hours');
+{
+  const { shopStatus } = await import('./agent/context.ts');
+
+  // config.store.hours is read at call time, so each case sets it and asks.
+  const at = (hours: string, iso: string) => {
+    (config.store as { hours: string }).hours = hours;
+    return shopStatus(new Date(iso));
+  };
+  const original = config.store.hours;
+
+  // The shipped default, and the bug it used to have: Sunday's 4pm closing was
+  // being applied to every day of the week.
+  const DEFAULT = 'Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm';
+  // 2026-09-02 is a Wednesday. 19:20 UTC is 15:20 in Guyana.
+  const wed = at(DEFAULT, '2026-09-02T19:20:00Z');
+  check(
+    'a Wednesday afternoon is open, not closing at four',
+    wed.state === 'open' && wed.closesInMinutes === 280,
+    JSON.stringify(wed),
+  );
+
+  // 2026-09-06 is a Sunday. 19:20 UTC is 15:20 in Guyana — 40 minutes to close.
+  const sun = at(DEFAULT, '2026-09-06T19:20:00Z');
+  check(
+    "Sunday's shorter hours still apply on Sunday",
+    sun.state === 'open' && sun.closesInMinutes === 40,
+    JSON.stringify(sun),
+  );
+
+  check('before opening counts as closed', at(DEFAULT, '2026-09-02T10:00:00Z').state === 'closed');
+  check('after closing counts as closed', at(DEFAULT, '2026-09-03T01:00:00Z').state === 'closed');
+
+  // A day not listed at all is a closed day, not an unknown one.
+  const sundayShut = at('Mon-Sat 8:00am - 6:00pm', '2026-09-06T15:00:00Z');
+  check('a day missing from the hours is closed', sundayShut.state === 'closed', JSON.stringify(sundayShut));
+
+  check('handles a single all-week range', at('9am - 5pm', '2026-09-02T15:00:00Z').state === 'open');
+  check('reads an explicit "closed"', at('Mon-Sat 8am-8pm, Sun closed', '2026-09-06T15:00:00Z').state === 'closed');
+  check(
+    'handles hours running past midnight',
+    at('6:00pm - 2:00am', '2026-09-03T04:00:00Z').state === 'open',
+    JSON.stringify(at('6:00pm - 2:00am', '2026-09-03T04:00:00Z')),
+  );
+  check('handles a day list', at('Mon, Wed, Fri 9am-5pm', '2026-09-02T15:00:00Z').state !== 'unknown');
+
+  // Unreadable settings must say nothing rather than guess. Telling a customer
+  // the shop is shut when it is open loses the sale outright.
+  check('unreadable hours are unknown, not closed', at('call us', '2026-09-02T15:00:00Z').state === 'unknown');
+  check('empty hours are unknown', at('   ', '2026-09-02T15:00:00Z').state === 'unknown');
+  check('one time is not a range', at('open 9am daily', '2026-09-02T15:00:00Z').state === 'unknown');
+  check('nonsense times are unknown', at('99:99am - 88pm', '2026-09-02T15:00:00Z').state === 'unknown');
+
+  // And the context line the model actually reads.
+  (config.store as { hours: string }).hours = DEFAULT;
+  const { buildTimeContext: ctxNow } = await import('./agent/context.ts');
+  check('an open shop is not announced as closed', !ctxNow().includes('closed now'), ctxNow());
+
+  (config.store as { hours: string }).hours = original;
+}
+
+/* ----------------------------------------------------------- unmet demand */
+
+section('Unmet demand');
+{
+  const { normalizeQuery } = repo;
+
+  check('lowercases and trims', normalizeQuery('  Channa  ') === 'channa', normalizeQuery('  Channa  '));
+  check('drops punctuation', normalizeQuery('channa?') === 'channa');
+  check('collapses a quantity and unit', normalizeQuery('2 lbs channa') === 'channa', normalizeQuery('2 lbs channa'));
+  check('groups a plural separately from nothing', normalizeQuery('CHANNA') === normalizeQuery('channa'));
+
+  // 'zzzznotathing' was searched by the customer phone in the search section
+  // above, so a miss is already on record before this section adds any.
+  const already = repo.topSearchMisses(30, 50);
+  check(
+    'an earlier failed search was recorded',
+    already.some((m) => m.normalized === 'zzzznotathing'),
+    JSON.stringify(already.map((m) => m.normalized)),
+  );
+
+  // Six different people asking once beats one person asking six times — that
+  // ordering is the whole point of the report.
+  for (let i = 0; i < 6; i++) {
+    JSON.parse(executeTool('search_products', { query: 'channa' }, { phone: `59260011${i}1`, outbound: [] }));
+  }
+  const persistent: ToolContext = { phone: '5920004444', outbound: [] };
+  for (let i = 0; i < 9; i++) {
+    JSON.parse(executeTool('search_products', { query: 'quinoa' }, persistent));
+  }
+
+  const ranked = repo.topSearchMisses(30, 10);
+  const channa = ranked.find((m) => m.normalized === 'channa');
+  const quinoa = ranked.find((m) => m.normalized === 'quinoa');
+  check('counts distinct people', channa?.people === 6, JSON.stringify(channa));
+  check('counts repeats separately from people', quinoa?.times === 9 && quinoa?.people === 1, JSON.stringify(quinoa));
+  check(
+    'ranks six people above one person asking nine times',
+    ranked.findIndex((m) => m.normalized === 'channa') <
+      ranked.findIndex((m) => m.normalized === 'quinoa'),
+    ranked.map((m) => `${m.normalized}:${m.people}`).join(', '),
+  );
+
+  // A successful search must leave no trace — otherwise the report fills with
+  // things the shop already sells.
+  const before = repo.searchMissCount(30);
+  JSON.parse(executeTool('search_products', { query: 'rice' }, { phone: '5920005555', outbound: [] }));
+  check('a successful search is not recorded', repo.searchMissCount(30) === before);
+
+  // Staff checking stock is not a customer wanting to buy.
+  JSON.parse(executeTool('search_products', { query: 'staffonlyprobe' }, { phone: '5926497570', outbound: [] }));
+  check(
+    'a staff search is not counted as demand',
+    !repo.topSearchMisses(30, 50).some((m) => m.normalized === 'staffonlyprobe'),
+  );
+
+  // search_many is how a photographed or typed list arrives; its misses count too.
+  JSON.parse(
+    executeTool('search_many', { queries: ['rice', 'saltfish'] }, { phone: '5920006666', outbound: [] }),
+  );
+  check(
+    'a miss inside a bulk list is recorded',
+    repo.topSearchMisses(30, 50).some((m) => m.normalized === 'saltfish'),
+  );
+
+  check('noise too short to be a product is ignored', (repo.logSearchMiss('5920007777', '?'), true));
+  const noiseBefore = repo.searchMissCount(30);
+  repo.logSearchMiss('5920007777', '!');
+  check('a one-character query adds nothing', repo.searchMissCount(30) === noiseBefore);
+
+  // The report a staff member actually reads.
+  const { handleStaffMessage } = await import('./staff.ts');
+  const report = (await handleStaffMessage('wanted'))[0]?.text ?? '';
+  check('staff can pull the report', report.includes('channa'), report.slice(0, 80));
+  check('the report says how many people asked', report.includes('6 people'), report.slice(0, 200));
+  check('a day count is accepted', ((await handleStaffMessage('wanted 7'))[0]?.text ?? '').includes('7 days'));
+  check('the report is listed in help', ((await handleStaffMessage('help'))[0]?.text ?? '').includes('wanted'));
+  check(
+    '"wanted 7" is not mistaken for order 7',
+    !((await handleStaffMessage('wanted 7'))[0]?.text ?? '').includes('ORD-'),
+  );
+}
+
+/* ------------------------------------------------------------ order status */
+
+section('Order status for customers');
+{
+  const { CUSTOMER_STATUS, describeAge } = await import('./order-status.ts');
+
+  check('describes a fresh timestamp', describeAge(new Date().toISOString()) === 'just now');
+  check(
+    'describes hours',
+    describeAge(new Date(Date.now() - 3 * 3600_000).toISOString()) === 'about 3 hours ago',
+    describeAge(new Date(Date.now() - 3 * 3600_000).toISOString()),
+  );
+  check(
+    'describes yesterday',
+    describeAge(new Date(Date.now() - 30 * 3600_000).toISOString()) === 'yesterday',
+    describeAge(new Date(Date.now() - 30 * 3600_000).toISOString()),
+  );
+  check('survives a broken timestamp', describeAge('not a date').length > 0);
+  check('never calls an order "pending" to a customer', !CUSTOMER_STATUS.pending.includes('pending'));
+
+  // ORD-00001 belongs to PHONE and was marked delivered by the staff section.
+  const mine = call('list_recent_orders');
+  check('lists this customer\'s orders', mine.orders?.length >= 1, JSON.stringify(mine).slice(0, 90));
+  check('translates the status into plain words', typeof mine.orders?.[0]?.status_means === 'string');
+  check('says how long ago it was placed', typeof mine.orders?.[0]?.placed === 'string', mine.orders?.[0]?.placed);
+  check('warns the agent off inventing an ETA', String(mine.note).includes('ETA'), mine.note);
+
+  const byNumber = call('list_recent_orders', { order_number: '1' });
+  check('finds an order the customer names', byNumber.orders?.[0]?.order_number === 'ORD-00001', JSON.stringify(byNumber).slice(0, 90));
+  check('a named order includes the address it goes to', typeof byNumber.orders?.[0]?.delivering_to === 'string');
+  check('accepts the padded form too', call('list_recent_orders', { order_number: 'ORD-00001' }).orders?.length === 1);
+
+  // The security property: order numbers are sequential and read aloud, so a
+  // customer must never be able to fetch someone else's by guessing.
+  const stranger: ToolContext = { phone: '5920009111', outbound: [] };
+  const snoop = JSON.parse(executeTool('list_recent_orders', { order_number: '1' }, stranger));
+  check('cannot read another customer\'s order', snoop.orders?.length === 0, JSON.stringify(snoop).slice(0, 120));
+  check('the refusal leaks nothing about it', !JSON.stringify(snoop).includes('Georgetown'), JSON.stringify(snoop));
+  check(
+    'a stranger with no orders is told so plainly',
+    typeof JSON.parse(executeTool('list_recent_orders', {}, stranger)).note === 'string',
+  );
+
+  const nonsense = call('list_recent_orders', { order_number: '99999' });
+  check('an unknown order number is handled', nonsense.orders?.length === 0 && !!nonsense.note);
+}
+
 /* ------------------------------------------------------------------ report */
 
 console.log('');

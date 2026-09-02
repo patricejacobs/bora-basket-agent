@@ -85,6 +85,21 @@ CREATE TABLE IF NOT EXISTS processed_events (
   received_at TEXT NOT NULL
 );
 
+-- Every customer search that found nothing.
+--
+-- A miss is the one thing a shop cannot see from its own sales figures: what
+-- people came in wanting and left without. Recorded raw for reading back, and
+-- normalized so "Channa", "channa " and "CHANNA" group into one line.
+CREATE TABLE IF NOT EXISTS search_misses (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone      TEXT NOT NULL,
+  query      TEXT NOT NULL,
+  normalized TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_search_misses_norm ON search_misses(normalized);
+CREATE INDEX IF NOT EXISTS idx_search_misses_at   ON search_misses(created_at);
+
 CREATE TABLE IF NOT EXISTS message_log (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   phone      TEXT NOT NULL,
