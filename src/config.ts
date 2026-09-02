@@ -114,6 +114,19 @@ export const config = {
     language: str('TEMPLATE_LANGUAGE', 'en'),
   },
 
+  /**
+   * What the driver can take. Cash only by default. Anything the shop cannot
+   * actually accept must not be offered — a customer told "card is fine" who
+   * then cannot pay is a failed delivery and an argument on the doorstep.
+   */
+  paymentMethods: (() => {
+    const raw = str('PAYMENT_METHODS', 'cash')
+      .split(',')
+      .map((m) => m.trim().toLowerCase())
+      .filter((m) => m === 'cash' || m === 'card');
+    return raw.length > 0 ? [...new Set(raw)] : ['cash'];
+  })() as ('cash' | 'card')[],
+
   store: {
     name: str('STORE_NAME', 'Our Grocery Store'),
     hours: str('STORE_HOURS', 'Mon-Sat 8:00am - 8:00pm'),

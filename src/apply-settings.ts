@@ -35,6 +35,7 @@ type Settings = {
   staffNumbers: string[];
   restrictedSkus: string[];
   templates: { onTheWay: string; delivered: string; language: string };
+  paymentMethods?: string[];
   agentEffort: string;
 };
 
@@ -95,6 +96,14 @@ if (settings.freeDeliveryOver > 0 && settings.freeDeliveryOver <= settings.minOr
   warnings.push('freeDeliveryOver is at or below minOrderTotal, so delivery is always free');
 }
 
+const badPayment = (settings.paymentMethods ?? ['cash']).filter((m) => m !== 'cash' && m !== 'card');
+if (badPayment.length > 0) {
+  problems.push(`paymentMethods may only contain "cash" or "card": ${badPayment.join(', ')}`);
+}
+if ((settings.paymentMethods ?? ['cash']).length === 0) {
+  problems.push('paymentMethods cannot be empty — the driver has to be able to take something');
+}
+
 const badNumbers = (settings.staffNumbers ?? []).filter((n) => !/^\d{7,15}$/.test(n));
 if (badNumbers.length > 0) {
   problems.push(`staffNumbers must be digits only, no '+' or spaces: ${badNumbers.join(', ')}`);
@@ -134,6 +143,7 @@ const VALUES: Record<string, string> = {
   TEMPLATE_LANGUAGE: settings.templates?.language ?? 'en',
   AGENT_EFFORT: settings.agentEffort,
   RESTRICTED_SKUS: (settings.restrictedSkus ?? []).join(','),
+  PAYMENT_METHODS: (settings.paymentMethods ?? ['cash']).join(','),
 };
 
 /* ------------------------------------------------------------------- .env */

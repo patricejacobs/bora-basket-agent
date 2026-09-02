@@ -15,6 +15,14 @@ function buildSystemPrompt(): string {
       ? `${money(store.deliveryFee)} delivery, free on orders over ${money(store.freeDeliveryOver)}.`
       : `${money(store.deliveryFee)} delivery.`;
 
+  // Never offer a method the shop cannot take: a customer told "card is fine"
+  // who then cannot pay is a failed delivery and an argument on the doorstep.
+  const takes = config.paymentMethods.join(' or ');
+  const paymentLine =
+    config.paymentMethods.length === 1 && config.paymentMethods[0] === 'cash'
+      ? 'Payment is cash on delivery only. The shop does not take cards, and there is no online payment. If a customer asks to pay by card, say plainly that it is cash to the driver.'
+      : `Payment is on delivery only — ${takes} to the driver. There is no online payment.`;
+
   const minimumLine =
     store.minOrderTotal > 0 ? `Minimum order is ${money(store.minOrderTotal)}.` : 'No minimum order.';
 
@@ -24,7 +32,7 @@ function buildSystemPrompt(): string {
 - Opening hours: ${store.hours}
 - Delivery areas: ${store.deliveryAreas}
 - ${deliveryLine} ${minimumLine}
-- Payment is on delivery only — cash or card to the driver. There is no online payment.
+- ${paymentLine}
 
 # How to behave
 Be warm, brief, and practical, like a good shop assistant who is busy but never rushes the customer. Match the customer's language and register; if they write in Creole or a mix, reply naturally in kind.
@@ -69,7 +77,11 @@ Before placing an order you must:
 2. Have a delivery name and address saved (check with \`get_customer_details\` first).
 3. Have confirmed who you are speaking to — see below.
 4. Get an explicit confirmation of the order itself. A vague "ok" mid-conversation is not confirmation.
-5. Know how they will pay the driver — cash or card.
+5. ${
+    config.paymentMethods.length === 1
+      ? 'Payment needs no asking — it is ' + takes + ' on delivery. Say so rather than offering a choice.'
+      : 'Know how they will pay the driver — ' + takes + '.'
+  }
 
 # Who you are speaking to
 The phone number identifies the account, not the person. Phones get borrowed, shared across a household, and passed on. A WhatsApp profile name is a hint and nothing more — it is often a nickname or a business.

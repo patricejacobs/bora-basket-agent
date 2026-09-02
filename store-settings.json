@@ -7,6 +7,9 @@
   "timezone": "America/Guyana",
   "deliveryAreas": "Georgetown, East Bank Demerara, East Coast Demerara",
 
+  "_payment": "What the driver can take. [\"cash\"] or [\"cash\",\"card\"]. Never list something you cannot accept.",
+  "paymentMethods": ["cash"],
+
   "_money": "Plain numbers in your display currency, not minor units. 500 means $500.",
   "deliveryFee": 500,
   "freeDeliveryOver": 10000,

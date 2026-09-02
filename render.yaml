@@ -91,6 +91,8 @@ services:
         value: "Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm"
       - key: DELIVERY_AREAS
         value: "Georgetown, East Bank Demerara, East Coast Demerara"
+      - key: PAYMENT_METHODS
+        value: cash
       - key: DELIVERY_FEE
         value: "500"
       - key: FREE_DELIVERY_OVER

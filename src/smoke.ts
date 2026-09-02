@@ -23,10 +23,10 @@ process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
 process.env.STAFF_NUMBERS = '5926497570';
 
-const { money } = await import('./config.ts');
+const { money, config } = await import('./config.ts');
 const { db } = await import('./db/index.ts');
 const repo = await import('./db/repo.ts');
-const { executeTool } = await import('./agent/tools.ts');
+const { executeTool, TOOL_DEFS } = await import('./agent/tools.ts');
 const { importCsvText, parseCsv } = await import('./catalog/import-csv.ts');
 const { parseWebhook, chunkText, verifySignature } = await import('./channels/whatsapp.ts');
 const { splitReply, typingDelayMs } = await import('./agent/pacing.ts');
@@ -203,6 +203,39 @@ section('Checkout');
 
   const badPayment = call('place_order', { payment_method: 'crypto' });
   check('rejects an unsupported payment method', typeof badPayment.error === 'string');
+
+  // The shop takes cash only, so card must be refused rather than quietly
+  // accepted — a customer told "card is fine" who cannot pay is a failed
+  // delivery and an argument on the doorstep.
+  const cardWhenCashOnly = call('place_order', { payment_method: 'card_on_delivery' });
+  if (config.paymentMethods.includes('card')) {
+    check('card accepted because it is configured', true);
+  } else {
+    check(
+      'refuses card when the shop takes cash only',
+      typeof cardWhenCashOnly.error === 'string',
+      JSON.stringify(cardWhenCashOnly).slice(0, 90),
+    );
+    check(
+      'the refusal says what is accepted',
+      String(cardWhenCashOnly.error).includes('cash'),
+      cardWhenCashOnly.error,
+    );
+  }
+
+  // The tool schema must not even offer a method the shop cannot take.
+  const orderTool = TOOL_DEFS.find((t) => t.name === 'place_order');
+  const methods = (orderTool?.input_schema as any)?.properties?.payment_method?.enum ?? [];
+  check(
+    'the tool only offers configured methods',
+    methods.length === config.paymentMethods.length,
+    JSON.stringify(methods),
+  );
+  check(
+    'cash is always offered',
+    methods.includes('cash_on_delivery'),
+    JSON.stringify(methods),
+  );
 
   const stockBefore = call('get_product', { sku: 'RIC-001' }).stock_remaining;
   const order = call('place_order', { payment_method: 'cash_on_delivery', delivery_note: 'Call on arrival' });

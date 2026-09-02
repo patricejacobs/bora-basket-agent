@@ -184,7 +184,9 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
       properties: {
         payment_method: {
           type: 'string',
-          enum: ['cash_on_delivery', 'card_on_delivery'],
+          // Only what the shop can actually take, so an unsupported method
+          // cannot be selected in the first place.
+          enum: config.paymentMethods.map((m) => `${m}_on_delivery`),
           description: 'How the customer will pay the driver.',
         },
         delivery_note: {
@@ -501,8 +503,11 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
     case 'place_order': {
       const paymentMethod = asString(input.payment_method);
-      if (!['cash_on_delivery', 'card_on_delivery'].includes(paymentMethod)) {
-        return fail('payment_method must be "cash_on_delivery" or "card_on_delivery".');
+      const allowed = config.paymentMethods.map((m) => `${m}_on_delivery`);
+      if (!allowed.includes(paymentMethod)) {
+        return fail(
+          `This shop only takes ${config.paymentMethods.join(' or ')} on delivery, so payment_method must be one of: ${allowed.join(', ')}.`,
+        );
       }
 
       const customer = repo.getIdentity(ctx.phone);
@@ -546,7 +551,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           subtotal: money(order.subtotal),
           delivery_fee: order.deliveryFee === 0 ? 'free' : money(order.deliveryFee),
           total: money(order.total),
-          pay: paymentMethod === 'cash_on_delivery' ? 'cash on delivery' : 'card on delivery',
+          pay: paymentMethod.replace('_on_delivery', '') + ' on delivery',
           deliver_to: `${order.customerName}, ${order.address}`,
           contact_number: customer.contactPhone ?? ctx.phone,
           next: 'Tell the customer the order number and total, and that the store will confirm the delivery window shortly.',
