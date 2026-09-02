@@ -3,6 +3,7 @@ import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import { notifyStaffOfNewOrder } from '../notifications.ts';
+import { productImageUrl } from '../product-images.ts';
 
 export type ToolContext = {
   phone: string;
@@ -256,7 +257,7 @@ const productView = (p: repo.Product) => ({
   price: money(p.price),
   in_stock: p.stock > 0,
   stock_remaining: p.stock,
-  has_photo: Boolean(p.imageUrl),
+  has_photo: Boolean(productImageUrl(p.sku, p.imageUrl)),
   ...(p.description ? { description: p.description } : {}),
 });
 
@@ -404,7 +405,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!sku) return fail('sku is required.');
       const product = repo.getProductBySku(sku);
       if (!product) return fail(`No active product with SKU "${sku}".`);
-      if (!product.imageUrl) {
+      const imageUrl = productImageUrl(product.sku, product.imageUrl);
+      if (!imageUrl) {
         return ok({
           sent: false,
           reason: `No photo on file for ${product.name}. Describe it in words instead — do not dwell on the missing picture.`,
@@ -412,7 +414,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       }
       const caption =
         asString(input.caption) || `${product.name} — ${money(product.price)} / ${product.unit}`;
-      ctx.outbound.push({ kind: 'image', text: caption, imageUrl: product.imageUrl });
+      ctx.outbound.push({ kind: 'image', text: caption, imageUrl });
       return ok({ sent: true, product: product.name, note: 'Photo queued — do not repeat the caption.' });
     }
 

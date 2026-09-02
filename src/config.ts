@@ -46,6 +46,18 @@ export const config = {
    */
   seedCatalogPath: str('SEED_CATALOG_PATH', ''),
   /**
+   * Folder of product photos named by SKU (RIC-001.jpg). Served at /images and
+   * used when a product has no image URL in the catalogue. On a hosted deploy
+   * this belongs on the persistent disk, or photos vanish on every deploy.
+   */
+  productImagesDir: str('PRODUCT_IMAGES_DIR', './data/product-images'),
+  /**
+   * This server's own public address. WhatsApp fetches image URLs from its
+   * servers, so a relative path would resolve against Meta rather than us.
+   * Render provides RENDER_EXTERNAL_URL automatically.
+   */
+  publicBaseUrl: str('PUBLIC_BASE_URL', process.env.RENDER_EXTERNAL_URL ?? ''),
+  /**
    * Re-import SEED_CATALOG_PATH on every boot, deactivating anything absent from
    * it. Makes the committed CSV the source of truth for a hosted deployment,
    * where there is no shell to run the importer from — without this, the seed

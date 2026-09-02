@@ -14,7 +14,8 @@
     "smoke": "node --env-file-if-exists=.env src/smoke.ts",
     "check": "node --env-file-if-exists=.env src/check-config.ts",
     "settings:apply": "node --env-file-if-exists=.env src/apply-settings.ts",
-    "eval": "node --env-file-if-exists=.env src/eval.ts"
+    "eval": "node --env-file-if-exists=.env src/eval.ts",
+    "photos:find": "node --env-file-if-exists=.env src/photos-openfoodfacts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

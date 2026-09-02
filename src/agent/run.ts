@@ -287,8 +287,7 @@ export async function runAgent(
   // Assemble the reply. Buttons queued via send_buttons carry their own body text,
   // so drop trailing prose that just restates it.
   const outbound: OutboundMessage[] = [];
-  // Photos come first: a picture then a question reads the way a person sends it.
-  outbound.push(...ctx.outbound.filter((m) => m.kind === 'image'));
+  const photoMessages = ctx.outbound.filter((m) => m.kind === 'image');
   const buttonMessages = ctx.outbound.filter((m) => m.kind === 'buttons');
 
   if (buttonMessages.length > 0) {
@@ -301,9 +300,14 @@ export async function runAgent(
     // Anything substantial enough to carry new information survives.
     const isFiller = textNorm.length < FILLER_TEXT_LIMIT;
     if (!isRestatement && !isFiller) outbound.push({ kind: 'text', text: finalText });
+    outbound.push(...photoMessages);
     outbound.push(...buttonMessages);
   } else if (finalText) {
     for (const part of splitReply(finalText)) outbound.push({ kind: 'text', text: part });
+    // After the words: a photo arriving before "good morning" reads oddly.
+    outbound.push(...photoMessages);
+  } else if (photoMessages.length > 0) {
+    outbound.push(...photoMessages);
   } else {
     outbound.push({
       kind: 'text',

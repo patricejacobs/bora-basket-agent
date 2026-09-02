@@ -7,6 +7,7 @@ import { importCsvText } from './catalog/import-csv.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
 import { simulatorRouter } from './channels/simulator.ts';
+import { ensureImagesDirectory, imagesDirectory, refreshImages, imageCount } from './product-images.ts';
 
 /**
  * Loads the catalogue from the committed CSV.
@@ -100,6 +101,7 @@ app.get('/health', (_req: Request, res: Response) => {
     store: config.store.name,
     products: productCount(),
     productsWithPhotos: photoCoverage().withPhoto,
+    localImageFiles: imageCount(),
     whatsappReady: Object.values(whatsapp).every(Boolean),
     config: {
       anthropicKey: Boolean(config.anthropic.apiKey),
@@ -116,6 +118,20 @@ app.get('/health', (_req: Request, res: Response) => {
     uptimeSeconds: Math.round(process.uptime()),
   });
 });
+
+// Product photos. WhatsApp fetches these itself, so they must be public and
+// unauthenticated — they are pictures of groceries, nothing sensitive.
+ensureImagesDirectory();
+app.use(
+  '/images',
+  express.static(imagesDirectory(), {
+    dotfiles: 'deny',
+    index: false,
+    maxAge: '7d',
+    // Falls through on a miss so a missing photo is a plain 404, not a 500 from
+    // the error handler.
+  }),
+);
 
 app.use('/whatsapp', whatsappRouter);
 
@@ -138,9 +154,14 @@ app.listen(config.port, () => {
   console.log(`  listening on http://localhost:${config.port}`);
   console.log('');
   const photos = photoCoverage();
+  const onDisk = refreshImages();
   console.log(
-    `  catalog       ${products} active product(s), ${photos.withPhoto} with photos`,
+    `  catalog       ${products} active product(s), ${photos.withPhoto} with photo URLs`,
   );
+  console.log(`  images        ${onDisk} file(s) in ${imagesDirectory()}`);
+  if (onDisk > 0 && !config.publicBaseUrl) {
+    console.warn('  ! PUBLIC_BASE_URL is not set, so disk photos cannot be sent to WhatsApp.');
+  }
   console.log(
     `  delivery      ${money(config.store.deliveryFee)}` +
       (config.store.freeDeliveryOver > 0 ? `, free over ${money(config.store.freeDeliveryOver)}` : ''),

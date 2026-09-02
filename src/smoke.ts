@@ -23,6 +23,15 @@ process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
 process.env.STAFF_NUMBERS = '5926497570';
 
+// A scratch images folder, so results never depend on what happens to be in the
+// real one. One file is planted below to exercise SKU resolution.
+const TEST_IMAGES = path.resolve('./data/smoke-images');
+fs.rmSync(TEST_IMAGES, { recursive: true, force: true });
+fs.mkdirSync(TEST_IMAGES, { recursive: true });
+fs.writeFileSync(path.join(TEST_IMAGES, 'DAI-003.jpg'), 'not really a jpeg');
+process.env.PRODUCT_IMAGES_DIR = TEST_IMAGES;
+process.env.PUBLIC_BASE_URL = 'https://shop.example.com';
+
 const { money, config } = await import('./config.ts');
 const { db } = await import('./db/index.ts');
 const repo = await import('./db/repo.ts');
@@ -193,6 +202,25 @@ section('Product photos');
   );
   check('accepts an https image URL', goodUrl.imported === 1 && goodUrl.skipped.length === 0);
   check('stores it against the product', repo.getProductBySku('IMG-OK')?.imageUrl === 'https://example.com/ok.jpg');
+
+  // A photo dropped in the images folder is picked up by SKU, with no CSV edit.
+  const images = await import('./product-images.ts');
+  images.refreshImages();
+
+  const fromDisk = images.productImageUrl('DAI-003', '');
+  check('a disk photo resolves by SKU', fromDisk === 'https://shop.example.com/images/DAI-003.jpg', fromDisk);
+  check('the URL is absolute', /^https:\/\//.test(fromDisk), fromDisk);
+  check('lowercase lookups match too', images.productImageUrl('dai-003', '') === fromDisk);
+  check('a SKU with no file has no photo', images.productImageUrl('RIC-001', '') === '');
+  check(
+    'an explicit URL always wins over the folder',
+    images.productImageUrl('DAI-003', 'https://example.com/override.jpg') ===
+      'https://example.com/override.jpg',
+  );
+
+  // The agent should be able to send a photo that only exists on disk.
+  const diskSend = photoCall('show_product_photo', { sku: 'DAI-003' });
+  check('sends a disk photo through the tool', diskSend.sent === true, JSON.stringify(diskSend));
 
   const coverage = repo.photoCoverage();
   check('reports photo coverage', coverage.withPhoto >= 2 && coverage.total > coverage.withPhoto, JSON.stringify(coverage));

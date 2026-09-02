@@ -38,6 +38,9 @@ services:
         value: "24.16.0"
       - key: DATABASE_PATH
         value: /var/data/store.db
+      # On the persistent disk, or photos are lost on every deploy.
+      - key: PRODUCT_IMAGES_DIR
+        value: /var/data/product-images
       # The simulator has no authentication and can place real orders.
       - key: ENABLE_SIMULATOR
         value: "false"

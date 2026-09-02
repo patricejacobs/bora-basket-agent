@@ -135,6 +135,33 @@ Rows are matched on SKU and upserted — re-run the import whenever prices or st
 Products missing from the file are left alone; add `--deactivate-missing` to retire them
 instead. Bad rows are skipped and reported by line number rather than failing the import.
 
+## Product photos
+
+Two ways, and a URL in the CSV always wins over a file on disk.
+
+**Drop a file in a folder.** Name it by SKU — `RIC-001.jpg` — into
+`PRODUCT_IMAGES_DIR` (`/var/data/product-images` on Render, so it survives deploys).
+The server hosts it at `/images/RIC-001.jpg` and the catalogue picks it up
+automatically. No CSV edit, no CDN, no image host. `.jpg`, `.jpeg`, `.png` and
+`.webp` are recognised, and the folder is re-scanned every 20 seconds, so a new
+photo appears without a restart.
+
+This needs **`PUBLIC_BASE_URL`** set, because WhatsApp fetches image URLs from its own
+servers and a relative path would resolve against Meta. Render provides
+`RENDER_EXTERNAL_URL` automatically.
+
+**Or put an https URL in the `image` column** of your catalogue CSV, for
+supplier-hosted imagery.
+
+Products without a photo are handled honestly: the agent describes them in words
+rather than dwelling on the missing picture. `/health` reports `localImageFiles`
+and `productsWithPhotos` so you can see coverage.
+
+**On sourcing:** photograph your own stock, or use imagery you have written
+permission for. Product photography belonging to brands or other retailers is
+copyrighted, and republishing it to your customers is not something to do
+casually.
+
 ---
 
 ## Connecting the real WhatsApp number
