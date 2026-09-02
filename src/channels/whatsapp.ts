@@ -8,7 +8,7 @@ import { downloadMedia, downloadAudio, mediaFailureMessage } from './whatsapp-me
 import { transcribeAudio, transcriptionAvailable } from '../transcribe.ts';
 
 // Re-exported so the webhook module stays the single import point for callers.
-export { chunkText, deliver, sendText, sendButtons, sendTemplate } from './whatsapp-send.ts';
+export { chunkText, deliver, sendText, sendButtons, sendImage, sendTemplate } from './whatsapp-send.ts';
 
 /* ------------------------------------------------------------- inbound API */
 

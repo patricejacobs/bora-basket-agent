@@ -120,6 +120,9 @@ addColumnIfMissing('customers', 'identity_confirmed_at', "TEXT");
 // always: people order from a work phone, or want the household number rung.
 addColumnIfMissing('customers', 'contact_phone', "TEXT");
 addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
+// A publicly reachable HTTPS image for the product. WhatsApp fetches the URL
+// itself, so nothing is stored here but the address.
+addColumnIfMissing('products', 'image_url', "TEXT NOT NULL DEFAULT ''");
 
 /**
  * One-off compliance removal.

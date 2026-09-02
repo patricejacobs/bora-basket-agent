@@ -287,6 +287,8 @@ export async function runAgent(
   // Assemble the reply. Buttons queued via send_buttons carry their own body text,
   // so drop trailing prose that just restates it.
   const outbound: OutboundMessage[] = [];
+  // Photos come first: a picture then a question reads the way a person sends it.
+  outbound.push(...ctx.outbound.filter((m) => m.kind === 'image'));
   const buttonMessages = ctx.outbound.filter((m) => m.kind === 'buttons');
 
   if (buttonMessages.length > 0) {

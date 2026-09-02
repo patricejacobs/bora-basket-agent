@@ -89,12 +89,30 @@ const HEADER_ALIASES: Record<string, string> = {
   aliases: 'keywords',
   active: 'active',
   enabled: 'active',
+  image: 'image_url',
+  image_url: 'image_url',
+  photo: 'image_url',
+  picture: 'image_url',
 };
 
 const normalizeHeader = (h: string): string =>
   HEADER_ALIASES[h.trim().toLowerCase().replace(/[\s-]+/g, '_')] ?? '';
 
 export type ImportResult = { imported: number; skipped: { line: number; reason: string }[] };
+
+/**
+ * Only plain HTTPS URLs are accepted. WhatsApp fetches the address itself and
+ * silently drops anything it cannot reach, so a bad value would show up as a
+ * missing photo with no explanation — better to reject it at import.
+ */
+function imageUrlFor(raw: string, line: number, skipped: ImportResult['skipped']): string {
+  if (!raw) return '';
+  if (!/^https:\/\/\S+$/i.test(raw)) {
+    skipped.push({ line, reason: `image must be a public https:// URL, got "${raw.slice(0, 40)}"` });
+    return '';
+  }
+  return raw;
+}
 
 export function importCsvText(
   text: string,
@@ -167,6 +185,7 @@ export function importCsvText(
         stock,
         active,
         keywords: get('keywords'),
+        imageUrl: imageUrlFor(get('image_url'), r + 1, skipped),
       });
 
       seenSkus.add(sku.toLowerCase());

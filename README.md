@@ -84,6 +84,7 @@ from memory. That is what stops it inventing a product or quoting a stale price.
 | `get_customer_details` / `save_customer_details` | Delivery name and address |
 | `place_order` | Transactional checkout |
 | `list_recent_orders` | Order history and status |
+| `show_product_photo` | Sends a product photo, when one is on file |
 | `send_buttons` | Native WhatsApp tap-to-reply buttons |
 
 Placing an order also pushes an alert to `STAFF_NUMBERS` — see **Running the shop** below.
@@ -111,15 +112,20 @@ Replace the sample file with your own export. Required columns are `sku`, `name`
 everything else is optional.
 
 ```csv
-sku,name,description,category,unit,price,stock,keywords,active
-RIC-001,Karibee Parboiled Rice,Long grain parboiled,Rice & Grains,5 kg bag,1850,120,rice parboiled grain,1
+sku,name,description,category,unit,price,stock,keywords,active,image
+RIC-001,Karibee Parboiled Rice,Long grain parboiled,Rice & Grains,5 kg bag,1850,120,rice parboiled grain,1,https://cdn.example.com/rice.jpg
 ```
 
 - **`keywords`** is what customers actually say. `pampers` finding the diapers row, `dhal`
   finding split peas — that comes from here, and it is the single highest-leverage column
   for search quality. Spend time on it.
 - **`unit`** is displayed with the price (`$1,850 / 5 kg bag`), so it should read naturally.
-- Common header spellings are accepted (`item_code`, `qty`, `department`, `tags`, …).
+- **`image`** is optional: a publicly reachable **https** URL. WhatsApp fetches the
+  address itself, so a link behind a login, on localhost, or over plain http silently
+  fails — those are rejected at import rather than becoming a mystery later. Products
+  without one simply have no photo, and the agent describes them in words.
+- Common header spellings are accepted (`item_code`, `qty`, `department`, `tags`,
+  `photo`, `picture`, …).
 
 ```bash
 npm run import:catalog -- ./data/your-products.csv

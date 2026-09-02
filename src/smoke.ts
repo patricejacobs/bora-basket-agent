@@ -134,6 +134,70 @@ section('Cart operations');
   check('quantity 0 removes the line', removed.cart?.items?.length === 1);
 }
 
+/* --------------------------------------------------------- product photos */
+
+section('Product photos');
+{
+  const photoCtx: ToolContext = { phone: '5920008888', outbound: [] };
+  const photoCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, photoCtx));
+
+  // No photos in the sample catalogue, so the honest answer is "none on file".
+  const missing = photoCall('show_product_photo', { sku: 'RIC-001' });
+  check('reports plainly when there is no photo', missing.sent === false, JSON.stringify(missing));
+  check('tells the agent to describe it instead', String(missing.reason).includes('Describe'));
+  check('queues nothing when there is no photo', photoCtx.outbound.length === 0);
+
+  repo.upsertProduct({
+    sku: 'PHOTO-1',
+    name: 'Photographed Thing',
+    description: '',
+    category: 'General',
+    unit: 'each',
+    price: 500,
+    stock: 5,
+    active: 1,
+    keywords: '',
+    imageUrl: 'https://example.com/thing.jpg',
+  });
+
+  const sent = photoCall('show_product_photo', { sku: 'PHOTO-1' });
+  check('sends a photo when one exists', sent.sent === true, JSON.stringify(sent));
+  check('queues an image message', photoCtx.outbound[0]?.kind === 'image');
+  check(
+    'carries the image URL',
+    (photoCtx.outbound[0] as any)?.imageUrl === 'https://example.com/thing.jpg',
+  );
+  check(
+    'captions with name and price by default',
+    String(photoCtx.outbound[0]?.text).includes('Photographed Thing'),
+    photoCtx.outbound[0]?.text,
+  );
+
+  check('search reports which products have a photo', photoCall('get_product', { sku: 'PHOTO-1' }).has_photo === true);
+  check('and which do not', photoCall('get_product', { sku: 'RIC-001' }).has_photo === false);
+
+  // A non-HTTPS address would silently fail at WhatsApp, so it is rejected at import.
+  const badUrl = importCsvText(
+    'sku,name,price,image\nIMG-BAD,Bad Image,100,http://insecure.example.com/x.jpg\n',
+  );
+  check('rejects a non-https image URL', badUrl.skipped.length === 1, JSON.stringify(badUrl.skipped));
+  check(
+    'says why the image was rejected',
+    String(badUrl.skipped[0]?.reason).includes('https'),
+    badUrl.skipped[0]?.reason,
+  );
+
+  const goodUrl = importCsvText(
+    'sku,name,price,image\nIMG-OK,Good Image,100,https://example.com/ok.jpg\n',
+  );
+  check('accepts an https image URL', goodUrl.imported === 1 && goodUrl.skipped.length === 0);
+  check('stores it against the product', repo.getProductBySku('IMG-OK')?.imageUrl === 'https://example.com/ok.jpg');
+
+  const coverage = repo.photoCoverage();
+  check('reports photo coverage', coverage.withPhoto >= 2 && coverage.total > coverage.withPhoto, JSON.stringify(coverage));
+}
+
 /* ------------------------------------------------------------ bulk actions */
 
 section('Bulk list handling');

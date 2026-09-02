@@ -12,6 +12,8 @@ export type Product = {
   stock: number;
   active: number;
   keywords: string;
+  /** Publicly reachable HTTPS image, or empty if the product has no photo. */
+  imageUrl: string;
 };
 
 export type CartLine = { product: Product; qty: number; lineTotal: number };
@@ -45,7 +47,7 @@ export function listCategories(): { category: string; count: number }[] {
 
 export function getProductBySku(sku: string): Product | null {
   const row = db
-    .prepare(`SELECT * FROM products WHERE sku = ? COLLATE NOCASE AND active = 1`)
+    .prepare(`SELECT *, image_url AS imageUrl FROM products WHERE sku = ? COLLATE NOCASE AND active = 1`)
     .get(sku.trim());
   return (row as Product | undefined) ?? null;
 }
@@ -79,7 +81,7 @@ export function searchProducts(query: string, category?: string, limit = 8): Pro
   }
 
   const rows = db
-    .prepare(`SELECT * FROM products WHERE ${where.join(' AND ')} LIMIT 200`)
+    .prepare(`SELECT *, image_url AS imageUrl FROM products WHERE ${where.join(' AND ')} LIMIT 200`)
     .all(...params) as unknown as Product[];
 
   if (tokens.length === 0) return rows.slice(0, limit);
@@ -120,14 +122,16 @@ export function upsertProduct(p: {
   stock: number;
   active: number;
   keywords: string;
+  imageUrl?: string;
 }): void {
   db.prepare(
-    `INSERT INTO products (sku, name, description, category, unit, price, stock, active, keywords, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO products (sku, name, description, category, unit, price, stock, active, keywords, image_url, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(sku) DO UPDATE SET
        name = excluded.name, description = excluded.description, category = excluded.category,
        unit = excluded.unit, price = excluded.price, stock = excluded.stock,
-       active = excluded.active, keywords = excluded.keywords, updated_at = excluded.updated_at`,
+       active = excluded.active, keywords = excluded.keywords,
+       image_url = excluded.image_url, updated_at = excluded.updated_at`,
   ).run(
     p.sku,
     p.name,
@@ -138,8 +142,20 @@ export function upsertProduct(p: {
     p.stock,
     p.active,
     p.keywords,
+    p.imageUrl ?? '',
     nowIso(),
   );
+}
+
+/** How much of the catalogue has a photo — the number that tells you if it is worth using. */
+export function photoCoverage(): { withPhoto: number; total: number } {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS total, SUM(CASE WHEN image_url != '' THEN 1 ELSE 0 END) AS withPhoto
+       FROM products WHERE active = 1`,
+    )
+    .get() as { total: number; withPhoto: number | null };
+  return { withPhoto: row.withPhoto ?? 0, total: row.total };
 }
 
 export function productCount(): number {
@@ -193,7 +209,7 @@ export function calcDeliveryFee(subtotal: number): number {
 export function getCart(phone: string): CartSummary {
   const rows = db
     .prepare(
-      `SELECT p.*, c.qty AS cart_qty FROM cart_items c
+      `SELECT p.*, p.image_url AS imageUrl, c.qty AS cart_qty FROM cart_items c
        JOIN products p ON p.id = c.product_id
        WHERE c.phone = ? ORDER BY c.added_at`,
     )

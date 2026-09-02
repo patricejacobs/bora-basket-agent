@@ -4,7 +4,9 @@
  */
 export type OutboundMessage =
   | { kind: 'text'; text: string }
-  | { kind: 'buttons'; text: string; buttons: { id: string; title: string }[] };
+  | { kind: 'buttons'; text: string; buttons: { id: string; title: string }[] }
+  /** A product photo. `text` is the caption shown beneath it. */
+  | { kind: 'image'; text: string; imageUrl: string };
 
 /** A photo the customer sent, already fetched and base64-encoded. */
 export type IncomingImage = { base64: string; mediaType: string };

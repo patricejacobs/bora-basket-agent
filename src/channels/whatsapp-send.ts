@@ -129,6 +129,20 @@ export async function sendButtons(
 }
 
 /**
+ * Sends an image by URL. WhatsApp fetches the address itself, so it must be
+ * publicly reachable HTTPS — a link behind auth or on localhost silently fails.
+ */
+export async function sendImage(to: string, imageUrl: string, caption: string): Promise<boolean> {
+  return callGraph({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'image',
+    image: { link: imageUrl, ...(caption ? { caption: caption.slice(0, 1024) } : {}) },
+  });
+}
+
+/**
  * Sends a pre-approved template. This is the only way to reach a customer more
  * than 24 hours after their last message — plain text is rejected by Meta there.
  */
@@ -171,6 +185,7 @@ export async function deliver(to: string, messages: OutboundMessage[]): Promise<
     // raised when the message arrived runs for ~25s, covering these pauses.
     if (index > 0) await wait(typingDelayMs(msg.text));
     if (msg.kind === 'buttons') await sendButtons(to, msg.text, msg.buttons);
+    else if (msg.kind === 'image') await sendImage(to, msg.imageUrl, msg.text);
     else await sendText(to, msg.text);
   }
 }

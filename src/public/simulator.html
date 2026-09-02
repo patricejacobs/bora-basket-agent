@@ -158,7 +158,10 @@ function bubble(dir, html) {
 }
 
 function renderOutbound(msg) {
-  const b = bubble('in', waFormat(msg.text));
+  const photo = msg.kind === 'image'
+    ? '<img src="' + esc(msg.imageUrl) + '" alt="product photo" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'meta',textContent:'[photo failed to load: '+this.src+']'}))">'
+    : '';
+  const b = bubble('in', photo + waFormat(msg.text));
   if (msg.kind === 'buttons') {
     const wrap = document.createElement('div');
     wrap.className = 'btns';

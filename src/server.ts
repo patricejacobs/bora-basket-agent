@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount } from './db/repo.ts';
+import { productCount, photoCoverage } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
@@ -99,6 +99,7 @@ app.get('/health', (_req: Request, res: Response) => {
     ok: true,
     store: config.store.name,
     products: productCount(),
+    productsWithPhotos: photoCoverage().withPhoto,
     whatsappReady: Object.values(whatsapp).every(Boolean),
     config: {
       anthropicKey: Boolean(config.anthropic.apiKey),
@@ -136,7 +137,10 @@ app.listen(config.port, () => {
   console.log(`  ${config.store.name} — WhatsApp grocery agent`);
   console.log(`  listening on http://localhost:${config.port}`);
   console.log('');
-  console.log(`  catalog       ${products} active product(s)`);
+  const photos = photoCoverage();
+  console.log(
+    `  catalog       ${products} active product(s), ${photos.withPhoto} with photos`,
+  );
   console.log(
     `  delivery      ${money(config.store.deliveryFee)}` +
       (config.store.freeDeliveryOver > 0 ? `, free over ${money(config.store.freeDeliveryOver)}` : ''),

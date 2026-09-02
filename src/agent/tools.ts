@@ -73,6 +73,20 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'show_product_photo',
+    description:
+      "Send the customer a photo of a product, when they ask what something looks like or which of two similar items they mean. Only some products have photos — this reports plainly when one does not, and you should then describe it in words rather than apologising at length.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sku: { type: 'string', description: 'Exact SKU of the product to show.' },
+        caption: { type: 'string', description: 'Short line shown under the photo.' },
+      },
+      required: ['sku'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'view_cart',
     description:
       "Read the customer's current cart with line totals, delivery fee, and order total.",
@@ -242,6 +256,7 @@ const productView = (p: repo.Product) => ({
   price: money(p.price),
   in_stock: p.stock > 0,
   stock_remaining: p.stock,
+  has_photo: Boolean(p.imageUrl),
   ...(p.description ? { description: p.description } : {}),
 });
 
@@ -382,6 +397,23 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!sku) return fail('sku is required.');
       const p = repo.getProductBySku(sku);
       return p ? ok(productView(p)) : fail(`No active product with SKU "${sku}".`);
+    }
+
+    case 'show_product_photo': {
+      const sku = asString(input.sku);
+      if (!sku) return fail('sku is required.');
+      const product = repo.getProductBySku(sku);
+      if (!product) return fail(`No active product with SKU "${sku}".`);
+      if (!product.imageUrl) {
+        return ok({
+          sent: false,
+          reason: `No photo on file for ${product.name}. Describe it in words instead — do not dwell on the missing picture.`,
+        });
+      }
+      const caption =
+        asString(input.caption) || `${product.name} — ${money(product.price)} / ${product.unit}`;
+      ctx.outbound.push({ kind: 'image', text: caption, imageUrl: product.imageUrl });
+      return ok({ sent: true, product: product.name, note: 'Photo queued — do not repeat the caption.' });
     }
 
     case 'view_cart':
