@@ -634,6 +634,76 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* --------------------------------------------------------------- identity */
+
+section('Customer identity');
+{
+  const idPhone = '5920003333';
+  const idCtx: ToolContext = { phone: idPhone, outbound: [] };
+  const idCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, idCtx));
+
+  // A WhatsApp profile name must never become the delivery name on its own.
+  repo.setProfileName(idPhone, 'Shop Phone 2');
+  const fresh = idCall('get_customer_details');
+  check('profile name is recorded', fresh.whatsapp_profile_name === 'Shop Phone 2', fresh.whatsapp_profile_name);
+  check('profile name is NOT used as the delivery name', fresh.name === null, JSON.stringify(fresh.name));
+  check('a new number is unconfirmed', fresh.identity_confirmed === false);
+
+  check(
+    'cannot confirm an identity that does not exist yet',
+    typeof idCall('confirm_identity').error === 'string',
+  );
+
+  // Details the customer states themselves are confirmed by saying them.
+  idCall('save_customer_details', { name: 'Real Person', address: '9 Confirmed Road, Georgetown' });
+  check('stating details confirms identity', idCall('get_customer_details').identity_confirmed === true);
+
+  // An order cannot be placed on an unconfirmed identity, however complete the details.
+  idCall('add_to_cart', { sku: 'RIC-001', quantity: 2 });
+  db.prepare(`UPDATE customers SET identity_confirmed_at = NULL WHERE phone = ?`).run(idPhone);
+  const blocked = idCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('checkout blocked while unconfirmed', typeof blocked.error === 'string', JSON.stringify(blocked).slice(0, 90));
+  check('the block explains what to do', String(blocked.error).includes('confirm_identity'), blocked.error);
+
+  idCall('confirm_identity');
+  const placed = idCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('checkout proceeds once confirmed', placed.placed === true, JSON.stringify(placed).slice(0, 90));
+
+  // Confirmation goes stale, because a phone can change hands between visits.
+  db.prepare(`UPDATE customers SET identity_confirmed_at = ? WHERE phone = ?`).run(
+    new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(),
+    idPhone,
+  );
+  check('a day-old confirmation is not trusted', repo.getIdentity(idPhone).confirmed === false);
+
+  // A telephone number is recorded for every order, defaulting to the number
+  // they message from so a driver always has someone to ring.
+  const defaulted = idCall('get_customer_details');
+  check('contact number defaults to the WhatsApp number', defaulted.contact_phone === idPhone, defaulted.contact_phone);
+
+  idCall('save_customer_details', { contact_phone: '592 611 2233' });
+  const withContact = idCall('get_customer_details');
+  check('a different contact number is saved', withContact.contact_phone === '5926112233', withContact.contact_phone);
+  check(
+    'rejects an unusable number',
+    typeof idCall('save_customer_details', { contact_phone: '12' }).error === 'string',
+  );
+  check(
+    'saving only a contact number leaves the name alone',
+    withContact.name === 'Real Person',
+    withContact.name,
+  );
+
+  const record = idCall('customer_record');
+  check('transaction record counts the order', record.order_count === 1, JSON.stringify(record.order_count));
+  check('transaction record totals the spend', record.total_spent === money(2 * 1850 + 500), record.total_spent);
+  check('transaction record lists the order', record.orders?.[0]?.items?.length === 1, JSON.stringify(record.orders?.[0]));
+  check('transaction record keeps the phone number', record.phone === idPhone);
+  check('transaction record keeps the contact number', record.contact_phone === '5926112233', record.contact_phone);
+  check('the order stored a contact number', repo.findOrder('1') !== null);
+}
+
 /* ------------------------------------------------------------------ report */
 
 console.log('');

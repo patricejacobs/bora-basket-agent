@@ -24,7 +24,13 @@ export type CartSummary = {
   total: number;
 };
 
-export type Customer = { phone: string; name: string | null; address: string | null };
+export type Customer = {
+  phone: string;
+  name: string | null;
+  address: string | null;
+  /** The number to ring on delivery; defaults to the WhatsApp number. */
+  contactPhone: string | null;
+};
 
 /* ------------------------------------------------------------------ catalog */
 
@@ -146,23 +152,33 @@ export function productCount(): number {
 /* ---------------------------------------------------------------- customers */
 
 export function getCustomer(phone: string): Customer {
-  const row = db.prepare(`SELECT phone, name, address FROM customers WHERE phone = ?`).get(phone) as
-    | Customer
+  const row = db
+    .prepare(`SELECT phone, name, address, contact_phone FROM customers WHERE phone = ?`)
+    .get(phone) as
+    | { phone: string; name: string | null; address: string | null; contact_phone: string | null }
     | undefined;
-  return row ?? { phone, name: null, address: null };
+  if (!row) return { phone, name: null, address: null, contactPhone: null };
+  return { phone: row.phone, name: row.name, address: row.address, contactPhone: row.contact_phone };
 }
 
-export function saveCustomer(phone: string, fields: { name?: string; address?: string }): Customer {
+export function saveCustomer(
+  phone: string,
+  fields: { name?: string; address?: string; contactPhone?: string },
+): Customer {
   const existing = getCustomer(phone);
   const name = fields.name?.trim() || existing.name;
   const address = fields.address?.trim() || existing.address;
+  // Falls back to the WhatsApp number, so there is always a number to ring.
+  const contactPhone = fields.contactPhone?.replace(/[^0-9+]/g, '') || existing.contactPhone || phone;
+
   db.prepare(
-    `INSERT INTO customers (phone, name, address, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO customers (phone, name, address, contact_phone, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(phone) DO UPDATE SET
-       name = excluded.name, address = excluded.address, updated_at = excluded.updated_at`,
-  ).run(phone, name, address, nowIso(), nowIso());
-  return { phone, name: name ?? null, address: address ?? null };
+       name = excluded.name, address = excluded.address,
+       contact_phone = excluded.contact_phone, updated_at = excluded.updated_at`,
+  ).run(phone, name, address, contactPhone, nowIso(), nowIso());
+  return { phone, name: name ?? null, address: address ?? null, contactPhone };
 }
 
 /* --------------------------------------------------------------------- cart */
@@ -237,6 +253,7 @@ export function placeOrder(args: {
   phone: string;
   customerName: string;
   address: string;
+  contactPhone: string;
   deliveryNote: string;
   paymentMethod: string;
 }): PlacedOrder {
@@ -266,15 +283,16 @@ export function placeOrder(args: {
     const info = db
       .prepare(
         `INSERT INTO orders
-           (order_no, phone, customer_name, address, delivery_note,
+           (order_no, phone, customer_name, address, contact_phone, delivery_note,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
         args.phone,
         args.customerName,
         args.address,
+        args.contactPhone,
         args.deliveryNote,
         cart.subtotal,
         cart.deliveryFee,
@@ -412,6 +430,7 @@ export type OrderRecord = {
   phone: string;
   customerName: string;
   address: string;
+  contactPhone: string;
   deliveryNote: string;
   total: number;
   status: OrderStatus;
@@ -425,6 +444,7 @@ function hydrateOrder(row: {
   phone: string;
   customer_name: string;
   address: string;
+  contact_phone: string;
   delivery_note: string;
   total: number;
   status: string;
@@ -435,6 +455,7 @@ function hydrateOrder(row: {
     phone: row.phone,
     customerName: row.customer_name,
     address: row.address,
+    contactPhone: row.contact_phone || row.phone,
     deliveryNote: row.delivery_note,
     total: row.total,
     status: row.status as OrderStatus,
@@ -498,4 +519,130 @@ export function withinServiceWindow(phone: string): boolean {
   const last = lastInboundAt(phone);
   if (!last) return false;
   return Date.now() - last.getTime() < 24 * 60 * 60 * 1000;
+}
+
+/* ---------------------------------------------------------------- identity */
+
+/**
+ * How long a confirmation lasts. Matched to the conversation session: a customer
+ * who confirmed an hour ago should not be asked again mid-order, but someone
+ * returning next week is re-checked, because a phone can change hands.
+ */
+const IDENTITY_TTL_MS = 12 * 60 * 60 * 1000;
+
+export type CustomerIdentity = {
+  phone: string;
+  /** Confirmed by the customer, and safe to deliver to. */
+  name: string | null;
+  address: string | null;
+  contactPhone: string | null;
+  /** From WhatsApp. A hint to offer, never a fact to rely on. */
+  profileName: string | null;
+  confirmedAt: string | null;
+  confirmed: boolean;
+};
+
+export function getIdentity(phone: string): CustomerIdentity {
+  const row = db
+    .prepare(
+      `SELECT phone, name, address, contact_phone, profile_name, identity_confirmed_at
+       FROM customers WHERE phone = ?`,
+    )
+    .get(phone) as
+    | {
+        phone: string;
+        name: string | null;
+        address: string | null;
+        contact_phone: string | null;
+        profile_name: string | null;
+        identity_confirmed_at: string | null;
+      }
+    | undefined;
+
+  if (!row) {
+    return {
+      phone,
+      name: null,
+      address: null,
+      contactPhone: null,
+      profileName: null,
+      confirmedAt: null,
+      confirmed: false,
+    };
+  }
+
+  const at = row.identity_confirmed_at ? new Date(row.identity_confirmed_at) : null;
+  const fresh =
+    at !== null && !Number.isNaN(at.getTime()) && Date.now() - at.getTime() < IDENTITY_TTL_MS;
+
+  return {
+    phone: row.phone,
+    name: row.name,
+    address: row.address,
+    contactPhone: row.contact_phone,
+    profileName: row.profile_name,
+    confirmedAt: row.identity_confirmed_at,
+    confirmed: fresh,
+  };
+}
+
+/** Records the WhatsApp profile name without treating it as the customer's name. */
+export function setProfileName(phone: string, profileName: string): void {
+  db.prepare(
+    `INSERT INTO customers (phone, profile_name, created_at, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET profile_name = excluded.profile_name, updated_at = excluded.updated_at`,
+  ).run(phone, profileName.trim(), nowIso(), nowIso());
+}
+
+export function confirmIdentity(phone: string): void {
+  db.prepare(`UPDATE customers SET identity_confirmed_at = ?, updated_at = ? WHERE phone = ?`).run(
+    nowIso(),
+    nowIso(),
+    phone,
+  );
+}
+
+/* ------------------------------------------------------- transaction record */
+
+export type CustomerRecord = {
+  phone: string;
+  name: string | null;
+  profileName: string | null;
+  address: string | null;
+  contactPhone: string | null;
+  firstOrderAt: string | null;
+  lastOrderAt: string | null;
+  orderCount: number;
+  totalSpend: number;
+  orders: OrderRecord[];
+};
+
+/** The full trading history for one phone number. */
+export function customerRecord(phone: string, orderLimit = 20): CustomerRecord {
+  const identity = getIdentity(phone);
+  const summary = db
+    .prepare(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS spend,
+              MIN(created_at) AS first, MAX(created_at) AS last
+       FROM orders WHERE phone = ? AND status != 'cancelled'`,
+    )
+    .get(phone) as { count: number; spend: number; first: string | null; last: string | null };
+
+  const rows = db
+    .prepare(`SELECT * FROM orders WHERE phone = ? ORDER BY id DESC LIMIT ?`)
+    .all(phone, orderLimit) as unknown as Parameters<typeof hydrateOrder>[0][];
+
+  return {
+    phone,
+    name: identity.name,
+    profileName: identity.profileName,
+    address: identity.address,
+    contactPhone: identity.contactPhone,
+    firstOrderAt: summary.first,
+    lastOrderAt: summary.last,
+    orderCount: summary.count,
+    totalSpend: summary.spend,
+    orders: rows.map(hydrateOrder),
+  };
 }

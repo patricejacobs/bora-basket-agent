@@ -27,7 +27,7 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     '',
     `${order.customerName}`,
     `${order.address}`,
-    `📞 +${order.phone}`,
+    `📞 +${order.contactPhone || order.phone}`,
   ];
   if (order.deliveryNote) lines.push(`Note: ${order.deliveryNote}`);
 

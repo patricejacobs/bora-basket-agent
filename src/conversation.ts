@@ -30,11 +30,10 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     return staffReply;
   }
 
-  // Seed the delivery name from the WhatsApp profile so we don't ask for what we know.
-  if (msg.profileName) {
-    const existing = repo.getCustomer(msg.phone);
-    if (!existing.name) repo.saveCustomer(msg.phone, { name: msg.profileName });
-  }
+  // Record the WhatsApp profile name, but do not treat it as the customer's
+  // name. It is frequently a nickname, a business, or the relative whose phone
+  // this is — and deliveries go to a person.
+  if (msg.profileName) repo.setProfileName(msg.phone, msg.profileName);
 
   const text = msg.text.trim();
 

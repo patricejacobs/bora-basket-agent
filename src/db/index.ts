@@ -109,6 +109,18 @@ function addColumnIfMissing(table: string, column: string, definition: string): 
 
 addColumnIfMissing('orders', 'updated_at', "TEXT NOT NULL DEFAULT ''");
 
+// The WhatsApp profile name is a hint, not the customer's name — it is often a
+// nickname, a business, or the relative whose phone it is. Kept apart from the
+// delivery name so it can be offered for confirmation rather than assumed.
+addColumnIfMissing('customers', 'profile_name', "TEXT");
+// When this customer last confirmed who they are and where they are. Deliveries
+// go to a person, so this is required before an order can be placed.
+addColumnIfMissing('customers', 'identity_confirmed_at', "TEXT");
+// The number the driver should call. Usually the WhatsApp number, but not
+// always: people order from a work phone, or want the household number rung.
+addColumnIfMissing('customers', 'contact_phone', "TEXT");
+addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
+
 /**
  * One-off compliance removal.
  *

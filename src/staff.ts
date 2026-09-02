@@ -32,7 +32,7 @@ const describe = (o: repo.OrderRecord): string =>
     ...o.items.map((i) => `${i.qty} x ${i.name}`),
     `Total ${money(o.total)}`,
     `${o.customerName}, ${o.address}`,
-    `📞 +${o.phone}`,
+    `📞 +${o.contactPhone || o.phone}`,
     ...(o.deliveryNote ? [`Note: ${o.deliveryNote}`] : []),
   ].join('\n');
 

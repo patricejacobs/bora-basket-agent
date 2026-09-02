@@ -143,6 +143,18 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'confirm_identity',
+    description:
+      "Record that the customer has confirmed who they are and where to deliver. Call this only after they have actually said yes to the name and address you read back to them — never on an assumption, and never on a name that only came from their WhatsApp profile. An order cannot be placed until this is done.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'customer_record',
+    description:
+      "The trading history for this phone number: how many orders, total spent, when they first and last ordered, and the orders themselves. Use it to answer questions about past spending or to recognise a regular.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
     name: 'save_customer_details',
     description:
       'Save or update the delivery name and address. Only pass a field when the customer has actually stated it.',
@@ -153,6 +165,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         address: {
           type: 'string',
           description: 'Full delivery address including street, area, and any landmark.',
+        },
+        contact_phone: {
+          type: 'string',
+          description:
+            'The number the driver should call, if the customer gives a different one. Defaults to the number they are messaging from, so only pass this when they name another.',
         },
       },
       additionalProperties: false,
@@ -405,26 +422,81 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     }
 
     case 'get_customer_details': {
-      const c = repo.getCustomer(ctx.phone);
+      const id = repo.getIdentity(ctx.phone);
       return ok({
-        name: c.name,
-        address: c.address,
-        missing: [!c.name && 'name', !c.address && 'address'].filter(Boolean),
+        name: id.name,
+        address: id.address,
+        contact_phone: id.contactPhone ?? ctx.phone,
+        // A hint from WhatsApp, not a fact. Offer it; never deliver on it.
+        whatsapp_profile_name: id.profileName,
+        identity_confirmed: id.confirmed,
+        missing: [!id.name && 'name', !id.address && 'address'].filter(Boolean),
+        next: id.confirmed
+          ? 'Identity already confirmed in this conversation.'
+          : id.name || id.address
+            ? 'Read the name and address back and get a yes before ordering, then call confirm_identity.'
+            : 'Ask for the delivery name and address.',
+      });
+    }
+
+    case 'confirm_identity': {
+      const id = repo.getIdentity(ctx.phone);
+      if (!id.name || !id.address) {
+        return fail('Nothing to confirm yet — save a name and address first.');
+      }
+      repo.confirmIdentity(ctx.phone);
+      return ok({ confirmed: true, name: id.name, address: id.address });
+    }
+
+    case 'customer_record': {
+      const record = repo.customerRecord(ctx.phone, 20);
+      return ok({
+        phone: record.phone,
+        name: record.name,
+        whatsapp_profile_name: record.profileName,
+        address: record.address,
+        contact_phone: record.contactPhone ?? record.phone,
+        order_count: record.orderCount,
+        total_spent: money(record.totalSpend),
+        first_order: record.firstOrderAt,
+        last_order: record.lastOrderAt,
+        orders: record.orders.map((o) => ({
+          order_number: o.orderNo,
+          placed_at: o.placedAt,
+          status: o.status,
+          total: money(o.total),
+          items: o.items.map((i) => `${i.qty} x ${i.name}`),
+        })),
       });
     }
 
     case 'save_customer_details': {
       const nameField = asString(input.name);
       const address = asString(input.address);
-      if (!nameField && !address) return fail('Pass at least one of name or address.');
+      const contactPhone = asString(input.contact_phone);
+      if (!nameField && !address && !contactPhone) {
+        return fail('Pass at least one of name, address or contact_phone.');
+      }
+      if (contactPhone && contactPhone.replace(/[^0-9]/g, '').length < 7) {
+        return fail('That does not look like a usable telephone number. Ask them to repeat it.');
+      }
       if (address && address.length < 8) {
         return fail('That address looks too short to deliver to. Ask for street, area, and a landmark.');
       }
       const saved = repo.saveCustomer(ctx.phone, {
         ...(nameField ? { name: nameField } : {}),
         ...(address ? { address } : {}),
+        ...(contactPhone ? { contactPhone } : {}),
       });
-      return ok({ saved: { name: saved.name, address: saved.address } });
+
+      // Details the customer has just stated in their own words are confirmed by
+      // definition. Only details already on file need reading back.
+      if (saved.name && saved.address) repo.confirmIdentity(ctx.phone);
+
+      return ok({
+        saved: { name: saved.name, address: saved.address, contact_phone: saved.contactPhone },
+        identity_confirmed: repo.getIdentity(ctx.phone).confirmed,
+      });
     }
 
     case 'place_order': {
@@ -433,10 +505,17 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return fail('payment_method must be "cash_on_delivery" or "card_on_delivery".');
       }
 
-      const customer = repo.getCustomer(ctx.phone);
+      const customer = repo.getIdentity(ctx.phone);
       const missing = [!customer.name && 'name', !customer.address && 'address'].filter(Boolean);
       if (missing.length > 0) {
         return fail(`Cannot place the order yet — still need the customer's ${missing.join(' and ')}. Ask, then call save_customer_details.`);
+      }
+      // Goods go to a person at an address. Confirming who and where is not
+      // something to leave to the model's discretion.
+      if (!customer.confirmed) {
+        return fail(
+          `Identity not confirmed. Read back "${customer.name}, ${customer.address}", get a clear yes, then call confirm_identity before ordering.`,
+        );
       }
 
       const cart = repo.getCart(ctx.phone);
@@ -450,6 +529,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           phone: ctx.phone,
           customerName: customer.name as string,
           address: customer.address as string,
+          contactPhone: customer.contactPhone ?? ctx.phone,
           deliveryNote: asString(input.delivery_note),
           paymentMethod,
         });
@@ -468,6 +548,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           total: money(order.total),
           pay: paymentMethod === 'cash_on_delivery' ? 'cash on delivery' : 'card on delivery',
           deliver_to: `${order.customerName}, ${order.address}`,
+          contact_number: customer.contactPhone ?? ctx.phone,
           next: 'Tell the customer the order number and total, and that the store will confirm the delivery window shortly.',
         });
       } catch (err) {
