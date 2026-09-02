@@ -45,6 +45,21 @@ export const config = {
    * product exists, so it never overwrites live data.
    */
   seedCatalogPath: str('SEED_CATALOG_PATH', ''),
+  /**
+   * Re-import SEED_CATALOG_PATH on every boot, deactivating anything absent from
+   * it. Makes the committed CSV the source of truth for a hosted deployment,
+   * where there is no shell to run the importer from — without this, the seed
+   * runs once and the live catalogue can never be corrected.
+   */
+  catalogSyncOnBoot: bool('CATALOG_SYNC_ON_BOOT', false),
+  /**
+   * SKUs kept out of the catalogue entirely. WhatsApp's Commerce Policy
+   * prohibits alcohol and tobacco, and a strike can cost the phone number.
+   */
+  restrictedSkus: str('RESTRICTED_SKUS')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 
   anthropic: {
     apiKey: str('ANTHROPIC_API_KEY'),

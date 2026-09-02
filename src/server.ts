@@ -8,28 +8,60 @@ import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
 import { simulatorRouter } from './channels/simulator.ts';
 
-/** First boot on a hosted disk has no catalogue and often no shell to load one. */
-function seedCatalogIfEmpty(): void {
-  if (!config.seedCatalogPath || productCount() > 0) return;
+/**
+ * Loads the catalogue from the committed CSV.
+ *
+ * Two modes. By default it only seeds an empty catalogue — first boot on a fresh
+ * hosted disk. With CATALOG_SYNC_ON_BOOT it re-imports every time and
+ * deactivates anything absent from the file, which makes the committed CSV the
+ * source of truth: on a host with no shell, that is the only way to correct a
+ * live catalogue, including removing a product that must not be sold.
+ *
+ * Deactivation is safe by construction — the importer skips it when no rows
+ * parsed, so a truncated or unreadable CSV cannot empty the shop. Products are
+ * marked inactive rather than deleted, so past orders keep their history.
+ */
+function loadCatalogue(): void {
+  if (!config.seedCatalogPath) return;
 
   const file = path.resolve(config.seedCatalogPath);
   if (!fs.existsSync(file)) {
-    console.warn(`[seed] SEED_CATALOG_PATH points at a missing file: ${file}`);
+    console.warn(`[catalog] SEED_CATALOG_PATH points at a missing file: ${file}`);
     return;
   }
 
+  const existing = productCount();
+  const syncing = config.catalogSyncOnBoot;
+  if (existing > 0 && !syncing) return;
+
   try {
-    const result = importCsvText(fs.readFileSync(file, 'utf8'));
-    console.log(`[seed] catalogue was empty — imported ${result.imported} product(s) from ${path.basename(file)}`);
-    if (result.skipped.length > 0) {
-      console.warn(`[seed] skipped ${result.skipped.length} row(s); run the importer locally to see why`);
+    const result = importCsvText(
+      fs.readFileSync(file, 'utf8'),
+      syncing && existing > 0,
+      config.restrictedSkus,
+    );
+    const mode = existing === 0 ? 'seeded empty catalogue' : 'synced from CSV';
+    console.log(`[catalog] ${mode}: ${result.imported} product(s) from ${path.basename(file)}`);
+
+    const excluded = result.skipped.filter((s) => s.reason.includes('restricted'));
+    if (excluded.length > 0) {
+      console.log(`[catalog] held back ${excluded.length} restricted SKU(s): ${config.restrictedSkus.join(', ')}`);
+    }
+    const other = result.skipped.length - excluded.length;
+    if (other > 0) {
+      console.warn(`[catalog] skipped ${other} bad row(s); run the importer locally to see why`);
+    }
+    if (syncing && existing > 0 && result.imported > 0) {
+      console.log(`[catalog] anything absent from the CSV is now inactive (was ${existing}, now ${productCount()})`);
+    } else if (syncing && result.imported === 0) {
+      console.warn('[catalog] CSV yielded no rows — catalogue left untouched rather than emptied');
     }
   } catch (err) {
-    console.error('[seed] catalogue import failed:', err);
+    console.error('[catalog] import failed, leaving the existing catalogue alone:', err);
   }
 }
 
-seedCatalogIfEmpty();
+loadCatalogue();
 
 const app = express();
 app.disable('x-powered-by');

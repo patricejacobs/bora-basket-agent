@@ -133,6 +133,7 @@ const VALUES: Record<string, string> = {
   TEMPLATE_ORDER_DELIVERED: settings.templates?.delivered ?? '',
   TEMPLATE_LANGUAGE: settings.templates?.language ?? 'en',
   AGENT_EFFORT: settings.agentEffort,
+  RESTRICTED_SKUS: (settings.restrictedSkus ?? []).join(','),
 };
 
 /* ------------------------------------------------------------------- .env */

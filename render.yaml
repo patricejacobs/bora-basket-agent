@@ -45,6 +45,12 @@ services:
       # Point this at your own CSV once you have one.
       - key: SEED_CATALOG_PATH
         value: ./data/sample-products.csv
+      # The committed CSV is the source of truth: Render has no shell to run
+      # the importer from, so without this a live catalogue can never be fixed.
+      - key: CATALOG_SYNC_ON_BOOT
+        value: "true"
+      - key: RESTRICTED_SKUS
+        value: "BEV-001"
 
       # --- secrets: set these in the Render dashboard, never in this file ---
       - key: ANTHROPIC_API_KEY
