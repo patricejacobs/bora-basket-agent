@@ -241,7 +241,7 @@ All of this lives in `.env`.
 | `ANTHROPIC_API_KEY` | — | Required |
 | `AGENT_EFFORT` | `low` | `low`\|`medium`\|`high`\|`xhigh`\|`max`. See the note below |
 | `STORE_NAME` | Your Grocery Store | Used in the greeting and the system prompt |
-| `STORE_HOURS` | — | Quoted to customers verbatim |
+| `STORE_HOURS` | — | Quoted to customers verbatim, and read per day. See below |
 | `DELIVERY_AREAS` | — | Where you deliver |
 | `DELIVERY_FEE` | 500 | In display currency, not minor units |
 | `FREE_DELIVERY_OVER` | 10000 | `0` disables free delivery |
@@ -257,6 +257,33 @@ All of this lives in `.env`.
 | `TEMPLATE_ORDER_DELIVERED` | — | As above |
 | `TEMPLATE_LANGUAGE` | `en` | Template language code |
 | `SEED_CATALOG_PATH` | — | CSV imported at boot when the catalogue is empty |
+
+### A note on `STORE_HOURS`
+
+Written for customers to read, but also parsed — per day, so `Mon-Sat 8:00am - 8:00pm,
+Sun 9:00am - 4:00pm` gives Sunday its own shorter day. Day ranges (`Mon-Sat`), day lists
+(`Mon, Wed, Fri`), `Sun closed`, and hours crossing midnight (`6:00pm - 2:00am`) all read
+correctly. A day you never list is a day off.
+
+**Outside those hours the agent does not say "we're closed."** It says when deliveries
+start and keeps taking the order:
+
+> Good morning! Bora Basket here — I can build your grocery order right in this chat.
+> Bread we have: …
+> Which one, and how many? Deliveries run from 8:00am today, so I can get it moving from then.
+
+Same fact, but "we're closed" reads as *go away* and loses an order the shop could have
+filled at eight. The three cases are worded apart, because "deliveries have finished for
+today" is untrue on a day the shop never opened:
+
+| Situation | What the customer hears |
+|---|---|
+| Before opening | Deliveries start at 8:00am today |
+| After closing | Deliveries have finished for today — they start at 8:00am tomorrow |
+| A day off | No deliveries today — they start at 8:00am on Monday |
+
+If the hours cannot be parsed, the agent says nothing about timing rather than guessing.
+Telling someone the shop is shut when it is open costs a sale; silence costs nothing.
 
 ### A note on `AGENT_EFFORT`
 

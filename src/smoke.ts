@@ -1025,10 +1025,77 @@ section('Opening hours');
   check('one time is not a range', at('open 9am daily', '2026-09-02T15:00:00Z').state === 'unknown');
   check('nonsense times are unknown', at('99:99am - 88pm', '2026-09-02T15:00:00Z').state === 'unknown');
 
+  // When the shop is shut, the next opening is worked out here rather than left
+  // to the model to derive from a free-text hours string.
+  const early = at(DEFAULT, '2026-09-03T09:57:00Z'); // Thursday 05:57 local
+  check(
+    'before opening, names today\'s start time',
+    early.state === 'closed' && early.phase === 'before' && early.opensAt === '8:00am today',
+    JSON.stringify(early),
+  );
+
+  const lateThursday = at(DEFAULT, '2026-09-04T00:30:00Z'); // Thursday 20:30 local
+  check(
+    'after closing, points at tomorrow',
+    lateThursday.state === 'closed' && lateThursday.phase === 'after' && lateThursday.opensAt === '8:00am tomorrow',
+    JSON.stringify(lateThursday),
+  );
+
+  // Saturday night rolls to Sunday's later opening, not the weekday one.
+  const saturdayNight = at(DEFAULT, '2026-09-06T01:00:00Z'); // Saturday 21:00 local
+  check(
+    "picks up the next day's different hours",
+    saturdayNight.state === 'closed' && saturdayNight.opensAt === '9:00am tomorrow',
+    JSON.stringify(saturdayNight),
+  );
+
+  // A day the shop never opens is skipped when looking ahead.
+  const shutSunday = at('Mon-Fri 8:00am - 6:00pm', '2026-09-05T23:00:00Z'); // Saturday 19:00
+  check(
+    'skips days the shop does not open',
+    shutSunday.state === 'closed' && shutSunday.opensAt === '8:00am on Monday',
+    JSON.stringify(shutSunday),
+  );
+
+  const neverOpen = at('Sun closed', '2026-09-06T15:00:00Z');
+  check('a shop that never opens has no next opening', neverOpen.state === 'closed' && neverOpen.opensAt === null);
+
   // And the context line the model actually reads.
   (config.store as { hours: string }).hours = DEFAULT;
   const { buildTimeContext: ctxNow } = await import('./agent/context.ts');
-  check('an open shop is not announced as closed', !ctxNow().includes('closed now'), ctxNow());
+  check('an open shop is not announced as closed', !ctxNow().includes('closed'), ctxNow());
+
+  // The customer-facing framing: deliveries starting, never shutters closing.
+  // "We're closed" reads as go away and loses an order the shop could fill.
+  //
+  // The fixture is built from today's weekday rather than from a fixed hours
+  // string, so the shop is shut whatever time this suite happens to run at.
+  const short = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Guyana',
+    weekday: 'short',
+  }).format(new Date()).slice(0, 3);
+  const otherDay = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].find(
+    (d) => d.toLowerCase() !== short.toLowerCase(),
+  );
+  (config.store as { hours: string }).hours = `${short} closed, ${otherDay} 8:00am - 8:00pm`;
+  const shutLine = ctxNow();
+  check('a shut shop talks about deliveries, not shutters', shutLine.includes('deliveries'), shutLine);
+  check('never announces the shop as closed', !/shop is closed/i.test(shutLine), shutLine);
+  check(
+    'does not claim deliveries finished on a day they never ran',
+    shutLine.includes('No deliveries today'),
+    shutLine,
+  );
+  check('and says to keep taking the order', shutLine.includes('Take the order as normal'), shutLine);
+
+  // The three phases each need their own words.
+  (config.store as { hours: string }).hours = DEFAULT;
+  const before = at(DEFAULT, '2026-09-03T09:57:00Z');
+  const after = at(DEFAULT, '2026-09-04T00:30:00Z');
+  check('before opening is not "finished for today"', before.state === 'closed' && before.phase === 'before');
+  check('after closing is', after.state === 'closed' && after.phase === 'after');
+  const dayOff = at('Mon-Fri 8:00am - 6:00pm', '2026-09-05T23:00:00Z');
+  check('a day off is neither', dayOff.state === 'closed' && dayOff.phase === 'off', JSON.stringify(dayOff));
 
   (config.store as { hours: string }).hours = original;
 }

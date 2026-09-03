@@ -26,7 +26,19 @@ export function buildTimeContext(): string {
   ];
   const status = shopStatus();
   if (status.state === 'closed') {
-    lines.push('The shop is closed now — any order will go out when it next opens.');
+    // Framed around deliveries, not shutters. "We're closed" reads as go away,
+    // and the shop loses an order it could perfectly well have filled at eight;
+    // "deliveries start at 8" is the same fact and keeps the customer shopping.
+    const next = status.opensAt ? `start at ${status.opensAt}` : 'have not started yet';
+    const opening =
+      status.phase === 'before'
+        ? `Deliveries ${next}.`
+        : status.phase === 'after'
+          ? `Deliveries have finished for today — they ${next}.`
+          : `No deliveries today — they ${next}.`;
+    lines.push(
+      `${opening} Take the order as normal and tell them it goes out from then. Say it that way round: talk about when deliveries run, never about the shop being shut, and never turn them away.`,
+    );
   } else if (status.state === 'open' && status.closesInMinutes <= 60) {
     lines.push(
       `The shop closes in about ${status.closesInMinutes} minutes — mention it if they are still browsing.`,
@@ -116,7 +128,7 @@ function relativeDay(iso: string): string {
 /* ------------------------------------------------------------ opening hours */
 
 /**
- * Whether the shop is open, and for how much longer.
+ * Whether the shop is delivering, and when it next will be.
  *
  * STORE_HOURS is free text written for customers to read, so this is best-effort
  * by design — but it must fail to 'unknown', never to a confident wrong answer.
@@ -126,12 +138,29 @@ function relativeDay(iso: string): string {
  */
 export type ShopStatus =
   | { state: 'open'; closesInMinutes: number }
-  | { state: 'closed' }
+  | {
+      state: 'closed';
+      /**
+       * 'before' — today's deliveries have not begun.
+       * 'after'  — they ran today and have finished.
+       * 'off'    — the shop does not deliver at all today.
+       *
+       * Worth separating: "deliveries have finished for today" is a plain lie on
+       * a day the shop was never open.
+       */
+      phase: 'before' | 'after' | 'off';
+      /** "8:00am today", "8:00am tomorrow", "9:00am on Sunday" — null if unreadable. */
+      opensAt: string | null;
+    }
   | { state: 'unknown' };
 
 const DAY_INDEX: Record<string, number> = {
   sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
 };
+
+const DAY_NAME = [
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+];
 
 const DAY_WORD = /\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\.?/gi;
 const TIME = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi;
@@ -144,6 +173,15 @@ function toMinutes(rawHour: string, rawMinute: string | undefined, meridiem: str
   if (/pm/i.test(meridiem) && hour !== 12) hour += 12;
   if (/am/i.test(meridiem) && hour === 12) hour = 0;
   return hour * 60 + minute;
+}
+
+/** Minutes past midnight back into "8:00am", for reading out to a customer. */
+function clockTime(minutes: number): string {
+  const wrapped = ((minutes % 1440) + 1440) % 1440;
+  const hour24 = Math.floor(wrapped / 60);
+  const meridiem = hour24 < 12 ? 'am' : 'pm';
+  const hour = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${hour}:${String(wrapped % 60).padStart(2, '0')}${meridiem}`;
 }
 
 /** Which days a fragment such as "Mon-Sat" or "Sun" covers. Empty means "unstated". */
@@ -173,6 +211,68 @@ function daysCovered(text: string): Set<number> {
   return days;
 }
 
+type Clause = {
+  /** Null means the clause names no days, so it covers every day. */
+  days: Set<number> | null;
+  shut: boolean;
+  opens: number;
+  closes: number;
+};
+
+/** "Mon-Sat 8am-8pm, Sun 9am-4pm" -> one clause per group of days. */
+function parseHours(hours: string): Clause[] {
+  const fragments = hours.split(/[,;]|\band\b/i).map((c) => c.trim()).filter(Boolean);
+  const clauses: Clause[] = [];
+
+  for (const fragment of fragments) {
+    const covered = daysCovered(fragment);
+    // A fragment naming no days applies to every day, but only when it is the
+    // whole setting — otherwise it is a stray piece of a split gone wrong.
+    const days = covered.size > 0 ? covered : fragments.length === 1 ? null : new Set<number>();
+    if (days instanceof Set && days.size === 0) continue;
+
+    if (/\bclosed\b/i.test(fragment)) {
+      clauses.push({ days, shut: true, opens: 0, closes: 0 });
+      continue;
+    }
+
+    const times = [...fragment.matchAll(TIME)];
+    if (times.length < 2) continue;
+
+    const first = times[0]!;
+    const last = times[times.length - 1]!;
+    const opens = toMinutes(first[1]!, first[2], first[3]!);
+    let closes = toMinutes(last[1]!, last[2], last[3]!);
+    if (opens === null || closes === null) continue;
+    // A closing time at or before opening runs past midnight.
+    if (closes <= opens) closes += 1440;
+
+    clauses.push({ days, shut: false, opens, closes });
+  }
+  return clauses;
+}
+
+const clauseFor = (clauses: Clause[], day: number): Clause | undefined =>
+  clauses.find((c) => c.days === null || c.days.has(day));
+
+/**
+ * The next time the shop opens, phrased for reading aloud.
+ *
+ * Looked up rather than left to the model, because working "Sun 9:00am" out of
+ * a hours string on a Saturday night is exactly the sort of arithmetic that
+ * quietly comes back wrong.
+ */
+function nextOpening(clauses: Clause[], today: number): string | null {
+  for (let ahead = 1; ahead <= 7; ahead++) {
+    const day = (today + ahead) % 7;
+    const clause = clauseFor(clauses, day);
+    if (!clause || clause.shut) continue;
+    const when = ahead === 1 ? 'tomorrow' : `on ${DAY_NAME[day]}`;
+    return `${clockTime(clause.opens)} ${when}`;
+  }
+  return null;
+}
+
 export function shopStatus(now = new Date()): ShopStatus {
   const hours = config.store.hours.trim();
   if (!hours) return { state: 'unknown' };
@@ -189,51 +289,27 @@ export function shopStatus(now = new Date()): ShopStatus {
   // Some ICU builds render midnight as 24.
   const nowMinutes = (nowHour % 24) * 60 + nowMinute;
 
-  // "Mon-Sat 8am-8pm, Sun 9am-4pm" splits into one clause per group of days.
-  const clauses = hours.split(/[,;]|\band\b/i).map((c) => c.trim()).filter(Boolean);
+  const clauses = parseHours(hours);
+  if (clauses.length === 0) return { state: 'unknown' };
 
-  let sawTodaysClause = false;
-  let anyClauseUnderstood = false;
-
-  for (const clause of clauses) {
-    const covered = daysCovered(clause);
-    // A clause naming no days applies to every day, but only when it is the
-    // whole setting — otherwise it is a stray fragment of a split gone wrong.
-    const appliesToday = covered.size === 0 ? clauses.length === 1 : covered.has(today);
-
-    if (/\bclosed\b/i.test(clause)) {
-      if (appliesToday) return { state: 'closed' };
-      anyClauseUnderstood = true;
-      continue;
-    }
-
-    const times = [...clause.matchAll(TIME)];
-    if (times.length < 2) continue;
-
-    const first = times[0]!;
-    const last = times[times.length - 1]!;
-    const opens = toMinutes(first[1]!, first[2], first[3]!);
-    let closes = toMinutes(last[1]!, last[2], last[3]!);
-    if (opens === null || closes === null) continue;
-    // A closing time at or before opening runs past midnight.
-    if (closes <= opens) closes += 1440;
-
-    anyClauseUnderstood = true;
-    if (!appliesToday) continue;
-    sawTodaysClause = true;
-
-    // Small hours of a session that began yesterday evening: at 00:30 under
-    // "6pm - 2am" the shop is open, and the clock reads before opening time.
-    if (closes > 1440 && nowMinutes + 1440 < closes) {
-      return { state: 'open', closesInMinutes: closes - nowMinutes - 1440 };
-    }
-    if (nowMinutes < opens) return { state: 'closed' };
-    if (nowMinutes >= closes) return { state: 'closed' };
-    return { state: 'open', closesInMinutes: closes - nowMinutes };
+  // Small hours of a session that began yesterday evening: at 00:30 under
+  // "6pm - 2am" the shop is open, and the clock reads before opening time.
+  const yesterday = clauseFor(clauses, (today + 6) % 7);
+  if (yesterday && !yesterday.shut && yesterday.closes > 1440 && nowMinutes + 1440 < yesterday.closes) {
+    return { state: 'open', closesInMinutes: yesterday.closes - nowMinutes - 1440 };
   }
 
-  // Understood the setting, and today is simply not in it — a shop that lists
-  // Mon-Sat is shut on Sunday.
-  if (anyClauseUnderstood && !sawTodaysClause) return { state: 'closed' };
-  return { state: 'unknown' };
+  const clause = clauseFor(clauses, today);
+  // Today is not in the hours at all, or is named as a closed day.
+  if (!clause || clause.shut) {
+    return { state: 'closed', phase: 'off', opensAt: nextOpening(clauses, today) };
+  }
+
+  if (nowMinutes < clause.opens) {
+    return { state: 'closed', phase: 'before', opensAt: `${clockTime(clause.opens)} today` };
+  }
+  if (nowMinutes >= clause.closes) {
+    return { state: 'closed', phase: 'after', opensAt: nextOpening(clauses, today) };
+  }
+  return { state: 'open', closesInMinutes: clause.closes - nowMinutes };
 }
