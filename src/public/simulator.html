@@ -73,12 +73,13 @@
     border-radius: 20px; padding: 10px 20px; cursor: pointer;
   }
   form button:disabled { opacity: .5; cursor: default; }
-  #attach {
+  #attach, #pin {
     background: transparent; border: 1px solid var(--border); color: var(--muted);
     border-radius: 20px; padding: 10px 14px; font-size: 16px; cursor: pointer;
   }
-  #attach:hover { color: var(--text); border-color: var(--muted); }
+  #attach:hover, #pin:hover { color: var(--text); border-color: var(--muted); }
   #attach.armed { color: var(--accent); border-color: var(--accent); }
+  .bubble a { color: var(--accent); }
   .bubble img { max-width: 240px; border-radius: 6px; display: block; margin-bottom: 6px; }
 
   aside {
@@ -109,12 +110,13 @@
     </header>
 
     <div id="log">
-      <div class="meta">Send a message to start. Try “what do you have?” or “I need rice and chicken”.</div>
+      <div class="meta">Send a message to start. Try “what do you have?” or “I need rice and chicken”. 📍 shares a location pin, which every order needs.</div>
     </div>
 
     <form id="composer">
       <input type="file" id="file" accept="image/*" hidden />
       <button id="attach" type="button" title="Attach a photo of a shopping list">📎</button>
+      <button id="pin" type="button" title="Share a location pin, as WhatsApp's Send location does">📍</button>
       <input id="text" placeholder="Type a message" autocomplete="off" autofocus />
       <button id="send" type="submit">Send</button>
     </form>
@@ -157,11 +159,46 @@ function bubble(dir, html) {
   return b;
 }
 
+/** Central Georgetown — where a test pin lands unless you edit it here. */
+const PIN_ORIGIN = { latitude: 6.804, longitude: -58.1553 };
+
+const pinCoords = (pin) =>
+  Number(pin.latitude).toFixed(6).replace(/0+$/, '').replace(/\.$/, '') + ', ' +
+  Number(pin.longitude).toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+
+/** A pin as a tappable link, standing in for WhatsApp's map card. */
+function pinCard(pin) {
+  const q = Number(pin.latitude).toFixed(6) + ',' + Number(pin.longitude).toFixed(6);
+  return '<div class="meta">📍 location pin' + (pin.label ? ' — ' + esc(pin.label) : '') + '</div>'
+    + '<a href="https://www.google.com/maps?q=' + encodeURIComponent(q) + '" target="_blank" rel="noreferrer">'
+    + esc(pinCoords(pin)) + '</a>';
+}
+
+/**
+ * Shares a pin the way a phone does.
+ *
+ * Jittered a few hundred metres each time, because a real customer never sends
+ * the identical coordinate twice and a fixed value hides bugs in anything that
+ * compares one pin to the last.
+ */
+function sharePin() {
+  const jitter = () => (Math.random() - 0.5) * 0.004;
+  send('', {
+    latitude: Number((PIN_ORIGIN.latitude + jitter()).toFixed(6)),
+    longitude: Number((PIN_ORIGIN.longitude + jitter()).toFixed(6)),
+  });
+}
+
 function renderOutbound(msg) {
   const photo = msg.kind === 'image'
     ? '<img src="' + esc(msg.imageUrl) + '" alt="product photo" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'meta',textContent:'[photo failed to load: '+this.src+']'}))">'
     : '';
-  const b = bubble('in', photo + waFormat(msg.text));
+  // A pin we sent out (to a driver) is a map card in WhatsApp; here it is the
+  // link, which is the part a person can actually check.
+  const card = msg.kind === 'location' ? pinCard(msg.pin) : '';
+
+  const b = bubble('in', photo + card + waFormat(msg.text));
+
   if (msg.kind === 'buttons') {
     const wrap = document.createElement('div');
     wrap.className = 'btns';
@@ -174,6 +211,20 @@ function renderOutbound(msg) {
     }
     b.appendChild(wrap);
   }
+
+  // WhatsApp's Send location button. Tapping it here shares a pin through the
+  // same endpoint a real phone posts to.
+  if (msg.kind === 'location_request') {
+    const wrap = document.createElement('div');
+    wrap.className = 'btns';
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.textContent = '📍 Send location';
+    el.onclick = () => { el.disabled = true; sharePin(); };
+    wrap.appendChild(el);
+    b.appendChild(wrap);
+  }
+
   log.scrollTop = log.scrollHeight;
 }
 
@@ -184,9 +235,19 @@ function renderState(state) {
 
   const c = state.customer;
   document.getElementById('customer').innerHTML =
-    (c.name || c.address)
+    (c.name || c.address || c.location)
       ? `<div class="line"><span>Name</span><span>${esc(c.name || '—')}</span></div>
-         <div class="line"><span>Address</span><span>${esc(c.address || '—')}</span></div>`
+         <div class="line"><span>Doorstep</span><span>${esc(c.address || '—')}</span></div>
+         <div class="line"><span>Pin</span><span>${
+           c.location
+             ? `<a href="${esc(c.location.link)}" target="_blank" rel="noreferrer">${esc(c.location.coordinates)}</a>`
+             : '— none shared'
+         }</span></div>
+         ${
+           c.location
+             ? `<div class="line"><span>Range</span><span>${esc(c.location.range)}</span></div>`
+             : ''
+         }`
       : '<div class="empty">No details saved</div>';
 
   const cart = state.cart;
@@ -206,8 +267,8 @@ function renderState(state) {
 }
 
 let busy = false;
-async function send(text) {
-  if (busy || (!text.trim() && !pending)) return;
+async function send(text, pin) {
+  if (busy || (!text.trim() && !pending && !pin)) return;
   busy = true;
   sendBtn.disabled = true;
 
@@ -220,7 +281,7 @@ async function send(text) {
   const preview = attached
     ? '<img src="data:' + attached.mediaType + ';base64,' + attached.base64 + '" alt="attached photo">'
     : '';
-  bubble('out', preview + waFormat(text));
+  bubble('out', preview + (pin ? pinCard(pin) : '') + waFormat(text));
 
   const typing = document.createElement('div');
   typing.className = 'meta typing';
@@ -236,6 +297,7 @@ async function send(text) {
         phone: phoneEl.value,
         text,
         ...(attached ? { image: { base64: attached.base64, mediaType: attached.mediaType } } : {}),
+        ...(pin ? { location: pin } : {}),
       }),
     });
     const data = await res.json();
@@ -261,6 +323,7 @@ const attachBtn = document.getElementById('attach');
 let pending = null;
 
 attachBtn.onclick = () => fileEl.click();
+document.getElementById('pin').onclick = () => sharePin();
 fileEl.onchange = () => {
   const f = fileEl.files && fileEl.files[0];
   if (!f) return;

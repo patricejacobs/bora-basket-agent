@@ -139,6 +139,21 @@ addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
 // itself, so nothing is stored here but the address.
 addColumnIfMissing('products', 'image_url', "TEXT NOT NULL DEFAULT ''");
 
+// The customer's delivery pin, as shared from WhatsApp. This is where the goods
+// actually go — a typed address is supporting detail for the doorstep.
+addColumnIfMissing('customers', 'latitude', 'REAL');
+addColumnIfMissing('customers', 'longitude', 'REAL');
+// WhatsApp's own name or street address for the pin, when it sent one.
+addColumnIfMissing('customers', 'location_label', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('customers', 'location_pinned_at', 'TEXT');
+
+// The pin is copied onto the order rather than read back off the customer,
+// because people move. A pin shared next month must not silently relocate a
+// delivery that already went out last week.
+addColumnIfMissing('orders', 'latitude', 'REAL');
+addColumnIfMissing('orders', 'longitude', 'REAL');
+addColumnIfMissing('orders', 'location_label', "TEXT NOT NULL DEFAULT ''");
+
 /**
  * One-off compliance removal.
  *

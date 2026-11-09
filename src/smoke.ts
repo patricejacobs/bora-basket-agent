@@ -22,6 +22,12 @@ for (const suffix of ['', '-wal', '-shm']) {
 process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
 process.env.STAFF_NUMBERS = '5926497570';
+// A delivery area around Stabroek Market, so the geofence is exercised rather
+// than skipped. It ships switched off (store-settings.json, asserted below),
+// and every test pin below except the deliberate far ones falls inside it.
+process.env.SERVICE_CENTRE_LAT = '6.8013';
+process.env.SERVICE_CENTRE_LNG = '-58.1551';
+process.env.SERVICE_RADIUS_KM = '15';
 
 // A scratch images folder, so results never depend on what happens to be in the
 // real one. One file is planted below to exercise SKU resolution.
@@ -284,14 +290,24 @@ section('Bulk list handling');
 section('Checkout');
 {
   const tooEarly = call('place_order', { payment_method: 'cash_on_delivery' });
-  check('blocks checkout without name and address', typeof tooEarly.error === 'string', tooEarly.error);
+  check('blocks checkout with no name', typeof tooEarly.error === 'string', tooEarly.error);
 
-  const shortAddress = call('save_customer_details', { name: 'Ada', address: 'here' });
-  check('rejects a too-short address', typeof shortAddress.error === 'string');
+  // A pin carries the location now, so "green gate" is a complete and useful
+  // doorstep note where it was once too short to be an address.
+  const shortNote = call('save_customer_details', { name: 'Ada', address: 'green gate' });
+  check('accepts a short doorstep note', shortNote.saved?.address === 'green gate', JSON.stringify(shortNote));
 
   call('save_customer_details', { name: 'Ada Lovelace', address: '12 Main Street, Georgetown' });
   const details = call('get_customer_details');
   check('saves customer details', details.name === 'Ada Lovelace' && !!details.address);
+
+  // Name and notes but nowhere to drive to: checkout must still refuse.
+  const noPin = call('place_order', { payment_method: 'cash_on_delivery' });
+  check('blocks checkout with no location pin', typeof noPin.error === 'string', JSON.stringify(noPin).slice(0, 90));
+  check('the block names the fix', String(noPin.error).includes('request_location'), noPin.error);
+
+  repo.saveLocationPin(PHONE, { latitude: 6.80714, longitude: -58.15536, label: 'Stabroek Market' });
+  call('confirm_identity');
 
   const badPayment = call('place_order', { payment_method: 'crypto' });
   check('rejects an unsupported payment method', typeof badPayment.error === 'string');
@@ -390,6 +406,44 @@ section('Interactive buttons');
     buttons: [1, 2, 3, 4].map((n) => ({ id: `b${n}`, title: `B${n}` })),
   });
   check('rejects more than 3 buttons', typeof tooMany.error === 'string');
+}
+
+/* ------------------------------------------------------------ reply shaping */
+
+section('Reply assembly');
+{
+  const { assembleReply } = await import('./agent/run.ts');
+  const buttons = [{ id: 'yes', title: 'Yes' }];
+
+  // Buttons: a short trailing line is filler and costs a second notification.
+  const filler = assembleReply('I will place it once you confirm.', [
+    { kind: 'buttons', text: 'Total $2,350. Place the order?', buttons },
+  ]);
+  check('drops filler prose beside buttons', filler.length === 1 && filler[0]?.kind === 'buttons');
+
+  const substantial = 'Only 3 snapper left, so I put 3 in rather than 6. '.repeat(3);
+  const kept = assembleReply(substantial, [
+    { kind: 'buttons', text: 'Place the order?', buttons },
+  ]);
+  check('keeps substantial prose beside buttons', kept[0]?.kind === 'text', JSON.stringify(kept[0]?.kind));
+
+  // A pin request is a side errand, so the answer about the shopping survives
+  // however short it is. Letting the filler rule apply here once left a
+  // customer with nothing but "share your pin" after listing three items.
+  const withOrder = assembleReply('Rice and chicken are in — $4,200 so far.', [
+    { kind: 'location_request', text: 'Tap below to share your delivery pin.' },
+  ]);
+  check('keeps the order answer beside a pin request', withOrder.length === 2, JSON.stringify(withOrder));
+  check('the words come first', withOrder[0]?.kind === 'text', withOrder[0]?.kind);
+  check('then the button', withOrder[1]?.kind === 'location_request', withOrder[1]?.kind);
+
+  const echoed = assembleReply('Tap below to share your delivery pin.', [
+    { kind: 'location_request', text: 'Tap below to share your delivery pin.' },
+  ]);
+  check('still drops a pure restatement', echoed.length === 1, JSON.stringify(echoed));
+
+  const silent = assembleReply('', []);
+  check('never sends an empty turn', silent.length === 1 && silent[0]?.kind === 'text');
 }
 
 /* ---------------------------------------------------------------- webhooks */
@@ -698,9 +752,13 @@ section('Staff dispatch');
   check('help lists the commands', help.includes('orders') && help.includes('on the way'));
 
   // The order placed in the checkout section above is ORD-00001.
-  const one = (await handleStaffMessage('1'))[0]?.text ?? '';
+  const single = await handleStaffMessage('1');
+  const one = single[0]?.text ?? '';
   check('shows a single order', one.includes('ORD-00001'), one.slice(0, 60));
   check('shows the delivery address', one.includes('Georgetown'));
+  check('shows a tappable maps link', one.includes('google.com/maps?q=6.80714'), one.slice(0, 200));
+  // The driver is usually about to drive there, so the pin follows as a card.
+  check('sends the pin as a map card', single[1]?.kind === 'location', JSON.stringify(single[1]));
 
   const open = (await handleStaffMessage('orders'))[0]?.text ?? '';
   check('lists open orders', open.includes('ORD-00001'), open.slice(0, 60));
@@ -807,8 +865,16 @@ section('Customer identity');
     typeof idCall('confirm_identity').error === 'string',
   );
 
-  // Details the customer states themselves are confirmed by saying them.
+  // Details the customer states themselves are confirmed by saying them — but
+  // only once there is somewhere to deliver to.
   idCall('save_customer_details', { name: 'Real Person', address: '9 Confirmed Road, Georgetown' });
+  check(
+    'a name alone does not confirm identity',
+    idCall('get_customer_details').identity_confirmed === false,
+  );
+
+  repo.saveLocationPin(idPhone, { latitude: 6.7988, longitude: -58.1489, label: '' });
+  idCall('save_customer_details', { name: 'Real Person' });
   check('stating details confirms identity', idCall('get_customer_details').identity_confirmed === true);
 
   // An order cannot be placed on an unconfirmed identity, however complete the details.
@@ -854,6 +920,283 @@ section('Customer identity');
   check('transaction record keeps the phone number', record.phone === idPhone);
   check('transaction record keeps the contact number', record.contact_phone === '5926112233', record.contact_phone);
   check('the order stored a contact number', repo.findOrder('1') !== null);
+}
+
+/* ----------------------------------------------------------- location pins */
+
+section('Location pins');
+{
+  const { parseCoordinates, pinLabel, formatCoordinates, mapsLink, locationNote } = await import(
+    './location.ts'
+  );
+
+  // Validation, which is the only thing standing between a broken payload and a
+  // driver sent to the middle of the Atlantic.
+  check('accepts a Georgetown pin', parseCoordinates(6.80714, -58.15536) !== null);
+  check('accepts numeric strings', parseCoordinates('6.80714', '-58.15536') !== null);
+  check('rejects a missing coordinate', parseCoordinates(6.8, undefined) === null);
+  check('rejects an out-of-range latitude', parseCoordinates(91, -58) === null);
+  check('rejects an out-of-range longitude', parseCoordinates(6.8, 181) === null);
+  check('rejects non-numeric junk', parseCoordinates('here', 'there') === null);
+  // 0,0 is a real place, and never a delivery address.
+  check('rejects null island', parseCoordinates(0, 0) === null);
+
+  check('labels a named place', pinLabel('Stabroek Market', 'Water St, Georgetown') === 'Stabroek Market — Water St, Georgetown');
+  check('collapses a repeated label', pinLabel('Stabroek Market', 'Stabroek Market, Georgetown') === 'Stabroek Market, Georgetown');
+  check('a hand-dropped pin has no label', pinLabel(undefined, undefined) === '');
+  check('formats without trailing noise', formatCoordinates({ latitude: 6.8, longitude: -58.15 }) === '6.8, -58.15');
+  check('maps link is tappable', mapsLink({ latitude: 6.80714, longitude: -58.15536 }) === 'https://www.google.com/maps?q=6.807140,-58.155360');
+
+  // The note the agent reads in place of the customer's (nonexistent) words.
+  const note = locationNote({ latitude: 6.80714, longitude: -58.15536, label: 'Stabroek Market' });
+  check('the note says the pin is already saved', note.includes('saved as the delivery point'));
+  check('the note forbids reading the numbers out', note.includes('never read the coordinates out'));
+  check('the note asks for doorstep detail', note.includes('save_customer_details'));
+
+  /* --- a pin arriving over the webhook --- */
+
+  const pinned = parseWebhook({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messages: [
+                {
+                  from: '5926001111',
+                  id: 'wamid.pin',
+                  type: 'location',
+                  location: {
+                    latitude: 6.80714,
+                    longitude: -58.15536,
+                    name: 'Stabroek Market',
+                    address: 'Water St, Georgetown',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  check('parses a shared location', pinned.length === 1, JSON.stringify(pinned));
+  check('carries the coordinates', pinned[0]?.location?.latitude === 6.80714, JSON.stringify(pinned[0]?.location));
+  check('carries the label', pinned[0]?.location?.label === 'Stabroek Market — Water St, Georgetown', pinned[0]?.location?.label);
+  check('a pin needs no text to survive', pinned[0]?.text === '', JSON.stringify(pinned[0]?.text));
+
+  // A pin that did not come through must ask for another, not be stored.
+  const brokenPin = parseWebhook({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messages: [
+                { from: '592', id: 'wamid.badpin', type: 'location', location: { latitude: 0, longitude: 0 } },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  check('an unusable pin is not stored', brokenPin[0]?.location === undefined, JSON.stringify(brokenPin[0]));
+  check('an unusable pin asks for another', String(brokenPin[0]?.text).includes('send it again'), brokenPin[0]?.text);
+
+  /* --- storing, reading back, and checking out --- */
+
+  const pinPhone = '5920004444';
+  const pinCtx: ToolContext = { phone: pinPhone, outbound: [] };
+  const pinCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, pinCtx));
+
+  check('a new customer has no pin', pinCall('get_customer_details').location_pin === null);
+  check(
+    'the next step is to ask for one',
+    String(pinCall('get_customer_details').next).includes('request_location'),
+  );
+
+  // Asking for a pin queues WhatsApp's own Send location button.
+  const asked = pinCall('request_location', { body: 'Pop me your location and I will get this moving.' });
+  check('request_location reports it sent', asked.sent === true, JSON.stringify(asked));
+  check('queues a location request', pinCtx.outbound[0]?.kind === 'location_request', JSON.stringify(pinCtx.outbound[0]));
+  check('the button carries the body text', pinCtx.outbound[0]?.text.includes('Pop me your location') === true);
+  check('and is not restated', String(asked.next).includes('do not repeat'), asked.next);
+  check('an empty body is refused', typeof pinCall('request_location', { body: '  ' }).error === 'string');
+
+  // Saving is the channel's job, exactly as conversation.ts does it on arrival.
+  const saved = repo.saveLocationPin(pinPhone, {
+    latitude: 6.80714,
+    longitude: -58.15536,
+    label: 'Stabroek Market',
+  });
+  check('a saved pin is timestamped', !!saved.pinnedAt);
+  check('the pin reads back', repo.getIdentity(pinPhone).location?.label === 'Stabroek Market');
+
+  const view = pinCall('get_customer_details');
+  check('the pin shows as on file', view.location_pin?.on_file === true, JSON.stringify(view.location_pin));
+  check('described in words, not numbers', view.location_pin?.where === 'Stabroek Market');
+  // The model has no use for coordinates and would read them out if it had them.
+  check(
+    'coordinates are withheld from the agent',
+    !JSON.stringify(view).includes('6.807'),
+    JSON.stringify(view),
+  );
+
+  // Checkout: a pin alone is not enough, and neither is a name alone.
+  pinCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+  const noName = pinCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('still blocked without a name', typeof noName.error === 'string', JSON.stringify(noName).slice(0, 80));
+
+  pinCall('save_customer_details', { name: 'Pin Tester' });
+  check('name plus pin confirms identity', pinCall('get_customer_details').identity_confirmed === true);
+
+  const placed = pinCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('checkout completes with a pin', placed.placed === true, JSON.stringify(placed).slice(0, 120));
+  check('the agent is told where it is going', placed.delivering_to_pin?.where === 'Stabroek Market');
+  check(
+    'the confirmation carries no coordinates',
+    !JSON.stringify(placed).includes('6.807'),
+    JSON.stringify(placed).slice(0, 160),
+  );
+
+  const stored = repo.findOrder(placed.order_number);
+  check('the order row keeps the pin', stored?.location?.latitude === 6.80714, JSON.stringify(stored?.location));
+  check('the order keeps the label', stored?.location?.label === 'Stabroek Market');
+  check('an order needs no typed address', stored?.address === '', JSON.stringify(stored?.address));
+
+  // People move. A new pin must not relocate an order already placed.
+  repo.saveLocationPin(pinPhone, { latitude: 6.5, longitude: -58.3, label: 'Somewhere else' });
+  check(
+    'a later pin does not move a placed order',
+    repo.findOrder(placed.order_number)?.location?.latitude === 6.80714,
+    JSON.stringify(repo.findOrder(placed.order_number)?.location),
+  );
+  check('but the customer record moves', repo.getIdentity(pinPhone).location?.label === 'Somewhere else');
+
+  // Orders placed before pins existed must still be readable.
+  db.prepare(`UPDATE orders SET latitude = NULL, longitude = NULL WHERE order_no = ?`).run(
+    placed.order_number,
+  );
+  check('a pinless legacy order still loads', repo.findOrder(placed.order_number)?.location === null);
+}
+
+/* ------------------------------------------------------ delivery-area fence */
+
+section('Delivery area');
+{
+  const { distanceKm, checkRange, formatDistance, locationNote, describePin } = await import(
+    './location.ts'
+  );
+
+  const shop = { latitude: 6.8013, longitude: -58.1551 }; // Stabroek, Georgetown
+  const nearby = { latitude: 6.8128, longitude: -58.1448 }; // Kitty, ~1.6km
+  const newAmsterdam = { latitude: 6.247, longitude: -57.5172 }; // ~95km east
+
+  // Haversine against known separations. Loose bounds on purpose: this asserts
+  // the maths is right to within a street, not to the metre.
+  check('a point is zero from itself', distanceKm(shop, shop) === 0);
+  const near = distanceKm(shop, nearby);
+  check('measures a short hop', near > 1.4 && near < 1.9, `${near.toFixed(2)} km`);
+  const far = distanceKm(shop, newAmsterdam);
+  check('measures across the country', far > 90 && far < 100, `${far.toFixed(1)} km`);
+  check('distance is symmetric', Math.abs(distanceKm(shop, nearby) - distanceKm(nearby, shop)) < 1e-9);
+
+  check('formats metres for a short distance', formatDistance(0.42) === '400 m', formatDistance(0.42));
+  check('never rounds a distance to zero', formatDistance(0.004) === '50 m', formatDistance(0.004));
+  check('formats one decimal under 10km', formatDistance(2.34) === '2.3 km', formatDistance(2.34));
+  check('formats whole kilometres above it', formatDistance(23.4) === '23 km', formatDistance(23.4));
+
+  /* --- the fence itself --- */
+
+  const area = { ...shop, radiusKm: 15 };
+  check('a nearby pin is inside', checkRange(nearby, area).state === 'inside');
+  check('a distant pin is outside', checkRange(newAmsterdam, area).state === 'outside');
+  check('the shop itself is inside', checkRange(shop, area).state === 'inside');
+  // The boundary belongs to the shop: a pin exactly on the line is deliverable.
+  check('the edge is inside', checkRange(nearby, { ...shop, radiusKm: near }).state === 'inside');
+
+  // An unconfigured fence must have no opinion at all, or a missing variable
+  // would refuse every order in the city.
+  check('no area configured means unchecked', checkRange(newAmsterdam, null).state === 'unchecked');
+  check('a zero radius means unchecked', checkRange(newAmsterdam, { ...shop, radiusKm: 0 }).state === 'unchecked');
+  check(
+    'a negative radius means unchecked, not everything-outside',
+    checkRange(nearby, { ...shop, radiusKm: -5 }).state === 'unchecked',
+  );
+  // What a fresh deployment gets: a circle at 0,0 with no radius, which the
+  // config layer resolves to no fence at all. The check must be something a
+  // shop switches on deliberately, never something that arrives switched on.
+  const shipped = JSON.parse(fs.readFileSync(path.resolve('./store-settings.json'), 'utf8'));
+  check('the shipped settings carry no radius', shipped.serviceArea?.radiusKm === 0, JSON.stringify(shipped.serviceArea));
+  check('and no shop position', shipped.serviceArea?.latitude === 0 && shipped.serviceArea?.longitude === 0);
+
+  // The env set at the top of this file is what the config layer read.
+  check('the configured area is live', config.store.serviceArea?.radiusKm === 15, JSON.stringify(config.store.serviceArea));
+
+  /* --- what each side is told --- */
+
+  const outside = checkRange(newAmsterdam, area);
+  const note = locationNote({ ...newAmsterdam, label: '' }, outside);
+  check('the arrival note says it is out of area', note.includes('outside the 15 km delivery area'));
+  check('and says staff will confirm', note.includes('staff member will confirm'));
+  check('and forbids inventing a fee', note.includes('do not guess at a fee'));
+  check(
+    'an in-area note does not mention being outside',
+    !locationNote({ ...nearby, label: '' }, checkRange(nearby, area)).includes('outside'),
+  );
+
+  const dispatch = describePin({ ...newAmsterdam, label: 'New Amsterdam' }, outside);
+  check('staff see the warning', dispatch.includes('OUTSIDE the 15 km delivery area'), dispatch);
+  check('staff see the distance', dispatch.includes('km away'), dispatch);
+  check(
+    'an unchecked pin gets no distance clutter',
+    !describePin({ ...nearby, label: '' }).includes('away'),
+  );
+
+  /* --- checkout refuses an out-of-area pin --- */
+
+  const farPhone = '5920005555';
+  const farCtx: ToolContext = { phone: farPhone, outbound: [] };
+  const farCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, farCtx));
+
+  repo.saveLocationPin(farPhone, { ...newAmsterdam, label: 'New Amsterdam' });
+  farCall('save_customer_details', { name: 'Far Customer' });
+  farCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+
+  // The agent is told at every read, not only at checkout, so it can say so
+  // before the customer has filled a basket.
+  const farView = farCall('get_customer_details');
+  check('an out-of-area pin is flagged on read', typeof farView.location_pin?.outside_delivery_area === 'string', JSON.stringify(farView.location_pin));
+  check('with the distance in words', String(farView.location_pin?.distance_from_shop).includes('km'), farView.location_pin?.distance_from_shop);
+
+  const refused = farCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('checkout refuses an out-of-area pin', typeof refused.error === 'string', JSON.stringify(refused).slice(0, 120));
+  check('the refusal says how far out it is', String(refused.error).includes('km from the shop'), refused.error);
+  check('and routes it to staff rather than refusing the customer', String(refused.error).includes('staff member will confirm'));
+  check('and forbids inventing a surcharge', String(refused.error).includes('do not offer a surcharge'));
+  check('nothing was placed', repo.recentOrders(farPhone, 5).length === 0);
+  check('the cart is left for staff to finish', farCall('view_cart').items?.length === 1);
+
+  // A nearby customer is unaffected — the fence must not become a tax on
+  // everyone to catch the rare pin in the wrong region.
+  const nearPhone = '5920006666';
+  const nearCtx: ToolContext = { phone: nearPhone, outbound: [] };
+  const nearCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, nearCtx));
+  repo.saveLocationPin(nearPhone, { ...nearby, label: 'Kitty' });
+  nearCall('save_customer_details', { name: 'Near Customer' });
+  nearCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+  const allowed = nearCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('an in-area pin still checks out', allowed.placed === true, JSON.stringify(allowed).slice(0, 120));
+  check('the in-area agent view carries no warning', nearCall('get_customer_details').location_pin?.outside_delivery_area === undefined);
+
+  // And the system prompt states the radius, so the agent is not guessing.
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+  check('the prompt names the radius', SYSTEM_PROMPT.includes('within about 15 km'), '');
+  check('the prompt forbids haggling over distance', SYSTEM_PROMPT.includes('do not offer to charge extra'));
 }
 
 /* -------------------------------------------------------- search behaviour */

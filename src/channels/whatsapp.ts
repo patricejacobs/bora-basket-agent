@@ -6,9 +6,19 @@ import { handleIncoming } from '../conversation.ts';
 import { deliver, markReadAndTyping } from './whatsapp-send.ts';
 import { downloadMedia, downloadAudio, mediaFailureMessage } from './whatsapp-media.ts';
 import { transcribeAudio, transcriptionAvailable } from '../transcribe.ts';
+import { parseCoordinates, pinLabel, type LocationPin } from '../location.ts';
 
 // Re-exported so the webhook module stays the single import point for callers.
-export { chunkText, deliver, sendText, sendButtons, sendImage, sendTemplate } from './whatsapp-send.ts';
+export {
+  chunkText,
+  deliver,
+  sendText,
+  sendButtons,
+  sendImage,
+  sendTemplate,
+  sendLocation,
+  sendLocationRequest,
+} from './whatsapp-send.ts';
 
 /* ------------------------------------------------------------- inbound API */
 
@@ -113,6 +123,8 @@ type ParsedInbound = {
   imageId?: string;
   /** Set when the customer sent a voice note. */
   audioId?: string;
+  /** Set when the customer shared a location pin. */
+  location?: LocationPin;
 };
 
 /** Pulls the customer-authored messages out of a webhook payload, ignoring status events. */
@@ -142,6 +154,7 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
         let text = '';
         let imageId: string | undefined;
         let audioId: string | undefined;
+        let location: LocationPin | undefined;
 
         switch (m.type) {
           case 'text':
@@ -163,12 +176,25 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
             // A spoken shopping list. Transcribed before the agent runs.
             audioId = m.audio?.id;
             break;
+          case 'location': {
+            // Where to deliver. Taken as structured data and saved before the
+            // agent runs, so the coordinates never pass through the model.
+            const coords = parseCoordinates(m.location?.latitude, m.location?.longitude);
+            if (coords) {
+              location = { ...coords, label: pinLabel(m.location?.name, m.location?.address) };
+            } else {
+              console.warn(`[whatsapp] unusable location on ${messageId}:`, JSON.stringify(m.location));
+              text =
+                '[The customer tried to share their location, but the pin did not come through. Apologise briefly and ask them to send it again with the paperclip, then Location.]';
+            }
+            break;
+          }
           default:
-            // Locations, contacts, documents and the rest: acknowledge rather than ignore.
+            // Contacts, documents, stickers and the rest: acknowledge rather than ignore.
             text = `[The customer sent a ${m.type} message, which you cannot open. Ask them to type what they need.]`;
         }
 
-        if (text || imageId || audioId) {
+        if (text || imageId || audioId || location) {
           out.push({
             phone,
             text,
@@ -176,6 +202,7 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
             ...(profileName ? { profileName } : {}),
             ...(imageId ? { imageId } : {}),
             ...(audioId ? { audioId } : {}),
+            ...(location ? { location } : {}),
           });
         }
       }
@@ -288,6 +315,7 @@ async function processInbound(msg: ParsedInbound): Promise<void> {
       channel: 'whatsapp',
       ...(msg.profileName ? { profileName: msg.profileName } : {}),
       ...(image ? { image } : {}),
+      ...(msg.location ? { location: msg.location } : {}),
     });
     await deliver(msg.phone, outbound);
   } catch (err) {

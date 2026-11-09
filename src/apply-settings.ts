@@ -28,6 +28,7 @@ type Settings = {
   hours: string;
   timezone: string;
   deliveryAreas: string;
+  serviceArea?: { latitude: number; longitude: number; radiusKm: number };
   deliveryFee: number;
   freeDeliveryOver: number;
   minOrderTotal: number;
@@ -96,6 +97,40 @@ if (settings.freeDeliveryOver > 0 && settings.freeDeliveryOver <= settings.minOr
   warnings.push('freeDeliveryOver is at or below minOrderTotal, so delivery is always free');
 }
 
+/* --- the delivery-area circle, which decides whether a pin can be ordered to */
+
+const area = settings.serviceArea;
+const radiusKm = area?.radiusKm ?? 0;
+const centreSet = Boolean(area) && !(area!.latitude === 0 && area!.longitude === 0);
+
+if (area) {
+  const nums = [area.latitude, area.longitude, area.radiusKm];
+  if (nums.some((n) => typeof n !== 'number' || !Number.isFinite(n))) {
+    problems.push('serviceArea latitude, longitude and radiusKm must all be numbers');
+  } else {
+    if (area.latitude < -90 || area.latitude > 90) problems.push('serviceArea.latitude must be between -90 and 90');
+    if (area.longitude < -180 || area.longitude > 180) problems.push('serviceArea.longitude must be between -180 and 180');
+    if (area.radiusKm < 0) problems.push('serviceArea.radiusKm cannot be negative');
+
+    // Half-configured is the dangerous state: a radius with no centre would
+    // measure every pin against the Gulf of Guinea and refuse every order.
+    if (radiusKm > 0 && !centreSet) {
+      problems.push('serviceArea.radiusKm is set but latitude/longitude are still 0 — set the shop position or put radiusKm back to 0');
+    }
+    if (centreSet && radiusKm === 0) {
+      warnings.push('serviceArea has a centre but radiusKm is 0, so no pin is ever checked — set a radius to switch the check on');
+    }
+    if (radiusKm > 0 && radiusKm < 1) {
+      warnings.push(`serviceArea.radiusKm is ${radiusKm} km, which is a few streets — confirm that is really your delivery area`);
+    }
+    if (radiusKm > 100) {
+      warnings.push(`serviceArea.radiusKm is ${radiusKm} km, wide enough to accept almost any pin — confirm that is intended`);
+    }
+  }
+} else {
+  warnings.push('serviceArea is not set — every location pin is accepted, however far away');
+}
+
 const badPayment = (settings.paymentMethods ?? ['cash']).filter((m) => m !== 'cash' && m !== 'card');
 if (badPayment.length > 0) {
   problems.push(`paymentMethods may only contain "cash" or "card": ${badPayment.join(', ')}`);
@@ -131,6 +166,11 @@ const VALUES: Record<string, string> = {
   STORE_HOURS: settings.hours,
   STORE_TIMEZONE: settings.timezone,
   DELIVERY_AREAS: settings.deliveryAreas,
+  // Written blank when the centre is still 0,0, so an unconfigured circle
+  // reaches the server as "no fence" rather than as a point in the Atlantic.
+  SERVICE_CENTRE_LAT: centreSet ? String(area!.latitude) : '',
+  SERVICE_CENTRE_LNG: centreSet ? String(area!.longitude) : '',
+  SERVICE_RADIUS_KM: String(centreSet ? radiusKm : 0),
   DELIVERY_FEE: String(settings.deliveryFee),
   FREE_DELIVERY_OVER: String(settings.freeDeliveryOver),
   MIN_ORDER_TOTAL: String(settings.minOrderTotal),

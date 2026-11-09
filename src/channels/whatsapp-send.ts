@@ -143,6 +143,52 @@ export async function sendImage(to: string, imageUrl: string, caption: string): 
 }
 
 /**
+ * Asks for a location pin with WhatsApp's own "Send location" button.
+ *
+ * Worth a dedicated message type rather than asking in words: tapping the
+ * button opens the map picker directly, where "please share your location"
+ * leaves the customer hunting through the attachment menu. Customers who cannot
+ * find it send a typed address instead, and the order stalls at checkout.
+ */
+export async function sendLocationRequest(to: string, body: string): Promise<boolean> {
+  return callGraph({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'location_request_message',
+      body: { text: body.slice(0, 1024) },
+      action: { name: 'send_location' },
+    },
+  });
+}
+
+/**
+ * Sends a pin out — to the driver, as a map card they can tap and navigate to.
+ *
+ * Meta caps `name` and `address` at 1000 characters each, but these are read on
+ * a phone while driving: anything long is noise.
+ */
+export async function sendLocation(
+  to: string,
+  pin: { latitude: number; longitude: number; name?: string; address?: string },
+): Promise<boolean> {
+  return callGraph({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'location',
+    location: {
+      latitude: pin.latitude,
+      longitude: pin.longitude,
+      ...(pin.name ? { name: pin.name.slice(0, 200) } : {}),
+      ...(pin.address ? { address: pin.address.slice(0, 200) } : {}),
+    },
+  });
+}
+
+/**
  * Sends a pre-approved template. This is the only way to reach a customer more
  * than 24 hours after their last message — plain text is rejected by Meta there.
  */
@@ -186,6 +232,16 @@ export async function deliver(to: string, messages: OutboundMessage[]): Promise<
     if (index > 0) await wait(typingDelayMs(msg.text));
     if (msg.kind === 'buttons') await sendButtons(to, msg.text, msg.buttons);
     else if (msg.kind === 'image') await sendImage(to, msg.imageUrl, msg.text);
-    else await sendText(to, msg.text);
+    else if (msg.kind === 'location_request') await sendLocationRequest(to, msg.text);
+    else if (msg.kind === 'location') {
+      // The map card carries no message of its own, so the line that explains
+      // it goes first — a pin arriving unannounced reads as a misdirected chat.
+      if (msg.text) await sendText(to, msg.text);
+      await sendLocation(to, {
+        latitude: msg.pin.latitude,
+        longitude: msg.pin.longitude,
+        ...(msg.pin.label ? { name: msg.pin.label } : {}),
+      });
+    } else await sendText(to, msg.text);
   }
 }

@@ -1,4 +1,7 @@
 /** Central runtime configuration, read once at startup from the environment. */
+import { parseCoordinates, type ServiceArea } from './location.ts';
+
+export type { ServiceArea };
 
 function str(name: string, fallback?: string): string {
   const v = process.env[name]?.trim();
@@ -145,6 +148,24 @@ export const config = {
     /** IANA zone, so the agent can greet by time of day and warn before closing. */
     timezone: str('STORE_TIMEZONE', 'America/Guyana'),
     deliveryAreas: str('DELIVERY_AREAS', 'local delivery area'),
+    /**
+     * The geofence every location pin is checked against: where the shop is,
+     * and how far it will drive. `DELIVERY_AREAS` above is the same fact in
+     * words for customers to read; this is the one a computer can check.
+     *
+     * Null unless both a valid centre and a positive radius are configured, and
+     * a null fence accepts every pin. That default is deliberate: a shop that
+     * has not drawn its area has not said a pin is unreachable, and a fence
+     * enabled by accident — a missing variable, a radius of 0 — would refuse
+     * every order in the city and look exactly like a broken bot.
+     */
+    serviceArea: (() => {
+      const centre = parseCoordinates(str('SERVICE_CENTRE_LAT'), str('SERVICE_CENTRE_LNG'));
+      const radiusKm = num('SERVICE_RADIUS_KM', 0);
+      if (!centre) return null;
+      if (!(radiusKm > 0)) return null;
+      return { ...centre, radiusKm };
+    })(),
     /** All money below is in minor units (see CURRENCY_DECIMALS). */
     deliveryFee: Math.round(num('DELIVERY_FEE', 0) * minorPerUnit),
     freeDeliveryOver: Math.round(num('FREE_DELIVERY_OVER', 0) * minorPerUnit),

@@ -1,8 +1,9 @@
-# WhatsApp Grocery Agent
+# Next Minute Delivery — WhatsApp agent
 
-A WhatsApp shopping assistant. Customers message your store's WhatsApp number, search the
-catalogue in plain language, build a cart, and check out — all in chat. Payment is on
-delivery; the agent captures the order and staff fulfil it.
+A WhatsApp shopping assistant for a delivery service. Customers message the business
+number, search the catalogue in plain language, build a cart, **share a location pin**, and
+check out — all in chat. Payment is on delivery; the agent captures the order and staff
+fulfil it.
 
 Built on the **WhatsApp Cloud API** (direct from Meta) and **Claude Opus 5**.
 
@@ -81,7 +82,8 @@ from memory. That is what stops it inventing a product or quoting a stale price.
 | `get_product` | One product by SKU, with live stock |
 | `view_cart` | Itemised cart with subtotal, delivery, total |
 | `add_to_cart` / `update_cart_item` / `clear_cart` | Cart edits, stock-checked |
-| `get_customer_details` / `save_customer_details` | Delivery name and address |
+| `get_customer_details` / `save_customer_details` | Delivery name, pin on file, doorstep notes |
+| `request_location` | Sends WhatsApp's native *Send location* button |
 | `place_order` | Transactional checkout |
 | `list_recent_orders` | Order history and status |
 | `show_product_photo` | Sends a product photo, when one is on file |
@@ -94,7 +96,9 @@ Placing an order also pushes an alert to `STAFF_NUMBERS` — see **Running the s
 - Checkout is a single SQLite transaction: order rows, stock decrements and cart clearing
   all commit together or not at all.
 - Stock is re-checked inside that transaction, so a search result going stale can't oversell.
-- `place_order` refuses to run without a saved name, a saved address, and a non-empty cart.
+- `place_order` refuses to run without a saved name, a shared location pin, and a non-empty
+  cart. Coordinates never pass through the model: the channel validates and stores them, and
+  the agent is told only that a pin is on file.
 - Every webhook is HMAC-verified against your Meta app secret. An unconfigured secret
   rejects everything rather than trusting it.
 - Meta redelivers any webhook it doesn't get a fast `200` for. Message IDs are claimed in a
@@ -165,6 +169,86 @@ you the wrong item.
 Two knobs, if you ever need them: per-product aliases go in the CSV `keywords` column;
 the general vocabulary — Creole names, brand-as-generic, British/American splits — is
 `SYNONYM_GROUPS` in [`src/catalog/search.ts`](src/catalog/search.ts).
+
+## Where to deliver: the location pin
+
+Every order goes to a pin the customer shares from WhatsApp. No pin, no checkout — the
+agent cannot talk its way past it, because `place_order` reads the database rather than the
+conversation.
+
+**The flow**
+
+1. The customer starts ordering. The agent calls `request_location`, which sends WhatsApp's
+   native *Send location* message — a button, not a sentence they have to act on.
+2. They tap it and share a pin. It arrives as a `location` webhook of its own, carrying
+   latitude, longitude, and sometimes a place name and resolved street address.
+3. `channels/whatsapp.ts` validates the coordinates and `conversation.ts` saves them
+   **before the agent runs**. The agent is handed a note saying a pin was saved — never the
+   numbers.
+4. The agent confirms the area in words, then asks the one question a pin cannot answer:
+   which gate, which floor, what to look for. That goes in `address`, now doorstep detail
+   rather than the thing deliveries depend on.
+5. At checkout the pin is copied onto the order row. A customer who moves next month does
+   not retroactively relocate last week's delivery.
+
+**Why the coordinates skip the model**
+
+A pin is structured data from the moment it leaves the customer's phone. Routing nine
+significant figures through a language model only adds a chance of a digit changing, and a
+digit in the fifth decimal place is a different street. The model is told *that* a pin
+exists and what WhatsApp called the place; it is never given the numbers, so it cannot read
+them out — "I have you at 6.80714, -58.15536" tells a customer nothing.
+
+**What the driver gets**
+
+The new-order alert to `STAFF_NUMBERS` carries a tappable maps link, and the pin follows as
+a WhatsApp map card that opens straight in their maps app. Texting an order number back
+(`7`) returns the order plus its card again.
+
+**Rejected coordinates**
+
+Out-of-range values and exactly `0, 0` are refused rather than stored. `0, 0` is a real
+point in the Gulf of Guinea and, as a delivery address, is always an uninitialised field.
+The customer is asked to share the pin again rather than being told everything is fine.
+
+### The delivery area
+
+`DELIVERY_AREAS` is the area in words, for customers to read. The geofence is the same fact
+as a circle, which a computer can check:
+
+| Variable | Meaning |
+|---|---|
+| `SERVICE_CENTRE_LAT` / `SERVICE_CENTRE_LNG` | Where the shop is. In Google Maps, right-click your shop and click the numbers at the top of the menu to copy them. |
+| `SERVICE_RADIUS_KM` | How far you will drive. `0`, or a blank centre, switches the check **off**. |
+
+Set it in `store-settings.json` under `serviceArea` and run `npm run settings:apply`, or set
+the three variables directly. `npm run check` prints the area it resolved, and fails loudly
+on a half-set one — a radius with no centre would otherwise measure every pin against a
+point in the Atlantic and refuse every order in the city.
+
+**It ships switched off.** A shop that has not drawn its area has not said any pin is
+unreachable, and a fence enabled by accident looks exactly like a broken bot.
+
+**When a pin falls outside it**, the customer is told as soon as they share it — not at
+checkout, after ten minutes of shopping. `place_order` refuses, the cart is left intact,
+and the agent says a staff member will confirm whether a driver can reach them. It is not
+allowed to promise delivery, quote a surcharge for the distance, or suggest meeting the
+driver halfway. Staff see the distance and an `OUTSIDE` warning on the pin, so they can
+still take the order by hand if the shop decides to make the trip.
+
+The pin is stored either way — it is still where the customer is — and the distance is
+computed from config on every read, so the radius can be retuned without touching data.
+
+A circle is a crude shape for a delivery area, which really follows the river, the bridge
+and the road. It is deliberate: a radius needs two numbers off a map and no GIS, and it
+catches what it is for — the pin in another region or another country. Someone 200m outside
+a sensibly drawn radius is a phone call for staff to make, not a rule to encode.
+
+Distances use the haversine formula, so they are straight-line, not road distance. A pin
+across a river is nearer than it can be driven, which is why the radius is a sanity check
+and never a delivery quote.
+
+---
 
 ## Product photos
 
@@ -257,6 +341,8 @@ All of this lives in `.env`.
 | `TEMPLATE_ORDER_DELIVERED` | — | As above |
 | `TEMPLATE_LANGUAGE` | `en` | Template language code |
 | `SEED_CATALOG_PATH` | — | CSV imported at boot when the catalogue is empty |
+| `SERVICE_CENTRE_LAT` / `SERVICE_CENTRE_LNG` | — | The shop's position, for the delivery-area check |
+| `SERVICE_RADIUS_KM` | `0` | How far you deliver. `0` switches the check off |
 
 ### A note on `STORE_HOURS`
 
@@ -268,7 +354,7 @@ correctly. A day you never list is a day off.
 **Outside those hours the agent does not say "we're closed."** It says when deliveries
 start and keeps taking the order:
 
-> Good morning! Bora Basket here — I can build your grocery order right in this chat.
+> Good morning! Next Minute Delivery here — I can build your grocery order right in this chat.
 > Bread we have: …
 > Which one, and how many? Deliveries run from 8:00am today, so I can get it moving from then.
 
@@ -401,6 +487,8 @@ Named plainly, because you will want some of these before going live:
 - **SQLite, single process.** Fine for one store and a few thousand products. Multiple
   instances behind a load balancer would need Postgres and a shared lock for the
   per-customer serialisation.
+- **The geofence is a circle, and off by default.** It catches a pin in the wrong region,
+  not one on the wrong side of a river. Set `SERVICE_RADIUS_KM` to switch it on.
 - **Voice notes are built but switched off.** Set `TRANSCRIBE_PROVIDER` and the matching
   key to turn them on; without it a voice note gets a polite "could you type that".
 
@@ -413,6 +501,7 @@ src/
   server.ts              Express app, startup checks
   config.ts              Environment config, money formatting
   conversation.ts        Shared entry point for every channel
+  location.ts            Location pins: validation, distance, the delivery-area check
   agent/
     run.ts               The agent loop (tool calls, history, error mapping)
     context.ts           Local time and returning-customer recognition
@@ -421,7 +510,7 @@ src/
     system-prompt.ts     Behaviour, tone, guard rails
   channels/
     whatsapp.ts          Webhook verification, parsing, routing
-    whatsapp-send.ts     Graph API sending (text, buttons, templates)
+    whatsapp-send.ts     Graph API sending (text, buttons, pins, templates)
     simulator.ts         Browser test channel
     types.ts             Channel-neutral message shapes
   notifications.ts       Staff alerts and customer status updates

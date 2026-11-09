@@ -1,7 +1,8 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
+import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
 import { nextActions } from './order-status.ts';
+import { checkRange, describePin } from './location.ts';
 
 /**
  * Tells the shop an order came in.
@@ -26,8 +27,13 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`,
     '',
     `${order.customerName}`,
-    `${order.address}`,
+    // Doorstep detail, which is often empty now that the pin carries the
+    // location. Skipped rather than printed as a blank line.
+    ...(order.address ? [order.address] : []),
     `📞 +${order.contactPhone || order.phone}`,
+    ...(order.location
+      ? ['', describePin(order.location, checkRange(order.location, config.store.serviceArea))]
+      : ['', '⚠️ No location pin on this order']),
   ];
   if (order.deliveryNote) lines.push(`Note: ${order.deliveryNote}`);
 
@@ -40,6 +46,19 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     // anyone who prefers typing still can.
     if (actions.length > 0) await sendButtons(staff, body, actions);
     else await sendText(staff, body);
+
+    // Then the pin as a map card of its own. The link in the text above is for
+    // reading; this is the one a driver taps to start navigating.
+    if (order.location) {
+      await sendLocation(staff, {
+        latitude: order.location.latitude,
+        longitude: order.location.longitude,
+        name: `${order.orderNo} — ${order.customerName}`,
+        ...(order.location.label || order.address
+          ? { address: order.location.label || order.address }
+          : {}),
+      });
+    }
   }
 }
 

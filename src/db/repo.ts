@@ -1,6 +1,9 @@
 import { db, nowIso } from './index.ts';
 import { config } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
+import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
+
+export type { LocationPin, SavedPin };
 
 export type Product = {
   id: number;
@@ -33,7 +36,30 @@ export type Customer = {
   address: string | null;
   /** The number to ring on delivery; defaults to the WhatsApp number. */
   contactPhone: string | null;
+  /** Where deliveries go. Null until the customer has shared a pin. */
+  location: SavedPin | null;
 };
+
+/**
+ * Reads a pin off a customer or order row.
+ *
+ * Validated on the way out as well as in: a row written by an older build, or
+ * by hand, could hold anything, and half a coordinate pair is not a place.
+ */
+function pinFromRow(row: {
+  latitude: number | null;
+  longitude: number | null;
+  location_label?: string | null;
+  location_pinned_at?: string | null;
+}): SavedPin | null {
+  const coords = parseCoordinates(row.latitude, row.longitude);
+  if (!coords) return null;
+  return {
+    ...coords,
+    label: row.location_label ?? '',
+    pinnedAt: row.location_pinned_at ?? '',
+  };
+}
 
 /* ------------------------------------------------------------------ catalog */
 
@@ -119,14 +145,54 @@ export function productCount(): number {
 
 /* ---------------------------------------------------------------- customers */
 
+type CustomerRow = {
+  phone: string;
+  name: string | null;
+  address: string | null;
+  contact_phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  location_label: string | null;
+  location_pinned_at: string | null;
+};
+
+const CUSTOMER_COLUMNS =
+  'phone, name, address, contact_phone, latitude, longitude, location_label, location_pinned_at';
+
 export function getCustomer(phone: string): Customer {
   const row = db
-    .prepare(`SELECT phone, name, address, contact_phone FROM customers WHERE phone = ?`)
-    .get(phone) as
-    | { phone: string; name: string | null; address: string | null; contact_phone: string | null }
-    | undefined;
-  if (!row) return { phone, name: null, address: null, contactPhone: null };
-  return { phone: row.phone, name: row.name, address: row.address, contactPhone: row.contact_phone };
+    .prepare(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE phone = ?`)
+    .get(phone) as CustomerRow | undefined;
+  if (!row) return { phone, name: null, address: null, contactPhone: null, location: null };
+  return {
+    phone: row.phone,
+    name: row.name,
+    address: row.address,
+    contactPhone: row.contact_phone,
+    location: pinFromRow(row),
+  };
+}
+
+/**
+ * Records the pin the customer just shared, replacing any earlier one.
+ *
+ * Written straight from the channel rather than through the agent: the
+ * coordinates arrive as structured data from WhatsApp, and asking a language
+ * model to copy nine significant figures into a tool call is a transcription
+ * error waiting to put a delivery in the wrong street.
+ */
+export function saveLocationPin(phone: string, pin: LocationPin): SavedPin {
+  const pinnedAt = nowIso();
+  db.prepare(
+    `INSERT INTO customers (phone, latitude, longitude, location_label, location_pinned_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       latitude = excluded.latitude, longitude = excluded.longitude,
+       location_label = excluded.location_label,
+       location_pinned_at = excluded.location_pinned_at,
+       updated_at = excluded.updated_at`,
+  ).run(phone, pin.latitude, pin.longitude, pin.label, pinnedAt, pinnedAt, pinnedAt);
+  return { ...pin, pinnedAt };
 }
 
 export function saveCustomer(
@@ -146,7 +212,8 @@ export function saveCustomer(
        name = excluded.name, address = excluded.address,
        contact_phone = excluded.contact_phone, updated_at = excluded.updated_at`,
   ).run(phone, name, address, contactPhone, nowIso(), nowIso());
-  return { phone, name: name ?? null, address: address ?? null, contactPhone };
+  // The pin is untouched by this write — it is saved from the channel, not here.
+  return { phone, name: name ?? null, address: address ?? null, contactPhone, location: existing.location };
 }
 
 /* --------------------------------------------------------------------- cart */
@@ -211,6 +278,8 @@ export type PlacedOrder = {
   address: string;
   customerName: string;
   paymentMethod: string;
+  /** The pin this order goes to, as it stood when the order was placed. */
+  location: SavedPin | null;
 };
 
 /**
@@ -224,6 +293,8 @@ export function placeOrder(args: {
   contactPhone: string;
   deliveryNote: string;
   paymentMethod: string;
+  /** Where to deliver. Required: the caller checks for it before getting here. */
+  location: SavedPin;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
@@ -252,8 +323,9 @@ export function placeOrder(args: {
       .prepare(
         `INSERT INTO orders
            (order_no, phone, customer_name, address, contact_phone, delivery_note,
+            latitude, longitude, location_label,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -262,6 +334,9 @@ export function placeOrder(args: {
         args.address,
         args.contactPhone,
         args.deliveryNote,
+        args.location.latitude,
+        args.location.longitude,
+        args.location.label,
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -308,6 +383,7 @@ export function placeOrder(args: {
       address: args.address,
       customerName: args.customerName,
       paymentMethod: args.paymentMethod,
+      location: args.location,
     };
   } catch (err) {
     db.exec('ROLLBACK');
@@ -505,6 +581,11 @@ export type OrderRecord = {
   total: number;
   status: OrderStatus;
   placedAt: string;
+  /**
+   * Where this order goes. Null only on orders placed before pins existed —
+   * every new order has one, because checkout will not complete without it.
+   */
+  location: SavedPin | null;
   items: { name: string; qty: number; unit: string; lineTotal: number }[];
 };
 
@@ -516,10 +597,14 @@ function hydrateOrder(row: {
   address: string;
   contact_phone: string;
   delivery_note: string;
+  latitude: number | null;
+  longitude: number | null;
+  location_label: string | null;
   total: number;
   status: string;
   created_at: string;
 }): OrderRecord {
+  const pin = pinFromRow(row);
   return {
     orderNo: row.order_no,
     phone: row.phone,
@@ -530,6 +615,9 @@ function hydrateOrder(row: {
     total: row.total,
     status: row.status as OrderStatus,
     placedAt: row.created_at,
+    // An order's pin was fixed at checkout; `pinnedAt` on an order means the
+    // moment it was placed, not when the customer first shared the location.
+    location: pin ? { ...pin, pinnedAt: row.created_at } : null,
     items: (
       db
         .prepare(`SELECT name, qty, unit, line_total FROM order_items WHERE order_id = ?`)
@@ -619,6 +707,8 @@ export type CustomerIdentity = {
   name: string | null;
   address: string | null;
   contactPhone: string | null;
+  /** The delivery pin. Null until the customer shares one; checkout needs it. */
+  location: SavedPin | null;
   /** From WhatsApp. A hint to offer, never a fact to rely on. */
   profileName: string | null;
   confirmedAt: string | null;
@@ -628,18 +718,11 @@ export type CustomerIdentity = {
 export function getIdentity(phone: string): CustomerIdentity {
   const row = db
     .prepare(
-      `SELECT phone, name, address, contact_phone, profile_name, identity_confirmed_at
+      `SELECT ${CUSTOMER_COLUMNS}, profile_name, identity_confirmed_at
        FROM customers WHERE phone = ?`,
     )
     .get(phone) as
-    | {
-        phone: string;
-        name: string | null;
-        address: string | null;
-        contact_phone: string | null;
-        profile_name: string | null;
-        identity_confirmed_at: string | null;
-      }
+    | (CustomerRow & { profile_name: string | null; identity_confirmed_at: string | null })
     | undefined;
 
   if (!row) {
@@ -648,6 +731,7 @@ export function getIdentity(phone: string): CustomerIdentity {
       name: null,
       address: null,
       contactPhone: null,
+      location: null,
       profileName: null,
       confirmedAt: null,
       confirmed: false,
@@ -663,6 +747,7 @@ export function getIdentity(phone: string): CustomerIdentity {
     name: row.name,
     address: row.address,
     contactPhone: row.contact_phone,
+    location: pinFromRow(row),
     profileName: row.profile_name,
     confirmedAt: row.identity_confirmed_at,
     confirmed: fresh,
@@ -694,6 +779,7 @@ export type CustomerRecord = {
   profileName: string | null;
   address: string | null;
   contactPhone: string | null;
+  location: SavedPin | null;
   firstOrderAt: string | null;
   lastOrderAt: string | null;
   orderCount: number;
@@ -722,6 +808,7 @@ export function customerRecord(phone: string, orderLimit = 20): CustomerRecord {
     profileName: identity.profileName,
     address: identity.address,
     contactPhone: identity.contactPhone,
+    location: identity.location,
     firstOrderAt: summary.first,
     lastOrderAt: summary.last,
     orderCount: summary.count,

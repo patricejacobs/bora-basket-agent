@@ -13,7 +13,7 @@
 
 services:
   - type: web
-    name: bora-basket-agent
+    name: next-minute-delivery-agent
     runtime: node
     plan: starter
     region: oregon # move closer to your customers if Render offers a nearer region
@@ -89,13 +89,21 @@ services:
       - key: WHATSAPP_GRAPH_VERSION
         value: v23.0
       - key: STORE_NAME
-        value: "Bora Basket"
+        value: "Next Minute Delivery"
       - key: STORE_HOURS
         value: "Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm"
       - key: DELIVERY_AREAS
         value: "Georgetown, East Bank Demerara, East Coast Demerara"
+      # The delivery area as a circle, checked against every location pin.
+      # A radius of 0, or a blank centre, switches the check off.
+      - key: SERVICE_CENTRE_LAT
+        value: ""
+      - key: SERVICE_CENTRE_LNG
+        value: ""
+      - key: SERVICE_RADIUS_KM
+        value: "0"
       - key: PAYMENT_METHODS
-        value: cash
+        value: "cash"
       - key: DELIVERY_FEE
         value: "500"
       - key: FREE_DELIVERY_OVER

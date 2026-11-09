@@ -23,7 +23,7 @@ const CANDIDATES = path.resolve('./data/photo-candidates.csv');
 
 // Open Food Facts asks callers to identify themselves and to go gently. Search
 // is rate limited; this pace plus backoff keeps a full catalogue run polite.
-const USER_AGENT = 'BoraBasketGroceryAgent/1.0 (grocery catalogue photo matching)';
+const USER_AGENT = 'NextMinuteDeliveryAgent/1.0 (grocery catalogue photo matching)';
 const DELAY_MS = 2200;
 const MAX_RETRIES = 3;
 

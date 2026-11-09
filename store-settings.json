@@ -2,10 +2,17 @@
   "_comment": "Edit this file, then run: npm run settings:apply",
   "_warning": "Every value here is quoted to real customers as fact. Check each one.",
 
-  "storeName": "Bora Basket",
+  "storeName": "Next Minute Delivery",
   "hours": "Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm",
   "timezone": "America/Guyana",
   "deliveryAreas": "Georgetown, East Bank Demerara, East Coast Demerara",
+
+  "_serviceArea": "The same delivery area as a circle, checked against every location pin a customer shares. radiusKm 0 switches the check off and every pin is accepted. Get the shop's coordinates from Google Maps: right-click your shop, then click the numbers at the top of the menu to copy them.",
+  "serviceArea": {
+    "latitude": 0,
+    "longitude": 0,
+    "radiusKm": 0
+  },
 
   "_payment": "What the driver can take. [\"cash\"] or [\"cash\",\"card\"]. Never list something you cannot accept.",
   "paymentMethods": ["cash"],
@@ -25,7 +32,7 @@
   "staffNumbers": [],
 
   "_restricted": "SKUs excluded from the catalogue. WhatsApp's Commerce Policy prohibits alcohol and tobacco; selling them can cost you the number.",
-  "restrictedSkus": [],
+  "restrictedSkus": ["BEV-001"],
 
   "_templates": "Approved WhatsApp template names, used only outside the 24-hour service window. Leave empty until they are approved.",
   "templates": {

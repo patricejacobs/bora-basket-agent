@@ -1,5 +1,6 @@
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
+import { checkRange, formatDistance } from '../location.ts';
 
 /**
  * Per-conversation context: what time it is locally, and who this customer is.
@@ -56,14 +57,44 @@ export function buildConversationContext(phone: string): string {
   const orders = repo.recentOrders(phone, 1);
   const last = orders[0];
 
-  if (!customer.name && !last) {
+  // A pin with no name and no orders still counts as knowing them: someone who
+  // shared their location last week and never finished should not be asked for
+  // it again from scratch.
+  if (!customer.name && !customer.location && !last) {
     lines.push('This is a new customer with no order history. Introduce the shop briefly.');
+    lines.push(
+      'They have shared no location pin. Every delivery needs one — call request_location as soon as they start ordering, and keep shopping going in the meantime.',
+    );
     return lines.join('\n');
   }
 
   if (customer.name) lines.push(`Customer: ${customer.name}. Greet them by first name once.`);
+
+  // The pin, not the typed address, is what the delivery goes to — so it is
+  // what gets read back for confirmation. Said in words, never in coordinates.
+  if (customer.location) {
+    const where = customer.location.label
+      ? `the pin they shared at ${customer.location.label}`
+      : 'the pin they shared before';
+    lines.push(
+      `Location pin on file: ${where}. Do not ask for a new one unless they say they are somewhere else — just check it is still the right place before ordering.`,
+    );
+    // Said up front rather than left for checkout to discover. The alternative
+    // is letting someone fill a cart the shop was never going to deliver.
+    const range = checkRange(customer.location, config.store.serviceArea);
+    if (range.state === 'outside') {
+      lines.push(
+        `That pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area, so no order can be placed to it. Say so early and warmly, and tell them staff will confirm whether a driver can reach them.`,
+      );
+    }
+  } else {
+    lines.push(
+      'No location pin on file. They will need to share one before an order can be placed — use request_location once they start ordering.',
+    );
+  }
+
   if (customer.address) {
-    lines.push(`Delivery address on file: ${customer.address}. Do not ask for it again.`);
+    lines.push(`Doorstep notes on file: ${customer.address}. Do not ask for them again.`);
   }
 
   if (last) {

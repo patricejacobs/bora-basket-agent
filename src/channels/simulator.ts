@@ -4,6 +4,14 @@ import express, { type Request, type Response } from 'express';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { handleIncoming } from '../conversation.ts';
+import {
+  checkRange,
+  formatCoordinates,
+  formatDistance,
+  mapsLink,
+  parseCoordinates,
+  pinLabel,
+} from '../location.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -56,17 +64,29 @@ simulatorRouter.post('/api/message', async (req: Request, res: Response) => {
       ? { base64: rawImage.base64, mediaType: rawImage.mediaType }
       : undefined;
 
-  if (!text && !image) {
-    res.status(400).json({ error: 'text or image is required' });
+  // A shared pin, in the shape the WhatsApp channel produces after validating
+  // what Meta sent — so the simulator exercises the real pin path, not a mock.
+  const rawPin = req.body?.location as { latitude?: unknown; longitude?: unknown; label?: unknown } | undefined;
+  const coords = rawPin ? parseCoordinates(rawPin.latitude, rawPin.longitude) : null;
+  const location = coords ? { ...coords, label: pinLabel(rawPin?.label, '') } : undefined;
+
+  if (rawPin && !location) {
+    res.status(400).json({ error: 'latitude and longitude are not a deliverable coordinate pair' });
+    return;
+  }
+
+  if (!text && !image && !location) {
+    res.status(400).json({ error: 'text, image or location is required' });
     return;
   }
 
   try {
     const outbound = await handleIncoming({
       phone,
-      text: text || 'I sent a photo of my shopping list.',
+      text: text || (image ? 'I sent a photo of my shopping list.' : ''),
       channel: 'simulator',
       ...(image ? { image } : {}),
+      ...(location ? { location } : {}),
     });
     res.json({ outbound, state: stateFor(phone) });
   } catch (err) {
@@ -93,7 +113,26 @@ function stateFor(phone: string) {
   return {
     storeName: config.store.name,
     catalogSize: repo.productCount(),
-    customer: { name: customer.name, address: customer.address },
+    customer: {
+      name: customer.name,
+      address: customer.address,
+      location: customer.location
+        ? {
+            coordinates: formatCoordinates(customer.location),
+            label: customer.location.label,
+            link: mapsLink(customer.location),
+            // So a refused checkout is explainable from the panel rather than
+            // looking like the agent being difficult.
+            range: (() => {
+              const range = checkRange(customer.location, config.store.serviceArea);
+              if (range.state === 'unchecked') return 'not checked';
+              return `${formatDistance(range.distanceKm)} — ${
+                range.state === 'inside' ? 'in the delivery area' : 'OUTSIDE the delivery area'
+              }`;
+            })(),
+          }
+        : null,
+    },
     cart: {
       items: cart.lines.map((l) => ({
         name: l.product.name,

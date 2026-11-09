@@ -9,6 +9,7 @@ import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus } from './notifications.ts';
 import { STATUS_LABEL, STATUS_WORDS, nextActions } from './order-status.ts';
+import { checkRange, describePin } from './location.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 export const isStaff = (phone: string): boolean => config.staffNumbers.includes(phone);
@@ -65,8 +66,14 @@ const describe = (o: repo.OrderRecord): string =>
     `*${o.orderNo}* — ${STATUS_LABEL[o.status]}`,
     ...o.items.map((i) => `${i.qty} x ${i.name}`),
     `Total ${money(o.total)}`,
-    `${o.customerName}, ${o.address}`,
+    [o.customerName, o.address].filter(Boolean).join(', '),
     `📞 +${o.contactPhone || o.phone}`,
+    // The maps link rather than coordinates: a dispatcher reading a queue of
+    // ten orders needs something tappable, not two numbers to copy out. The
+    // distance comes with it, which is what decides what the driver takes next.
+    o.location
+      ? describePin(o.location, checkRange(o.location, config.store.serviceArea))
+      : '⚠️ no location pin',
     ...(o.deliveryNote ? [`Note: ${o.deliveryNote}`] : []),
   ].join('\n');
 
@@ -103,7 +110,15 @@ export async function handleStaffMessage(text: string): Promise<OutboundMessage[
   if (!order) return reply(`No order ${orderRef[1]}. Send \`orders\` to see what's open.`);
 
   const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
-  if (!matched) return reply(describe(order));
+  if (!matched) {
+    // Looking one order up is usually the driver about to drive to it, so the
+    // pin follows as a map card. The open-orders list deliberately does not do
+    // this: ten map cards in a row is unreadable.
+    const card: OutboundMessage[] = order.location
+      ? [{ kind: 'location', text: '', pin: order.location }]
+      : [];
+    return [{ kind: 'text', text: describe(order) }, ...card];
+  }
 
   const status = matched[1];
   if (order.status === status) {

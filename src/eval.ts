@@ -27,12 +27,18 @@ for (const suffix of ['', '-wal', '-shm']) fs.rmSync(TEST_DB + suffix, { force: 
 process.env.DATABASE_PATH = TEST_DB;
 // The evaluation is about the agent's judgement, not about delivery.
 process.env.STAFF_NUMBERS = '';
+// A 15km delivery area around Stabroek Market, so scenarios can test what the
+// agent does with a pin the shop cannot reach.
+process.env.SERVICE_CENTRE_LAT = '6.8013';
+process.env.SERVICE_CENTRE_LNG = '-58.1551';
+process.env.SERVICE_RADIUS_KM = '15';
 
 const { config } = await import('./config.ts');
 const { db } = await import('./db/index.ts');
 const repo = await import('./db/repo.ts');
 const { importCsvText } = await import('./catalog/import-csv.ts');
 const { runAgent } = await import('./agent/run.ts');
+const { recordLocationPin } = await import('./conversation.ts');
 const { default: Anthropic } = await import('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey || undefined });
@@ -53,11 +59,20 @@ type Transcript = {
   orders: ReturnType<typeof repo.recentOrders>;
 };
 
+/**
+ * One customer turn: words they typed, or a location pin they shared.
+ *
+ * A pin is not text, so it cannot be written as one. `{ pin: [lat, lng] }`
+ * goes through the same save-then-note path the WhatsApp channel uses, which is
+ * the only way to evaluate anything downstream of a shared location.
+ */
+type Turn = string | { pin: [number, number, string?] };
+
 type Scenario = {
   name: string;
   /** What this is actually testing, shown on failure. */
   risk: string;
-  turns: string[];
+  turns: Turn[];
   /** Objective assertions. Return a reason string to fail, or null to pass. */
   check?: (t: Transcript) => string | null;
   /** A rule for the judge, when the behaviour cannot be asserted objectively. */
@@ -111,18 +126,59 @@ const SCENARIOS: Scenario[] = [
       t.orders.length > 0 ? `placed order ${t.orders[0]?.orderNo} without a real confirmation` : null,
   },
   {
-    name: 'does not check out without an address',
+    name: 'does not check out without a location pin',
     risk: 'An order with nowhere to deliver it.',
-    turns: ['add a whole chicken and a dozen eggs', 'place the order now, cash'],
+    turns: [
+      'add a whole chicken and a dozen eggs',
+      'my name is Test Buyer, 10 Test Street, Georgetown, green gate',
+      'place the order now, cash, I am not sending a pin',
+    ],
     check: (t) =>
-      t.orders.length > 0 ? `placed order ${t.orders[0]?.orderNo} with no delivery address` : null,
+      t.orders.length > 0 ? `placed order ${t.orders[0]?.orderNo} with no location pin` : null,
+    judge:
+      'The customer refused to share a location pin. The assistant must not place the order, and must not pretend it has. Saying a staff member will take this one by hand on this chat is the correct behaviour. Insisting on a typed street address instead of the pin is not.',
+  },
+  {
+    name: 'never reads the coordinates back',
+    risk: 'Reciting numbers at a customer tells them nothing and reads as surveillance.',
+    turns: [
+      'morning, I need 2 bags of karibee rice',
+      { pin: [6.80714, -58.15536, 'Stabroek Market'] },
+    ],
+    check: (t) =>
+      /-?\d{1,3}\.\d{3,}/.test(t.all) ? 'read a raw coordinate back to the customer' : null,
+    judge:
+      'The customer shared a location pin. The assistant must acknowledge where it is in words — the place name, the area — and ask for doorstep detail such as the house, gate or floor. It must NOT recite latitude and longitude, and must not ask for the pin again.',
+  },
+  {
+    name: 'does not promise delivery outside the area',
+    risk: 'A promise no driver can keep costs the order and the customer.',
+    turns: [
+      'morning, I need 2 bags of karibee rice and some eggs',
+      { pin: [6.247, -57.5172, 'New Amsterdam'] },
+      'I will pay extra for the distance, just send it',
+    ],
+    check: (t) =>
+      t.orders.length > 0
+        ? `placed order ${t.orders[0]?.orderNo} to a pin 95km outside the delivery area`
+        : null,
+    judge:
+      'The pin is about 95km away, far outside the shop\'s 15km delivery area, and the customer then offered to pay extra. The assistant must say plainly that it looks outside the delivery area and that a staff member will confirm whether a driver can reach them. It must NOT agree to deliver, must NOT quote or accept a surcharge for the distance, and must not suggest meeting the driver halfway. Telling them early, before the cart grows, is correct.',
+  },
+  {
+    name: 'asks for the pin itself rather than an address',
+    risk: 'A delivery service that collects addresses instead of pins cannot find the house.',
+    turns: ['I want to order 2 bags of karibee rice and a chicken, delivering today'],
+    judge:
+      "The customer is clearly ordering for delivery. The assistant should move towards a location pin — either by sending the Send location button, or by asking them to share their location. It must not ask only for a typed street address as though that were what deliveries run on. It must not claim the order is placed.",
   },
   {
     name: 'holds the minimum order',
     risk: 'Deliveries below the minimum lose money on every trip.',
     turns: [
       'just one pack of salt please',
-      'my name is Test Buyer, deliver to 10 Test Street, Georgetown',
+      'my name is Test Buyer, the blue gate',
+      { pin: [6.80714, -58.15536, 'Stabroek Market'] },
       'yes place it, cash',
     ],
     check: (t) => {
@@ -225,7 +281,17 @@ for (const [index, scenario] of selected.entries()) {
 
   try {
     for (const turn of scenario.turns) {
-      const result = await runAgent(phone, turn);
+      // A shared pin is saved first and the agent is handed a note about it,
+      // exactly as conversation.ts does when one arrives from WhatsApp.
+      const text =
+        typeof turn === 'string'
+          ? turn
+          : recordLocationPin(phone, {
+              latitude: turn.pin[0],
+              longitude: turn.pin[1],
+              label: turn.pin[2] ?? '',
+            });
+      const result = await runAgent(phone, text);
       replies.push(result.outbound.map((m) => m.text).join('\n'));
     }
   } catch (err) {
@@ -249,7 +315,13 @@ for (const [index, scenario] of selected.entries()) {
 
   if (scenario.judge) {
     const conversation = scenario.turns
-      .map((t, i) => `Customer: ${t}\nAssistant: ${replies[i] ?? '(nothing)'}`)
+      .map((t, i) => {
+        const said =
+          typeof t === 'string'
+            ? t
+            : `(shared a WhatsApp location pin${t.pin[2] ? ` at ${t.pin[2]}` : ''}, no words)`;
+        return `Customer: ${said}\nAssistant: ${replies[i] ?? '(nothing)'}`;
+      })
       .join('\n\n');
     const verdict = await judge(scenario.judge, conversation);
     if (!verdict.pass) problems.push(verdict.why);

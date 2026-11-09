@@ -125,6 +125,35 @@ for (const name of ['DELIVERY_FEE', 'FREE_DELIVERY_OVER', 'MIN_ORDER_TOTAL'] as 
   else if (n < 0) add('fail', name, 'cannot be negative');
 }
 
+/* ------------------------------------------------- delivery-area geofence */
+
+{
+  const lat = numeric('SERVICE_CENTRE_LAT');
+  const lng = numeric('SERVICE_CENTRE_LNG');
+  const radius = numeric('SERVICE_RADIUS_KM') ?? 0;
+  const centreGiven = raw('SERVICE_CENTRE_LAT') !== '' || raw('SERVICE_CENTRE_LNG') !== '';
+  const centreUsable =
+    lat !== null && lng !== null &&
+    lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 &&
+    !(lat === 0 && lng === 0);
+
+  // This check decides whether real orders are refused, so every half-set state
+  // is reported rather than quietly resolving to "off".
+  if (centreGiven && !centreUsable) {
+    add('fail', 'SERVICE_CENTRE_LAT/LNG', `"${raw('SERVICE_CENTRE_LAT')}, ${raw('SERVICE_CENTRE_LNG')}" is not a usable position — the delivery-area check is OFF`);
+  } else if (radius > 0 && !centreUsable) {
+    add('fail', 'SERVICE_RADIUS_KM', `${radius} km is set but there is no shop position, so the check is OFF — set SERVICE_CENTRE_LAT and SERVICE_CENTRE_LNG`);
+  } else if (centreUsable && radius <= 0) {
+    add('warn', 'SERVICE_RADIUS_KM', 'is 0, so every pin is accepted however far away — set a radius to switch the check on');
+  } else if (centreUsable && radius > 0) {
+    add('ok', 'delivery area', dim(`${radius} km around ${lat}, ${lng}`));
+    if (radius < 1) add('warn', 'SERVICE_RADIUS_KM', `${radius} km is a few streets — orders outside it are refused`);
+    if (radius > 100) add('warn', 'SERVICE_RADIUS_KM', `${radius} km accepts almost any pin`);
+  } else {
+    add('warn', 'delivery area', 'no radius set — every location pin is accepted, however far away');
+  }
+}
+
 const freeOver = numeric('FREE_DELIVERY_OVER') ?? 0;
 const minOrder = numeric('MIN_ORDER_TOTAL') ?? 0;
 if (freeOver > 0 && minOrder > 0 && freeOver <= minOrder) {

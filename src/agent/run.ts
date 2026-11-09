@@ -252,9 +252,12 @@ export async function runAgent(
         .join('\n')
         .trim();
 
-      // When the model deliberately returns no text after send_buttons, the button
-      // body is what the customer actually received — record that, not a blank turn.
-      const lastButtons = ctx.outbound.filter((m) => m.kind === 'buttons').at(-1);
+      // When the model deliberately returns no text after send_buttons or
+      // request_location, that message's body is what the customer actually
+      // received — record that, not a blank turn.
+      const lastButtons = ctx.outbound
+        .filter((m) => m.kind === 'buttons' || m.kind === 'location_request')
+        .at(-1);
       messages.push({
         role: 'assistant',
         content: sanitizeBlocks(response.content, finalText || lastButtons?.text || ''),
@@ -284,24 +287,54 @@ export async function runAgent(
 
   repo.saveHistory(phone, stripImages(trimHistory(messages)));
 
-  // Assemble the reply. Buttons queued via send_buttons carry their own body text,
-  // so drop trailing prose that just restates it.
+  return { outbound: assembleReply(finalText, ctx.outbound) };
+}
+
+/**
+ * Turns the model's closing words plus whatever its tools queued into the
+ * messages the customer actually receives.
+ *
+ * Pulled out of the loop above so it can be tested without a model call. The
+ * rules here are about what a phone screen should show, not about the agent:
+ * a customer should never get the same sentence twice, nor a notification that
+ * says nothing, nor — as this once did — a bare "share your pin" in place of
+ * the answer to what they just asked for.
+ */
+export function assembleReply(finalText: string, queued: OutboundMessage[]): OutboundMessage[] {
   const outbound: OutboundMessage[] = [];
-  const photoMessages = ctx.outbound.filter((m) => m.kind === 'image');
-  const buttonMessages = ctx.outbound.filter((m) => m.kind === 'buttons');
+  const photoMessages = queued.filter((m) => m.kind === 'image');
+  const buttonMessages = queued.filter((m) => m.kind === 'buttons');
+  const locationRequests = queued.filter((m) => m.kind === 'location_request');
+
+  /** True when the prose only says again what the prompt's own body already says. */
+  const restates = (body: string): boolean => {
+    const bodyNorm = normalize(body);
+    const textNorm = normalize(finalText);
+    return textNorm.length === 0 || bodyNorm.includes(textNorm) || textNorm.includes(bodyNorm);
+  };
 
   if (buttonMessages.length > 0) {
-    const lastBody = normalize(buttonMessages[buttonMessages.length - 1]?.text ?? '');
-    const textNorm = normalize(finalText);
-    const isRestatement =
-      textNorm.length === 0 || lastBody.includes(textNorm) || textNorm.includes(lastBody);
+    const lastBody = buttonMessages[buttonMessages.length - 1]?.text ?? '';
     // A short line alongside buttons is almost always filler ("I'll place it once
     // you confirm") and costs the customer a second notification for nothing.
     // Anything substantial enough to carry new information survives.
-    const isFiller = textNorm.length < FILLER_TEXT_LIMIT;
-    if (!isRestatement && !isFiller) outbound.push({ kind: 'text', text: finalText });
+    const isFiller = normalize(finalText).length < FILLER_TEXT_LIMIT;
+    if (!restates(lastBody) && !isFiller) outbound.push({ kind: 'text', text: finalText });
     outbound.push(...photoMessages);
     outbound.push(...buttonMessages);
+    outbound.push(...locationRequests);
+  } else if (locationRequests.length > 0) {
+    // Unlike buttons, a pin request is a side errand: the turn's real content is
+    // the answer about the shopping, and the button body only asks for the
+    // location. So short prose is kept here — dropping it as filler left a
+    // customer who had just listed three items with nothing back but "share
+    // your pin", and no word on whether anything had gone in the cart.
+    const lastBody = locationRequests[locationRequests.length - 1]?.text ?? '';
+    if (!restates(lastBody)) {
+      for (const part of splitReply(finalText)) outbound.push({ kind: 'text', text: part });
+    }
+    outbound.push(...photoMessages);
+    outbound.push(...locationRequests);
   } else if (finalText) {
     for (const part of splitReply(finalText)) outbound.push({ kind: 'text', text: part });
     // After the words: a photo arriving before "good morning" reads oddly.
@@ -315,7 +348,7 @@ export async function runAgent(
     });
   }
 
-  return { outbound };
+  return outbound;
 }
 
 /** Maps an API failure to something a customer can read, and logs the real cause. */

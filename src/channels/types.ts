@@ -1,3 +1,5 @@
+import type { LocationPin } from '../location.ts';
+
 /**
  * Channel-neutral outbound message. The agent produces these; each channel
  * (WhatsApp, the browser simulator) decides how to render them.
@@ -6,7 +8,19 @@ export type OutboundMessage =
   | { kind: 'text'; text: string }
   | { kind: 'buttons'; text: string; buttons: { id: string; title: string }[] }
   /** A product photo. `text` is the caption shown beneath it. */
-  | { kind: 'image'; text: string; imageUrl: string };
+  | { kind: 'image'; text: string; imageUrl: string }
+  /**
+   * A prompt with WhatsApp's own "Send location" button. The customer taps it
+   * and their phone shares a pin — far more reliable than asking in words and
+   * hoping they find the paperclip menu.
+   */
+  | { kind: 'location_request'; text: string }
+  /**
+   * A pin we send out, for the driver. Arrives in WhatsApp as a map card that
+   * opens straight in their maps app. `text` is what a channel without map
+   * support falls back to showing.
+   */
+  | { kind: 'location'; text: string; pin: LocationPin };
 
 /** A photo the customer sent, already fetched and base64-encoded. */
 export type IncomingImage = { base64: string; mediaType: string };
@@ -20,4 +34,6 @@ export type IncomingMessage = {
   profileName?: string;
   /** A photographed shopping list, if one came with the message. */
   image?: IncomingImage;
+  /** A shared location pin, if the customer sent one instead of text. */
+  location?: LocationPin;
 };
