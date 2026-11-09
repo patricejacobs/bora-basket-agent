@@ -1,0 +1,4 @@
+code,name,cuisine,hours,prep_minutes,min_order,delivery_fee,pickup_address,pickup_lat,pickup_lng,whatsapp,active
+KFH,Kingston Fried Hut,"Fried chicken, burgers","Mon-Sat 10:00am - 10:00pm, Sun 11:00am - 9:00pm",20,1500,700,"12 Camp Street, Kingston, Georgetown",6.81490,-58.16280,,1
+SSC,Sheriff Street Chinese,"Chinese, chow mein, fried rice","Mon-Sun 11:00am - 11:00pm",25,2000,700,"88 Sheriff Street, Campbellville",6.80310,-58.14920,,1
+BRH,Bourda Roti House,"Roti, curry, local","Mon-Sat 7:00am - 4:00pm",15,1000,600,"Bourda Market, Robb Street, Georgetown",6.81020,-58.15470,,1

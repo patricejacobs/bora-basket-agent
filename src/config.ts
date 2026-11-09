@@ -49,6 +49,15 @@ export const config = {
    */
   seedCatalogPath: str('SEED_CATALOG_PATH', ''),
   /**
+   * Restaurants and their menus, imported at boot for the same reason as the
+   * grocery catalogue above: a hosted deploy has no shell, so a committed CSV
+   * is the only way to add an outlet or correct a price. Re-read on every boot
+   * when CATALOG_SYNC_ON_BOOT is set, which also makes it the way to take an
+   * item off a menu.
+   */
+  seedOutletsPath: str('SEED_OUTLETS_PATH', ''),
+  seedMenuPath: str('SEED_MENU_PATH', ''),
+  /**
    * Folder of product photos named by SKU (RIC-001.jpg). Served at /images and
    * used when a product has no image URL in the catalogue. On a hosted deploy
    * this belongs on the persistent disk, or photos vanish on every deploy.
@@ -114,6 +123,17 @@ export const config = {
    * shop number. E.164 digits, no '+', comma separated.
    */
   staffNumbers: str('STAFF_NUMBERS')
+    .split(',')
+    .map((n) => n.replace(/[^0-9]/g, ''))
+    .filter(Boolean),
+
+  /**
+   * Riders. They receive a dispatch when food is cooked, and drive an order to
+   * delivered by tapping buttons on it. Kept apart from STAFF_NUMBERS because
+   * the jobs are different: staff run the shop and see everything, a rider sees
+   * the collection and the drop and nothing else.
+   */
+  driverNumbers: str('DRIVER_NUMBERS')
     .split(',')
     .map((n) => n.replace(/[^0-9]/g, ''))
     .filter(Boolean),

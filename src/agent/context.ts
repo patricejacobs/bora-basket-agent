@@ -304,8 +304,20 @@ function nextOpening(clauses: Clause[], today: number): string | null {
   return null;
 }
 
+/** The shop's own hours. */
 export function shopStatus(now = new Date()): ShopStatus {
-  const hours = config.store.hours.trim();
+  return hoursStatus(config.store.hours, now);
+}
+
+/**
+ * The same reading applied to any hours string.
+ *
+ * Restaurants each keep their own hours — a roti shop shutting at three and a
+ * fast-food counter open till eleven — so this takes the text rather than
+ * reaching for the shop's configuration.
+ */
+export function hoursStatus(hoursText: string, now = new Date()): ShopStatus {
+  const hours = hoursText.trim();
   if (!hours) return { state: 'unknown' };
 
   const today = DAY_INDEX[

@@ -9,6 +9,7 @@ import type { OrderStatus } from './db/repo.ts';
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'new, not yet confirmed',
   confirmed: 'confirmed',
+  ready: 'cooked, waiting for a rider',
   on_the_way: 'on the way',
   delivered: 'delivered',
   cancelled: 'cancelled',
@@ -23,7 +24,8 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
  */
 export const CUSTOMER_STATUS: Record<OrderStatus, string> = {
   pending: 'received, waiting for the shop to confirm it',
-  confirmed: 'confirmed and being packed',
+  confirmed: 'confirmed and being prepared',
+  ready: 'ready, waiting for the driver to collect it',
   on_the_way: 'out with the driver',
   delivered: 'delivered',
   cancelled: 'cancelled',
@@ -55,9 +57,17 @@ export function describeAge(iso: string): string {
 
 /** Words a dispatcher might actually type, mapped to a status. */
 export const STATUS_WORDS: [RegExp, OrderStatus][] = [
-  [/\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone)\b/i, 'on_the_way'],
+  // "collected" and "picked up" mean a rider has the food and is moving, which
+  // is the same state as on the way for everyone downstream.
+  [
+    /\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone|collected|picked\s*up)\b/i,
+    'on_the_way',
+  ],
   [/\b(delivered|done|complete[d]?|dropped)\b/i, 'delivered'],
-  [/\b(confirm(ed)?|accept(ed)?|packing)\b/i, 'confirmed'],
+  // Before 'confirmed', so a kitchen typing "food ready" is not read as
+  // "ready to confirm" and the rider is not sent to an empty counter.
+  [/\b(ready|cooked|food\s*up)\b/i, 'ready'],
+  [/\b(confirm(ed)?|accept(ed)?|packing|preparing)\b/i, 'confirmed'],
   [/\b(cancel(led)?|void)\b/i, 'cancelled'],
 ];
 
@@ -71,28 +81,63 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
  *
  * WhatsApp allows at most 3 buttons with 20-character titles.
  */
+/**
+ * Who is holding the phone. The same order offers different next steps to a
+ * kitchen, a rider and the shop, and showing a cook a "Delivered" button invites
+ * an order being closed from behind a fryer.
+ */
+export type Audience = 'staff' | 'outlet' | 'driver';
+
 export function nextActions(
   orderNo: string,
   status: OrderStatus,
+  audience: Audience = 'staff',
 ): { id: string; title: string }[] {
   // "ORD-00007" -> "7": dispatchers read the short form, and it keeps titles
   // inside the 20-character limit.
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
 
+  const confirm = { id: `confirm_${n}`, title: `Confirm ${n}` };
+  const ready = { id: `ready_${n}`, title: `Food ready ${n}` };
+  const otw = { id: `otw_${n}`, title: `On the way ${n}` };
+  const collected = { id: `otw_${n}`, title: `Collected ${n}` };
+  const delivered = { id: `delivered_${n}`, title: `Delivered ${n}` };
+  const cancel = { id: `cancel_${n}`, title: `Cancel ${n}` };
+
+  // A kitchen only ever accepts, says the food is up, or hands it back. It never
+  // dispatches or closes an order — that is the rider's end of the job.
+  if (audience === 'outlet') {
+    switch (status) {
+      case 'pending':
+        return [confirm, cancel];
+      case 'confirmed':
+        return [ready, cancel];
+      default:
+        return [];
+    }
+  }
+
+  // A rider collects and delivers. Nothing else is theirs to decide.
+  if (audience === 'driver') {
+    switch (status) {
+      case 'ready':
+        return [collected];
+      case 'on_the_way':
+        return [delivered];
+      default:
+        return [];
+    }
+  }
+
   switch (status) {
     case 'pending':
-      return [
-        { id: `confirm_${n}`, title: `Confirm ${n}` },
-        { id: `otw_${n}`, title: `On the way ${n}` },
-        { id: `cancel_${n}`, title: `Cancel ${n}` },
-      ];
+      return [confirm, otw, cancel];
     case 'confirmed':
-      return [
-        { id: `otw_${n}`, title: `On the way ${n}` },
-        { id: `cancel_${n}`, title: `Cancel ${n}` },
-      ];
+      return [ready, otw, cancel];
+    case 'ready':
+      return [otw, cancel];
     case 'on_the_way':
-      return [{ id: `delivered_${n}`, title: `Delivered ${n}` }];
+      return [delivered];
     default:
       // Delivered and cancelled orders are finished; nothing to offer.
       return [];

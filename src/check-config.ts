@@ -209,6 +209,68 @@ try {
   add('warn', 'catalog', `could not read the database (${err instanceof Error ? err.message : err})`);
 }
 
+/* ----------------------------------------------------- people and outlets */
+
+const numbers = (name: string): string[] =>
+  raw(name)
+    .split(',')
+    .map((n) => n.replace(/[^0-9]/g, ''))
+    .filter(Boolean);
+
+const staff = numbers('STAFF_NUMBERS');
+if (staff.length === 0) {
+  add('fail', 'STAFF_NUMBERS', 'empty — orders will be placed and nobody in the shop will be told');
+} else {
+  add('ok', 'STAFF_NUMBERS', dim(`${staff.length} number(s)`));
+}
+
+try {
+  const { DatabaseSync } = await import('node:sqlite');
+  if (fs.existsSync(dbPath)) {
+    const db = new DatabaseSync(dbPath);
+    const hasOutlets = db
+      .prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='outlets'`)
+      .get() as { n: number };
+
+    if (hasOutlets.n > 0) {
+      const row = db.prepare('SELECT COUNT(*) AS n FROM outlets WHERE active = 1').get() as { n: number };
+      const noNumber = db
+        .prepare(`SELECT COUNT(*) AS n FROM outlets WHERE active = 1 AND whatsapp = ''`)
+        .get() as { n: number };
+      db.close();
+
+      if (row.n > 0) {
+        add('ok', 'restaurants', dim(`${row.n} active outlet(s)`));
+
+        const drivers = numbers('DRIVER_NUMBERS');
+        if (drivers.length === 0) {
+          add(
+            'fail',
+            'DRIVER_NUMBERS',
+            'empty, but restaurants are set up — food will be cooked and no rider will be sent to collect it',
+          );
+        } else {
+          add('ok', 'DRIVER_NUMBERS', dim(`${drivers.length} rider(s)`));
+        }
+
+        if (noNumber.n > 0) {
+          add(
+            'warn',
+            'outlet WhatsApp',
+            `${noNumber.n} outlet(s) have no number — their kitchen tickets go nowhere, so staff must relay orders by hand`,
+          );
+        }
+      } else {
+        db.close();
+      }
+    } else {
+      db.close();
+    }
+  }
+} catch (err) {
+  add('warn', 'restaurants', `could not read outlets (${err instanceof Error ? err.message : err})`);
+}
+
 /* ------------------------------------------------------- live key check */
 
 if (hasKey) {

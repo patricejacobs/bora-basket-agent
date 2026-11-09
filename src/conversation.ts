@@ -1,5 +1,11 @@
 import { runAgent, friendlyErrorMessage } from './agent/run.ts';
-import { isStaff, handleStaffMessage } from './staff.ts';
+import {
+  isStaff,
+  isDriver,
+  handleStaffMessage,
+  handleDriverMessage,
+  handleOutletMessage,
+} from './staff.ts';
 import * as repo from './db/repo.ts';
 import { config } from './config.ts';
 import {
@@ -74,11 +80,28 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       : msg.text;
   repo.logMessage(msg.phone, 'in', msg.channel, logBody);
 
-  // Staff share the shop number but get the dispatch queue, not the shopping agent.
-  if (isStaff(msg.phone)) {
-    const staffReply = await handleStaffMessage(msg.text);
-    for (const out of staffReply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
-    return staffReply;
+  // Staff, riders and kitchens all share the shop number, and none of them get
+  // the shopping agent — a dispatcher clearing twenty orders wants the same
+  // words to do the same thing every time, instantly and at no cost per message.
+  //
+  // Checked in this order on purpose. Staff first, so someone who is both staff
+  // and a rider keeps the full queue; then riders; then outlets, which are
+  // recognised by their own number rather than by configuration.
+  const operator = isStaff(msg.phone)
+    ? () => handleStaffMessage(msg.text)
+    : isDriver(msg.phone)
+      ? () => handleDriverMessage(msg.text)
+      : (() => {
+          const outlet = repo.outletByWhatsapp(msg.phone);
+          return outlet ? () => handleOutletMessage(outlet, msg.text) : null;
+        })();
+
+  if (operator) {
+    const operatorReply = await operator();
+    for (const out of operatorReply) {
+      repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+    }
+    return operatorReply;
   }
 
   // Record the WhatsApp profile name, but do not treat it as the customer's

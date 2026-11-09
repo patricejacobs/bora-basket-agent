@@ -1,6 +1,7 @@
 import { db, nowIso } from './index.ts';
 import { config } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
+import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
 
 export type { LocationPin, SavedPin };
@@ -18,9 +19,59 @@ export type Product = {
   keywords: string;
   /** Publicly reachable HTTPS image, or empty if the product has no photo. */
   imageUrl: string;
+  /** The outlet whose menu this belongs to; null for the house grocery catalogue. */
+  outletId: number | null;
+  /** Modifier groups in menu-options text form. Empty for groceries. */
+  options: string;
+  /** 0 for menu items: a kitchen cooks to order and holds no quantity. */
+  trackStock: number;
+  /** Set by the outlet when it has run out for the day. */
+  soldOut: number;
 };
 
-export type CartLine = { product: Product; qty: number; lineTotal: number };
+/**
+ * The SQLite columns are snake_case and the type is camelCase, so every read of
+ * a product has to alias them. Centralised because forgetting one does not
+ * fail — it silently returns undefined, which is how `image_url` once read back
+ * as "no photo" on every product in the shop.
+ */
+export const PRODUCT_COLUMNS = `
+  image_url AS imageUrl, outlet_id AS outletId,
+  track_stock AS trackStock, sold_out AS soldOut`;
+
+export type Outlet = {
+  id: number;
+  code: string;
+  name: string;
+  cuisine: string;
+  hours: string;
+  prepMinutes: number;
+  minOrder: number;
+  /** Null means the shop's own delivery fee applies. */
+  deliveryFee: number | null;
+  pickupAddress: string;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  whatsapp: string;
+  accepting: number;
+  active: number;
+};
+
+const OUTLET_COLUMNS = `
+  prep_minutes AS prepMinutes, min_order AS minOrder, delivery_fee AS deliveryFee,
+  pickup_address AS pickupAddress, pickup_lat AS pickupLat, pickup_lng AS pickupLng`;
+
+export type CartLine = {
+  product: Product;
+  qty: number;
+  lineTotal: number;
+  /** Canonical option string, the part of this line's identity beyond the SKU. */
+  options: string;
+  /** The same choices without group names, for reading out. */
+  optionsSummary: string;
+  /** What the options add to each unit. */
+  surcharge: number;
+};
 
 export type CartSummary = {
   lines: CartLine[];
@@ -28,6 +79,13 @@ export type CartSummary = {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  /**
+   * The outlet everything in the cart came from, or null for groceries.
+   *
+   * One order is one kitchen. A burger from one place and a roti from another
+   * are two prep times and two collections, so a cart cannot straddle them.
+   */
+  outlet: Outlet | null;
 };
 
 export type Customer = {
@@ -74,9 +132,142 @@ export function listCategories(): { category: string; count: number }[] {
 
 export function getProductBySku(sku: string): Product | null {
   const row = db
-    .prepare(`SELECT *, image_url AS imageUrl FROM products WHERE sku = ? COLLATE NOCASE AND active = 1`)
+    .prepare(
+      `SELECT *, ${PRODUCT_COLUMNS} FROM products WHERE sku = ? COLLATE NOCASE AND active = 1`,
+    )
     .get(sku.trim());
   return (row as Product | undefined) ?? null;
+}
+
+/* ------------------------------------------------------------------ outlets */
+
+export function listOutlets(): Outlet[] {
+  return db
+    .prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE active = 1 ORDER BY name`)
+    .all() as unknown as Outlet[];
+}
+
+export function getOutlet(code: string): Outlet | null {
+  const row = db
+    .prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE code = ? COLLATE NOCASE AND active = 1`)
+    .get(code.trim());
+  return (row as Outlet | undefined) ?? null;
+}
+
+export function outletById(id: number): Outlet | null {
+  const row = db.prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE id = ?`).get(id);
+  return (row as Outlet | undefined) ?? null;
+}
+
+/** The outlet whose WhatsApp number this is, for routing a kitchen's replies. */
+export function outletByWhatsapp(phone: string): Outlet | null {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return null;
+  const row = db
+    .prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE whatsapp = ? AND active = 1`)
+    .get(digits);
+  return (row as Outlet | undefined) ?? null;
+}
+
+export function upsertOutlet(o: {
+  code: string;
+  name: string;
+  cuisine?: string;
+  hours?: string;
+  prepMinutes?: number;
+  minOrder?: number;
+  deliveryFee?: number | null;
+  pickupAddress?: string;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
+  whatsapp?: string;
+  accepting?: number;
+  active?: number;
+}): void {
+  db.prepare(
+    `INSERT INTO outlets
+       (code, name, cuisine, hours, prep_minutes, min_order, delivery_fee,
+        pickup_address, pickup_lat, pickup_lng, whatsapp, accepting, active, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(code) DO UPDATE SET
+       name = excluded.name, cuisine = excluded.cuisine, hours = excluded.hours,
+       prep_minutes = excluded.prep_minutes, min_order = excluded.min_order,
+       delivery_fee = excluded.delivery_fee, pickup_address = excluded.pickup_address,
+       pickup_lat = excluded.pickup_lat, pickup_lng = excluded.pickup_lng,
+       whatsapp = excluded.whatsapp, active = excluded.active,
+       updated_at = excluded.updated_at`,
+  ).run(
+    o.code,
+    o.name,
+    o.cuisine ?? '',
+    o.hours ?? '',
+    o.prepMinutes ?? 20,
+    o.minOrder ?? 0,
+    o.deliveryFee ?? null,
+    o.pickupAddress ?? '',
+    o.pickupLat ?? null,
+    o.pickupLng ?? null,
+    (o.whatsapp ?? '').replace(/[^0-9]/g, ''),
+    o.accepting ?? 1,
+    o.active ?? 1,
+    nowIso(),
+  );
+  invalidateSearchIndex();
+}
+
+/**
+ * The outlet's own switch for "we are slammed" or "closing early".
+ *
+ * Deliberately not `active`: that is whether you trade with them at all, and a
+ * kitchen must never be able to remove itself from your books.
+ */
+export function setOutletAccepting(code: string, accepting: boolean): void {
+  db.prepare(`UPDATE outlets SET accepting = ?, updated_at = ? WHERE code = ? COLLATE NOCASE`).run(
+    accepting ? 1 : 0,
+    nowIso(),
+    code,
+  );
+}
+
+/**
+ * Which menu this customer is looking at, if any.
+ *
+ * Stored rather than carried in the conversation because the agent cannot be
+ * relied on to remember it for twenty turns, and a search that quietly widens
+ * back to the whole catalogue would offer frozen wings to someone ordering from
+ * a fried-chicken counter.
+ */
+export function getBrowsingOutlet(phone: string): Outlet | null {
+  const row = db
+    .prepare(`SELECT browsing_outlet_id AS id FROM customers WHERE phone = ?`)
+    .get(phone) as { id: number | null } | undefined;
+  if (!row?.id) return null;
+  const outlet = outletById(row.id);
+  // An outlet withdrawn mid-conversation stops being browsable.
+  return outlet && outlet.active ? outlet : null;
+}
+
+export function setBrowsingOutlet(phone: string, outletId: number | null): void {
+  // Touch-insert first: a customer may pick a restaurant before we hold any
+  // other detail about them, and there would be no row to update.
+  db.prepare(
+    `INSERT INTO customers (phone, created_at, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(phone) DO NOTHING`,
+  ).run(phone, nowIso(), nowIso());
+  db.prepare(`UPDATE customers SET browsing_outlet_id = ?, updated_at = ? WHERE phone = ?`).run(
+    outletId,
+    nowIso(),
+    phone,
+  );
+}
+
+export function setItemSoldOut(sku: string, soldOut: boolean): void {
+  db.prepare(`UPDATE products SET sold_out = ?, updated_at = ? WHERE sku = ? COLLATE NOCASE`).run(
+    soldOut ? 1 : 0,
+    nowIso(),
+    sku,
+  );
+  invalidateSearchIndex();
 }
 
 /**
@@ -85,8 +276,13 @@ export function getProductBySku(sku: string): Product | null {
  * Kept here as a thin pass-through so callers that only want products are not
  * forced to think about which query words went unanswered.
  */
-export function searchProducts(query: string, category?: string, limit = 8): Product[] {
-  return searchCatalog(query, category, limit).results;
+export function searchProducts(
+  query: string,
+  category?: string,
+  limit = 8,
+  scope?: number | null,
+): Product[] {
+  return searchCatalog(query, category, limit, scope).results;
 }
 
 export function upsertProduct(p: {
@@ -100,15 +296,24 @@ export function upsertProduct(p: {
   active: number;
   keywords: string;
   imageUrl?: string;
+  /** Null (the default) files the row in the house grocery catalogue. */
+  outletId?: number | null;
+  options?: string;
+  /** 0 for anything cooked to order; see availability.ts. */
+  trackStock?: number;
 }): void {
   db.prepare(
-    `INSERT INTO products (sku, name, description, category, unit, price, stock, active, keywords, image_url, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO products
+       (sku, name, description, category, unit, price, stock, active, keywords, image_url,
+        outlet_id, options, track_stock, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(sku) DO UPDATE SET
        name = excluded.name, description = excluded.description, category = excluded.category,
        unit = excluded.unit, price = excluded.price, stock = excluded.stock,
        active = excluded.active, keywords = excluded.keywords,
-       image_url = excluded.image_url, updated_at = excluded.updated_at`,
+       image_url = excluded.image_url, outlet_id = excluded.outlet_id,
+       options = excluded.options, track_stock = excluded.track_stock,
+       updated_at = excluded.updated_at`,
   ).run(
     p.sku,
     p.name,
@@ -120,6 +325,9 @@ export function upsertProduct(p: {
     p.active,
     p.keywords,
     p.imageUrl ?? '',
+    p.outletId ?? null,
+    p.options ?? '',
+    p.trackStock ?? 1,
     nowIso(),
   );
   invalidateSearchIndex();
@@ -134,6 +342,14 @@ export function photoCoverage(): { withPhoto: number; total: number } {
     )
     .get() as { total: number; withPhoto: number | null };
   return { withPhoto: row.withPhoto ?? 0, total: row.total };
+}
+
+/** Active menu items across every outlet, as distinct from grocery stock. */
+export function menuItemCount(): number {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM products WHERE active = 1 AND outlet_id IS NOT NULL`)
+    .get() as { n: number };
+  return row.n;
 }
 
 export function productCount(): number {
@@ -218,9 +434,18 @@ export function saveCustomer(
 
 /* --------------------------------------------------------------------- cart */
 
-export function calcDeliveryFee(subtotal: number): number {
+/**
+ * An outlet may charge its own delivery fee; without one the shop's applies.
+ *
+ * Free delivery over a threshold is deliberately not extended to restaurant
+ * orders: the driver still has to go and collect, and giving that away on a
+ * large food order means paying to deliver it.
+ */
+export function calcDeliveryFee(subtotal: number, outlet?: Outlet | null): number {
   if (subtotal <= 0) return 0;
   const { deliveryFee, freeDeliveryOver } = config.store;
+
+  if (outlet) return outlet.deliveryFee ?? deliveryFee;
   if (freeDeliveryOver > 0 && subtotal >= freeDeliveryOver) return 0;
   return deliveryFee;
 }
@@ -228,38 +453,98 @@ export function calcDeliveryFee(subtotal: number): number {
 export function getCart(phone: string): CartSummary {
   const rows = db
     .prepare(
-      `SELECT p.*, p.image_url AS imageUrl, c.qty AS cart_qty FROM cart_items c
-       JOIN products p ON p.id = c.product_id
-       WHERE c.phone = ? ORDER BY c.added_at`,
+      `SELECT p.*, p.image_url AS imageUrl, p.outlet_id AS outletId,
+              p.track_stock AS trackStock, p.sold_out AS soldOut,
+              c.qty AS cart_qty, c.options AS cart_options
+         FROM cart_items c
+         JOIN products p ON p.id = c.product_id
+        WHERE c.phone = ? ORDER BY c.added_at`,
     )
-    .all(phone) as unknown as (Product & { cart_qty: number })[];
+    .all(phone) as unknown as (Product & { cart_qty: number; cart_options: string })[];
 
   const lines: CartLine[] = rows.map((r) => {
-    const { cart_qty, ...product } = r;
-    return { product: product as Product, qty: cart_qty, lineTotal: cart_qty * product.price };
+    const { cart_qty, cart_options, ...product } = r;
+    // Recomputed from the spec rather than stored on the line: if the menu's
+    // prices change, a cart that is still open should reprice, not hold a
+    // figure the kitchen no longer charges.
+    const groups = parseOptionSpec(product.options ?? '');
+    const picked = cart_options ? cart_options.split(';').flatMap((part) => {
+      const labels = part.slice(part.indexOf('=') + 1);
+      const group = part.slice(0, part.indexOf('=')).trim();
+      return labels.split(',').map((l) => `${group}: ${l.trim()}`);
+    }) : [];
+    const applied = applySelection(groups, picked);
+    const surcharge = applied.ok ? applied.surcharge : 0;
+    const unit = product.price + surcharge;
+
+    return {
+      product: product as Product,
+      qty: cart_qty,
+      lineTotal: cart_qty * unit,
+      options: cart_options,
+      optionsSummary: summariseStored(cart_options),
+      surcharge,
+    };
   });
+
+  // Every line in a cart belongs to the same outlet, enforced on the way in.
+  const outletId = lines.find((l) => l.product.outletId !== null)?.product.outletId ?? null;
+  const outlet = outletId === null ? null : outletById(outletId);
 
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
   const itemCount = lines.reduce((sum, l) => sum + l.qty, 0);
-  const deliveryFee = calcDeliveryFee(subtotal);
-  return { lines, itemCount, subtotal, deliveryFee, total: subtotal + deliveryFee };
+  const deliveryFee = calcDeliveryFee(subtotal, outlet);
+  return { lines, itemCount, subtotal, deliveryFee, total: subtotal + deliveryFee, outlet };
 }
 
-export function setCartQty(phone: string, productId: number, qty: number): void {
+/**
+ * Which outlet the open cart belongs to, without loading the whole thing.
+ *
+ * Used to refuse a second kitchen before any work is done, and to tell the
+ * agent what clearing the cart would cost the customer.
+ */
+export function cartOutletId(phone: string): number | null {
+  const row = db
+    .prepare(
+      `SELECT p.outlet_id AS outletId FROM cart_items c
+         JOIN products p ON p.id = c.product_id
+        WHERE c.phone = ? AND p.outlet_id IS NOT NULL LIMIT 1`,
+    )
+    .get(phone) as { outletId: number } | undefined;
+  return row?.outletId ?? null;
+}
+
+/** True when the cart holds house groceries, which cannot mix with a menu. */
+export function cartHasGroceries(phone: string): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 AS found FROM cart_items c
+         JOIN products p ON p.id = c.product_id
+        WHERE c.phone = ? AND p.outlet_id IS NULL LIMIT 1`,
+    )
+    .get(phone) as { found: number } | undefined;
+  return row !== undefined;
+}
+
+export function setCartQty(phone: string, productId: number, qty: number, options = ''): void {
   if (qty <= 0) {
-    db.prepare(`DELETE FROM cart_items WHERE phone = ? AND product_id = ?`).run(phone, productId);
+    db.prepare(`DELETE FROM cart_items WHERE phone = ? AND product_id = ? AND options = ?`).run(
+      phone,
+      productId,
+      options,
+    );
     return;
   }
   db.prepare(
-    `INSERT INTO cart_items (phone, product_id, qty, added_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(phone, product_id) DO UPDATE SET qty = excluded.qty`,
-  ).run(phone, productId, qty, nowIso());
+    `INSERT INTO cart_items (phone, product_id, options, qty, added_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(phone, product_id, options) DO UPDATE SET qty = excluded.qty`,
+  ).run(phone, productId, options, qty, nowIso());
 }
 
-export function getCartQty(phone: string, productId: number): number {
+export function getCartQty(phone: string, productId: number, options = ''): number {
   const row = db
-    .prepare(`SELECT qty FROM cart_items WHERE phone = ? AND product_id = ?`)
-    .get(phone, productId) as { qty: number } | undefined;
+    .prepare(`SELECT qty FROM cart_items WHERE phone = ? AND product_id = ? AND options = ?`)
+    .get(phone, productId, options) as { qty: number } | undefined;
   return row?.qty ?? 0;
 }
 
@@ -301,13 +586,20 @@ export function placeOrder(args: {
 
   db.exec('BEGIN IMMEDIATE');
   try {
-    // Re-check stock inside the transaction; the catalog may have moved since search.
+    // Re-check availability inside the transaction; the catalogue may have moved
+    // since the search, and a kitchen may have sold out mid-conversation.
     for (const line of cart.lines) {
-      const fresh = db.prepare(`SELECT stock, name FROM products WHERE id = ?`).get(line.product.id) as
-        | { stock: number; name: string }
+      const fresh = db
+        .prepare(
+          `SELECT name, stock, track_stock AS trackStock, sold_out AS soldOut
+             FROM products WHERE id = ? AND active = 1`,
+        )
+        .get(line.product.id) as
+        | { name: string; stock: number; trackStock: number; soldOut: number }
         | undefined;
       if (!fresh) throw new Error(`${line.product.name} is no longer available.`);
-      if (fresh.stock < line.qty) {
+      if (fresh.soldOut) throw new Error(`${fresh.name} has sold out.`);
+      if (fresh.trackStock && fresh.stock < line.qty) {
         throw new Error(
           `Only ${fresh.stock} x ${fresh.name} left in stock (the cart asks for ${line.qty}).`,
         );
@@ -324,8 +616,9 @@ export function placeOrder(args: {
         `INSERT INTO orders
            (order_no, phone, customer_name, address, contact_phone, delivery_note,
             latitude, longitude, location_label,
+            outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -337,6 +630,15 @@ export function placeOrder(args: {
         args.location.latitude,
         args.location.longitude,
         args.location.label,
+        // Where the food is cooked, copied onto the row rather than read back
+        // off the outlet later. An outlet that moves premises next month must
+        // not relocate a collection that already happened.
+        cart.outlet?.id ?? null,
+        cart.outlet?.name ?? '',
+        cart.outlet?.pickupAddress ?? '',
+        cart.outlet?.pickupLat ?? null,
+        cart.outlet?.pickupLng ?? null,
+        cart.outlet?.prepMinutes ?? 0,
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -346,10 +648,12 @@ export function placeOrder(args: {
 
     const orderId = Number(info.lastInsertRowid);
     const insertItem = db.prepare(
-      `INSERT INTO order_items (order_id, sku, name, unit, qty, unit_price, line_total)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO order_items (order_id, sku, name, unit, options, qty, unit_price, line_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    const decStock = db.prepare(`UPDATE products SET stock = stock - ? WHERE id = ?`);
+    const decStock = db.prepare(
+      `UPDATE products SET stock = stock - ? WHERE id = ? AND track_stock = 1`,
+    );
 
     for (const line of cart.lines) {
       insertItem.run(
@@ -357,11 +661,16 @@ export function placeOrder(args: {
         line.product.sku,
         line.product.name,
         line.product.unit,
+        line.options,
         line.qty,
-        line.product.price,
+        // The unit price carries the options surcharge, so the line total on the
+        // order matches what the customer was quoted and what the driver collects.
+        line.product.price + line.surcharge,
         line.lineTotal,
       );
-      decStock.run(line.qty, line.product.id);
+      // Guarded in SQL as well as here: a menu item has no quantity to decrement
+      // and driving its stock negative would make it look out of stock forever.
+      if (line.product.trackStock) decStock.run(line.qty, line.product.id);
     }
 
     db.prepare(`DELETE FROM cart_items WHERE phone = ?`).run(args.phone);
@@ -568,7 +877,17 @@ export function searchMissCount(days = 30): number {
 /* ------------------------------------------------------------ order status */
 
 /** The lifecycle a staff member can move an order through. */
-export const ORDER_STATUSES = ['pending', 'confirmed', 'on_the_way', 'delivered', 'cancelled'] as const;
+export const ORDER_STATUSES = [
+  'pending',
+  'confirmed',
+  // Food is cooked and waiting on the counter. Only restaurant orders reach it,
+  // and it is the moment a driver is sent — any earlier and the rider stands in
+  // the shop watching a fryer.
+  'ready',
+  'on_the_way',
+  'delivered',
+  'cancelled',
+] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export type OrderRecord = {
@@ -586,7 +905,22 @@ export type OrderRecord = {
    * every new order has one, because checkout will not complete without it.
    */
   location: SavedPin | null;
-  items: { name: string; qty: number; unit: string; lineTotal: number }[];
+  /**
+   * The kitchen this was cooked in, or null for a grocery order picked from the
+   * shop's own shelves. Present on the order rather than looked up, so a change
+   * of premises cannot move a collection that already happened.
+   */
+  outlet: {
+    id: number;
+    name: string;
+    pickupAddress: string;
+    pickupLat: number | null;
+    pickupLng: number | null;
+    prepMinutes: number;
+  } | null;
+  /** The driver this was dispatched to, empty until the food is ready. */
+  driverPhone: string;
+  items: { name: string; qty: number; unit: string; options: string; lineTotal: number }[];
 };
 
 function hydrateOrder(row: {
@@ -600,6 +934,13 @@ function hydrateOrder(row: {
   latitude: number | null;
   longitude: number | null;
   location_label: string | null;
+  outlet_id: number | null;
+  outlet_name: string | null;
+  pickup_address: string | null;
+  pickup_lat: number | null;
+  pickup_lng: number | null;
+  prep_minutes: number | null;
+  driver_phone: string | null;
   total: number;
   status: string;
   created_at: string;
@@ -618,11 +959,29 @@ function hydrateOrder(row: {
     // An order's pin was fixed at checkout; `pinnedAt` on an order means the
     // moment it was placed, not when the customer first shared the location.
     location: pin ? { ...pin, pinnedAt: row.created_at } : null,
+    outlet:
+      row.outlet_id === null || row.outlet_id === undefined
+        ? null
+        : {
+            id: row.outlet_id,
+            name: row.outlet_name ?? '',
+            pickupAddress: row.pickup_address ?? '',
+            pickupLat: row.pickup_lat ?? null,
+            pickupLng: row.pickup_lng ?? null,
+            prepMinutes: row.prep_minutes ?? 0,
+          },
+    driverPhone: row.driver_phone ?? '',
     items: (
       db
-        .prepare(`SELECT name, qty, unit, line_total FROM order_items WHERE order_id = ?`)
-        .all(row.id) as unknown as { name: string; qty: number; unit: string; line_total: number }[]
-    ).map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, lineTotal: i.line_total })),
+        .prepare(
+          `SELECT name, qty, unit, options, line_total FROM order_items WHERE order_id = ?`,
+        )
+        .all(row.id) as unknown as {
+        name: string; qty: number; unit: string; options: string; line_total: number;
+      }[]
+    ).map((i) => ({
+      name: i.name, qty: i.qty, unit: i.unit, options: i.options ?? '', lineTotal: i.line_total,
+    })),
   };
 }
 
@@ -649,6 +1008,23 @@ export function findOrder(reference: string): OrderRecord | null {
 export function customerOrder(phone: string, reference: string): OrderRecord | null {
   const order = findOrder(reference);
   return order && order.phone === phone ? order : null;
+}
+
+/** Records which driver an order went to, so a second alert cannot send two. */
+export function assignDriver(orderNo: string, driverPhone: string): void {
+  db.prepare(`UPDATE orders SET driver_phone = ?, updated_at = ? WHERE order_no = ?`).run(
+    driverPhone.replace(/[^0-9]/g, ''),
+    nowIso(),
+    orderNo,
+  );
+}
+
+/** Orders cooked and waiting for a rider, oldest first — food goes cold. */
+export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
+  const rows = db
+    .prepare(`SELECT * FROM orders WHERE status = 'ready' ORDER BY id ASC LIMIT ?`)
+    .all(limit) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {

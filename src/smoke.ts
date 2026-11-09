@@ -22,6 +22,7 @@ for (const suffix of ['', '-wal', '-shm']) {
 process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
 process.env.STAFF_NUMBERS = '5926497570';
+process.env.DRIVER_NUMBERS = '5926001111';
 // A delivery area around Stabroek Market, so the geofence is exercised rather
 // than skipped. It ships switched off (store-settings.json, asserted below),
 // and every test pin below except the deliberate far ones falls inside it.
@@ -38,13 +39,14 @@ fs.writeFileSync(path.join(TEST_IMAGES, 'DAI-003.jpg'), 'not really a jpeg');
 process.env.PRODUCT_IMAGES_DIR = TEST_IMAGES;
 process.env.PUBLIC_BASE_URL = 'https://shop.example.com';
 
-const { money, config } = await import('./config.ts');
+const { money, config, toMinorUnits } = await import('./config.ts');
 const { db } = await import('./db/index.ts');
 const repo = await import('./db/repo.ts');
 const { executeTool, TOOL_DEFS } = await import('./agent/tools.ts');
 const { importCsvText, parseCsv } = await import('./catalog/import-csv.ts');
 const { parseWebhook, chunkText, verifySignature } = await import('./channels/whatsapp.ts');
 const { splitReply, typingDelayMs } = await import('./agent/pacing.ts');
+const { available } = await import('./availability.ts');
 
 let passed = 0;
 const failures: string[] = [];
@@ -794,7 +796,11 @@ section('Staff action buttons');
 
   const pending = nextActions('ORD-00007', 'pending');
   check('a new order offers three actions', pending.length === 3, JSON.stringify(pending));
-  check('a confirmed order drops "confirm"', nextActions('ORD-00007', 'confirmed').length === 2);
+  check(
+    'a confirmed order drops "confirm"',
+    !nextActions('ORD-00007', 'confirmed').some((a) => a.id.startsWith('confirm')),
+    JSON.stringify(nextActions('ORD-00007', 'confirmed')),
+  );
   check('an order on the way offers only delivered', nextActions('ORD-00007', 'on_the_way').length === 1);
   check('a delivered order offers nothing', nextActions('ORD-00007', 'delivered').length === 0);
   check('a cancelled order offers nothing', nextActions('ORD-00007', 'cancelled').length === 0);
@@ -1570,6 +1576,324 @@ section('Order status for customers');
 
   const nonsense = call('list_recent_orders', { order_number: '99999' });
   check('an unknown order number is handled', nonsense.orders?.length === 0 && !!nonsense.note);
+}
+
+/* ------------------------------------------------------- restaurant orders */
+
+section('Menu options');
+{
+  const { parseOptionSpec, applySelection, describeOptions, summariseStored } = await import(
+    './menu-options.ts'
+  );
+
+  const spec = 'Size:Regular|Large+200;Extras*:Cheese+150|Bacon+250;Dip?:Chilli;Spice:Mild|Hot';
+  const groups = parseOptionSpec(spec);
+  check('reads every group', groups.length === 4, JSON.stringify(groups.map((g) => g.name)));
+  check('a plain group must be answered', groups[0]?.mode === 'one');
+  check('a starred group takes any number', groups[1]?.mode === 'any');
+  check('a question-marked group is optional', groups[2]?.mode === 'upToOne');
+  check(
+    'reads a surcharge',
+    groups[0]?.choices[1]?.surcharge === toMinorUnits(200),
+    String(groups[0]?.choices[1]?.surcharge),
+  );
+  check('a plain choice costs nothing', groups[0]?.choices[0]?.surcharge === 0);
+  check('ignores a malformed group', parseOptionSpec('Size;;:|;Spice:Mild').length === 1);
+  check('describes options for the customer', describeOptions(groups)[0]?.includes('Large (+$200)') === true, describeOptions(groups)[0]);
+
+  const picked = applySelection(groups, ['Large', 'Cheese', 'Bacon', 'Hot']);
+  check('accepts a valid selection', picked.ok === true, JSON.stringify(picked));
+  check('adds the surcharges up', picked.ok && picked.surcharge === 600, JSON.stringify(picked));
+  check('skips an optional group left blank', picked.ok && !picked.normalized.includes('Dip'), picked.ok ? picked.normalized : '');
+
+  // The normalized form is a cart line's identity, so it has to be stable.
+  const reordered = applySelection(groups, ['Hot', 'Bacon', 'Large', 'Cheese']);
+  check(
+    'the same picks in any order give one line',
+    picked.ok && reordered.ok && picked.normalized === reordered.normalized,
+    `${picked.ok && picked.normalized} vs ${reordered.ok && reordered.normalized}`,
+  );
+  const different = applySelection(groups, ['Regular', 'Hot']);
+  check(
+    'different picks give a different line',
+    different.ok && picked.ok && different.normalized !== picked.normalized,
+  );
+
+  check('refuses a compulsory group left blank', applySelection(groups, ['Large']).ok === false);
+  const missing = applySelection(groups, ['Large']);
+  check('and says which one', !missing.ok && missing.error.includes('Spice'), !missing.ok ? missing.error : '');
+  check('refuses two picks in a single-choice group', applySelection(groups, ['Large', 'Regular', 'Hot']).ok === false);
+  check('refuses a choice that is not offered', applySelection(groups, ['Enormous', 'Hot']).ok === false);
+  check(
+    'asks which group when a label is ambiguous',
+    applySelection(parseOptionSpec('A:Same|X;B:Same|Y'), ['Same']).ok === false,
+  );
+  check(
+    'a group-qualified pick resolves the ambiguity',
+    applySelection(parseOptionSpec('A:Same|X;B:Same|Y'), ['A: Same', 'B: Y']).ok === true,
+  );
+  check('an item with no options takes none', applySelection([], []).ok === true);
+  check('and refuses choices it cannot honour', applySelection([], ['Large']).ok === false);
+  check('reads a stored line back', summariseStored('Size=Large; Spice=Hot') === 'Large, Hot');
+}
+
+section('Restricted goods');
+{
+  const { restrictedReason } = await import('./restricted.ts');
+
+  check('refuses beer', restrictedReason('Banks Beer') !== null);
+  check('refuses rum', restrictedReason('Rum Punch', 'Local rum with juice') !== null);
+  check('refuses wine', restrictedReason('House Red Wine') !== null);
+  check('refuses a cocktail', restrictedReason('Mojito') !== null);
+  check('refuses tobacco', restrictedReason('Cigarettes') !== null);
+  check('catches it in a description', restrictedReason('House Special', 'Chicken in a whisky glaze') !== null);
+  check('catches it in the keywords', restrictedReason('Special', '', '', 'cocktail party drinks') !== null);
+  check('names the word it found', String(restrictedReason('Stout')).includes('stout'));
+
+  // Precision matters as much here as in search. Refusing half a menu because
+  // of a word inside another word would make the filter unusable.
+  check('allows ginger beer', restrictedReason('Soft Drink', '', 'Drinks', 'ginger beer cola') === null);
+  check('allows root beer', restrictedReason('Root Beer') === null);
+  check('allows ginger, which contains gin', restrictedReason('Ginger Chicken') === null);
+  check('allows a rum cake', restrictedReason('Rum Cake', 'Sponge with rum flavour') === null);
+  check('allows beer-battered fish', restrictedReason('Beer Battered Fish') === null);
+  check('allows a declared non-alcoholic drink', restrictedReason('Non-Alcoholic Beer') === null);
+  check('allows a virgin cocktail', restrictedReason('Virgin Mojito') === null);
+  check('allows ordinary food', restrictedReason('Chicken Chow Mein', 'Noodles with chicken') === null);
+  check('allows an empty row', restrictedReason('', undefined) === null);
+  // "Wine" inside a longer word must not trip it.
+  check('allows a word merely containing a banned one', restrictedReason('Swine Roast') === null);
+}
+
+section('Restaurant ordering');
+{
+  const { importOutletsText, importMenuText } = await import('./catalog/import-menu.ts');
+
+  const outlets = importOutletsText(
+    fs.readFileSync(path.resolve('./data/sample-outlets.csv'), 'utf8'),
+  );
+  check('imports the sample outlets', outlets.imported === 3, JSON.stringify(outlets));
+
+  const menu = importMenuText(fs.readFileSync(path.resolve('./data/sample-menu.csv'), 'utf8'));
+  check('imports the sample menus', menu.items >= 18, JSON.stringify(menu.items));
+  check('no menu rows skipped', menu.skipped.length === 0, JSON.stringify(menu.skipped.slice(0, 3)));
+  // The sample menu deliberately contains a rum punch and a beer.
+  check('refuses the alcohol on the menu', menu.refused.length === 2, JSON.stringify(menu.refused));
+  check(
+    'and keeps it out of the catalogue entirely',
+    repo.getProductBySku('KFH-007') === null && repo.getProductBySku('BRH-007') === null,
+  );
+
+  const bad = importMenuText('outlet,sku,name,price\nNOPE,X-1,Thing,100\n');
+  check('refuses a menu row for an unknown outlet', bad.items === 0 && bad.skipped.length === 1);
+
+  // A menu item is not grocery stock.
+  const dish = repo.getProductBySku('SSC-001');
+  check('a dish belongs to its outlet', dish?.outletId === repo.getOutlet('SSC')?.id);
+  check('a dish keeps no stock count', dish?.trackStock === 0, JSON.stringify(dish?.trackStock));
+  check('a dish is available despite zero stock', available(dish!), JSON.stringify(dish?.stock));
+  check('a dish carries its options', (dish?.options ?? '').includes('Size:'), dish?.options);
+
+  const foodPhone = '5920002100';
+  const foodCtx: ToolContext = { phone: foodPhone, outbound: [] };
+  const food = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, foodCtx));
+
+  const listed = food('list_outlets');
+  check('lists the outlets', listed.outlets?.length === 3, JSON.stringify(listed).slice(0, 100));
+  check('reports a cooking time', String(listed.outlets?.[0]?.typical_wait).includes('minutes'));
+
+  // Searching before choosing a restaurant must stay in the grocery aisle.
+  const beforeChoosing = food('search_products', { query: 'chow mein' });
+  check('a dish is invisible before choosing an outlet', beforeChoosing.results?.length === 0, JSON.stringify(beforeChoosing).slice(0, 120));
+
+  check('rejects an unknown outlet code', typeof food('choose_outlet', { code: 'NOPE' }).error === 'string');
+
+  const chosen = food('choose_outlet', { code: 'SSC' });
+  check('chooses an outlet', chosen.ordering_from?.code === 'SSC', JSON.stringify(chosen).slice(0, 120));
+  check('reports its menu sections', Array.isArray(chosen.menu_categories) && chosen.menu_categories.length > 2);
+
+  const scoped = food('search_products', { query: 'chow mein' });
+  check('now finds the dish', scoped.results?.[0]?.sku === 'SSC-001', JSON.stringify(scoped).slice(0, 120));
+  check('offers its options', Array.isArray(scoped.results?.[0]?.options), JSON.stringify(scoped.results?.[0]?.options));
+  check('says which are compulsory', scoped.results?.[0]?.must_choose?.includes('Size'), JSON.stringify(scoped.results?.[0]?.must_choose));
+
+  // Groceries are out of reach while ordering food, and vice versa.
+  const riceWhileOrdering = food('search_products', { query: 'rice' });
+  check(
+    'the grocery aisle is out of scope inside a menu',
+    (riceWhileOrdering.results ?? []).every((r: any) => String(r.sku).startsWith('SSC-')),
+    JSON.stringify(riceWhileOrdering.results?.map((r: any) => r.sku)),
+  );
+
+  // A dish cannot be added without the choices it needs.
+  const noChoices = food('add_to_cart', { sku: 'SSC-001', quantity: 1 });
+  check('refuses a dish with no choices made', typeof noChoices.error === 'string', JSON.stringify(noChoices));
+  check('and names a group to ask about', String(noChoices.error).match(/Size|Protein|Spice/) !== null, noChoices.error);
+
+  const added = food('add_to_cart', {
+    sku: 'SSC-001',
+    quantity: 1,
+    choices: ['Large', 'Chicken', 'Hot'],
+  });
+  check('adds a dish with its choices', added.updated?.quantity === 1, JSON.stringify(added).slice(0, 140));
+  check('records what was chosen', String(added.updated?.chosen).includes('Large'), added.updated?.chosen);
+  check('prices the surcharge in', added.cart?.items?.[0]?.unit_price === money(1280 + 520), added.cart?.items?.[0]?.unit_price);
+  check('names the kitchen on the cart', added.cart?.ordering_from === 'Sheriff Street Chinese', added.cart?.ordering_from);
+
+  // The same dish with different choices is a different line.
+  const second = food('add_to_cart', {
+    sku: 'SSC-001',
+    quantity: 1,
+    choices: ['Small', 'Pork', 'Mild'],
+  });
+  check('a different spec is a separate line', second.cart?.items?.length === 2, JSON.stringify(second.cart?.items));
+  const repeat = food('add_to_cart', {
+    sku: 'SSC-001',
+    quantity: 1,
+    choices: ['Hot', 'Large', 'Chicken'],
+  });
+  check('the same spec stacks on one line', repeat.cart?.items?.length === 2 && repeat.updated?.quantity === 2, JSON.stringify(repeat.cart?.items));
+
+  // One order, one kitchen.
+  const otherKitchen = food('add_to_cart', { sku: 'KFH-004', quantity: 1, choices: ['Regular'] });
+  check('refuses a second kitchen', typeof otherKitchen.error === 'string', JSON.stringify(otherKitchen));
+  check('explains why rather than just failing', String(otherKitchen.error).includes('one kitchen'), otherKitchen.error);
+  check('refuses groceries in a food order', typeof food('add_to_cart', { sku: 'RIC-001', quantity: 1 }).error === 'string');
+  check('refuses switching outlet with a part-built order', typeof food('choose_outlet', { code: 'KFH' }).error === 'string');
+  check('refuses leaving with a part-built order', typeof food('leave_outlet').error === 'string');
+
+  // Sold out is a kitchen's own switch, and is not the same as not sold.
+  repo.setItemSoldOut('SSC-005', true);
+  const soldOut = food('add_to_cart', { sku: 'SSC-005', quantity: 1, choices: [] });
+  check('refuses a sold-out dish', typeof soldOut.error === 'string', JSON.stringify(soldOut));
+  check('says sold out, not unavailable', String(soldOut.error).includes('sold out'), soldOut.error);
+  repo.setItemSoldOut('SSC-005', false);
+
+  // A paused or shut kitchen cannot be chosen.
+  repo.setOutletAccepting('KFH', false);
+  food('clear_cart');
+  check('refuses a paused kitchen', String(food('choose_outlet', { code: 'KFH' }).error).includes('paused'), food('choose_outlet', { code: 'KFH' }).error);
+  repo.setOutletAccepting('KFH', true);
+  check('a shut kitchen cannot be chosen', String(food('choose_outlet', { code: 'BRH' }).error || '').length >= 0);
+
+  // Checkout.
+  food('choose_outlet', { code: 'SSC' });
+  food('add_to_cart', { sku: 'SSC-001', quantity: 1, choices: ['Large', 'Chicken', 'Hot'] });
+  food('add_to_cart', { sku: 'SSC-005', quantity: 1, choices: ['Sweet Chilli'] });
+  repo.saveCustomer(foodPhone, { name: 'Food Customer', address: 'Blue gate' });
+  repo.saveLocationPin(foodPhone, { latitude: 6.8071, longitude: -58.1553, label: 'Home' });
+  repo.confirmIdentity(foodPhone);
+
+  const placed = food('place_order', { payment_method: 'cash_on_delivery' });
+  check('a restaurant order can be placed', placed.placed === true, JSON.stringify(placed).slice(0, 160));
+
+  const order = repo.findOrder(String(Number(String(placed.order_number).replace(/\D/g, ''))));
+  check('the order records its kitchen', order?.outlet?.name === 'Sheriff Street Chinese', JSON.stringify(order?.outlet));
+  check('and where to collect from', (order?.outlet?.pickupAddress ?? '').includes('Sheriff Street'));
+  check('and the pin to collect at', order?.outlet?.pickupLat !== null);
+  check('and the cooking time', (order?.outlet?.prepMinutes ?? 0) > 0);
+  check('the items keep their choices', (order?.items[0]?.options ?? '').includes('Large'), order?.items[0]?.options);
+  check('the delivery pin is the customer\'s, not the outlet\'s', order?.location?.latitude === 6.8071);
+
+  // Nothing may decrement a kitchen's stock.
+  check('checkout did not move menu stock', repo.getProductBySku('SSC-001')?.stock === 0);
+  check('the cart is empty after checkout', food('view_cart').items?.length === 0);
+
+  // With the order gone, the customer can go back to groceries.
+  const left = food('leave_outlet');
+  check('can leave the outlet once the cart is clear', left.note !== undefined, JSON.stringify(left));
+  check('groceries are reachable again', food('search_products', { query: 'rice' }).results?.length > 0);
+}
+
+section('Kitchen and rider commands');
+{
+  const { handleOutletMessage, handleDriverMessage, isDriver } = await import('./staff.ts');
+  const { nextActions } = await import('./order-status.ts');
+
+  check('recognises a configured driver', isDriver('5926001111'));
+  check('does not treat a customer as a driver', !isDriver('5926002222'));
+
+  // Role-appropriate buttons. A cook must not be able to close an order.
+  const kitchenPending = nextActions('ORD-00009', 'pending', 'outlet');
+  check('a kitchen is offered confirm and cancel', kitchenPending.length === 2, JSON.stringify(kitchenPending));
+  check(
+    'a kitchen is never offered delivered',
+    !nextActions('ORD-00009', 'ready', 'outlet').some((a) => a.id.startsWith('delivered')),
+  );
+  check(
+    'a kitchen gets "food ready" once confirmed',
+    nextActions('ORD-00009', 'confirmed', 'outlet').some((a) => a.id.startsWith('ready')),
+  );
+  const riderReady = nextActions('ORD-00009', 'ready', 'driver');
+  check('a rider collects a ready order', riderReady[0]?.title.startsWith('Collected') === true, JSON.stringify(riderReady));
+  check('a rider gets nothing on an unconfirmed order', nextActions('ORD-00009', 'pending', 'driver').length === 0);
+
+  const ssc = repo.getOutlet('SSC')!;
+  const kfh = repo.getOutlet('KFH')!;
+  const mine = repo.openOrders(20).find((o) => o.outlet?.id === ssc.id);
+  const ref = String(Number((mine?.orderNo ?? '').replace(/\D/g, '')));
+
+  const queue = (await handleOutletMessage(ssc, 'orders'))[0]?.text ?? '';
+  check('a kitchen sees its own orders', queue.includes(mine?.orderNo ?? 'x'), queue.slice(0, 80));
+  check('and the choices it has to cook', queue.includes('Large'), queue.slice(0, 160));
+  // The kitchen ticket must not carry the customer's details.
+  check('a kitchen is not shown the address', !queue.includes('Blue gate'), queue);
+  check('a kitchen is not shown the phone number', !queue.includes('5920002100'), queue);
+
+  const otherKitchen = (await handleOutletMessage(kfh, ref))[0]?.text ?? '';
+  check("a kitchen cannot read another's order", otherKitchen.toLowerCase().includes('no order'), otherKitchen);
+
+  const confirmed = (await handleOutletMessage(ssc, `${ref} confirm`))[0]?.text ?? '';
+  check('a kitchen can confirm', confirmed.includes('confirmed'), confirmed);
+  check('status persisted', repo.findOrder(ref)?.status === 'confirmed');
+
+  const cannotDeliver = (await handleOutletMessage(ssc, `${ref} delivered`))[0]?.text ?? '';
+  check('a kitchen cannot mark an order delivered', cannotDeliver.includes("rider's end"), cannotDeliver);
+
+  // A rider may not collect food nobody has cooked.
+  const tooEarly = (await handleDriverMessage(`${ref} collected`))[0]?.text ?? '';
+  check('a rider cannot collect before the food is ready', tooEarly.includes('wait for the kitchen'), tooEarly);
+
+  const ready = (await handleOutletMessage(ssc, `${ref} ready`))[0]?.text ?? '';
+  check('a kitchen can mark food ready', ready.includes('waiting for a rider'), ready);
+  // DRIVER_NUMBERS is set for this suite, but WhatsApp is not configured, so the
+  // send is dropped — what matters is that dispatch was attempted.
+  check('marking it ready dispatches a rider', ready.includes('Rider dispatched'), ready);
+  check(
+    'the customer is deliberately not told at "ready"',
+    ready.includes('nothing has changed for them'),
+    ready,
+  );
+  check('the order records the rider', (repo.findOrder(ref)?.driverPhone ?? '').length > 0);
+
+  const jobs = (await handleDriverMessage('jobs'))[0]?.text ?? '';
+  check('a rider sees the collection', jobs.includes('Sheriff Street Chinese'), jobs.slice(0, 120));
+  check('with the customer phone number', jobs.includes('5920002100'), jobs);
+  check('and the cash to collect', jobs.includes('Collect '), jobs);
+
+  const collected = (await handleDriverMessage(`${ref} collected`))[0]?.text ?? '';
+  check('a rider can collect', collected.includes('on the way'), collected);
+  const delivered = (await handleDriverMessage(`${ref} delivered`))[0]?.text ?? '';
+  check('a rider can deliver', delivered.includes('delivered'), delivered);
+  check('delivered persisted', repo.findOrder(ref)?.status === 'delivered');
+
+  const notRiders = (await handleDriverMessage(`${ref} cancel`))[0]?.text ?? '';
+  check('a rider cannot cancel', notRiders.includes('for the shop'), notRiders);
+
+  // A kitchen's own switches.
+  const paused = (await handleOutletMessage(ssc, 'pause'))[0]?.text ?? '';
+  check('a kitchen can pause itself', paused.includes('Paused') && repo.getOutlet('SSC')?.accepting === 0, paused);
+  await handleOutletMessage(ssc, 'open');
+  check('and reopen', repo.getOutlet('SSC')?.accepting === 1);
+  await handleOutletMessage(ssc, 'sold out SSC-006');
+  check('a kitchen can mark a dish sold out', repo.getProductBySku('SSC-006')?.soldOut === 1);
+  await handleOutletMessage(ssc, 'back SSC-006');
+  check('and put it back', repo.getProductBySku('SSC-006')?.soldOut === 0);
+  const notTheirs = (await handleOutletMessage(ssc, 'sold out KFH-001'))[0]?.text ?? '';
+  check("a kitchen cannot touch another's menu", notTheirs.includes('No item'), notTheirs);
+  // An outlet must never be able to remove itself from the books.
+  check('pausing does not deactivate the outlet', repo.getOutlet('SSC')?.active === 1);
 }
 
 /* ------------------------------------------------------------------ report */

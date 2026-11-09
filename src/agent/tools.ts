@@ -2,10 +2,13 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
-import { notifyStaffOfNewOrder } from '../notifications.ts';
+import { announceNewOrder } from '../dispatch.ts';
 import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
+import { hoursStatus } from './context.ts';
+import { available, availabilityLabel, refuseQty } from '../availability.ts';
+import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance } from '../location.ts';
 
 export type ToolContext = {
@@ -26,9 +29,34 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'list_outlets',
+    description:
+      'List the restaurants and fast-food outlets the customer can order from, with whether each is taking orders right now and how long it typically takes to cook. Call this when they ask about food, takeaway, or a particular restaurant — never name an outlet or claim it is open without calling this first.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'choose_outlet',
+    description:
+      "Set which outlet's menu the customer is ordering from. Every search after this returns only that menu, so call it before looking for dishes. Refuses if the outlet is closed or has paused orders. To go back to grocery shopping, call leave_outlet.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'The outlet code from list_outlets.' },
+      },
+      required: ['code'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'leave_outlet',
+    description:
+      'Stop ordering from a restaurant and go back to the grocery catalogue. Does not touch the cart — if there is a restaurant order in it, ask the customer what they want to do with it first.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
     name: 'search_products',
     description:
-      'Search the catalogue by name, keyword, or category. Always call this before claiming an item is or is not available — never guess at products, prices, or stock.',
+      "Search for items by name, keyword, or category. Searches the chosen outlet's menu when one is chosen, and the grocery catalogue otherwise. Always call this before claiming an item is or is not available — never guess at products, prices, or stock.",
     input_schema: {
       type: 'object',
       properties: {
@@ -105,6 +133,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
       properties: {
         sku: { type: 'string', description: 'Exact SKU from search_products or get_product.' },
         quantity: { type: 'integer', description: 'How many units to add (1-99).' },
+        choices: {
+          type: 'array',
+          description:
+            'The option choices for a menu item, as the labels the customer picked, e.g. ["Large","Extra cheese","Hot"]. Required where the item lists must_choose options. Omit for groceries.',
+          items: { type: 'string' },
+        },
       },
       required: ['sku', 'quantity'],
       additionalProperties: false,
@@ -144,6 +178,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
       properties: {
         sku: { type: 'string' },
         quantity: { type: 'integer', description: 'New absolute quantity (0-99). 0 removes it.' },
+        choices: {
+          type: 'array',
+          description:
+            'For a menu item, the exact choices of the line being changed — a cart can hold the same dish twice with different options.',
+          items: { type: 'string' },
+        },
       },
       required: ['sku', 'quantity'],
       additionalProperties: false,
@@ -280,36 +320,139 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
 
 /* --------------------------------------------------------------- rendering */
 
-const productView = (p: repo.Product) => ({
-  sku: p.sku,
-  name: p.name,
-  category: p.category,
-  unit: p.unit,
-  price: money(p.price),
-  in_stock: p.stock > 0,
-  stock_remaining: p.stock,
-  has_photo: Boolean(productImageUrl(p.sku, p.imageUrl)),
-  ...(p.description ? { description: p.description } : {}),
-});
+const productView = (p: repo.Product) => {
+  const groups = parseOptionSpec(p.options);
+  return {
+    sku: p.sku,
+    name: p.name,
+    category: p.category,
+    unit: p.unit,
+    price: money(p.price),
+    available: available(p),
+    availability: availabilityLabel(p),
+    // Only meaningful where a count is kept. A kitchen holds no quantity, and
+    // reporting "0 remaining" for a burger reads as out of stock.
+    ...(p.trackStock ? { stock_remaining: p.stock } : {}),
+    has_photo: Boolean(productImageUrl(p.sku, p.imageUrl)),
+    ...(p.description ? { description: p.description } : {}),
+    // Choices the customer has to make before this can be added. Offered to the
+    // model as readable lines rather than a spec to interpret.
+    ...(groups.length > 0
+      ? {
+          options: describeOptions(groups),
+          must_choose: groups.filter((g) => g.mode === 'one').map((g) => g.name),
+        }
+      : {}),
+  };
+};
+
+/**
+ * Which catalogue this customer's searches should see.
+ *
+ * The chosen outlet's menu while they are ordering food, and the grocery
+ * catalogue otherwise — never both. Someone ordering from a chicken counter who
+ * asks for "wings" must not be offered a frozen pack from the freezer aisle.
+ */
+function browsingScope(phone: string): number | null {
+  return repo.getBrowsingOutlet(phone)?.id ?? null;
+}
+
+/**
+ * Refuses a second kitchen, or groceries mixed with cooked food.
+ *
+ * One order is one collection. A burger from one place and a roti from another
+ * are two prep times, two pickups and two riders; groceries and hot food are
+ * worse still. So the cart holds one source, and switching is a deliberate act
+ * the customer has to agree to rather than something that happens silently.
+ */
+function refuseMixedCart(phone: string, product: repo.Product): string | null {
+  const wanted = product.outletId ?? null;
+  const current = repo.cartOutletId(phone);
+  const hasGroceries = repo.cartHasGroceries(phone);
+
+  if (wanted === null) {
+    if (current !== null) {
+      const outlet = repo.outletById(current);
+      return `The cart already holds a ${outlet?.name ?? 'restaurant'} order. Groceries and cooked food go out as separate deliveries — ask whether to start a fresh grocery order (clear_cart) or finish this one first.`;
+    }
+    return null;
+  }
+
+  if (hasGroceries) {
+    return `The cart already holds groceries. A restaurant order is a separate delivery — ask whether to start a fresh one (clear_cart) or check out the groceries first.`;
+  }
+  if (current !== null && current !== wanted) {
+    const from = repo.outletById(current);
+    const to = repo.outletById(wanted);
+    return `The cart is from ${from?.name ?? 'another outlet'} and this item is from ${to?.name ?? 'a different outlet'}. One order comes from one kitchen — tell them switching clears what they have so far, and only call clear_cart if they agree.`;
+  }
+  return null;
+}
+
+/** Validates the customer's option picks against what the item offers. */
+function resolveOptions(
+  product: repo.Product,
+  raw: unknown,
+): { normalized: string; summary: string } | { error: string } {
+  const groups = parseOptionSpec(product.options);
+  const picked = Array.isArray(raw) ? raw.map(asString).filter(Boolean) : [];
+
+  const applied = applySelection(groups, picked);
+  if (!applied.ok) return { error: applied.error };
+  return { normalized: applied.normalized, summary: applied.summary };
+}
+
+/** An outlet's minimum order, or the shop's where it sets none. */
+function minimumFor(outlet: repo.Outlet | null): number {
+  if (outlet && outlet.minOrder > 0) return outlet.minOrder;
+  return config.store.minOrderTotal;
+}
+
+/** How an outlet is described to the model, with whether it can take an order. */
+function outletView(outlet: repo.Outlet) {
+  const status = hoursStatus(outlet.hours);
+  const open = status.state === 'open' || status.state === 'unknown';
+  return {
+    code: outlet.code,
+    name: outlet.name,
+    ...(outlet.cuisine ? { serves: outlet.cuisine } : {}),
+    hours: outlet.hours || 'not stated',
+    // Two separate reasons a kitchen cannot take an order, and the customer
+    // deserves the real one: shut for the night, or open but overwhelmed.
+    taking_orders: open && Boolean(outlet.accepting),
+    ...(open ? {} : { closed_now: true }),
+    ...(open && !outlet.accepting ? { paused: 'Kitchen has paused new orders.' } : {}),
+    ...(status.state === 'closed' && status.opensAt ? { opens: status.opensAt } : {}),
+    typical_wait: `about ${outlet.prepMinutes} minutes to cook`,
+    delivery_fee: money(outlet.deliveryFee ?? config.store.deliveryFee),
+    ...(outlet.minOrder > 0 ? { minimum_order: money(outlet.minOrder) } : {}),
+  };
+}
 
 function cartView(phone: string) {
   const cart = repo.getCart(phone);
   return {
+    ...(cart.outlet ? { ordering_from: cart.outlet.name } : {}),
     items: cart.lines.map((l) => ({
       sku: l.product.sku,
       name: l.product.name,
       unit: l.product.unit,
+      ...(l.optionsSummary ? { chosen: l.optionsSummary } : {}),
       quantity: l.qty,
-      unit_price: money(l.product.price),
+      unit_price: money(l.product.price + l.surcharge),
       line_total: money(l.lineTotal),
     })),
     item_count: cart.itemCount,
     subtotal: money(cart.subtotal),
     delivery_fee: cart.deliveryFee === 0 ? 'free' : money(cart.deliveryFee),
     total: money(cart.total),
-    ...(config.store.minOrderTotal > 0 && cart.subtotal < config.store.minOrderTotal
+    // An outlet may set a higher floor than the shop's own, because sending a
+    // rider across town for one soft drink costs more than it earns.
+    ...(minimumFor(cart.outlet) > 0 && cart.subtotal < minimumFor(cart.outlet)
       ? {
-          below_minimum: `Subtotal is under the ${money(config.store.minOrderTotal)} minimum order.`,
+          below_minimum: `Subtotal is under the ${money(minimumFor(cart.outlet))} minimum${
+            cart.outlet ? ` for ${cart.outlet.name}` : ' order'
+          }.`,
         }
       : {}),
   };
@@ -398,7 +541,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!query) return fail('query is required.');
       const limit = Math.min(Math.max(asInt(input.limit) ?? 8, 1), 15);
       const category = asString(input.category) || undefined;
-      const { results, unmatched } = searchCatalog(query, category, limit);
+      const { results, unmatched } = searchCatalog(query, category, limit, browsingScope(ctx.phone));
       if (results.length === 0) {
         recordMiss(ctx.phone, query);
         return ok({
@@ -429,7 +572,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // and a wall of options per line is unreadable on a phone.
       return ok({
         searches: queries.map((query) => {
-          const { results, unmatched } = searchCatalog(query, undefined, 3);
+          const { results, unmatched } = searchCatalog(query, undefined, 3, browsingScope(ctx.phone));
           if (results.length === 0) {
             recordMiss(ctx.phone, query);
             return { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
@@ -452,7 +595,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (raw.length === 0) return fail('items must contain at least one product.');
       if (raw.length > 30) return fail('Too many items at once. Add up to 30 and repeat.');
 
-      const added: { sku: string; name: string; quantity: number }[] = [];
+      const added: { sku: string; name: string; chosen?: string; quantity: number }[] = [];
       const failed: { sku: string; reason: string }[] = [];
 
       for (const entry of raw) {
@@ -469,17 +612,35 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           failed.push({ sku, reason: 'no such product' });
           continue;
         }
-        const target = repo.getCartQty(ctx.phone, product.id) + qty;
-        if (product.stock <= 0) {
-          failed.push({ sku, reason: `${product.name} is out of stock` });
+
+        const mixing = refuseMixedCart(ctx.phone, product);
+        if (mixing) {
+          failed.push({ sku, reason: mixing });
           continue;
         }
-        if (target > product.stock) {
-          failed.push({ sku, reason: `only ${product.stock} x ${product.name} in stock` });
+
+        // A dish needing a choice cannot be bulk-added: "a burger" is not an
+        // order until someone says which size. Sent back for a single
+        // add_to_cart once the customer has picked.
+        const chosen = resolveOptions(product, obj.choices);
+        if ('error' in chosen) {
+          failed.push({ sku, reason: chosen.error });
           continue;
         }
-        repo.setCartQty(ctx.phone, product.id, Math.min(target, 99));
-        added.push({ sku: product.sku, name: product.name, quantity: Math.min(target, 99) });
+
+        const target = repo.getCartQty(ctx.phone, product.id, chosen.normalized) + qty;
+        const refusal = refuseQty(product, target);
+        if (refusal) {
+          failed.push({ sku, reason: refusal });
+          continue;
+        }
+        repo.setCartQty(ctx.phone, product.id, Math.min(target, 99), chosen.normalized);
+        added.push({
+          sku: product.sku,
+          name: product.name,
+          ...(chosen.summary ? { chosen: chosen.summary } : {}),
+          quantity: Math.min(target, 99),
+        });
       }
 
       // A partial result is still useful: report what failed so the customer can
@@ -519,6 +680,77 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     case 'view_cart':
       return ok(cartView(ctx.phone));
 
+    case 'list_outlets': {
+      const outlets = repo.listOutlets();
+      if (outlets.length === 0) {
+        return ok({
+          outlets: [],
+          note: 'No restaurants are set up yet. Offer the grocery catalogue instead — do not invent outlets.',
+        });
+      }
+      const views = outlets.map(outletView);
+      return ok({
+        outlets: views,
+        ...(views.every((v) => !v.taking_orders)
+          ? { note: 'Nothing is taking orders right now. Say when the nearest one opens rather than listing them all as shut.' }
+          : {}),
+      });
+    }
+
+    case 'choose_outlet': {
+      const code = asString(input.code);
+      if (!code) return fail('code is required — take it from list_outlets.');
+
+      const outlet = repo.getOutlet(code);
+      if (!outlet) return fail(`No outlet with code "${code}". Call list_outlets and use a code from it.`);
+
+      const hours = hoursStatus(outlet.hours);
+      if (hours.state === 'closed') {
+        return fail(
+          `${outlet.name} is not cooking right now${hours.opensAt ? ` — they start at ${hours.opensAt}` : ''}. Say so and offer somewhere that is open.`,
+        );
+      }
+      if (!outlet.accepting) {
+        return fail(
+          `${outlet.name} has paused new orders — the kitchen is backed up. Tell the customer plainly and offer an alternative.`,
+        );
+      }
+
+      // Switching away from a part-built order of someone else's food would
+      // silently lose it, so the swap is refused until the cart is dealt with.
+      const current = repo.cartOutletId(ctx.phone);
+      if (current !== null && current !== outlet.id) {
+        const from = repo.outletById(current);
+        return fail(
+          `There is still a ${from?.name ?? 'restaurant'} order in the cart. Ask whether to drop it before switching to ${outlet.name}, and only call clear_cart if they say yes.`,
+        );
+      }
+      if (repo.cartHasGroceries(ctx.phone)) {
+        return fail(
+          `There are groceries in the cart. Hot food is a separate delivery — ask whether to check those out first or clear them.`,
+        );
+      }
+
+      repo.setBrowsingOutlet(ctx.phone, outlet.id);
+      const menu = repo.searchProducts('', undefined, 60, outlet.id);
+      return ok({
+        ordering_from: outletView(outlet),
+        menu_categories: [...new Set(menu.map((m) => m.category))],
+        note: 'Searches now return this menu only. Show a few categories or ask what they feel like rather than listing everything.',
+      });
+    }
+
+    case 'leave_outlet': {
+      const outlet = repo.getBrowsingOutlet(ctx.phone);
+      if (repo.cartOutletId(ctx.phone) !== null) {
+        return fail(
+          `The cart still holds a ${outlet?.name ?? 'restaurant'} order. Deal with that first — check it out, or ask before clearing it.`,
+        );
+      }
+      repo.setBrowsingOutlet(ctx.phone, null);
+      return ok({ left: outlet?.name ?? null, note: 'Back to the grocery catalogue.' });
+    }
+
     case 'add_to_cart':
     case 'update_cart_item': {
       const sku = asString(input.sku);
@@ -533,19 +765,28 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const product = repo.getProductBySku(sku);
       if (!product) return fail(`No active product with SKU "${sku}".`);
 
-      const target = isAdd ? repo.getCartQty(ctx.phone, product.id) + qty : qty;
+      const mixing = refuseMixedCart(ctx.phone, product);
+      if (mixing) return fail(mixing);
+
+      const chosen = resolveOptions(product, input.choices);
+      if ('error' in chosen) return fail(chosen.error);
+
+      const target = isAdd ? repo.getCartQty(ctx.phone, product.id, chosen.normalized) + qty : qty;
       if (target > 99) return fail('Cart lines are capped at 99 units. Ask the customer to split the order or call the store.');
 
       if (target > 0) {
-        if (product.stock <= 0) return fail(`${product.name} is out of stock right now.`);
-        if (target > product.stock) {
-          return fail(`Only ${product.stock} x ${product.name} in stock. Offer that quantity or an alternative.`);
-        }
+        const refusal = refuseQty(product, target);
+        if (refusal) return fail(refusal);
       }
 
-      repo.setCartQty(ctx.phone, product.id, target);
+      repo.setCartQty(ctx.phone, product.id, target, chosen.normalized);
       return ok({
-        updated: { sku: product.sku, name: product.name, quantity: target },
+        updated: {
+          sku: product.sku,
+          name: product.name,
+          ...(chosen.summary ? { chosen: chosen.summary } : {}),
+          quantity: target,
+        },
         cart: cartView(ctx.phone),
       });
     }
@@ -706,8 +947,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       const cart = repo.getCart(ctx.phone);
       if (cart.lines.length === 0) return fail('The cart is empty.');
-      if (config.store.minOrderTotal > 0 && cart.subtotal < config.store.minOrderTotal) {
-        return fail(`Subtotal ${money(cart.subtotal)} is below the ${money(config.store.minOrderTotal)} minimum order. Invite the customer to add more.`);
+      const minimum = minimumFor(cart.outlet);
+      if (minimum > 0 && cart.subtotal < minimum) {
+        return fail(`Subtotal ${money(cart.subtotal)} is below the ${money(minimum)} minimum${cart.outlet ? ` for ${cart.outlet.name}` : ' order'}. Invite the customer to add more.`);
       }
 
       try {
@@ -722,8 +964,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         });
         // Fire-and-forget: the shop needs to know immediately, but the customer
         // should not wait on a Graph API round trip to see their confirmation.
-        void notifyStaffOfNewOrder(order.orderNo).catch((err) =>
-          console.error('[tools] staff notification failed:', err),
+        void announceNewOrder(order.orderNo).catch((err) =>
+          console.error('[tools] order announcement failed:', err),
         );
 
         return ok({

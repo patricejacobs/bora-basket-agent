@@ -9,10 +9,70 @@ import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus } from './notifications.ts';
 import { STATUS_LABEL, STATUS_WORDS, nextActions } from './order-status.ts';
+import { dispatchToDrivers } from './dispatch.ts';
+import { summariseStored } from './menu-options.ts';
+import { mapsLink } from './location.ts';
 import { checkRange, describePin } from './location.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 export const isStaff = (phone: string): boolean => config.staffNumbers.includes(phone);
+export const isDriver = (phone: string): boolean => config.driverNumbers.includes(phone);
+
+/**
+ * Moves an order and sets off everything that follows.
+ *
+ * One path for all three actors, because the consequences of a status belong to
+ * the status and not to whoever tapped it. "Food ready" has to send a rider
+ * whether a cook, a dispatcher or the shop owner pressed it — and if that lived
+ * in each handler, one of them would eventually forget.
+ */
+async function applyStatus(
+  order: repo.OrderRecord,
+  status: repo.OrderStatus,
+): Promise<{ body: string; status: repo.OrderStatus }> {
+  repo.setOrderStatus(order.orderNo, status);
+  const updated = { ...order, status };
+
+  const notes: string[] = [];
+
+  // The moment the food exists, a rider is sent — and only now, or they stand
+  // in the restaurant watching a fryer.
+  if (status === 'ready') {
+    try {
+      const how = await dispatchToDrivers(order.orderNo);
+      notes.push(
+        how === 'sent'
+          ? '🛵 Rider dispatched to collect.'
+          : '⚠️ No rider was told — DRIVER_NUMBERS is empty.',
+      );
+    } catch (err) {
+      console.error('[staff] failed to dispatch a rider:', err);
+      notes.push('⚠️ Status saved, but dispatching a rider failed.');
+    }
+  }
+
+  // 'ready' is on purpose not told to the customer: from their side, food on a
+  // counter waiting for a rider is indistinguishable from food still cooking,
+  // and a message about it only invites "so where is it?". Reported as a
+  // decision rather than as a failed send, or the operator chases a bug.
+  if (status === 'ready') {
+    notes.push('Customer not told — nothing has changed for them until it moves.');
+  } else {
+    try {
+      const how = await notifyCustomerOfStatus(updated, status);
+      notes.push(
+        how === 'skipped'
+          ? '⚠️ Customer NOT notified — outside the 24h window and no template set up.'
+          : `Customer notified${how === 'template' ? ' (via template)' : ''}.`,
+      );
+    } catch (err) {
+      console.error('[staff] failed to notify customer:', err);
+      notes.push('⚠️ Status saved, but notifying the customer failed.');
+    }
+  }
+
+  return { body: `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${notes.join('\n')}`, status };
+}
 
 const HELP = [
   '*Staff commands*',
@@ -125,22 +185,186 @@ export async function handleStaffMessage(text: string): Promise<OutboundMessage[
     return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
   }
 
-  repo.setOrderStatus(order.orderNo, status);
-  const updated = { ...order, status };
-
-  let told: string;
-  try {
-    const how = await notifyCustomerOfStatus(updated, status);
-    told =
-      how === 'skipped'
-        ? '⚠️ Customer NOT notified — outside the 24h window and no template set up.'
-        : `Customer notified${how === 'template' ? ' (via template)' : ''}.`;
-  } catch (err) {
-    console.error('[staff] failed to notify customer:', err);
-    told = '⚠️ Status saved, but notifying the customer failed.';
-  }
-
-  const body = `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${told}`;
+  const { body } = await applyStatus(order, status);
   const actions = nextActions(order.orderNo, status);
   return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
 }
+
+/* ------------------------------------------------------------------ outlets */
+
+const OUTLET_HELP = [
+  '*Kitchen commands*',
+  '',
+  '`orders` — orders waiting on you',
+  '`7 confirm` — accept order 7',
+  '`7 ready` — food is up, a rider is sent',
+  '`7 cancel` — you cannot make it',
+  '',
+  '`pause` — stop new orders coming',
+  '`open` — start taking them again',
+  '`sold out <SKU>` / `back <SKU>` — one dish off and on the menu',
+].join('\n');
+
+/**
+ * A restaurant texting the shop number about its own orders.
+ *
+ * Everything here is scoped to that outlet. An outlet must not be able to see,
+ * move or cancel another kitchen's order, and it never gets the customer's
+ * address or number — only what to cook.
+ */
+export async function handleOutletMessage(
+  outlet: repo.Outlet,
+  text: string,
+): Promise<OutboundMessage[]> {
+  const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
+  const trimmed = text.trim();
+
+  if (/^(help|\?|commands)$/i.test(trimmed)) return reply(OUTLET_HELP);
+
+  if (/^(pause|busy|stop)$/i.test(trimmed)) {
+    repo.setOutletAccepting(outlet.code, false);
+    return reply(`Paused — no new orders will reach ${outlet.name}. Send \`open\` when ready.`);
+  }
+  if (/^(open|resume|unpause|back)$/i.test(trimmed)) {
+    repo.setOutletAccepting(outlet.code, true);
+    return reply(`${outlet.name} is taking orders again.`);
+  }
+
+  const soldOut = trimmed.match(/^(sold\s*out|out|finished|done)\s+([A-Za-z0-9-]+)$/i);
+  if (soldOut) {
+    const sku = soldOut[2] ?? '';
+    const item = repo.getProductBySku(sku);
+    if (!item || item.outletId !== outlet.id) return reply(`No item ${sku} on your menu.`);
+    repo.setItemSoldOut(sku, true);
+    return reply(`${item.name} marked sold out. Send \`back ${sku}\` when it returns.`);
+  }
+  const backOn = trimmed.match(/^(back|available|on)\s+([A-Za-z0-9-]+)$/i);
+  if (backOn) {
+    const sku = backOn[2] ?? '';
+    const item = repo.getProductBySku(sku);
+    if (!item || item.outletId !== outlet.id) return reply(`No item ${sku} on your menu.`);
+    repo.setItemSoldOut(sku, false);
+    return reply(`${item.name} is back on the menu.`);
+  }
+
+  if (/^(orders|open|queue|list)$/i.test(trimmed)) {
+    const mine = repo.openOrders(20).filter((o) => o.outlet?.id === outlet.id);
+    if (mine.length === 0) return reply('Nothing waiting on you right now. 🎉');
+    return reply(
+      [`*${mine.length} order(s) for ${outlet.name}*`, ...mine.map(describeForKitchen)].join('\n\n'),
+    );
+  }
+
+  const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
+  if (!ref) return reply(`Didn't catch an order number.\n\n${OUTLET_HELP}`);
+
+  const order = repo.findOrder(ref[1] ?? '');
+  // Deliberately the same answer for "does not exist" and "is not yours", so a
+  // kitchen cannot probe for other outlets' order numbers.
+  if (!order || order.outlet?.id !== outlet.id) {
+    return reply(`No order ${ref[1]} for ${outlet.name}. Send \`orders\` to see yours.`);
+  }
+
+  const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
+  if (!matched) return reply(describeForKitchen(order));
+
+  const status = matched[1];
+  if (!['confirmed', 'ready', 'cancelled'].includes(status)) {
+    return reply(
+      `A kitchen can confirm an order, mark it ready, or cancel it. Delivery is the rider's end.`,
+    );
+  }
+  if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
+
+  const { body } = await applyStatus(order, status);
+  const actions = nextActions(order.orderNo, status, 'outlet');
+  return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
+}
+
+const describeForKitchen = (o: repo.OrderRecord): string =>
+  [
+    `*${o.orderNo}* — ${STATUS_LABEL[o.status]}`,
+    ...o.items.map((i) => {
+      const chosen = summariseStored(i.options);
+      return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''}`;
+    }),
+  ].join('\n');
+
+/* ------------------------------------------------------------------ drivers */
+
+const DRIVER_HELP = [
+  '*Rider commands*',
+  '',
+  '`jobs` — collections waiting',
+  '`7 collected` — you have the food',
+  '`7 delivered` — dropped off, cash taken',
+  '',
+  'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
+].join('\n');
+
+/**
+ * A rider texting the shop number.
+ *
+ * Collect and deliver, nothing else. A rider cannot confirm an order, cancel
+ * one, or see the queue — those are decisions for the shop and the kitchen, and
+ * a mis-tap on a bike should not be able to void somebody's dinner.
+ */
+export async function handleDriverMessage(text: string): Promise<OutboundMessage[]> {
+  const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
+  const trimmed = text.trim();
+
+  if (/^(help|\?|commands)$/i.test(trimmed)) return reply(DRIVER_HELP);
+
+  if (/^(jobs|job|queue|pickups?|collections?)$/i.test(trimmed)) {
+    const waiting = repo.ordersAwaitingPickup(10);
+    const moving = repo.openOrders(20).filter((o) => o.status === 'on_the_way');
+    if (waiting.length === 0 && moving.length === 0) return reply('Nothing to collect right now.');
+    return reply(
+      [
+        ...(waiting.length > 0
+          ? [`*${waiting.length} ready to collect*`, ...waiting.map(describeForDriver)]
+          : []),
+        ...(moving.length > 0
+          ? [`*${moving.length} with you now*`, ...moving.map(describeForDriver)]
+          : []),
+      ].join('\n\n'),
+    );
+  }
+
+  const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
+  if (!ref) return reply(`Didn't catch an order number.\n\n${DRIVER_HELP}`);
+
+  const order = repo.findOrder(ref[1] ?? '');
+  if (!order) return reply(`No order ${ref[1]}. Send \`jobs\` to see what's waiting.`);
+
+  const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
+  if (!matched) return reply(describeForDriver(order));
+
+  const status = matched[1];
+  if (status !== 'on_the_way' && status !== 'delivered') {
+    return reply('A rider can mark an order collected or delivered. Anything else is for the shop.');
+  }
+  // Collecting food nobody has cooked is how an order gets marked delivered
+  // while it is still in a fryer.
+  if (status === 'on_the_way' && order.outlet && order.status !== 'ready') {
+    return reply(
+      `${order.orderNo} is ${STATUS_LABEL[order.status]} — wait for the kitchen to mark it ready.`,
+    );
+  }
+  if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
+
+  const { body } = await applyStatus(order, status);
+  const actions = nextActions(order.orderNo, status, 'driver');
+  return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
+}
+
+const describeForDriver = (o: repo.OrderRecord): string =>
+  [
+    `*${o.orderNo}* — ${STATUS_LABEL[o.status]}`,
+    ...(o.outlet ? [`Pick up: ${o.outlet.name}${o.outlet.pickupAddress ? `, ${o.outlet.pickupAddress}` : ''}`] : []),
+    `To: ${o.customerName}`,
+    ...(o.address ? [o.address] : []),
+    `📞 +${o.contactPhone || o.phone}`,
+    ...(o.location ? [mapsLink(o.location)] : ['⚠️ No pin — ring the customer']),
+    `Collect ${money(o.total)} cash`,
+  ].join('\n');

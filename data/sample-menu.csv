@@ -1,0 +1,21 @@
+outlet,sku,name,description,category,unit,price,options,keywords,active
+KFH,KFH-001,Fried Chicken,Crispy fried chicken pieces,Chicken,piece,480,Pieces:2 piece|3 piece+400|5 piece+1100;Spice:Mild|Hot;Sides*:Fries+300|Coleslaw+250|Plantain Chips+200,chicken fried broast crispy,1
+KFH,KFH-002,Chicken Burger,Fried chicken fillet in a soft bun,Burgers,each,920,Size:Regular|Large+350;Extras*:Cheese+150|Bacon+250|Extra Mayo;Spice:Mild|Hot,burger chicken sandwich,1
+KFH,KFH-003,Beef Burger,Quarter pound beef patty,Burgers,each,1080,Size:Regular|Large+350;Extras*:Cheese+150|Bacon+250,burger beef hamburger,1
+KFH,KFH-004,Loaded Fries,Fries with cheese sauce and chicken,Sides,regular,760,Size:Regular|Large+300,fries chips loaded cheesy,1
+KFH,KFH-005,Soft Drink,Chilled soft drink,Drinks,can,280,Choice:Cola|Orange|Ginger Beer|Sprite,soda sweet drink cold,1
+KFH,KFH-006,Family Bucket,Eight pieces with two large sides,Chicken,bucket,4200,Spice:Mild|Hot;Sides:Fries|Coleslaw,bucket family share party,1
+SSC,SSC-001,Chicken Chow Mein,Stir-fried noodles with chicken and vegetables,Chow Mein,plate,1280,Size:Small|Large+520;Protein:Chicken|Pork+100|Shrimp+350|Mixed+250;Spice:Mild|Hot|Extra Hot,chowmein noodles mein lo,1
+SSC,SSC-002,Special Fried Rice,Fried rice with chicken pork and shrimp,Fried Rice,plate,1380,Size:Small|Large+520;Spice:Mild|Hot,fried rice special,1
+SSC,SSC-003,Chicken In The Ruff,Fried chicken on seasoned fries,Combos,plate,1480,Spice:Mild|Hot;Drink?:Cola+280|Orange+280,ruff chicken fries combo,1
+SSC,SSC-004,Sweet And Sour Pork,Battered pork in sweet and sour sauce,Mains,plate,1620,Size:Small|Large+480;Rice:Fried Rice|White Rice,sweet sour pork,1
+SSC,SSC-005,Vegetable Spring Rolls,Four crispy spring rolls,Starters,4 pieces,620,Dip?:Sweet Chilli|Soy,spring rolls vegetable starter,1
+SSC,SSC-006,Wonton Soup,Pork wontons in clear broth,Soups,bowl,780,Size:Small|Large+320,wonton soup broth,1
+BRH,BRH-001,Roti And Curry,Dhal puri or plain roti with curry,Roti,each,760,Roti:Dhal Puri|Plain|Oil Roti;Curry:Chicken|Beef+200|Vegetable|Shrimp+350;Spice:Mild|Hot;Extras*:Extra Roti+180|Achar+120,roti curry dhalpuri puri,1
+BRH,BRH-002,Cook Up Rice,Rice cooked with peas coconut milk and meat,Local,plate,980,Meat:Chicken|Beef+150|Salt Beef+200;Extras*:Pepper Sauce|Boiled Egg+120,cookup cook-up rice local,1
+BRH,BRH-003,Pepperpot With Bread,Traditional pepperpot served with plait bread,Local,plate,1340,Extras*:Extra Bread+180,pepperpot cassareep local traditional,1
+BRH,BRH-004,Egg Ball,Boiled egg in seasoned cassava,Snacks,each,260,Sauce?:Mango Sour|Pepper Sauce,eggball egg ball snack cassava,1
+BRH,BRH-005,Pholourie,Fried split pea dough balls with sour,Snacks,6 pieces,340,Sauce:Mango Sour|Tamarind Sour,pholourie phulourie snack,1
+BRH,BRH-006,Metemgee,Ground provisions in coconut milk with dumplings,Local,bowl,1180,Meat:Salt Fish|Chicken|None,metemgee metem provisions,1
+BRH,BRH-007,Rum Punch,Local rum punch with fruit juice,Drinks,glass,900,Size:Regular|Large+300,rum punch cocktail drink,1
+KFH,KFH-007,Banks Beer,Cold local lager,Drinks,bottle,500,,beer lager cold,1

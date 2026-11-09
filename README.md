@@ -140,6 +140,95 @@ Rows are matched on SKU and upserted — re-run the import whenever prices or st
 Products missing from the file are left alone; add `--deactivate-missing` to retire them
 instead. Bad rows are skipped and reported by line number rather than failing the import.
 
+## Restaurants and takeaways
+
+The same number also takes cooked food from restaurants and fast-food outlets. Two CSVs,
+because they change on different clocks — an outlet's hours and address rarely, its menu
+and prices often:
+
+```bash
+npm run import:menu -- ./data/sample-outlets.csv ./data/sample-menu.csv
+```
+
+**Outlets** carry their own hours, cooking time, minimum order, delivery fee, pickup
+address and pickup pin, plus the WhatsApp number their kitchen tickets go to.
+
+**Menu items** carry a price and an options spec. The spec is compact text, because whoever
+maintains a menu works in a spreadsheet and will not hand-write JSON:
+
+```
+Size:Regular|Large+520;Protein:Chicken|Pork+100|Shrimp+350;Spice:Mild|Hot;Extras*:Cheese+150
+```
+
+| Form | Means |
+|---|---|
+| `Name:` | exactly one must be chosen |
+| `Name?:` | at most one, may be skipped |
+| `Name*:` | any number, may be skipped |
+| `+520` | adds 520 to the price |
+
+The agent is told which groups are compulsory and refuses to add a dish until they are
+answered — so nobody gets a burger with no size and the kitchen never guesses.
+
+### How a food order runs
+
+```
+customer orders  →  kitchen cooks  →  rider collects  →  rider delivers
+```
+
+Each party sees only what they need, on one shared number:
+
+| | Sees |
+|---|---|
+| **Kitchen** | the dish, the choices, its own orders. **Not** the customer's address or phone |
+| **Rider** | pickup place + pin, the dish, customer name, phone, delivery pin, cash to collect |
+| **Shop** | all of it, so someone notices when a kitchen goes quiet |
+
+The rider is told **only when the food is actually ready** — sent at order time they stand
+in a restaurant watching a fryer. The customer is deliberately *not* messaged at that
+point either: food on a counter waiting for a rider is, from their side, the same as food
+still cooking, and a message about it only invites "so where is it?"
+
+Kitchen commands (`help` lists them): `orders`, `7 confirm`, `7 ready`, `7 cancel`,
+`pause` / `open`, and `sold out SSC-006` / `back SSC-006` for one dish.
+Rider commands: `jobs`, `7 collected`, `7 delivered`.
+
+A kitchen cannot read, move or cancel another outlet's order — and asking about one it does
+not own gets the same answer as an order that does not exist, so order numbers cannot be
+probed. A rider cannot collect food the kitchen has not marked ready, and cannot cancel
+anything. Pausing is an outlet's own switch for "we are slammed"; it never deactivates them,
+because that is your decision, not theirs.
+
+### One order, one kitchen
+
+Two restaurants is two collections and two prep times, and hot food never shares a delivery
+with groceries. So a cart holds one source. Switching is refused while something is in it,
+with an explanation for the agent to pass on — the customer has to agree before anything is
+cleared.
+
+### Alcohol
+
+**Menus are filtered, not trusted.** Nearly every place that sells a burger also sells a
+beer, so the menu you are handed will list it — and WhatsApp's Commerce Policy prohibits
+selling alcohol or tobacco over the channel, with a strike costing you the number the whole
+business runs on.
+
+So the importer refuses those rows and says so, on every boot:
+
+```
+[menu] refused "Rum Punch" — alcohol ("rum") — WhatsApp's Commerce Policy prohibits selling it
+[menu] refused "Banks Beer" — alcohol ("beer") — WhatsApp's Commerce Policy prohibits selling it
+```
+
+Matched on words rather than brands, which go stale and misfire. It reads the name,
+description, category, keywords *and* the options column, since "add a shot" is a choice
+rather than a dish. Ginger beer, root beer, rum cake, beer-battered fish and anything
+labelled non-alcoholic all pass — refusing half a menu over a word inside another word
+would make the filter unusable.
+
+The agent is also told it cannot sell alcohol, so if someone asks it says so plainly and
+offers the soft drinks. That is the second line; the data is the first.
+
 ## How search reads a customer
 
 Nobody types the shelf label. Search is built for what people actually send:
@@ -335,6 +424,8 @@ All of this lives in `.env`.
 | `PORT` | 3000 | |
 | `DATABASE_PATH` | ./data/store.db | |
 | `ENABLE_SIMULATOR` | true | Refused for non-local requests regardless; `false` removes the route |
+| `DRIVER_NUMBERS` | — | Riders, comma separated. Required once restaurants are set up |
+| `SEED_OUTLETS_PATH` / `SEED_MENU_PATH` | — | Outlets and menu CSVs imported at boot |
 | `STAFF_NUMBERS` | — | Comma-separated E.164 digits. Empty means nobody is told about orders |
 | `STORE_TIMEZONE` | `America/Guyana` | Used for greetings and the closing-time reminder |
 | `TEMPLATE_ORDER_ON_THE_WAY` | — | Approved template, used only outside the 24h window |
@@ -400,6 +491,7 @@ The same actions can be typed, which is faster once you know them:
 | Command | Effect |
 |---|---|
 | `orders` | List everything not yet delivered or cancelled |
+| `7 ready` | Food is cooked — sends a rider to collect |
 | `7` | Show one order |
 | `7 confirmed` | Accept it — customer is told |
 | `7 on the way` | Dispatch it — customer is told |
@@ -516,8 +608,13 @@ src/
   notifications.ts       Staff alerts and customer status updates
   staff.ts               Dispatch commands over WhatsApp
   order-status.ts        Order lifecycle vocabulary and action buttons
+  availability.ts        Stock for shelves, sold-out for kitchens
+  menu-options.ts        Size, spice, sides — parsing, pricing, validation
+  restricted.ts          Alcohol and tobacco, refused at import
+  dispatch.ts            Kitchen tickets and rider job cards
   catalog/
     import-csv.ts        CSV parser and importer (also a CLI)
+    import-menu.ts       Outlets and menus (also a CLI)
     search.ts            Typo, plural and synonym matching
   db/
     index.ts             Schema
@@ -535,6 +632,7 @@ data/
 npm start                                              # run the server
 npm run dev                                            # run with auto-restart on change
 npm run import:catalog -- ./data/sample-products.csv   # load or refresh the catalogue
+npm run import:menu -- ./data/sample-outlets.csv ./data/sample-menu.csv   # outlets and menus
 npm run smoke                                          # offline test suite
 npm run check                                          # configuration doctor
 npm run typecheck                                      # tsc --noEmit

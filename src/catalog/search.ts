@@ -19,6 +19,7 @@
  */
 import { db } from '../db/index.ts';
 import type { Product } from '../db/repo.ts';
+import { available } from '../availability.ts';
 
 export type SearchOutcome = {
   results: Product[];
@@ -259,7 +260,11 @@ function index(): Indexed[] {
   if (cache && cache.version === version) return cache.rows;
 
   const products = db
-    .prepare(`SELECT *, image_url AS imageUrl FROM products WHERE active = 1`)
+    .prepare(
+      `SELECT *, image_url AS imageUrl, outlet_id AS outletId,
+              track_stock AS trackStock, sold_out AS soldOut
+         FROM products WHERE active = 1`,
+    )
     .all() as unknown as Product[];
 
   const rows = products.map((product) => ({
@@ -368,11 +373,27 @@ function scoreToken(token: string, row: Indexed): { raw: number; weighted: numbe
 
 /* ------------------------------------------------------------------ search */
 
-export function searchCatalog(query: string, category?: string, limit = 8): SearchOutcome {
+/**
+ * Which part of the catalogue to search.
+ *
+ * `undefined` searches everything, `null` the house grocery catalogue only, and
+ * a number one outlet's menu. Scoping matters: a customer ordering from a
+ * fried-chicken counter asking for "wings" must not be shown frozen wings from
+ * the grocery aisle, and vice versa.
+ */
+export type SearchScope = number | null | undefined;
+
+export function searchCatalog(
+  query: string,
+  category?: string,
+  limit = 8,
+  scope: SearchScope = undefined,
+): SearchOutcome {
   const tokens = queryTokens(query);
   const wanted = category?.trim().toLowerCase();
 
   let rows = index();
+  if (scope !== undefined) rows = rows.filter((r) => (r.product.outletId ?? null) === scope);
   if (wanted) rows = rows.filter((r) => r.product.category.toLowerCase() === wanted);
   if (tokens.length === 0) {
     return { results: rows.slice(0, limit).map((r) => r.product), unmatched: [] };
@@ -392,7 +413,7 @@ export function searchCatalog(query: string, category?: string, limit = 8): Sear
     if (row.flatName === flatQuery) score += 0.6;
     else if (row.flatName.startsWith(flatQuery)) score += 0.25;
     // Prefer what the customer can actually have today.
-    if (row.product.stock <= 0) score -= 0.2;
+    if (!available(row.product)) score -= 0.2;
 
     return { row, score, strengths, coverage };
   });
@@ -408,7 +429,8 @@ export function searchCatalog(query: string, category?: string, limit = 8): Sear
         b.score - a.score ||
         // Equally good matches are broken by depth of stock. A shop holds most
         // of what it sells most, so this puts the staple ahead of the specialty.
-        b.row.product.stock - a.row.product.stock ||
+        (b.row.product.trackStock ? b.row.product.stock : 0) -
+          (a.row.product.trackStock ? a.row.product.stock : 0) ||
         a.row.product.name.localeCompare(b.row.product.name),
     );
 

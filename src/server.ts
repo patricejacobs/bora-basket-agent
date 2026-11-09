@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage, searchMissCount } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
+import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
 import { simulatorRouter } from './channels/simulator.ts';
@@ -22,6 +23,50 @@ import { ensureImagesDirectory, imagesDirectory, refreshImages, imageCount } fro
  * parsed, so a truncated or unreadable CSV cannot empty the shop. Products are
  * marked inactive rather than deleted, so past orders keep their history.
  */
+/**
+ * Restaurants and menus, on the same principle as the grocery catalogue.
+ *
+ * Outlets first — a menu row names its outlet and is skipped if that outlet is
+ * not there yet. Re-imported on every boot when syncing, since a menu changes
+ * far more often than a shop's shelves and is the thing an owner will want to
+ * correct from a commit rather than a shell they do not have.
+ */
+function loadMenus(): void {
+  if (!config.seedOutletsPath || !config.seedMenuPath) return;
+
+  const outletsFile = path.resolve(config.seedOutletsPath);
+  const menuFile = path.resolve(config.seedMenuPath);
+  for (const [name, file] of [
+    ['SEED_OUTLETS_PATH', outletsFile],
+    ['SEED_MENU_PATH', menuFile],
+  ] as const) {
+    if (!fs.existsSync(file)) {
+      console.warn(`[menu] ${name} points at a missing file: ${file}`);
+      return;
+    }
+  }
+
+  const existing = listOutlets().length;
+  if (existing > 0 && !config.catalogSyncOnBoot) return;
+
+  try {
+    const outlets = importOutletsText(fs.readFileSync(outletsFile, 'utf8'));
+    const menu = importMenuText(fs.readFileSync(menuFile, 'utf8'));
+    console.log(`[menu] ${outlets.imported} outlet(s), ${menu.items} menu item(s)`);
+
+    for (const bad of [...outlets.skipped, ...menu.skipped].slice(0, 5)) {
+      console.warn(`[menu] line ${bad.line}: ${bad.reason}`);
+    }
+    // Logged loudly on every boot, not once: an item WhatsApp prohibits is the
+    // kind of thing that quietly reappears when somebody re-exports a menu.
+    for (const refused of menu.refused) {
+      console.log(`[menu] refused "${refused.name}" — ${refused.reason}`);
+    }
+  } catch (err) {
+    console.error('[menu] import failed; outlets left as they were:', err);
+  }
+}
+
 function loadCatalogue(): void {
   if (!config.seedCatalogPath) return;
 
@@ -63,6 +108,7 @@ function loadCatalogue(): void {
 }
 
 loadCatalogue();
+loadMenus();
 
 const app = express();
 app.disable('x-powered-by');
@@ -105,6 +151,9 @@ app.get('/health', (_req: Request, res: Response) => {
     // A count only. The phrases themselves are customer-typed text and go to
     // staff over WhatsApp, not onto a public URL.
     unmetSearches30d: searchMissCount(30),
+    menuItems: menuItemCount(),
+    outlets: listOutlets().length,
+    outletsTakingOrders: listOutlets().filter((o) => o.accepting).length,
     whatsappReady: Object.values(whatsapp).every(Boolean),
     config: {
       anthropicKey: Boolean(config.anthropic.apiKey),
@@ -113,6 +162,7 @@ app.get('/health', (_req: Request, res: Response) => {
       simulatorEnabled: config.enableSimulator,
       // A count, never the numbers — enough to confirm dispatch is wired up.
       staffNumbers: config.staffNumbers.length,
+      driverNumbers: config.driverNumbers.length,
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,
@@ -158,9 +208,20 @@ app.listen(config.port, () => {
   console.log('');
   const photos = photoCoverage();
   const onDisk = refreshImages();
+  // Split, because one total hides the thing an operator wants to check: that
+  // the groceries are there AND that the restaurants arrived.
+  const outlets = listOutlets();
+  const menuItems = outlets.length === 0 ? 0 : menuItemCount();
   console.log(
-    `  catalog       ${products} active product(s), ${photos.withPhoto} with photo URLs`,
+    `  catalog       ${products - menuItems} grocery item(s), ${photos.withPhoto} with photo URLs`,
   );
+  if (outlets.length > 0) {
+    const paused = outlets.filter((o) => !o.accepting).length;
+    console.log(
+      `  restaurants   ${outlets.length} outlet(s), ${menuItems} menu item(s)` +
+        (paused > 0 ? ` — ${paused} paused` : ''),
+    );
+  }
   console.log(`  images        ${onDisk} file(s) in ${imagesDirectory()}`);
   if (onDisk > 0 && !config.publicBaseUrl) {
     console.warn('  ! PUBLIC_BASE_URL is not set, so disk photos cannot be sent to WhatsApp.');

@@ -2,6 +2,7 @@ import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
 import { nextActions } from './order-status.ts';
+import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin } from './location.ts';
 
 /**
@@ -20,11 +21,22 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   if (!order) return;
 
   const lines = [
-    `🛒 *New order ${order.orderNo}*`,
+    order.outlet ? `🍽️ *New order ${order.orderNo}* — ${order.outlet.name}` : `🛒 *New order ${order.orderNo}*`,
     '',
-    ...order.items.map((i) => `${i.qty} x ${i.name} — ${money(i.lineTotal)}`),
+    ...order.items.map((i) => {
+      const chosen = summariseStored(i.options);
+      return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''} — ${money(i.lineTotal)}`;
+    }),
     '',
     `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`,
+    // A restaurant order is not yours to pack, so the shop's line is the wait
+    // and the collection rather than a picking list.
+    ...(order.outlet
+      ? [
+          `Collect from ${order.outlet.name}${order.outlet.pickupAddress ? `, ${order.outlet.pickupAddress}` : ''}`,
+          `Kitchen reckons about ${order.outlet.prepMinutes} minutes`,
+        ]
+      : []),
     '',
     `${order.customerName}`,
     // Doorstep detail, which is often empty now that the pin carries the
