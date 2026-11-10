@@ -183,9 +183,11 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
 
   // Somebody already carrying a delivery is not offered another. Sending it
   // anyway means a card they cannot act on, and a tap that gets refused.
-  const free = config.driverNumbers.filter(
-    (phone) => repo.activeJobsFor(phone).length < config.maxJobsPerAssociate,
-  );
+  const limit = config.maxJobsPerAssociate;
+  const free =
+    limit > 0
+      ? config.driverNumbers.filter((phone) => repo.activeJobsFor(phone).length < limit)
+      : config.driverNumbers;
   if (free.length === 0) {
     console.warn(
       `[dispatch] ${orderNo} is ready but every delivery associate is already carrying one`,

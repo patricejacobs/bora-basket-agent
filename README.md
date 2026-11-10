@@ -832,39 +832,31 @@ to do it*.
 A customer can only cancel their own orders, checked against the number they are messaging
 from — order numbers are sequential and read aloud.
 
-### One delivery at a time
+### Several orders, one trip
 
-An associate already carrying somebody's dinner is not offered another, and cannot take one
-if they try:
+Associates are **not** limited to one delivery. Three orders from the same kitchen are one
+trip, and refusing the second would stop somebody doing exactly what they are standing at
+that counter to do.
 
-```
-You already have ORD-00007 with you.
-
-Deliver that first, then come back for this one.
-Someone else can take it in the meantime.
-```
-
-The job card is only sent to associates who are free, so nobody gets a card they cannot act
-on. **An order belongs to whoever collects it**, not to whoever it was offered to — it is
-assigned at the moment they tap *Collected*, and released when they deliver.
-
-`jobs` leads with what they are carrying rather than offering more:
+`jobs` shows what they are carrying and still offers more — flagging anything waiting at a
+kitchen they are already visiting:
 
 ```
-You are carrying a delivery already:
+*With you now (2)*
+ORD-00007 — on the way …
+ORD-00008 — on the way …
 
-*ORD-00007* — on the way
-Pick up: A Taste of Guyana Roti Shop & Bakery …
-
-Drop that off first — nothing new comes to you until it is delivered.
+*1 ready to collect*
+ORD-00009 — cooked, waiting … — *same stop as yours*
 ```
 
-If every associate is busy, the order waits — and the stall sweep tells the shop about it
-after fifteen minutes, which is the right outcome: somebody needs to decide whether to wait
-or call another associate in.
+**An order belongs to whoever collects it**, assigned when they tap *Collected* and released
+when they deliver — not to whoever it was offered to.
 
-`MAX_JOBS_PER_ASSOCIATE` raises the limit if your associates genuinely run two drops on one
-trip. It defaults to 1.
+`MAX_JOBS_PER_ASSOCIATE` imposes a cap if you want one; `0`, the default, means none. It is
+a blunt instrument: it counts deliveries without knowing whether the next is a second bag
+off the same counter or a pickup across town. Until it can tell those apart, leaving it off
+is the honest setting.
 
 ### When an order stops moving
 

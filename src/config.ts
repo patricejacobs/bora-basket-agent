@@ -163,14 +163,15 @@ export const config = {
   })() as ('cash' | 'card')[],
 
   /**
-   * How many deliveries one associate may hold at once.
+   * How many deliveries one associate may hold at once. 0 means no limit.
    *
-   * One by default: somebody already carrying hot food across town cannot also
-   * be collecting from another kitchen, and letting them take a second job is
-   * how both arrive cold. Raise it if your associates genuinely run two drops
-   * on one trip.
+   * Off by default, because the obvious rule is wrong: several orders from one
+   * kitchen are collected in a single trip, and refusing the second would stop
+   * an associate doing exactly what they are standing there to do. A limit is
+   * only sensible once it can tell a second pickup across town from a second
+   * bag off the same counter.
    */
-  maxJobsPerAssociate: Math.max(1, num('MAX_JOBS_PER_ASSOCIATE', 1)),
+  maxJobsPerAssociate: Math.max(0, num('MAX_JOBS_PER_ASSOCIATE', 0)),
 
   /**
    * Watching for orders that have stopped moving.

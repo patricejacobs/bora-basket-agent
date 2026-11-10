@@ -464,26 +464,30 @@ export async function handleDriverMessage(text: string, phone = ''): Promise<Out
 
   if (/^(jobs|job|queue|pickups?|collections?)$/i.test(trimmed)) {
     const waiting = repo.ordersAwaitingPickup(10);
-    if (holding.length >= config.maxJobsPerAssociate) {
-      return reply(
-        [
-          `You are carrying ${holding.length === 1 ? 'a delivery' : `${holding.length} deliveries`} already:`,
-          '',
-          ...holding.map(describeForDriver),
-          '',
-          'Drop that off first — nothing new comes to you until it is delivered.',
-        ].join('\n'),
-      );
-    }
-    const moving = repo.openOrders(20).filter((o) => o.status === 'on_the_way');
-    if (waiting.length === 0 && moving.length === 0) return reply('Nothing to collect right now.');
+
+    // What they are already carrying is shown, never used to refuse more. Two
+    // orders from the same kitchen are one trip, and an associate standing at
+    // that counter is exactly the right person for the second.
+    const mine = holding.length > 0
+      ? [`*With you now (${holding.length})*`, ...holding.map(describeForDriver)]
+      : [];
+
+    if (waiting.length === 0 && mine.length === 0) return reply('Nothing to collect right now.');
+
+    // Anything ready at a kitchen they are already going to is worth flagging:
+    // it costs them nothing to pick up both.
+    const sameStop = new Set(holding.map((o) => o.outlet?.id).filter(Boolean));
+    const label = (o: repo.OrderRecord): string =>
+      sameStop.has(o.outlet?.id) ? ' — *same stop as yours*' : '';
+
     return reply(
       [
+        ...mine,
         ...(waiting.length > 0
-          ? [`*${waiting.length} ready to collect*`, ...waiting.map(describeForDriver)]
-          : []),
-        ...(moving.length > 0
-          ? [`*${moving.length} with you now*`, ...moving.map(describeForDriver)]
+          ? [
+              `*${waiting.length} ready to collect*`,
+              ...waiting.map((o) => describeForDriver(o) + label(o)),
+            ]
           : []),
       ].join('\n\n'),
     );
@@ -507,6 +511,7 @@ export async function handleDriverMessage(text: string, phone = ''): Promise<Out
   // both arrive cold.
   if (
     status === 'on_the_way' &&
+    config.maxJobsPerAssociate > 0 &&
     order.driverPhone !== phone.replace(/[^0-9]/g, '') &&
     holding.length >= config.maxJobsPerAssociate
   ) {

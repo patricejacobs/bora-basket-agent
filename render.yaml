@@ -96,9 +96,10 @@ services:
         value: ""
       # Minutes an order may sit in a stage before staff are told it has
       # stopped moving. 0 on STALL_ALERT_MINUTES switches the watch off.
-      # How many deliveries one associate may hold at once.
+      # Cap on deliveries one associate may hold. 0 = no cap, which is right
+      # while several orders from one kitchen are collected in a single trip.
       - key: MAX_JOBS_PER_ASSOCIATE
-        value: "1"
+        value: "0"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

@@ -1959,10 +1959,11 @@ section('Kitchen and delivery associate commands');
   check('a delivery associate can deliver', delivered.includes('delivered'), delivered);
   check('delivered persisted', repo.findOrder(ref)?.status === 'delivered');
 
-  /* --- one delivery at a time ------------------------------------------ */
+  /* --- several orders, one trip ----------------------------------------- */
 
-  // Two orders ready, one associate. Somebody already carrying hot food across
-  // town cannot also be collecting from another kitchen.
+  // Several orders from one kitchen are collected together. An associate
+  // standing at that counter is exactly the right person for the second, so
+  // nothing refuses them — MAX_JOBS_PER_ASSOCIATE is off by default.
   const busyPhone = '5926001111';
   const otherPhone = '5926002222';
 
@@ -1973,7 +1974,7 @@ section('Kitchen and delivery associate commands');
     repo.setService(p2, 'restaurant');
     call2('choose_outlet', { code: 'SSC' });
     call2('add_to_cart', { sku, quantity: qty, choices });
-    repo.saveCustomer(p2, { name: 'Busy Test', address: 'Somewhere' });
+    repo.saveCustomer(p2, { name: 'Trip Test', address: 'Somewhere' });
     repo.saveLocationPin(p2, { latitude: 6.807, longitude: -58.155, label: 'Home' });
     repo.confirmIdentity(p2);
     const placed2 = call2('place_order', { payment_method: 'cash_on_delivery' });
@@ -1985,38 +1986,35 @@ section('Kitchen and delivery associate commands');
   const jobA = mk('SSC-001', 2, ['Large', 'Chicken', 'Hot']);
   const jobB = mk('SSC-001', 2, ['Small', 'Chicken', 'Mild']);
 
-  check('an associate with nothing is free', repo.activeJobsFor(busyPhone).length === 0, JSON.stringify(repo.activeJobsFor(busyPhone).length));
+  check('an associate with nothing is free', repo.activeJobsFor(busyPhone).length === 0);
+  check('no limit is set by default', config.maxJobsPerAssociate === 0, String(config.maxJobsPerAssociate));
 
   await handleDriverMessage(`${jobA} collected`, busyPhone);
   check('collecting makes it theirs', repo.findOrder(jobA)?.driverPhone === busyPhone, repo.findOrder(jobA)?.driverPhone);
-  check('and marks them busy', repo.activeJobsFor(busyPhone).length === 1);
+  check('and they are counted as carrying it', repo.activeJobsFor(busyPhone).length === 1);
 
-  const refused = (await handleDriverMessage(`${jobB} collected`, busyPhone))[0]?.text ?? '';
-  check('a busy associate cannot take a second', repo.findOrder(jobB)?.status === 'ready', repo.findOrder(jobB)?.status);
-  check('and is told what they are holding', refused.includes(repo.findOrder(jobA)!.orderNo), refused);
-  check('and that someone else can take it', /someone else/i.test(refused), refused);
+  // The case that made the limit wrong: a second order from the same kitchen.
+  await handleDriverMessage(`${jobB} collected`, busyPhone);
+  check('a second from the same kitchen is allowed', repo.findOrder(jobB)?.status === 'on_the_way', repo.findOrder(jobB)?.status);
+  check('and both are theirs', repo.activeJobsFor(busyPhone).length === 2);
 
-  // Another associate is unaffected.
-  await handleDriverMessage(`${jobB} collected`, otherPhone);
-  check('a free associate can take it', repo.findOrder(jobB)?.status === 'on_the_way', repo.findOrder(jobB)?.status);
-  check('and it is theirs, not the busy one', repo.findOrder(jobB)?.driverPhone === otherPhone);
-
-  // Delivering frees them.
-  await handleDriverMessage(`${jobA} delivered`, busyPhone);
-  check('delivering frees the associate', repo.activeJobsFor(busyPhone).length === 0);
-
+  // jobs shows what they hold and flags anything at a kitchen they are already
+  // visiting, because collecting both costs one trip.
   const jobC = mk('SSC-002', 2, ['Small', 'Mild']);
-  await handleDriverMessage(`${jobC} collected`, busyPhone);
-  check('who can then take another', repo.findOrder(jobC)?.status === 'on_the_way', repo.findOrder(jobC)?.status);
-  await handleDriverMessage(`${jobC} delivered`, busyPhone);
+  const view = (await handleDriverMessage('jobs', busyPhone))[0]?.text ?? '';
+  check('jobs lists what they are carrying', /With you now \(2\)/.test(view), view.slice(0, 60));
+  check('and still offers more', /ready to collect/i.test(view), view.slice(0, 200));
+  check('flagging one at the same stop', /same stop as yours/i.test(view), view.slice(-200));
 
-  // `jobs` leads with what they are already carrying rather than offering more.
-  const jobD = mk('SSC-002', 2, ['Large', 'Hot']);
-  await handleDriverMessage(`${jobD} collected`, busyPhone);
-  const whileBusy = (await handleDriverMessage('jobs', busyPhone))[0]?.text ?? '';
-  check('jobs shows what they are carrying', /carrying/i.test(whileBusy), whileBusy.slice(0, 80));
-  check('and does not offer more', !/ready to collect/i.test(whileBusy), whileBusy.slice(0, 120));
-  await handleDriverMessage(`${jobD} delivered`, busyPhone);
+  // Delivering releases them.
+  await handleDriverMessage(`${jobA} delivered`, busyPhone);
+  await handleDriverMessage(`${jobB} delivered`, busyPhone);
+  check('delivering releases each one', repo.activeJobsFor(busyPhone).length === 0);
+
+  // An order belongs to whoever collected it, not to whoever was offered it.
+  await handleDriverMessage(`${jobC} collected`, otherPhone);
+  check('another associate owns what they collect', repo.findOrder(jobC)?.driverPhone === otherPhone, repo.findOrder(jobC)?.driverPhone);
+  await handleDriverMessage(`${jobC} delivered`, otherPhone);
 
   const notRiders = (await handleDriverMessage(`${ref} cancel`))[0]?.text ?? '';
   check('a delivery associate cannot cancel', notRiders.includes('for the shop'), notRiders);
