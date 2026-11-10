@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS parcel_drafts (
   updated_at   TEXT NOT NULL
 );
 
+-- A menu read off a photograph, before a person has approved it.
+--
+-- Held apart from the live catalogue on purpose. A model reading small print
+-- off a laminated menu in bad light will occasionally get a price wrong, and a
+-- wrong price is money — so nothing reaches a customer until a staff member has
+-- read it back and published it. Keyed by the staff member, so two people can
+-- onboard two restaurants at once without colliding.
+CREATE TABLE IF NOT EXISTS menu_drafts (
+  phone      TEXT PRIMARY KEY,
+  code       TEXT NOT NULL,
+  payload    TEXT NOT NULL,
+  pages      INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS message_log (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   phone      TEXT NOT NULL,

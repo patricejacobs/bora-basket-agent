@@ -258,6 +258,62 @@ Size:Regular|Large+520;Protein:Chicken|Pork+100|Shrimp+350;Spice:Mild|Hot;Extras
 The agent is told which groups are compulsory and refuses to add a dish until they are
 answered — so nobody gets a burger with no size and the kitchen never guesses.
 
+### Adding a restaurant from a photograph
+
+Editing two CSVs and redeploying is fine for a developer and wrong for whoever is actually
+signing restaurants up — they are standing in one, holding a phone, and the menu is on the
+wall. So from a staff number: **send a photo of the menu.**
+
+A printed menu already carries almost everything needed, and what comes back is a draft:
+
+```
+📋 Draft — Mahaica Grill House (MGH)
+
+Serves: Creole & Grill
+Hours: Mon-Sat 11:00am - 10:00pm, Sun closed
+At: 14 Light Street, Alberttown
+Tel: 5926184477
+
+*From The Grill*
+1. Grilled Chicken Leg Quarter — $1,250
+     _Size:Regular|Large+450;Spice:Mild|Hot_
+2. BBQ Pork Ribs — $2,400
+
+🚫 Left out (1) — WhatsApp does not allow selling these:
+• Banks Beer
+
+⚠️ Check these:
+• BBQ Pork Ribs — price was partly obscured
+
+2 item(s) ready. *Nothing is live yet.*
+
+Send another photo to add more pages,
+`publish` to put it on the menu, or `discard` to drop it.
+```
+
+**Nothing reaches a customer until a person publishes it.** A model reading small print off
+a laminated menu in bad light will occasionally get a price wrong, and a wrong price is
+money — so the draft is read back first, with anything it was unsure of flagged rather than
+quietly guessed. Further photos add pages to the same draft, since menus rarely fit on one
+sheet, and a dish already read is not added twice.
+
+Alcohol is dropped at the read *and* again at publish, and the draft says what it left out
+— staff should know the beer was seen and excluded, not wonder where it went.
+
+Then the parts a photo cannot give you:
+
+```
+📍 share a location pin     where the rider collects — one tap, standing outside
+number MGH 5926123456       the kitchen's own WhatsApp
+minimum MGH 1800            their minimum order
+fee MGH 650                 delivery fee
+hours MGH Mon-Sun 9am-9pm   corrects what was read
+```
+
+Publishing again **replaces** that outlet's menu rather than adding to it, so a dish taken
+off a reprinted menu actually comes off — while keeping the pin, number and figures a
+person set by hand.
+
 ### Ordering, in as few messages as possible
 
 Picking *Restaurant ordering* shows the kitchens immediately, numbered, with what each
@@ -741,6 +797,9 @@ src/
   staff.ts               Dispatch commands over WhatsApp
   order-status.ts        Order lifecycle vocabulary and action buttons
   services.ts            The welcome and the four numbered services
+  onboarding.ts          Adding a restaurant from a menu photo
+  menu-reader.ts         Reading dishes and prices off a photograph
+  hours.ts               Parsing free-text opening hours
   parcels.ts             Parcel pricing and what may not be carried
   availability.ts        Stock for shelves, sold-out for kitchens
   menu-options.ts        Size, spice, sides — parsing, pricing, validation

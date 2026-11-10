@@ -154,6 +154,21 @@ export function getOutlet(code: string): Outlet | null {
   return (row as Outlet | undefined) ?? null;
 }
 
+/**
+ * The outlet changed most recently.
+ *
+ * Used to attach a location pin to the restaurant a staff member has just set
+ * up. Ordered by when it was last written, not by name — an earlier version
+ * took the last of an alphabetical list, which quietly put the collection pin
+ * on whichever outlet happened to sort last.
+ */
+export function mostRecentlyTouchedOutlet(): Outlet | null {
+  const row = db
+    .prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE active = 1 ORDER BY updated_at DESC, id DESC LIMIT 1`)
+    .get();
+  return (row as Outlet | undefined) ?? null;
+}
+
 export function outletById(id: number): Outlet | null {
   const row = db.prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE id = ?`).get(id);
   return (row as Outlet | undefined) ?? null;
@@ -1136,6 +1151,45 @@ export function createParcelJob(args: {
     db.exec('ROLLBACK');
     throw err;
   }
+}
+
+/* ------------------------------------------------------------ menu drafts */
+
+export type MenuDraftRow = { code: string; payload: string; pages: number };
+
+export function getMenuDraft(phone: string): MenuDraftRow | null {
+  const row = db
+    .prepare(`SELECT code, payload, pages FROM menu_drafts WHERE phone = ?`)
+    .get(phone) as MenuDraftRow | undefined;
+  return row ?? null;
+}
+
+export function saveMenuDraft(phone: string, code: string, payload: string, pages: number): void {
+  db.prepare(
+    `INSERT INTO menu_drafts (phone, code, payload, pages, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       code = excluded.code, payload = excluded.payload,
+       pages = excluded.pages, updated_at = excluded.updated_at`,
+  ).run(phone, code, payload, pages, nowIso());
+}
+
+export function clearMenuDraft(phone: string): void {
+  db.prepare(`DELETE FROM menu_drafts WHERE phone = ?`).run(phone);
+}
+
+/** Every menu item an outlet currently has, for replacing a published menu. */
+export function outletMenu(outletId: number): Product[] {
+  return db
+    .prepare(`SELECT *, ${PRODUCT_COLUMNS} FROM products WHERE outlet_id = ?`)
+    .all(outletId) as unknown as Product[];
+}
+
+export function deactivateOutletMenu(outletId: number): number {
+  const info = db
+    .prepare(`UPDATE products SET active = 0, updated_at = ? WHERE outlet_id = ? AND active = 1`)
+    .run(nowIso(), outletId);
+  invalidateSearchIndex();
+  return Number(info.changes);
 }
 
 /* ---------------------------------------------------------- parcel drafts */

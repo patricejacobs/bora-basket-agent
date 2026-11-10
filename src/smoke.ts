@@ -2155,6 +2155,128 @@ section('Parcel delivery');
   check('a parcel can be dispatched to a rider', dispatched === 'sent', dispatched);
 }
 
+/* -------------------------------------------------- onboarding by photo */
+
+section('Onboarding a restaurant');
+{
+  const { codeFor, mergePages, handleOnboardingCommand, handleStaffPin } = await import(
+    './onboarding.ts'
+  );
+  const { describeDraft } = await import('./menu-reader.ts');
+
+  check('builds a code from initials', codeFor('Mahaica Grill House') === 'MGH');
+  check('ignores joining words', codeFor('The House of Roti') === 'HR', codeFor('The House of Roti'));
+  check('copes with a one-word name', codeFor('Pizzeria').length >= 2, codeFor('Pizzeria'));
+  check('avoids colliding with an existing outlet', codeFor('Kingston Fried Hut') !== 'KFH', codeFor('Kingston Fried Hut'));
+
+  // What the reader would return for a photo of a menu. Fabricated here so the
+  // rest of the path is tested without an API call — the read itself is the
+  // model's job and is exercised against a real photo, not a synthetic one.
+  const page1 = {
+    outlet: {
+      name: 'Mahaica Grill House',
+      cuisine: 'Creole & Grill',
+      hours: 'Mon-Sat 11:00am - 10:00pm, Sun closed',
+      phone: '5926184477',
+      address: '14 Light Street, Alberttown',
+    },
+    items: [
+      { name: 'Grilled Chicken Leg Quarter', description: '', category: 'From The Grill', unit: 'each', price: 1250, options: 'Size:Regular|Large+450;Spice:Mild|Hot' },
+      { name: 'BBQ Pork Ribs', description: '', category: 'From The Grill', unit: 'each', price: 2400, options: '' },
+      { name: 'Banks Beer', description: 'bottle', category: 'Drinks', unit: 'bottle', price: 700, options: '', refused: 'alcohol ("beer")' },
+    ],
+    unclear: ['BBQ Pork Ribs — price was partly obscured'],
+  };
+  const page2 = {
+    outlet: { name: '', cuisine: '', hours: '', phone: '', address: '' },
+    items: [
+      { name: 'Cook Up Rice with Chicken', description: '', category: 'Creole Plates', unit: 'plate', price: 1100, options: '' },
+      // A repeat of a dish already read from page one; menus overlap at the fold.
+      { name: 'BBQ Pork Ribs', description: '', category: 'From The Grill', unit: 'each', price: 2400, options: '' },
+    ],
+    unclear: [],
+  };
+
+  const merged = mergePages(page1 as never, page2 as never);
+  check('a second page adds its dishes', merged.items.length === 4, String(merged.items.length));
+  check('without duplicating one already read', merged.items.filter((i) => i.name === 'BBQ Pork Ribs').length === 1);
+  check('and keeps the header from the first page', merged.outlet.name === 'Mahaica Grill House');
+  check('carrying the unclear notes forward', merged.unclear.length === 1);
+
+  const described = describeDraft(merged as never, 'MGH');
+  check('the draft is numbered for reading back', /1\. Grilled Chicken Leg Quarter/.test(described), described.slice(0, 120));
+  check('it groups dishes by menu section', described.includes('*From The Grill*'));
+  check('it shows the options read', described.includes('Size:Regular|Large+450'));
+  check('it says plainly that nothing is live', /nothing is live yet/i.test(described), described.slice(-200));
+  check('it lists what it left out', described.includes('Banks Beer') && /left out/i.test(described));
+  check('and flags what needs checking', described.includes('partly obscured'));
+
+  // Publishing.
+  const staffPhone = '5926497570';
+  repo.saveMenuDraft(staffPhone, 'MGH', JSON.stringify(merged), 2);
+
+  const shown = (await handleOnboardingCommand(staffPhone, 'draft'))[0]?.text ?? '';
+  check('staff can re-read the draft', shown.includes('Mahaica Grill House'), shown.slice(0, 60));
+
+  const published = (await handleOnboardingCommand(staffPhone, 'publish'))[0]?.text ?? '';
+  check('publishing says it is live', /is live/.test(published), published);
+
+  const outlet = repo.getOutlet('MGH');
+  check('the outlet exists', outlet !== null);
+  check('with the name from the photo', outlet?.name === 'Mahaica Grill House');
+  check('and the hours', (outlet?.hours ?? '').includes('Mon-Sat'));
+  check('and the phone as the kitchen number', outlet?.whatsapp === '5926184477', outlet?.whatsapp);
+
+  const menu = repo.searchProducts('', undefined, 50, outlet!.id);
+  check('the dishes are on the menu', menu.length === 3, String(menu.length));
+  check('the beer is not', !menu.some((m) => /beer/i.test(m.name)), menu.map((m) => m.name).join(','));
+  check('and publishing said so', /left out/.test(published), published);
+  check('dishes keep their options', menu.some((m) => m.options.includes('Size:')));
+  check('dishes track no stock', menu.every((m) => m.trackStock === 0));
+  check('SKUs are prefixed with the outlet code', menu.every((m) => m.sku.startsWith('MGH-')), menu.map((m) => m.sku).join(','));
+
+  check('the draft is spent once published', repo.getMenuDraft(staffPhone) === null);
+
+  // A pin from staff sets where the rider collects.
+  const pinned = handleStaffPin(staffPhone, { latitude: 6.8102, longitude: -58.1547, label: 'Front door' })[0]?.text ?? '';
+  check('a staff pin sets the collection point', /Collection point set/.test(pinned), pinned);
+  check('and lands on the right outlet', repo.getOutlet('MGH')?.pickupLat === 6.8102);
+
+  // The remaining details, by command.
+  await handleOnboardingCommand(staffPhone, 'minimum MGH 1800');
+  check('a minimum can be set', repo.getOutlet('MGH')?.minOrder === toMinorUnits(1800), String(repo.getOutlet('MGH')?.minOrder));
+  await handleOnboardingCommand(staffPhone, 'fee MGH 650');
+  check('a delivery fee can be set', repo.getOutlet('MGH')?.deliveryFee === toMinorUnits(650), String(repo.getOutlet('MGH')?.deliveryFee));
+  await handleOnboardingCommand(staffPhone, 'hours MGH Mon-Sun 9am-9pm');
+  check('hours can be corrected', repo.getOutlet('MGH')?.hours === 'Mon-Sun 9am-9pm');
+  await handleOnboardingCommand(staffPhone, 'number MGH 592 611 9999');
+  check('the kitchen number can be corrected', repo.getOutlet('MGH')?.whatsapp === '5926119999');
+  const unknown = (await handleOnboardingCommand(staffPhone, 'hours NOPE 9am-5pm'))[0]?.text ?? '';
+  check('an unknown outlet code is refused', /No outlet/.test(unknown), unknown);
+
+  // Republishing replaces the menu rather than piling onto it, so a dish taken
+  // off a reprinted menu actually comes off.
+  const slimmed = { ...merged, items: [merged.items[0]!] };
+  repo.saveMenuDraft(staffPhone, 'MGH', JSON.stringify(slimmed), 1);
+  await handleOnboardingCommand(staffPhone, 'publish');
+  const after = repo.searchProducts('', undefined, 50, outlet!.id);
+  check('republishing takes removed dishes off', after.length === 1, after.map((a) => a.name).join(','));
+  check('and keeps the pin a person set', repo.getOutlet('MGH')?.pickupLat === 6.8102);
+  check('and keeps the corrected number', repo.getOutlet('MGH')?.whatsapp === '5926119999');
+
+  // Discarding.
+  repo.saveMenuDraft(staffPhone, 'XXX', JSON.stringify(page1), 1);
+  const discarded = (await handleOnboardingCommand(staffPhone, 'discard'))[0]?.text ?? '';
+  check('a draft can be thrown away', /thrown away/.test(discarded) && repo.getMenuDraft(staffPhone) === null);
+  check('nothing was published by discarding', repo.getOutlet('XXX') === null);
+
+  // A photo with no restaurant name cannot become an outlet.
+  repo.saveMenuDraft(staffPhone, 'ZZZ', JSON.stringify({ ...page1, outlet: { ...page1.outlet, name: '' } }), 1);
+  const nameless = (await handleOnboardingCommand(staffPhone, 'publish'))[0]?.text ?? '';
+  check('refuses to publish an unnamed outlet', /no restaurant name/i.test(nameless), nameless);
+  repo.clearMenuDraft(staffPhone);
+}
+
 /* ------------------------------------------------------------------ report */
 
 console.log('');

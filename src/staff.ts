@@ -11,7 +11,15 @@ import { notifyCustomerOfStatus } from './notifications.ts';
 import { STATUS_LABEL, STATUS_WORDS, nextActions } from './order-status.ts';
 import { dispatchToDrivers } from './dispatch.ts';
 import { summariseStored } from './menu-options.ts';
-import { mapsLink } from './location.ts';
+import { mapsLink, type LocationPin } from './location.ts';
+import {
+  handleMenuPhoto,
+  handleOnboardingCommand,
+  handleStaffPin,
+  isOnboardingCommand,
+  ONBOARDING_HELP,
+} from './onboarding.ts';
+import type { IncomingImage } from './channels/types.ts';
 import { checkRange, describePin } from './location.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
@@ -88,6 +96,9 @@ const HELP = [
   '',
   '`wanted` — what customers asked for and we did not have',
   '',
+  '`outlets` — the restaurants on the system',
+  'Send a photo of a menu to add one (`new outlet` for how)',
+  '',
   'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
 ].join('\n');
 
@@ -140,11 +151,49 @@ const describe = (o: repo.OrderRecord): string =>
   ].join('\n');
 
 /** Never throws — a staff member always gets a readable answer. */
-export async function handleStaffMessage(text: string): Promise<OutboundMessage[]> {
+export async function handleStaffMessage(
+  text: string,
+  phone = '',
+  image?: IncomingImage,
+  location?: LocationPin,
+): Promise<OutboundMessage[]> {
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
 
+  // A photograph from a staff member is a menu being onboarded. Nothing else in
+  // the dispatch queue takes a picture, so there is no ambiguity to resolve.
+  if (image) return handleMenuPhoto(phone, image);
+
+  // A pin from a staff member is where a rider collects — they are standing
+  // outside the restaurant, which is the whole reason this happens on a phone.
+  if (location) return handleStaffPin(phone, location);
+
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(HELP);
+
+  if (isOnboardingCommand(trimmed)) return handleOnboardingCommand(phone, trimmed);
+
+  if (/^outlets$/i.test(trimmed)) {
+    const outlets = repo.listOutlets();
+    if (outlets.length === 0) {
+      return reply(`No restaurants yet.
+
+${ONBOARDING_HELP}`);
+    }
+    return reply(
+      [
+        `*${outlets.length} outlet(s)*`,
+        '',
+        ...outlets.map((o) =>
+          [
+            `*${o.code}* ${o.name}${o.accepting ? '' : ' — _paused_'}`,
+            `  ${o.hours || '⚠️ no hours set'}`,
+            `  ${o.whatsapp ? `kitchen +${o.whatsapp}` : '⚠️ no kitchen number'}`,
+            `  ${o.pickupLat !== null ? 'pin set' : '⚠️ no pickup pin'}`,
+          ].join('\n'),
+        ),
+      ].join('\n\n'),
+    );
+  }
 
   if (/^(orders|open|queue|list)$/i.test(trimmed)) {
     const open = repo.openOrders(10);

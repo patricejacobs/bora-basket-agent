@@ -118,7 +118,10 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // and a rider keeps the full queue; then riders; then outlets, which are
   // recognised by their own number rather than by configuration.
   const operator = isStaff(msg.phone)
-    ? () => handleStaffMessage(msg.text)
+    ? // Staff get the image and the pin too. A photo from a staff number is a
+      // menu being onboarded, and a pin is where a rider collects — neither has
+      // any meaning in the dispatch queue, so there is nothing to disambiguate.
+      () => handleStaffMessage(msg.text, msg.phone, msg.image, msg.location)
     : isDriver(msg.phone)
       ? () => handleDriverMessage(msg.text)
       : (() => {
