@@ -797,7 +797,7 @@ Then the reason goes where it is useful:
 
 | | |
 |---|---|
-| **Customer** | *"cancelled because the kitchen has run out of something on it"* — not just "cancelled" |
+| **Customer** | *"cancelled because the kitchen has run out of something on it. Nothing has been charged."* — the reason as the kitchen gave it, and nothing more. No invitation to write back: that implies the cancellation might be a mistake and puts the chasing on them |
 | **Kitchen** | 🚫 *ORD-00002 cancelled — Customer changed their mind. Stop cooking it if you have started.* |
 | **The record** | stored on the order, so the pattern is readable later |
 

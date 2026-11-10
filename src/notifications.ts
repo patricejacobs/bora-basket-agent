@@ -93,13 +93,17 @@ function cancelledMessage(order: repo.OrderRecord): string {
   const known = CANCEL_REASONS.find((r) => r.internal === order.cancelReason);
   const firstName = order.customerName.split(/\s+/)[0] ?? '';
 
+  // The reason is passed on as given, and the message ends there. Inviting
+  // somebody to write back if it is "not right" implies the cancellation might
+  // be a mistake and puts the work of chasing it on them — when what they
+  // actually need is to know why, so they can decide what to do next.
   if (known) {
-    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled because ${known.customer}. Nothing has been charged. Message us here and we'll sort something else out.`;
+    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled because ${known.customer}. Nothing has been charged.`;
   }
   if (order.cancelReason && order.cancelReason !== 'No reason given') {
-    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled: ${order.cancelReason}. Nothing has been charged. Message us here and we'll sort something else out.`;
+    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled. Reason given: ${order.cancelReason}. Nothing has been charged.`;
   }
-  return `Order ${order.orderNo} has been cancelled. Nothing has been charged. Message us here if that's not right.`;
+  return `Sorry ${firstName} — order ${order.orderNo} has been cancelled. Nothing has been charged.`;
 }
 
 /**
