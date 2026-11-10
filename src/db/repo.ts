@@ -978,6 +978,8 @@ export type OrderRecord = {
   recipientPhone: string;
   /** What is being sent, in the sender's words. */
   parcelDetails: string;
+  /** Why it was cancelled, empty unless it was. */
+  cancelReason: string;
   items: { name: string; qty: number; unit: string; options: string; lineTotal: number }[];
 };
 
@@ -1005,6 +1007,7 @@ function hydrateOrder(row: {
   recipient_name: string | null;
   recipient_phone: string | null;
   parcel_details: string | null;
+  cancel_reason: string | null;
   total: number;
   status: string;
   created_at: string;
@@ -1049,6 +1052,7 @@ function hydrateOrder(row: {
     recipientName: row.recipient_name ?? '',
     recipientPhone: row.recipient_phone ?? '',
     parcelDetails: row.parcel_details ?? '',
+    cancelReason: row.cancel_reason ?? '',
     items: (
       db
         .prepare(
@@ -1452,6 +1456,10 @@ export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
     .prepare(`SELECT * FROM orders WHERE status = 'ready' ORDER BY id ASC LIMIT ?`)
     .all(limit) as unknown as Parameters<typeof hydrateOrder>[0][];
   return rows.map(hydrateOrder);
+}
+
+export function setCancelReason(orderNo: string, reason: string): void {
+  db.prepare(`UPDATE orders SET cancel_reason = ? WHERE order_no = ?`).run(reason.slice(0, 200), orderNo);
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {

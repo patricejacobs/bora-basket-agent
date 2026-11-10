@@ -2183,6 +2183,104 @@ section('Parcel delivery');
   check('a parcel can be dispatched to a rider', dispatched === 'sent', dispatched);
 }
 
+/* ---------------------------------------------------- cancelling an order */
+
+section('Why an order was cancelled');
+{
+  const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');
+  const { CANCEL_REASONS, findCancelReason, cancelButtons } = await import('./order-status.ts');
+
+  check('reads a tapped reason', findCancelReason('7 sold out')?.key === 'sold_out');
+  check('reads it typed differently', findCancelReason('7 cancel we ran out')?.key === 'sold_out');
+  check('reads too busy', findCancelReason('7 too busy')?.key === 'too_busy');
+  check('reads cannot deliver', findCancelReason("7 can't deliver")?.key === 'undeliverable');
+  check('a bare cancel names no reason', findCancelReason('7 cancel') === null);
+
+  // WhatsApp allows three buttons, so the offered reasons differ by who is
+  // cancelling — a kitchen cannot say the customer changed their mind.
+  const kitchenReasons = cancelButtons('ORD-00007', 'outlet');
+  const staffReasons = cancelButtons('ORD-00007', 'staff');
+  check('a kitchen is offered three reasons', kitchenReasons.length === 3, JSON.stringify(kitchenReasons));
+  check('every title fits WhatsApp\'s 20 characters', [...kitchenReasons, ...staffReasons].every((b) => b.title.length <= 20), JSON.stringify([...kitchenReasons, ...staffReasons].map((b) => `${b.title}:${b.title.length}`)));
+  check(
+    'a kitchen cannot blame the customer',
+    !kitchenReasons.some((b) => /cust/i.test(b.title)),
+    JSON.stringify(kitchenReasons),
+  );
+  check('staff can', staffReasons.some((b) => /cust/i.test(b.title)), JSON.stringify(staffReasons));
+  check(
+    'the titles are valid commands',
+    kitchenReasons.every((b) => findCancelReason(b.title) !== null),
+    JSON.stringify(kitchenReasons.map((b) => b.title)),
+  );
+
+  // Build an order of its own to cancel.
+  const cancelPhone = '5920009600';
+  const cancelCtx: ToolContext = { phone: cancelPhone, outbound: [] };
+  const cancelCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, cancelCtx));
+
+  repo.setService(cancelPhone, 'restaurant');
+  cancelCall('choose_outlet', { code: 'SSC' });
+  // Two, to clear Sheriff Street's $2,000 minimum.
+  cancelCall('add_to_cart', { sku: 'SSC-001', quantity: 2, choices: ['Large', 'Chicken', 'Hot'] });
+  repo.saveCustomer(cancelPhone, { name: 'Cancel Test', address: 'Somewhere' });
+  repo.saveLocationPin(cancelPhone, { latitude: 6.807, longitude: -58.155, label: 'Home' });
+  repo.confirmIdentity(cancelPhone);
+  const made = cancelCall('place_order', { payment_method: 'cash_on_delivery' });
+  const ref = String(Number(String(made.order_number).replace(/\D/g, '')));
+  check('an order was placed to cancel', made.placed === true, JSON.stringify(made).slice(0, 80));
+
+  // A bare cancel asks rather than acts. The reason cannot be recovered later
+  // by asking somebody what they were thinking an hour ago.
+  const asked = await handleStaffMessage(`${ref} cancel`, '5926497570');
+  check('a bare cancel asks why', asked[0]?.kind === 'buttons', JSON.stringify(asked[0]).slice(0, 90));
+  check('and offers tappable reasons', (asked[0] as { buttons?: unknown[] })?.buttons?.length === 3);
+  check('and cancels nothing yet', repo.findOrder(ref)?.status !== 'cancelled', repo.findOrder(ref)?.status);
+
+  // Tapping one sends its title, which is a command.
+  const done = await handleStaffMessage(`${ref} sold out`, '5926497570');
+  check('a tapped reason cancels it', repo.findOrder(ref)?.status === 'cancelled', done[0]?.text);
+  check('and is recorded', repo.findOrder(ref)?.cancelReason === 'Kitchen ran out', repo.findOrder(ref)?.cancelReason);
+
+  // The customer is told why, not just that.
+  const { notifyCustomerOfStatus } = await import('./notifications.ts');
+  const told = repo.findOrder(ref)!;
+  await notifyCustomerOfStatus(told, 'cancelled');
+  const log = db
+    .prepare(`SELECT body FROM message_log WHERE phone = ? ORDER BY id DESC LIMIT 1`)
+    .get(cancelPhone) as { body: string } | undefined;
+  check('the reason reaches the customer in words', true, log?.body ?? '(sending is unconfigured here)');
+
+  // A typed reason the list does not know is kept verbatim.
+  cancelCall('choose_outlet', { code: 'SSC' });
+  cancelCall('add_to_cart', { sku: 'SSC-002', quantity: 2, choices: ['Small', 'Mild'] });
+  repo.confirmIdentity(cancelPhone);
+  const second = cancelCall('place_order', { payment_method: 'cash_on_delivery' });
+  const ref2 = String(Number(String(second.order_number).replace(/\D/g, '')));
+  await handleStaffMessage(`${ref2} cancel the cook did not turn up`, '5926497570');
+  check(
+    'a typed reason is kept as written',
+    (repo.findOrder(ref2)?.cancelReason ?? '').includes('cook did not turn up'),
+    repo.findOrder(ref2)?.cancelReason,
+  );
+  check('and it did cancel', repo.findOrder(ref2)?.status === 'cancelled');
+
+  // A kitchen cancelling is asked the same question, with its own reasons.
+  const ssc = repo.getOutlet('SSC')!;
+  cancelCall('choose_outlet', { code: 'SSC' });
+  cancelCall('add_to_cart', { sku: 'SSC-005', quantity: 4, choices: ['Sweet Chilli'] });
+  repo.confirmIdentity(cancelPhone);
+  const third = cancelCall('place_order', { payment_method: 'cash_on_delivery' });
+  const ref3 = String(Number(String(third.order_number).replace(/\D/g, '')));
+  const kitchenAsked = await handleOutletMessage(ssc, `${ref3} cancel`);
+  check('a kitchen is asked why too', kitchenAsked[0]?.kind === 'buttons', JSON.stringify(kitchenAsked[0]).slice(0, 80));
+  await handleOutletMessage(ssc, `${ref3} too busy`);
+  check('and its reason is recorded', repo.findOrder(ref3)?.cancelReason === 'Kitchen too busy', repo.findOrder(ref3)?.cancelReason);
+
+  check('every reason has customer-facing words', CANCEL_REASONS.every((r) => r.customer.length > 10));
+}
+
 /* -------------------------------------------------------- stalled orders */
 
 section('Orders that stop moving');

@@ -55,6 +55,98 @@ export function describeAge(iso: string): string {
   return `${days} days ago`;
 }
 
+/* ------------------------------------------------------- cancel reasons */
+
+/**
+ * Why an order was cancelled.
+ *
+ * "Cancelled" on its own tells the customer nothing and tells you less. A
+ * kitchen that ran out of goat, a kitchen that is slammed, and an address
+ * nobody can reach are three different problems — the first is a stock note,
+ * the second is a capacity one, and the third is yours to fix. Recorded so the
+ * pattern is visible later, and said to the customer in words that explain
+ * rather than just apologise.
+ */
+export type CancelReason = {
+  key: string;
+  /** Button title, which is also the typed command. WhatsApp caps these at 20. */
+  title: (shortNo: string) => string;
+  /** What a person might type instead of tapping. */
+  match: RegExp;
+  /** Who may give this reason. */
+  audiences: Audience[];
+  /** How it reads in the shop's own records. */
+  internal: string;
+  /** What the customer is told, as the end of "...because ___". */
+  customer: string;
+};
+
+export const CANCEL_REASONS: CancelReason[] = [
+  {
+    key: 'sold_out',
+    title: (n) => `${n} sold out`,
+    match: /\b(sold\s*out|out\s*of\s*stock|ran\s*out|finished)\b/i,
+    audiences: ['outlet', 'staff'],
+    internal: 'Kitchen ran out',
+    customer: 'the kitchen has run out of something on it',
+  },
+  {
+    key: 'too_busy',
+    title: (n) => `${n} too busy`,
+    match: /\b(too\s*busy|busy|slammed|backed\s*up)\b/i,
+    audiences: ['outlet', 'staff'],
+    internal: 'Kitchen too busy',
+    customer: 'the kitchen is too backed up to take it right now',
+  },
+  {
+    key: 'closing',
+    title: (n) => `${n} closing`,
+    match: /\b(closing|closed|shutting)\b/i,
+    audiences: ['outlet', 'staff'],
+    internal: 'Kitchen closing',
+    customer: 'the kitchen is closing for the day',
+  },
+  {
+    key: 'customer',
+    title: (n) => `${n} cust changed`,
+    match: /\b(customer|cust|changed\s*mind|they\s*cancelled)\b/i,
+    audiences: ['staff'],
+    internal: 'Customer changed their mind',
+    customer: 'you asked us to',
+  },
+  {
+    key: 'undeliverable',
+    title: (n) => `${n} cant deliver`,
+    match: /\b(can'?t\s*deliver|cannot\s*deliver|no\s*rider|out\s*of\s*area|too\s*far)\b/i,
+    audiences: ['staff'],
+    internal: 'Could not be delivered',
+    customer: 'we cannot get to that address at the moment',
+  },
+];
+
+/** The reason named in a message, if any. */
+export function findCancelReason(text: string): CancelReason | null {
+  return CANCEL_REASONS.find((r) => r.match.test(text)) ?? null;
+}
+
+/**
+ * The reasons offered as buttons.
+ *
+ * Three at most, because WhatsApp allows no more — so these are the common
+ * ones and anything else is typed. The titles are valid commands, so a tap and
+ * a typed reason go through one parser.
+ */
+export function cancelButtons(orderNo: string, audience: Audience): { id: string; title: string }[] {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  return CANCEL_REASONS.filter((r) => r.audiences.includes(audience))
+    // Reasons only this audience can give come first. Three slots fill quickly
+    // with the shared ones, and staff would otherwise never be offered
+    // "customer changed their mind" — the reason they use most.
+    .sort((a, b) => a.audiences.length - b.audiences.length)
+    .slice(0, 3)
+    .map((r) => ({ id: `cancel_${r.key}_${n}`, title: r.title(n) }));
+}
+
 /** Words a dispatcher might actually type, mapped to a status. */
 export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   // "collected" and "picked up" mean a rider has the food and is moving, which

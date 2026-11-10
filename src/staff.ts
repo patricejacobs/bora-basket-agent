@@ -8,7 +8,15 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus } from './notifications.ts';
-import { STATUS_LABEL, STATUS_WORDS, nextActions } from './order-status.ts';
+import { sendText } from './channels/whatsapp-send.ts';
+import {
+  STATUS_LABEL,
+  STATUS_WORDS,
+  nextActions,
+  cancelButtons,
+  findCancelReason,
+  type Audience,
+} from './order-status.ts';
 import { dispatchToDrivers } from './dispatch.ts';
 import { summariseStored } from './menu-options.ts';
 import { mapsLink, type LocationPin } from './location.ts';
@@ -65,6 +73,32 @@ async function applyStatus(
   // counter waiting for a rider is indistinguishable from food still cooking,
   // and a message about it only invites "so where is it?". Reported as a
   // decision rather than as a failed send, or the operator chases a bug.
+  // A cancellation has to reach whoever else was working on it. A kitchen that
+  // keeps cooking an order the shop cancelled is wasted food and wasted money.
+  if (status === 'cancelled' && order.outlet) {
+    // Re-read: the reason was written to the row a moment ago, and the record
+    // in hand was fetched before that. The kitchen was getting a bare
+    // "cancelled" with the one useful word missing.
+    const reason = repo.findOrder(order.orderNo)?.cancelReason ?? '';
+    const outlet = repo.outletById(order.outlet.id);
+    if (outlet?.whatsapp) {
+      try {
+        await sendText(
+          outlet.whatsapp,
+          `🚫 *${order.orderNo} cancelled*${reason ? ` — ${reason}` : ''}.
+
+Stop cooking it if you have started.`,
+        );
+        notes.push('Kitchen told to stop.');
+      } catch (err) {
+        console.error('[staff] could not tell the kitchen about a cancellation:', err);
+        notes.push('⚠️ Could not tell the kitchen — ring them.');
+      }
+    } else {
+      notes.push('⚠️ Kitchen has no WhatsApp number — ring them to stop the order.');
+    }
+  }
+
   if (status === 'ready') {
     notes.push('Customer not told — nothing has changed for them until it moves.');
   } else {
@@ -150,6 +184,52 @@ const describe = (o: repo.OrderRecord): string =>
     ...(o.deliveryNote ? [`Note: ${o.deliveryNote}`] : []),
   ].join('\n');
 
+
+/**
+ * Turns "cancel" into a reason before anything is cancelled.
+ *
+ * A bare cancel is answered with buttons rather than acted on: the reason is
+ * the whole value of the record, and it cannot be recovered afterwards by
+ * asking somebody what they were thinking an hour ago. A reason given in the
+ * same message — tapped or typed — goes straight through.
+ *
+ * Returns the buttons to send back, or null when there is a reason to act on.
+ */
+function askWhyCancelled(
+  order: repo.OrderRecord,
+  text: string,
+  audience: Audience,
+): OutboundMessage[] | null {
+  if (findCancelReason(text)) return null;
+
+  // A typed reason the list does not know: "7 cancel the goat spoil".
+  const freeText = text.replace(/(?:ord[-\s]?)?0*\d{1,6}/i, '').replace(/\bcancel(led)?\b/i, '').trim();
+  if (freeText.length >= 4) return null;
+
+  return [
+    {
+      kind: 'buttons',
+      text: `Why is ${order.orderNo} being cancelled?
+
+Tap one, or type the reason — the customer is told what it was.`,
+      buttons: cancelButtons(order.orderNo, audience),
+    },
+  ];
+}
+
+/** The reason as it will be recorded, from a tap or from typed words. */
+function cancellationReason(order: repo.OrderRecord, text: string): string {
+  const known = findCancelReason(text);
+  if (known) return known.internal;
+  return (
+    text
+      .replace(/(?:ord[-\s]?)?0*\d{1,6}/i, '')
+      .replace(/\bcancel(led)?\b/i, '')
+      .trim()
+      .slice(0, 200) || 'No reason given'
+  );
+}
+
 /** Never throws — a staff member always gets a readable answer. */
 export async function handleStaffMessage(
   text: string,
@@ -220,7 +300,13 @@ ${ONBOARDING_HELP}`);
   const order = repo.findOrder(orderRef[1] ?? '');
   if (!order) return reply(`No order ${orderRef[1]}. Send \`orders\` to see what's open.`);
 
-  const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
+  // A named reason is itself a cancellation: tapping "7 sold out" must cancel,
+  // not print the order. A status word still wins, so "7 delivered, driver was
+  // busy" is a delivery rather than a cancellation.
+  const matchedStatus = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
+  const matched: [RegExp, repo.OrderStatus] | undefined =
+    matchedStatus ?? (findCancelReason(trimmed) ? [/./, 'cancelled'] : undefined);
+
   if (!matched) {
     // Looking one order up is usually the driver about to drive to it, so the
     // pin follows as a map card. The open-orders list deliberately does not do
@@ -232,6 +318,13 @@ ${ONBOARDING_HELP}`);
   }
 
   const status = matched[1];
+
+  if (status === 'cancelled' && order.status !== 'cancelled') {
+    const ask = askWhyCancelled(order, trimmed, 'staff');
+    if (ask) return ask;
+    repo.setCancelReason(order.orderNo, cancellationReason(order, trimmed));
+  }
+
   if (order.status === status) {
     return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
   }
@@ -316,7 +409,9 @@ export async function handleOutletMessage(
     return reply(`No order ${ref[1]} for ${outlet.name}. Send \`orders\` to see yours.`);
   }
 
-  const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
+  const matchedStatus = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
+  const matched: [RegExp, repo.OrderStatus] | undefined =
+    matchedStatus ?? (findCancelReason(trimmed) ? [/./, 'cancelled'] : undefined);
   if (!matched) return reply(describeForKitchen(order));
 
   const status = matched[1];
@@ -325,6 +420,12 @@ export async function handleOutletMessage(
       `A kitchen can confirm an order, mark it ready, or cancel it. Delivery is the rider's end.`,
     );
   }
+  if (status === 'cancelled' && order.status !== 'cancelled') {
+    const ask = askWhyCancelled(order, trimmed, 'outlet');
+    if (ask) return ask;
+    repo.setCancelReason(order.orderNo, cancellationReason(order, trimmed));
+  }
+
   if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
 
   const { body } = await applyStatus(order, status);

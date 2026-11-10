@@ -1,7 +1,7 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
-import { nextActions } from './order-status.ts';
+import { nextActions, CANCEL_REASONS } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin } from './location.ts';
 
@@ -88,6 +88,20 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   }
 }
 
+/** What a cancelled customer is told, in words that explain. */
+function cancelledMessage(order: repo.OrderRecord): string {
+  const known = CANCEL_REASONS.find((r) => r.internal === order.cancelReason);
+  const firstName = order.customerName.split(/\s+/)[0] ?? '';
+
+  if (known) {
+    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled because ${known.customer}. Nothing has been charged. Message us here and we'll sort something else out.`;
+  }
+  if (order.cancelReason && order.cancelReason !== 'No reason given') {
+    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled: ${order.cancelReason}. Nothing has been charged. Message us here and we'll sort something else out.`;
+  }
+  return `Order ${order.orderNo} has been cancelled. Nothing has been charged. Message us here if that's not right.`;
+}
+
 /**
  * Hands a conversation to a person.
  *
@@ -142,7 +156,10 @@ export async function notifyCustomerOfStatus(
     confirmed: `Thanks ${firstName} — order ${order.orderNo} is confirmed. We'll let you know when it's on the way.`,
     on_the_way: `${firstName}, your order ${order.orderNo} is on its way 🛵\nTotal ${money(order.total)}, payable to the driver.`,
     delivered: `Order ${order.orderNo} delivered. Thanks for shopping with ${config.store.name}!`,
-    cancelled: `Order ${order.orderNo} has been cancelled. Message us here if that's not right.`,
+    // The reason is the difference between an apology and an explanation. A
+    // customer told the kitchen ran out knows to try something else; one told
+    // only "cancelled" assumes they did something wrong.
+    cancelled: cancelledMessage(order),
   };
 
   const message = freeForm[status];

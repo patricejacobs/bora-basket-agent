@@ -771,6 +771,39 @@ A customer can name an order (`ORD-00007`), but the lookup is scoped to the numb
 are messaging from. Order numbers are sequential and get read aloud, so an unscoped
 lookup would hand anyone their neighbour's name and address for the price of a guess.
 
+### Cancelling, and why
+
+"Cancelled" on its own tells the customer nothing and leaves you no pattern to read later.
+A kitchen that ran out of goat, a kitchen that is slammed, and an address nobody can reach
+are three different problems.
+
+So a bare `7 cancel` does not cancel. It asks:
+
+```
+Why is ORD-00002 being cancelled?
+
+Tap one, or type the reason — the customer is told what it was.
+[ 2 cust changed ]  [ 2 cant deliver ]  [ 2 sold out ]
+```
+
+The reasons offered depend on who is cancelling — a kitchen is never offered "customer
+changed their mind". Three buttons, because WhatsApp allows no more, so the ones unique to
+that role come first and anything else is typed: `7 cancel the cook did not turn up` is
+kept verbatim.
+
+The button titles **are** the commands, so a tap and a typed reason go through one parser.
+
+Then the reason goes where it is useful:
+
+| | |
+|---|---|
+| **Customer** | *"cancelled because the kitchen has run out of something on it"* — not just "cancelled" |
+| **Kitchen** | 🚫 *ORD-00002 cancelled — Customer changed their mind. Stop cooking it if you have started.* |
+| **The record** | stored on the order, so the pattern is readable later |
+
+Telling the kitchen matters: one that keeps cooking an order the shop cancelled is wasted
+food and wasted money.
+
 ### When an order stops moving
 
 Every stage of an order has somebody waiting on it who will chase — a kitchen chases a

@@ -273,6 +273,9 @@ addColumnIfMissing('customers', 'browsing_outlet_id', 'INTEGER');
 // time the status changes, so each stage can raise its own alarm once and an
 // order that stalls twice is reported twice.
 addColumnIfMissing('orders', 'stall_alerted_at', 'TEXT');
+// Why a cancelled order was cancelled. "Cancelled" alone tells the customer
+// nothing and leaves no pattern to read later.
+addColumnIfMissing('orders', 'cancel_reason', "TEXT NOT NULL DEFAULT ''");
 
 /* --------------------------------------------------------------- services */
 
