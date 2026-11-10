@@ -181,7 +181,19 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
 
   const actions = nextActions(order.orderNo, 'ready', 'driver');
 
-  for (const associate of config.driverNumbers) {
+  // Somebody already carrying a delivery is not offered another. Sending it
+  // anyway means a card they cannot act on, and a tap that gets refused.
+  const free = config.driverNumbers.filter(
+    (phone) => repo.activeJobsFor(phone).length < config.maxJobsPerAssociate,
+  );
+  if (free.length === 0) {
+    console.warn(
+      `[dispatch] ${orderNo} is ready but every delivery associate is already carrying one`,
+    );
+    return 'no_drivers';
+  }
+
+  for (const associate of free) {
     await sendButtons(associate, body, actions);
 
     // The pins as map cards, in the order the delivery associate needs them: collection
@@ -206,7 +218,5 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
     }
   }
 
-  // Recorded so a repeated "food ready" cannot quietly send a second delivery associate.
-  repo.assignDriver(orderNo, config.driverNumbers[0] ?? '');
   return 'sent';
 }

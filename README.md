@@ -832,6 +832,40 @@ to do it*.
 A customer can only cancel their own orders, checked against the number they are messaging
 from — order numbers are sequential and read aloud.
 
+### One delivery at a time
+
+An associate already carrying somebody's dinner is not offered another, and cannot take one
+if they try:
+
+```
+You already have ORD-00007 with you.
+
+Deliver that first, then come back for this one.
+Someone else can take it in the meantime.
+```
+
+The job card is only sent to associates who are free, so nobody gets a card they cannot act
+on. **An order belongs to whoever collects it**, not to whoever it was offered to — it is
+assigned at the moment they tap *Collected*, and released when they deliver.
+
+`jobs` leads with what they are carrying rather than offering more:
+
+```
+You are carrying a delivery already:
+
+*ORD-00007* — on the way
+Pick up: A Taste of Guyana Roti Shop & Bakery …
+
+Drop that off first — nothing new comes to you until it is delivered.
+```
+
+If every associate is busy, the order waits — and the stall sweep tells the shop about it
+after fifteen minutes, which is the right outcome: somebody needs to decide whether to wait
+or call another associate in.
+
+`MAX_JOBS_PER_ASSOCIATE` raises the limit if your associates genuinely run two drops on one
+trip. It defaults to 1.
+
 ### When an order stops moving
 
 Every stage of an order has somebody waiting on it who will chase — a kitchen chases a

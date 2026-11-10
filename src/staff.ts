@@ -455,14 +455,26 @@ const DRIVER_HELP = [
  * one, or see the queue — those are decisions for the shop and the kitchen, and
  * a mis-tap on a bike should not be able to void somebody's dinner.
  */
-export async function handleDriverMessage(text: string): Promise<OutboundMessage[]> {
+export async function handleDriverMessage(text: string, phone = ''): Promise<OutboundMessage[]> {
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
+  const holding = repo.activeJobsFor(phone);
 
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(DRIVER_HELP);
 
   if (/^(jobs|job|queue|pickups?|collections?)$/i.test(trimmed)) {
     const waiting = repo.ordersAwaitingPickup(10);
+    if (holding.length >= config.maxJobsPerAssociate) {
+      return reply(
+        [
+          `You are carrying ${holding.length === 1 ? 'a delivery' : `${holding.length} deliveries`} already:`,
+          '',
+          ...holding.map(describeForDriver),
+          '',
+          'Drop that off first — nothing new comes to you until it is delivered.',
+        ].join('\n'),
+      );
+    }
     const moving = repo.openOrders(20).filter((o) => o.status === 'on_the_way');
     if (waiting.length === 0 && moving.length === 0) return reply('Nothing to collect right now.');
     return reply(
@@ -490,6 +502,23 @@ export async function handleDriverMessage(text: string): Promise<OutboundMessage
   if (status !== 'on_the_way' && status !== 'delivered') {
     return reply('A delivery associate can mark an order collected or delivered. Anything else is for the shop.');
   }
+  // One delivery at a time. Somebody already carrying hot food across town
+  // cannot also be collecting from another kitchen, and a second job is how
+  // both arrive cold.
+  if (
+    status === 'on_the_way' &&
+    order.driverPhone !== phone.replace(/[^0-9]/g, '') &&
+    holding.length >= config.maxJobsPerAssociate
+  ) {
+    return reply(
+      [
+        `You already have ${holding.map((o) => o.orderNo).join(', ')} with you.`,
+        '',
+        'Deliver that first, then come back for this one. Someone else can take it in the meantime.',
+      ].join('\n'),
+    );
+  }
+
   // Collecting food nobody has cooked is how an order gets marked delivered
   // while it is still in a fryer.
   if (status === 'on_the_way' && order.outlet && order.status !== 'ready') {
@@ -498,6 +527,8 @@ export async function handleDriverMessage(text: string): Promise<OutboundMessage
     );
   }
   if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
+
+  if (status === 'on_the_way' && phone) repo.assignDriver(order.orderNo, phone);
 
   const { body } = await applyStatus(order, status);
   const actions = nextActions(order.orderNo, status, 'driver');

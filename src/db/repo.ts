@@ -1454,6 +1454,24 @@ export function orderCounts(): Record<string, number> {
   return { total, ...counts };
 }
 
+/**
+ * Deliveries an associate is currently holding.
+ *
+ * "Holding" means collected but not yet delivered — the window in which they
+ * are physically carrying somebody's dinner. An order merely offered to them
+ * does not count: it is not theirs until they collect it.
+ */
+export function activeJobsFor(associatePhone: string): OrderRecord[] {
+  const digits = associatePhone.replace(/[^0-9]/g, '');
+  if (!digits) return [];
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders WHERE driver_phone = ? AND status = 'on_the_way' ORDER BY id ASC`,
+    )
+    .all(digits) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
+}
+
 /** Orders cooked and waiting for a delivery associate, oldest first — food goes cold. */
 export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   const rows = db
