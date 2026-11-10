@@ -2874,6 +2874,12 @@ section('Backing up the trading record');
     field('Delivery note') === 'Ring the bell, say "delivery"',
   );
   check('the pin is written to six places', field('Latitude') === '6.801300');
+  // Every longitude in Guyana is negative, and a negative number is not a
+  // formula. Guarding it turned the whole column into text Excel would not
+  // plot — which only showed up on reading a real export.
+  check('a negative longitude stays a number', field('Longitude') === '-58.155100');
+  check('not text with an apostrophe in front', !field('Longitude').startsWith("'"));
+  check('and Excel would read it as a number', Number(field('Longitude')) === -58.1551);
   check('with a link somebody can tap', field('Map').includes('6.801300,-58.155100'));
   check('the total is a plain number a spreadsheet can sum', field('Total') === String(hostile.total));
   check('and a formatted one a person can read', field('Total (formatted)') === money(hostile.total));
@@ -2906,9 +2912,35 @@ section('Backing up the trading record');
     );
   }
 
+  // The exemption is for plain numbers only: an expression that merely opens
+  // with a minus sign is still defanged.
+  repo.setCartQty('5926008888', sellable, 1, '');
+  const sneaky = repo.placeOrder({
+    phone: '5926008888',
+    customerName: '-2+3+cmd|calc',
+    address: '-1+1',
+    contactPhone: '5926008888',
+    deliveryNote: '',
+    paymentMethod: 'cash',
+    location: { latitude: 6.8013, longitude: -58.1551, label: '', pinnedAt: '' },
+  });
+  const sneakyRow = parseCsv(backup.ordersCsv())
+    .slice(1)
+    .find((r) => r[0] === sneaky.orderNo);
+  check(
+    'a minus sign on an expression is still guarded',
+    (sneakyRow?.[header.indexOf('Customer')] ?? '').startsWith("'-2+3"),
+  );
+  check(
+    'and so is one in an address',
+    (sneakyRow?.[header.indexOf('Address')] ?? '') === "'-1+1",
+  );
+
+  // Recomputed: the two orders placed above moved the total.
+  const nowCount = repo.allOrders().length;
   const dump = JSON.parse(backup.ordersJson());
   check('the JSON export parses', Array.isArray(dump.orders));
-  check('and holds every order', dump.orders.length === archived.length);
+  check('and holds every order', dump.orders.length === nowCount);
   check('with its item lines intact, not flattened', Array.isArray(dump.orders.at(-1).items));
   check('and says which currency the figures are in', dump.currency === config.currency.code);
 
@@ -2927,7 +2959,7 @@ section('Backing up the trading record');
   const restoredItems = (
     restored.prepare('SELECT COUNT(*) AS n FROM order_items').get() as unknown as { n: number }
   ).n;
-  check('the snapshot opens as a database', restoredCount === archived.length);
+  check('the snapshot opens as a database', restoredCount === nowCount);
   check('and the item lines came with it', restoredItems > 0);
   restored.close();
 

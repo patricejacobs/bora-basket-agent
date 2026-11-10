@@ -39,10 +39,18 @@ import { summariseStored } from './menu-options.ts';
  * themselves `=cmd|...` would otherwise be a live payload sitting in the shop's
  * own backup, waiting for the one person who opens it to click through a
  * warning.
+ *
+ * A plain number is exempt, and has to be: every longitude in Guyana is
+ * negative, so guarding on a leading `-` turned the entire column into text
+ * that Excel would not add up or plot. `-83.321167` is a number, not a
+ * formula — but `-2+3` is not a plain number and stays guarded, so the
+ * exemption cannot be used to smuggle an expression in.
  */
+const PLAIN_NUMBER = /^-?\d+(?:\.\d+)?$/;
+
 function cell(value: unknown): string {
   let s = value === null || value === undefined ? '' : String(value);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (!PLAIN_NUMBER.test(s) && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
