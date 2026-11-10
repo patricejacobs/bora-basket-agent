@@ -243,15 +243,15 @@ try {
       if (row.n > 0) {
         add('ok', 'restaurants', dim(`${row.n} active outlet(s)`));
 
-        const drivers = numbers('DRIVER_NUMBERS');
-        if (drivers.length === 0) {
+        const associates = numbers('DRIVER_NUMBERS');
+        if (associates.length === 0) {
           add(
             'fail',
             'DRIVER_NUMBERS',
-            'empty, but restaurants are set up — food will be cooked and no rider will be sent to collect it',
+            'empty, but restaurants are set up — food will be cooked and no delivery associate will be sent to collect it',
           );
         } else {
-          add('ok', 'DRIVER_NUMBERS', dim(`${drivers.length} rider(s)`));
+          add('ok', 'DRIVER_NUMBERS', dim(`${associates.length} delivery associate(s)`));
         }
 
         if (noNumber.n > 0) {

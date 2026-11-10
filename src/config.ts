@@ -128,9 +128,9 @@ export const config = {
     .filter(Boolean),
 
   /**
-   * Riders. They receive a dispatch when food is cooked, and drive an order to
+   * Delivery associates. They receive a dispatch when food is cooked, and drive an order to
    * delivered by tapping buttons on it. Kept apart from STAFF_NUMBERS because
-   * the jobs are different: staff run the shop and see everything, a rider sees
+   * the jobs are different: staff run the shop and see everything, a delivery associate sees
    * the collection and the drop and nothing else.
    */
   driverNumbers: str('DRIVER_NUMBERS')
@@ -150,7 +150,7 @@ export const config = {
   },
 
   /**
-   * What the driver can take. Cash only by default. Anything the shop cannot
+   * What the delivery associate can take. Cash only by default. Anything the shop cannot
    * actually accept must not be offered — a customer told "card is fine" who
    * then cannot pay is a failed delivery and an argument on the doorstep.
    */
@@ -167,18 +167,18 @@ export const config = {
    *
    * Every other stage of an order has somebody waiting on it who will chase:
    * a kitchen chases an unconfirmed ticket, a customer chases an undelivered
-   * meal. "Cooked, waiting for a rider" has nobody watching it, which is how
+   * meal. "Cooked, waiting for a delivery associate" has nobody watching it, which is how
    * food goes cold on a counter while the system reports everything as normal.
    *
    * Each threshold is minutes in that status before staff are told. Set
    * STALL_ALERT_MINUTES to 0 to switch the whole thing off.
    */
   stalls: {
-    /** Cooked and waiting for a rider. The one this was built for. */
+    /** Cooked and waiting for a delivery associate. The one this was built for. */
     readyMinutes: num('STALL_ALERT_MINUTES', 15),
     /** Placed and the kitchen has not accepted it. */
     pendingMinutes: num('STALL_PENDING_MINUTES', 10),
-    /** With a rider and still not delivered. */
+    /** With a delivery associate and still not delivered. */
     deliveryMinutes: num('STALL_DELIVERY_MINUTES', 60),
     /**
      * How often to look. A sweep rather than a timer per order: timers die with

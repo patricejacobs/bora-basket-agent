@@ -38,7 +38,7 @@ export const isDriver = (phone: string): boolean => config.driverNumbers.include
  * Moves an order and sets off everything that follows.
  *
  * One path for all three actors, because the consequences of a status belong to
- * the status and not to whoever tapped it. "Food ready" has to send a rider
+ * the status and not to whoever tapped it. "Food ready" has to send a delivery associate
  * whether a cook, a dispatcher or the shop owner pressed it — and if that lived
  * in each handler, one of them would eventually forget.
  */
@@ -51,7 +51,7 @@ async function applyStatus(
 
   const notes: string[] = [];
 
-  // The moment the food exists, a rider is sent — and only now, or they stand
+  // The moment the food exists, a delivery associate is sent — and only now, or they stand
   // in the restaurant watching a fryer. A parcel has nothing to cook, so
   // accepting the job is itself the moment it is ready to collect.
   const dispatchNow = status === 'ready' || (status === 'confirmed' && order.kind === 'parcel');
@@ -60,17 +60,17 @@ async function applyStatus(
       const how = await dispatchToDrivers(order.orderNo);
       notes.push(
         how === 'sent'
-          ? '🛵 Rider dispatched to collect.'
-          : '⚠️ No rider was told — DRIVER_NUMBERS is empty.',
+          ? '🛵 Delivery associate dispatched to collect.'
+          : '⚠️ No delivery associate was told — DRIVER_NUMBERS is empty.',
       );
     } catch (err) {
-      console.error('[staff] failed to dispatch a rider:', err);
-      notes.push('⚠️ Status saved, but dispatching a rider failed.');
+      console.error('[staff] failed to dispatch a delivery associate:', err);
+      notes.push('⚠️ Status saved, but dispatching a delivery associate failed.');
     }
   }
 
   // 'ready' is on purpose not told to the customer: from their side, food on a
-  // counter waiting for a rider is indistinguishable from food still cooking,
+  // counter waiting for a delivery associate is indistinguishable from food still cooking,
   // and a message about it only invites "so where is it?". Reported as a
   // decision rather than as a failed send, or the operator chases a bug.
   // A cancellation has to reach whoever else was working on it. A kitchen that
@@ -177,7 +177,7 @@ const describe = (o: repo.OrderRecord): string =>
     `📞 +${o.contactPhone || o.phone}`,
     // The maps link rather than coordinates: a dispatcher reading a queue of
     // ten orders needs something tappable, not two numbers to copy out. The
-    // distance comes with it, which is what decides what the driver takes next.
+    // distance comes with it, which is what decides what the delivery associate takes next.
     o.location
       ? describePin(o.location, checkRange(o.location, config.store.serviceArea))
       : '⚠️ no location pin',
@@ -244,7 +244,7 @@ export async function handleStaffMessage(
   // the dispatch queue takes a picture, so there is no ambiguity to resolve.
   if (image) return handleMenuPhoto(phone, image);
 
-  // A pin from a staff member is where a rider collects — they are standing
+  // A pin from a staff member is where a delivery associate collects — they are standing
   // outside the restaurant, which is the whole reason this happens on a phone.
   if (location) return handleStaffPin(phone, location);
 
@@ -301,14 +301,14 @@ ${ONBOARDING_HELP}`);
   if (!order) return reply(`No order ${orderRef[1]}. Send \`orders\` to see what's open.`);
 
   // A named reason is itself a cancellation: tapping "7 sold out" must cancel,
-  // not print the order. A status word still wins, so "7 delivered, driver was
+  // not print the order. A status word still wins, so "7 delivered, delivery associate was
   // busy" is a delivery rather than a cancellation.
   const matchedStatus = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
   const matched: [RegExp, repo.OrderStatus] | undefined =
     matchedStatus ?? (findCancelReason(trimmed) ? [/./, 'cancelled'] : undefined);
 
   if (!matched) {
-    // Looking one order up is usually the driver about to drive to it, so the
+    // Looking one order up is usually the delivery associate about to drive to it, so the
     // pin follows as a map card. The open-orders list deliberately does not do
     // this: ten map cards in a row is unreadable.
     const card: OutboundMessage[] = order.location
@@ -341,7 +341,7 @@ const OUTLET_HELP = [
   '',
   '`orders` — orders waiting on you',
   '`7 confirm` — accept order 7',
-  '`7 ready` — food is up, a rider is sent',
+  '`7 ready` — food is up, a delivery associate is sent',
   '`7 cancel` — you cannot make it',
   '',
   '`pause` — stop new orders coming',
@@ -417,7 +417,7 @@ export async function handleOutletMessage(
   const status = matched[1];
   if (!['confirmed', 'ready', 'cancelled'].includes(status)) {
     return reply(
-      `A kitchen can confirm an order, mark it ready, or cancel it. Delivery is the rider's end.`,
+      `A kitchen can confirm an order, mark it ready, or cancel it. Delivery is the delivery associate's end.`,
     );
   }
   if (status === 'cancelled' && order.status !== 'cancelled') {
@@ -442,10 +442,10 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
     }),
   ].join('\n');
 
-/* ------------------------------------------------------------------ drivers */
+/* ------------------------------------------------------------------ delivery associates */
 
 const DRIVER_HELP = [
-  '*Rider commands*',
+  '*Delivery associate commands*',
   '',
   '`jobs` — collections waiting',
   '`7 collected` — you have the food',
@@ -455,9 +455,9 @@ const DRIVER_HELP = [
 ].join('\n');
 
 /**
- * A rider texting the shop number.
+ * A delivery associate texting the shop number.
  *
- * Collect and deliver, nothing else. A rider cannot confirm an order, cancel
+ * Collect and deliver, nothing else. A delivery associate cannot confirm an order, cancel
  * one, or see the queue — those are decisions for the shop and the kitchen, and
  * a mis-tap on a bike should not be able to void somebody's dinner.
  */
@@ -494,7 +494,7 @@ export async function handleDriverMessage(text: string): Promise<OutboundMessage
 
   const status = matched[1];
   if (status !== 'on_the_way' && status !== 'delivered') {
-    return reply('A rider can mark an order collected or delivered. Anything else is for the shop.');
+    return reply('A delivery associate can mark an order collected or delivered. Anything else is for the shop.');
   }
   // Collecting food nobody has cooked is how an order gets marked delivered
   // while it is still in a fryer.

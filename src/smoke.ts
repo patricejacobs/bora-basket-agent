@@ -759,7 +759,7 @@ section('Staff dispatch');
   check('shows a single order', one.includes('ORD-00001'), one.slice(0, 60));
   check('shows the delivery address', one.includes('Georgetown'));
   check('shows a tappable maps link', one.includes('google.com/maps?q=6.80714'), one.slice(0, 200));
-  // The driver is usually about to drive there, so the pin follows as a card.
+  // The delivery associate is usually about to drive there, so the pin follows as a card.
   check('sends the pin as a map card', single[1]?.kind === 'location', JSON.stringify(single[1]));
 
   const open = (await handleStaffMessage('orders'))[0]?.text ?? '';
@@ -902,7 +902,7 @@ section('Customer identity');
   check('a day-old confirmation is not trusted', repo.getIdentity(idPhone).confirmed === false);
 
   // A telephone number is recorded for every order, defaulting to the number
-  // they message from so a driver always has someone to ring.
+  // they message from so a delivery associate always has someone to ring.
   const defaulted = idCall('get_customer_details');
   check('contact number defaults to the WhatsApp number', defaulted.contact_phone === idPhone, defaulted.contact_phone);
 
@@ -937,7 +937,7 @@ section('Location pins');
   );
 
   // Validation, which is the only thing standing between a broken payload and a
-  // driver sent to the middle of the Atlantic.
+  // delivery associate sent to the middle of the Atlantic.
   check('accepts a Georgetown pin', parseCoordinates(6.80714, -58.15536) !== null);
   check('accepts numeric strings', parseCoordinates('6.80714', '-58.15536') !== null);
   check('rejects a missing coordinate', parseCoordinates(6.8, undefined) === null);
@@ -1886,13 +1886,13 @@ section('Numbered kitchen list');
   check('a closed kitchen is marked as such', closedLine !== undefined, message);
 }
 
-section('Kitchen and rider commands');
+section('Kitchen and delivery associate commands');
 {
   const { handleOutletMessage, handleDriverMessage, isDriver } = await import('./staff.ts');
   const { nextActions } = await import('./order-status.ts');
 
-  check('recognises a configured driver', isDriver('5926001111'));
-  check('does not treat a customer as a driver', !isDriver('5926002222'));
+  check('recognises a configured delivery associate', isDriver('5926001111'));
+  check('does not treat a customer as a delivery associate', !isDriver('5926002222'));
 
   // Role-appropriate buttons. A cook must not be able to close an order.
   const kitchenPending = nextActions('ORD-00009', 'pending', 'outlet');
@@ -1906,8 +1906,8 @@ section('Kitchen and rider commands');
     nextActions('ORD-00009', 'confirmed', 'outlet').some((a) => a.id.startsWith('ready')),
   );
   const riderReady = nextActions('ORD-00009', 'ready', 'driver');
-  check('a rider collects a ready order', riderReady[0]?.title.startsWith('Collected') === true, JSON.stringify(riderReady));
-  check('a rider gets nothing on an unconfirmed order', nextActions('ORD-00009', 'pending', 'driver').length === 0);
+  check('a delivery associate collects a ready order', riderReady[0]?.title.startsWith('Collected') === true, JSON.stringify(riderReady));
+  check('a delivery associate gets nothing on an unconfirmed order', nextActions('ORD-00009', 'pending', 'driver').length === 0);
 
   const ssc = repo.getOutlet('SSC')!;
   const kfh = repo.getOutlet('KFH')!;
@@ -1929,37 +1929,37 @@ section('Kitchen and rider commands');
   check('status persisted', repo.findOrder(ref)?.status === 'confirmed');
 
   const cannotDeliver = (await handleOutletMessage(ssc, `${ref} delivered`))[0]?.text ?? '';
-  check('a kitchen cannot mark an order delivered', cannotDeliver.includes("rider's end"), cannotDeliver);
+  check('a kitchen cannot mark an order delivered', cannotDeliver.includes("delivery associate's end"), cannotDeliver);
 
-  // A rider may not collect food nobody has cooked.
+  // A delivery associate may not collect food nobody has cooked.
   const tooEarly = (await handleDriverMessage(`${ref} collected`))[0]?.text ?? '';
-  check('a rider cannot collect before the food is ready', tooEarly.includes('wait for the kitchen'), tooEarly);
+  check('a delivery associate cannot collect before the food is ready', tooEarly.includes('wait for the kitchen'), tooEarly);
 
   const ready = (await handleOutletMessage(ssc, `${ref} ready`))[0]?.text ?? '';
-  check('a kitchen can mark food ready', ready.includes('waiting for a rider'), ready);
+  check('a kitchen can mark food ready', ready.includes('waiting for a delivery associate'), ready);
   // DRIVER_NUMBERS is set for this suite, but WhatsApp is not configured, so the
   // send is dropped — what matters is that dispatch was attempted.
-  check('marking it ready dispatches a rider', ready.includes('Rider dispatched'), ready);
+  check('marking it ready dispatches a delivery associate', ready.includes('Delivery associate dispatched'), ready);
   check(
     'the customer is deliberately not told at "ready"',
     ready.includes('nothing has changed for them'),
     ready,
   );
-  check('the order records the rider', (repo.findOrder(ref)?.driverPhone ?? '').length > 0);
+  check('the order records the delivery associate', (repo.findOrder(ref)?.driverPhone ?? '').length > 0);
 
   const jobs = (await handleDriverMessage('jobs'))[0]?.text ?? '';
-  check('a rider sees the collection', jobs.includes('Sheriff Street Chinese'), jobs.slice(0, 120));
+  check('a delivery associate sees the collection', jobs.includes('Sheriff Street Chinese'), jobs.slice(0, 120));
   check('with the customer phone number', jobs.includes('5920002100'), jobs);
   check('and the cash to collect', jobs.includes('Collect '), jobs);
 
   const collected = (await handleDriverMessage(`${ref} collected`))[0]?.text ?? '';
-  check('a rider can collect', collected.includes('on the way'), collected);
+  check('a delivery associate can collect', collected.includes('on the way'), collected);
   const delivered = (await handleDriverMessage(`${ref} delivered`))[0]?.text ?? '';
-  check('a rider can deliver', delivered.includes('delivered'), delivered);
+  check('a delivery associate can deliver', delivered.includes('delivered'), delivered);
   check('delivered persisted', repo.findOrder(ref)?.status === 'delivered');
 
   const notRiders = (await handleDriverMessage(`${ref} cancel`))[0]?.text ?? '';
-  check('a rider cannot cancel', notRiders.includes('for the shop'), notRiders);
+  check('a delivery associate cannot cancel', notRiders.includes('for the shop'), notRiders);
 
   // A kitchen's own switches.
   const paused = (await handleOutletMessage(ssc, 'pause'))[0]?.text ?? '';
@@ -2164,7 +2164,7 @@ section('Parcel delivery');
   check('it records what is being sent', (job?.parcelDetails ?? '').includes('laptop'), job?.parcelDetails);
   check('it records the recipient', job?.recipientName === 'Dave Singh' && job?.recipientPhone === '5926441122', `${job?.recipientName} ${job?.recipientPhone}`);
   check('the sender is the customer', job?.phone === parcelPhone);
-  check('pickup is where the rider collects', job?.pickup?.latitude === 6.8149, JSON.stringify(job?.pickup));
+  check('pickup is where the delivery associate collects', job?.pickup?.latitude === 6.8149, JSON.stringify(job?.pickup));
   check('delivery is the destination pin', job?.location?.latitude === 6.7935, JSON.stringify(job?.location));
   check('pickup and destination are not the same place', job?.pickup?.latitude !== job?.location?.latitude);
 
@@ -2177,10 +2177,10 @@ section('Parcel delivery');
   // And the draft is spent, or the next parcel starts with the last one's pins.
   check('the draft is cleared after booking', repo.getParcelDraft(parcelPhone).pickup === null);
 
-  // Rider dispatch has to cope with an order that has no products.
+  // Delivery associate dispatch has to cope with an order that has no products.
   const { dispatchToDrivers } = await import('./dispatch.ts');
   const dispatched = await dispatchToDrivers(job!.orderNo);
-  check('a parcel can be dispatched to a rider', dispatched === 'sent', dispatched);
+  check('a parcel can be dispatched to a delivery associate', dispatched === 'sent', dispatched);
 }
 
 /* ---------------------------------------------------- cancelling an order */
@@ -2334,13 +2334,13 @@ section('Orders that stop moving');
   check('an uncollected order is reported', stuck().includes(`${no}:ready`), stuck().join(','));
   check('which is the stall this was built for', thresholds.readyMinutes === 15);
 
-  // Thresholds differ by stage: an hour with a rider is fine, sixteen minutes
+  // Thresholds differ by stage: an hour with a delivery associate is fine, sixteen minutes
   // on a counter is not.
   repo.setOrderStatus(no, 'on_the_way');
   age(no, 20);
-  check('twenty minutes with a rider is not a stall', !stuck().some((s) => s.startsWith(no)), stuck().join(','));
+  check('twenty minutes with a delivery associate is not a stall', !stuck().some((s) => s.startsWith(no)), stuck().join(','));
   age(no, 61);
-  check('an hour with a rider is', stuck().includes(`${no}:on_the_way`), stuck().join(','));
+  check('an hour with a delivery associate is', stuck().includes(`${no}:on_the_way`), stuck().join(','));
 
   // Finished orders are never stalls, however old.
   repo.setOrderStatus(no, 'delivered');
@@ -2547,7 +2547,7 @@ section('Onboarding a restaurant');
 
   check('the draft is spent once published', repo.getMenuDraft(staffPhone) === null);
 
-  // A pin from staff sets where the rider collects.
+  // A pin from staff sets where the delivery associate collects.
   const pinned = handleStaffPin(staffPhone, { latitude: 6.8102, longitude: -58.1547, label: 'Front door' })[0]?.text ?? '';
   check('a staff pin sets the collection point', /Collection point set/.test(pinned), pinned);
   check('and lands on the right outlet', repo.getOutlet('MGH')?.pickupLat === 6.8102);

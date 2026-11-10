@@ -52,7 +52,7 @@ export function recordLocationPin(phone: string, pin: LocationPin): string {
  * Pickup first, destination second, which is the order a person describes a
  * journey in. The slot it filled is named back to the agent so it can read it
  * aloud — a parcel sent back where it came from because two pins were swapped
- * is a wasted trip nobody notices until the rider arrives.
+ * is a wasted trip nobody notices until the delivery associate arrives.
  */
 export function recordParcelPin(phone: string, pin: LocationPin): string {
   const slot = repo.addParcelPin(phone, pin);
@@ -67,7 +67,7 @@ export function recordParcelPin(phone: string, pin: LocationPin): string {
       ? 'Both pins are now on file.'
       : 'Still need the other one — ask for it with request_location.';
 
-  return `[The customer shared a location pin. Saved as the parcel's ${which}${label}. ${stillNeeded} Read back which one you took it as, so a mix-up is caught now rather than by the rider.]`;
+  return `[The customer shared a location pin. Saved as the parcel's ${which}${label}. ${stillNeeded} Read back which one you took it as, so a mix-up is caught now rather than by the delivery associate.]`;
 }
 
 /**
@@ -110,16 +110,16 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       : msg.text;
   repo.logMessage(msg.phone, 'in', msg.channel, logBody);
 
-  // Staff, riders and kitchens all share the shop number, and none of them get
+  // Staff, delivery associates and kitchens all share the shop number, and none of them get
   // the shopping agent — a dispatcher clearing twenty orders wants the same
   // words to do the same thing every time, instantly and at no cost per message.
   //
   // Checked in this order on purpose. Staff first, so someone who is both staff
-  // and a rider keeps the full queue; then riders; then outlets, which are
+  // and a delivery associate keeps the full queue; then delivery associates; then outlets, which are
   // recognised by their own number rather than by configuration.
   const operator = isStaff(msg.phone)
     ? // Staff get the image and the pin too. A photo from a staff number is a
-      // menu being onboarded, and a pin is where a rider collects — neither has
+      // menu being onboarded, and a pin is where a delivery associate collects — neither has
       // any meaning in the dispatch queue, so there is nothing to disambiguate.
       () => handleStaffMessage(msg.text, msg.phone, msg.image, msg.location)
     : isDriver(msg.phone)

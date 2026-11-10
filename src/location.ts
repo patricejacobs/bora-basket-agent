@@ -3,7 +3,7 @@
  *
  * A pin is the one piece of delivery information a customer cannot get wrong.
  * Addresses in Georgetown are routinely "the blue house past the mosque, Lot 12
- * Non Pariel" — a driver can find that, eventually, by phone. Coordinates need
+ * Non Pariel" — a delivery associate can find that, eventually, by phone. Coordinates need
  * no interpretation, so once a customer shares them they become the delivery
  * point and anything they type is extra colour for the doorstep.
  *
@@ -43,7 +43,7 @@ function toFinite(value: unknown): number | null {
 /**
  * Validates a coordinate pair, returning null for anything undeliverable.
  *
- * Out-of-range values would otherwise be stored and handed to a driver as a
+ * Out-of-range values would otherwise be stored and handed to a delivery associate as a
  * maps link that opens on nothing. Exactly 0,0 is rejected too: it is a real
  * point in the Gulf of Guinea, but as a delivery address in Guyana it is always
  * an uninitialised field rather than a customer standing in the Atlantic.
@@ -147,7 +147,7 @@ export function formatCoordinates(c: Coordinates): string {
 }
 
 /**
- * A link that opens the pin in the driver's own maps app.
+ * A link that opens the pin in the delivery associate's own maps app.
  *
  * Google's documented URL form, which iOS and Android both hand to the
  * installed maps application rather than a browser.
@@ -162,7 +162,7 @@ export function mapsLink(c: Coordinates): string {
  *
  * The distance is for the dispatcher's benefit, not the fence's — it is the
  * difference between an order round the corner and one across the city when
- * deciding what the driver takes next.
+ * deciding what the delivery associate takes next.
  */
 export function describePin(pin: LocationPin, range: RangeCheck = { state: 'unchecked' }): string {
   const where = pin.label ? `${pin.label}\n` : '';
@@ -197,7 +197,7 @@ export function locationNote(
     return [
       `[The customer shared their location pin: ${formatCoordinates(pin)}.${where}`,
       `It is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area, so an order cannot be placed to it.`,
-      'Tell them now, warmly and plainly, that it looks outside the usual delivery area, and that a staff member will confirm on this chat whether a driver can reach them.',
+      'Tell them now, warmly and plainly, that it looks outside the usual delivery area, and that a staff member will confirm on this chat whether a delivery associate can reach them.',
       'Do not promise delivery, do not guess at a fee for going further, and do not ask them to re-send the pin as though it had failed. If they say the pin is wrong or they will be somewhere else, take a new one with request_location.]',
     ].join(' ');
   }
@@ -208,7 +208,7 @@ export function locationNote(
       ? `It is ${formatDistance(range.distanceKm)} from the shop, inside the delivery area.`
       : '',
     'Confirm it warmly in words — name the area or the label if you have one, never read the coordinates out.',
-    "Then ask for the detail a driver still needs at the door: the house or gate, a flat or floor, and anything that makes it easier to spot. Save that with save_customer_details as the address.]",
+    "Then ask for the detail a delivery associate still needs at the door: the house or gate, a flat or floor, and anything that makes it easier to spot. Save that with save_customer_details as the address.]",
   ]
     .filter(Boolean)
     .join(' ');

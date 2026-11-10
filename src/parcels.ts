@@ -1,5 +1,5 @@
 /**
- * Parcel delivery: a rider collects something from one address and takes it to
+ * Parcel delivery: a delivery associate collects something from one address and takes it to
  * another. No catalogue, no cart, no kitchen.
  *
  * Two things here are not like the rest of the app.
@@ -57,12 +57,12 @@ export function quoteParcel(from: Coordinates, to: Coordinates): ParcelQuote {
 /* -------------------------------------------------------------- what is in it */
 
 /**
- * Things a rider must not be asked to carry.
+ * Things a delivery associate must not be asked to carry.
  *
  * Alcohol and tobacco come from the same Commerce Policy rule that filters
  * menus — moving them is still selling them over this channel. The rest is the
  * ordinary refusal list of any courier: nothing illegal, nothing that can hurt
- * the rider, nothing alive, and no cash, because a bag of money on a motorbike
+ * the delivery associate, nothing alive, and no cash, because a bag of money on a motorbike
  * is a robbery waiting to happen and an argument about who lost it afterwards.
  */
 const FORBIDDEN: [RegExp, string][] = [
@@ -105,7 +105,7 @@ export function checkContents(description: string): ContentsCheck {
   if (!text) {
     return {
       allowed: false,
-      reason: 'Ask what is in the parcel before taking the job — a rider has to know what they are carrying.',
+      reason: 'Ask what is in the parcel before taking the job — a delivery associate has to know what they are carrying.',
     };
   }
 

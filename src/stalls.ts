@@ -3,7 +3,7 @@
  *
  * Every other stage of an order has somebody waiting on it who will chase. A
  * kitchen chases a ticket it has not been paid for; a customer chases a meal
- * that has not arrived. "Cooked, waiting for a rider" has nobody watching it —
+ * that has not arrived. "Cooked, waiting for a delivery associate" has nobody watching it —
  * the order is not late in the database, it is in a perfectly normal status —
  * which is how food goes cold on a counter while everything reports as fine.
  * The first person to notice is the customer, and by then it is a complaint.
@@ -27,10 +27,10 @@ function chase(order: repo.OrderRecord): string {
         : 'Nobody has confirmed it yet.';
     case 'ready':
       return order.outlet
-        ? `Cooked and sitting at ${order.outlet.name}. No rider has collected it.`
-        : 'Packed and waiting. No rider has collected it.';
+        ? `Cooked and sitting at ${order.outlet.name}. No delivery associate has collected it.`
+        : 'Packed and waiting. No delivery associate has collected it.';
     case 'on_the_way':
-      return 'With a rider and still not delivered. Ring them.';
+      return 'With a delivery associate and still not delivered. Ring them.';
     default:
       return 'Not moving.';
   }

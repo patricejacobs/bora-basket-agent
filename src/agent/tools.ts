@@ -279,12 +279,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         address: {
           type: 'string',
           description:
-            'What the driver needs at the door once the pin has got them to the street: house or gate description, flat or floor, a landmark. Optional — the pin is what the delivery goes to.',
+            'What the delivery associate needs at the door once the pin has got them to the street: house or gate description, flat or floor, a landmark. Optional — the pin is what the delivery goes to.',
         },
         contact_phone: {
           type: 'string',
           description:
-            'The number the driver should call, if the customer gives a different one. Defaults to the number they are messaging from, so only pass this when they name another.',
+            'The number the delivery associate should call, if the customer gives a different one. Defaults to the number they are messaging from, so only pass this when they name another.',
         },
       },
       additionalProperties: false,
@@ -302,11 +302,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           // Only what the shop can actually take, so an unsupported method
           // cannot be selected in the first place.
           enum: config.paymentMethods.map((m) => `${m}_on_delivery`),
-          description: 'How the customer will pay the driver.',
+          description: 'How the customer will pay the delivery associate.',
         },
         delivery_note: {
           type: 'string',
-          description: 'Optional instructions for the driver, e.g. "call on arrival".',
+          description: 'Optional instructions for the delivery associate, e.g. "call on arrival".',
         },
       },
       required: ['payment_method'],
@@ -329,12 +329,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         contents: {
           type: 'string',
           description:
-            "What is in the parcel, in the customer's own words, plus rough size or weight. Required — a rider has to know what they are carrying.",
+            "What is in the parcel, in the customer's own words, plus rough size or weight. Required — a delivery associate has to know what they are carrying.",
         },
         recipient_name: { type: 'string', description: 'Who receives it.' },
         recipient_phone: {
           type: 'string',
-          description: "The recipient's telephone number, so the rider can ring on arrival.",
+          description: "The recipient's telephone number, so the delivery associate can ring on arrival.",
         },
         pickup_note: {
           type: 'string',
@@ -470,7 +470,7 @@ function browsingScope(phone: string): number | null {
  * Refuses a second kitchen, or groceries mixed with cooked food.
  *
  * One order is one collection. A burger from one place and a roti from another
- * are two prep times, two pickups and two riders; groceries and hot food are
+ * are two prep times, two pickups and two delivery associates; groceries and hot food are
  * worse still. So the cart holds one source, and switching is a deliberate act
  * the customer has to agree to rather than something that happens silently.
  */
@@ -556,7 +556,7 @@ function cartView(phone: string) {
     delivery_fee: cart.deliveryFee === 0 ? 'free' : money(cart.deliveryFee),
     total: money(cart.total),
     // An outlet may set a higher floor than the shop's own, because sending a
-    // rider across town for one soft drink costs more than it earns.
+    // delivery associate across town for one soft drink costs more than it earns.
     ...(minimumFor(cart.outlet) > 0 && cart.subtotal < minimumFor(cart.outlet)
       ? {
           below_minimum: `Subtotal is under the ${money(minimumFor(cart.outlet))} minimum${
@@ -571,7 +571,7 @@ function cartView(phone: string) {
  * How a saved pin is described to the model.
  *
  * Deliberately without the coordinates. The model has no use for them — the
- * driver gets the pin itself — and a number in context is a number that ends up
+ * delivery associate gets the pin itself — and a number in context is a number that ends up
  * read out loud as "I have you at 6.80714, -58.15536", which tells a customer
  * nothing and sounds like surveillance.
  */
@@ -587,7 +587,7 @@ function locationView(pin: repo.SavedPin | null) {
     ...(range.state === 'unchecked' ? {} : { distance_from_shop: formatDistance(range.distanceKm) }),
     ...(range.state === 'outside'
       ? {
-          outside_delivery_area: `This pin is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area, so an order cannot be placed to it. Say plainly that it looks outside the area and that a staff member will confirm on this chat whether a driver can reach them. Do not promise delivery or invent a surcharge.`,
+          outside_delivery_area: `This pin is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area, so an order cannot be placed to it. Say plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery or invent a surcharge.`,
         }
       : {}),
   };
@@ -1080,7 +1080,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       }
       // No length floor any more: with a pin carrying the location, "green gate,
       // upstairs" is a complete and useful answer where a street address was
-      // once the only thing standing between the driver and the wrong house.
+      // once the only thing standing between the delivery associate and the wrong house.
       const saved = repo.saveCustomer(ctx.phone, {
         ...(nameField ? { name: nameField } : {}),
         ...(address ? { address } : {}),
@@ -1121,7 +1121,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           "Cannot place the order yet — still need the customer's name. Ask who the delivery is for, then call save_customer_details.",
         );
       }
-      // A delivery service with no pin is a driver phoning from the road. The
+      // A delivery service with no pin is a delivery associate phoning from the road. The
       // rule is enforced here rather than left to the prompt, because this is
       // the one failure that cannot be recovered after the van leaves.
       if (!customer.location) {
@@ -1135,7 +1135,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const range = checkRange(customer.location, config.store.serviceArea);
       if (range.state === 'outside') {
         return fail(
-          `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a driver can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
+          `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
         );
       }
 
@@ -1223,9 +1223,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const recipientName = asString(input.recipient_name);
       const recipientPhone = asString(input.recipient_phone).replace(/[^0-9+]/g, '');
 
-      if (!recipientName) return fail('recipient_name is required — a rider delivers to a person.');
+      if (!recipientName) return fail('recipient_name is required — a delivery associate delivers to a person.');
       if (recipientPhone.replace(/\D/g, '').length < 7) {
-        return fail('recipient_phone must be a usable number — the rider rings it on arrival.');
+        return fail('recipient_phone must be a usable number — the delivery associate rings it on arrival.');
       }
 
       // What is inside is asked about and some answers are refused. A courier is
@@ -1283,7 +1283,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
               fee: 'to be confirmed',
               note: 'Tell them the shop will confirm the cost before collecting. Do not quote a figure.',
             }),
-        next: 'Give them the job number and what happens next: a rider collects, then delivers. No time promise.',
+        next: 'Give them the job number and what happens next: a delivery associate collects, then delivers. No time promise.',
       });
     }
 

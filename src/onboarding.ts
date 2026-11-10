@@ -128,7 +128,7 @@ export const ONBOARDING_HELP = [
   '`hours KFH Mon-Sat 10am-10pm`',
   '`number KFH 5926123456` — the kitchen\'s WhatsApp',
   '`minimum KFH 1500` / `fee KFH 700`',
-  'Share a location pin to set where the rider collects.',
+  'Share a location pin to set where the delivery associate collects.',
 ].join('\n');
 
 /** True when this looks like an onboarding command rather than a dispatch one. */
@@ -310,7 +310,7 @@ export function handleStaffPin(phone: string, pin: LocationPin): OutboundMessage
 
   repo.upsertOutlet({ ...target, pickupLat: pin.latitude, pickupLng: pin.longitude });
   return reply(
-    `📍 Collection point set for *${target.name}*${pin.label ? ` (${pin.label})` : ''}. Riders will navigate here.`,
+    `📍 Collection point set for *${target.name}*${pin.label ? ` (${pin.label})` : ''}. Delivery associates will navigate here.`,
   );
 }
 

@@ -203,13 +203,13 @@ reprised from the live catalogue, so a price that moved overnight comes back at 
 
 ## Parcel delivery
 
-A rider collects from one address and takes it to another. No catalogue, no cart.
+A delivery associate collects from one address and takes it to another. No catalogue, no cart.
 
 The agent gathers four things: a **collection pin**, a **destination pin**, the
 **recipient's** name and number, and **what is being sent**. The two pins are asked for one
 at a time, and when one arrives the agent is told which slot it filled so it can read it
 back — a parcel sent back where it came from because two pins were swapped is a wasted trip
-nobody notices until the rider arrives.
+nobody notices until the delivery associate arrives.
 
 **A parcel pin never touches the customer's own saved address.** It is somebody else's
 doorstep; letting it overwrite their delivery location would quietly redirect next week's
@@ -330,7 +330,7 @@ Alcohol is dropped at the read *and* again at publish, and the draft says what i
 Then the parts a photo cannot give you:
 
 ```
-📍 share a location pin     where the rider collects — one tap, standing outside
+📍 share a location pin     where the delivery associate collects — one tap, standing outside
 number MGH 5926123456       the kitchen's own WhatsApp
 minimum MGH 1800            their minimum order
 fee MGH 650                 delivery fee
@@ -388,7 +388,7 @@ it?"* — "that's all" answers it, and the order goes.
 ### How a food order runs
 
 ```
-customer orders  →  kitchen cooks  →  rider collects  →  rider delivers
+customer orders  →  kitchen cooks  →  delivery associate collects  →  delivery associate delivers
 ```
 
 Each party sees only what they need, on one shared number:
@@ -396,21 +396,21 @@ Each party sees only what they need, on one shared number:
 | | Sees |
 |---|---|
 | **Kitchen** | the dish, the choices, its own orders. **Not** the customer's address or phone |
-| **Rider** | pickup place + pin, the dish, customer name, phone, delivery pin, cash to collect |
+| **Delivery associate** | pickup place + pin, the dish, customer name, phone, delivery pin, cash to collect |
 | **Shop** | all of it, so someone notices when a kitchen goes quiet |
 
-The rider is told **only when the food is actually ready** — sent at order time they stand
+The delivery associate is told **only when the food is actually ready** — sent at order time they stand
 in a restaurant watching a fryer. The customer is deliberately *not* messaged at that
-point either: food on a counter waiting for a rider is, from their side, the same as food
+point either: food on a counter waiting for a delivery associate is, from their side, the same as food
 still cooking, and a message about it only invites "so where is it?"
 
 Kitchen commands (`help` lists them): `orders`, `7 confirm`, `7 ready`, `7 cancel`,
 `pause` / `open`, and `sold out SSC-006` / `back SSC-006` for one dish.
-Rider commands: `jobs`, `7 collected`, `7 delivered`.
+Delivery associate commands: `jobs`, `7 collected`, `7 delivered`.
 
 A kitchen cannot read, move or cancel another outlet's order — and asking about one it does
 not own gets the same answer as an order that does not exist, so order numbers cannot be
-probed. A rider cannot collect food the kitchen has not marked ready, and cannot cancel
+probed. A delivery associate cannot collect food the kitchen has not marked ready, and cannot cancel
 anything. Pausing is an outlet's own switch for "we are slammed"; it never deactivates them,
 because that is your decision, not theirs.
 
@@ -503,7 +503,7 @@ digit in the fifth decimal place is a different street. The model is told *that*
 exists and what WhatsApp called the place; it is never given the numbers, so it cannot read
 them out — "I have you at 6.80714, -58.15536" tells a customer nothing.
 
-**What the driver gets**
+**What the delivery associate gets**
 
 The new-order alert to `STAFF_NUMBERS` carries a tappable maps link, and the pin follows as
 a WhatsApp map card that opens straight in their maps app. Texting an order number back
@@ -535,9 +535,9 @@ unreachable, and a fence enabled by accident looks exactly like a broken bot.
 
 **When a pin falls outside it**, the customer is told as soon as they share it — not at
 checkout, after ten minutes of shopping. `place_order` refuses, the cart is left intact,
-and the agent says a staff member will confirm whether a driver can reach them. It is not
+and the agent says a staff member will confirm whether a delivery associate can reach them. It is not
 allowed to promise delivery, quote a surcharge for the distance, or suggest meeting the
-driver halfway. Staff see the distance and an `OUTSIDE` warning on the pin, so they can
+delivery associate halfway. Staff see the distance and an `OUTSIDE` warning on the pin, so they can
 still take the order by hand if the shop decides to make the trip.
 
 The pin is stored either way — it is still where the customer is — and the distance is
@@ -641,7 +641,7 @@ All of this lives in `.env`.
 | `ENABLE_SIMULATOR` | true | Refused for non-local requests regardless; `false` removes the route |
 | `PARCEL_FEE_BASE` / `PARCEL_FEE_PER_KM` | 0 / 0 | Unset means parcels are taken unpriced |
 | `PARCEL_MAX_KM` | 0 | Refuse parcels further than this; 0 disables |
-| `DRIVER_NUMBERS` | — | Riders, comma separated. Required once restaurants are set up |
+| `DRIVER_NUMBERS` | — | Delivery associates, comma separated. Required once restaurants are set up |
 | `SEED_OUTLETS_PATH` / `SEED_MENU_PATH` | — | Outlets and menu CSVs imported at boot |
 | `STAFF_NUMBERS` | — | Comma-separated E.164 digits. Empty means nobody is told about orders |
 | `STORE_TIMEZONE` | `America/Guyana` | Used for greetings and the closing-time reminder |
@@ -708,7 +708,7 @@ The same actions can be typed, which is faster once you know them:
 | Command | Effect |
 |---|---|
 | `orders` | List everything not yet delivered or cancelled |
-| `7 ready` | Food is cooked — sends a rider to collect |
+| `7 ready` | Food is cooked — sends a delivery associate to collect |
 | `7` | Show one order |
 | `7 confirmed` | Accept it — customer is told |
 | `7 on the way` | Dispatch it — customer is told |
@@ -764,7 +764,7 @@ that URL is public.
 
 The agent answers this itself, from the live database rather than from memory, because a
 dispatcher may have moved the order along mid-conversation. It reports status in plain
-words — "out with the driver", never "pending" — and **will not give a delivery time**,
+words — "out with the delivery associate", never "pending" — and **will not give a delivery time**,
 since it has no way to know one and a guess becomes a promise.
 
 A customer can name an order (`ORD-00007`), but the lookup is scoped to the number they
@@ -807,17 +807,17 @@ food and wasted money.
 ### When an order stops moving
 
 Every stage of an order has somebody waiting on it who will chase — a kitchen chases a
-ticket, a customer chases a meal. **"Cooked, waiting for a rider" has nobody watching it.**
+ticket, a customer chases a meal. **"Cooked, waiting for a delivery associate" has nobody watching it.**
 The order is not late in the database; it is in a perfectly normal status. The first person
 to notice is the customer, and by then the food is cold and the complaint is yours.
 
 So the shop is told when one stops:
 
 ```
-⏰ *ORD-00001* stuck — cooked, waiting for a rider for 18 minutes
+⏰ *ORD-00001* stuck — cooked, waiting for a delivery associate for 18 minutes
 
 Cooked and sitting at A Taste of Guyana Roti Shop & Bakery.
-No rider has collected it.
+No delivery associate has collected it.
 
 Anita Persaud · +5926007002
 $4,600 to collect
@@ -826,8 +826,8 @@ $4,600 to collect
 | Stage | Default | Setting |
 |---|---|---|
 | Placed, kitchen has not accepted | 10 min | `STALL_PENDING_MINUTES` |
-| Cooked, no rider has collected | 15 min | `STALL_ALERT_MINUTES` |
-| With a rider, not delivered | 60 min | `STALL_DELIVERY_MINUTES` |
+| Cooked, no delivery associate has collected | 15 min | `STALL_ALERT_MINUTES` |
+| With a delivery associate, not delivered | 60 min | `STALL_DELIVERY_MINUTES` |
 
 Each stage alarms **once**. Moving the order clears the stamp, so one that stalls twice is
 reported twice — but a sweep every two minutes does not re-send the same warning all night.
@@ -859,7 +859,7 @@ Named plainly, because you will want some of these before going live:
 
 - **No staff dashboard.** The WhatsApp queue works well for one shop; volume would want a
   screen.
-- **No payments.** Deliberate — cash or card to the driver, as chosen.
+- **No payments.** Deliberate — cash or card to the delivery associate, as chosen.
 - **SQLite, single process.** Fine for one store and a few thousand products. Multiple
   instances behind a load balancer would need Postgres and a shared lock for the
   per-customer serialisation.
@@ -900,7 +900,7 @@ src/
   availability.ts        Stock for shelves, sold-out for kitchens
   menu-options.ts        Size, spice, sides — parsing, pricing, validation
   restricted.ts          Alcohol and tobacco, refused at import
-  dispatch.ts            Kitchen tickets and rider job cards
+  dispatch.ts            Kitchen tickets and delivery associate job cards
   catalog/
     import-csv.ts        CSV parser and importer (also a CLI)
     import-menu.ts       Outlets and menus (also a CLI)

@@ -5,12 +5,12 @@
  * has three, and they want different things at different moments:
  *
  *   the kitchen  — what to cook, and nothing about the customer's address
- *   the rider    — where to collect, where to take it, who to ring, what to collect
+ *   the delivery associate    — where to collect, where to take it, who to ring, what to collect
  *   the shop     — all of it, because someone has to notice when a kitchen goes quiet
  *
- * The rider is deliberately told only when the food is actually ready. Sent at
+ * The delivery associate is deliberately told only when the food is actually ready. Sent at
  * order time they stand in a restaurant watching a fryer, which is how delivery
- * companies lose riders.
+ * companies lose delivery associates.
  */
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
@@ -37,7 +37,7 @@ export async function announceNewOrder(orderNo: string): Promise<void> {
 }
 
 /**
- * What is being carried, as a kitchen or a rider wants to read it.
+ * What is being carried, as a kitchen or a delivery associate wants to read it.
  *
  * A parcel has no line items — it is one bag with a description — so it gets
  * the sender's own words instead. Anything reading an order has to cope with
@@ -84,7 +84,7 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<'sent' | 'no
       minute: '2-digit',
     })}`,
     '',
-    'Tap *Confirm* to accept, then *Food ready* when it is up and a rider will come.',
+    'Tap *Confirm* to accept, then *Food ready* when it is up and a delivery associate will come.',
   ].join('\n');
 
   await sendButtons(outlet.whatsapp, body, nextActions(order.orderNo, order.status, 'outlet'));
@@ -92,9 +92,9 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<'sent' | 'no
 }
 
 /**
- * The rider's job card: where to collect, where to go, who to ring, what to collect.
+ * The delivery associate's job card: where to collect, where to go, who to ring, what to collect.
  *
- * This is the message that has to be complete, because a rider reading it is
+ * This is the message that has to be complete, because a delivery associate reading it is
  * on a bike and will not scroll back through a conversation. Both ends get a
  * tappable maps link, and both pins follow as map cards.
  */
@@ -103,7 +103,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
   if (!order) return 'no_drivers';
 
   if (config.driverNumbers.length === 0) {
-    console.warn(`[dispatch] ${orderNo} is ready but DRIVER_NUMBERS is empty — no rider was told`);
+    console.warn(`[dispatch] ${orderNo} is ready but DRIVER_NUMBERS is empty — no delivery associate was told`);
     return 'no_drivers';
   }
 
@@ -114,7 +114,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       : null;
 
   // A parcel goes to its recipient, not to the person who sent it. Printing the
-  // sender here would send the rider back where they started.
+  // sender here would send the delivery associate back where they started.
   const isParcel = order.kind === 'parcel';
   const receiverName = isParcel ? order.recipientName : order.customerName;
   const receiverPhone = isParcel
@@ -142,7 +142,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
       : ['⚠️ No location pin on this order — ring the customer']),
     '',
-    // The one number a rider must not get wrong: cash due on the doorstep.
+    // The one number a delivery associate must not get wrong: cash due on the doorstep.
     order.total > 0
       ? `*Collect ${money(order.total)} cash*${isParcel ? ' from the recipient' : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`}`
       : '*Fee not set* — the shop will confirm it, do not quote one',
@@ -150,13 +150,13 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
 
   const actions = nextActions(order.orderNo, 'ready', 'driver');
 
-  for (const driver of config.driverNumbers) {
-    await sendButtons(driver, body, actions);
+  for (const associate of config.driverNumbers) {
+    await sendButtons(associate, body, actions);
 
-    // The pins as map cards, in the order the rider needs them: collection
+    // The pins as map cards, in the order the delivery associate needs them: collection
     // first, then the drop. A link is for reading; these are for navigating.
     if (pickupPin && pickup) {
-      await sendLocation(driver, {
+      await sendLocation(associate, {
         latitude: pickupPin.latitude,
         longitude: pickupPin.longitude,
         name: `Collect — ${order.outlet?.name ?? order.customerName}`,
@@ -164,7 +164,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       });
     }
     if (order.location) {
-      await sendLocation(driver, {
+      await sendLocation(associate, {
         latitude: order.location.latitude,
         longitude: order.location.longitude,
         name: `Deliver — ${receiverName}`,
@@ -175,7 +175,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
     }
   }
 
-  // Recorded so a repeated "food ready" cannot quietly send a second rider.
+  // Recorded so a repeated "food ready" cannot quietly send a second delivery associate.
   repo.assignDriver(orderNo, config.driverNumbers[0] ?? '');
   return 'sent';
 }

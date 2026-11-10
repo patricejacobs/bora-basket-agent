@@ -74,7 +74,7 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     else await sendText(staff, body);
 
     // Then the pin as a map card of its own. The link in the text above is for
-    // reading; this is the one a driver taps to start navigating.
+    // reading; this is the one a delivery associate taps to start navigating.
     if (order.location) {
       await sendLocation(staff, {
         latitude: order.location.latitude,
@@ -154,7 +154,7 @@ export async function notifyCustomerOfStatus(
 
   const freeForm: Partial<Record<repo.OrderStatus, string>> = {
     confirmed: `Thanks ${firstName} — order ${order.orderNo} is confirmed. We'll let you know when it's on the way.`,
-    on_the_way: `${firstName}, your order ${order.orderNo} is on its way 🛵\nTotal ${money(order.total)}, payable to the driver.`,
+    on_the_way: `${firstName}, your order ${order.orderNo} is on its way 🛵\nTotal ${money(order.total)}, payable to the delivery associate.`,
     // The store name rather than the words, so a rename carries through here
     // too — this is the last thing a customer reads from every order.
     delivered: `Order ${order.orderNo} delivered. Thank you for choosing ${config.store.name}!`,

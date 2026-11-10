@@ -136,7 +136,7 @@ if (badPayment.length > 0) {
   problems.push(`paymentMethods may only contain "cash" or "card": ${badPayment.join(', ')}`);
 }
 if ((settings.paymentMethods ?? ['cash']).length === 0) {
-  problems.push('paymentMethods cannot be empty — the driver has to be able to take something');
+  problems.push('paymentMethods cannot be empty — the delivery associate has to be able to take something');
 }
 
 const badNumbers = (settings.staffNumbers ?? []).filter((n) => !/^\d{7,15}$/.test(n));

@@ -480,7 +480,7 @@ export function saveCustomer(
  * An outlet may charge its own delivery fee; without one the shop's applies.
  *
  * Free delivery over a threshold is deliberately not extended to restaurant
- * orders: the driver still has to go and collect, and giving that away on a
+ * orders: the delivery associate still has to go and collect, and giving that away on a
  * large food order means paying to deliver it.
  */
 export function calcDeliveryFee(subtotal: number, outlet?: Outlet | null): number {
@@ -706,7 +706,7 @@ export function placeOrder(args: {
         line.options,
         line.qty,
         // The unit price carries the options surcharge, so the line total on the
-        // order matches what the customer was quoted and what the driver collects.
+        // order matches what the customer was quoted and what the delivery associate collects.
         line.product.price + line.surcharge,
         line.lineTotal,
       );
@@ -923,7 +923,7 @@ export const ORDER_STATUSES = [
   'pending',
   'confirmed',
   // Food is cooked and waiting on the counter. Only restaurant orders reach it,
-  // and it is the moment a driver is sent — any earlier and the rider stands in
+  // and it is the moment a delivery associate is sent — any earlier and the delivery associate stands in
   // the shop watching a fryer.
   'ready',
   'on_the_way',
@@ -961,12 +961,12 @@ export type OrderRecord = {
     prepMinutes: number;
   } | null;
   /**
-   * Where the rider collects, whoever it belongs to — a restaurant for food, a
+   * Where the delivery associate collects, whoever it belongs to — a restaurant for food, a
    * sender's door for a parcel. Read from the order's own columns rather than
    * through the outlet, so a parcel (which has no outlet) still has a pickup.
    */
   pickup: { address: string; latitude: number | null; longitude: number | null } | null;
-  /** The driver this was dispatched to, empty until the food is ready. */
+  /** The delivery associate this was dispatched to, empty until the food is ready. */
   driverPhone: string;
   /** 'grocery' | 'restaurant' | 'parcel'. A parcel carries no items. */
   kind: string;
@@ -1097,8 +1097,8 @@ export function customerOrder(phone: string, reference: string): OrderRecord | n
  *
  * Written straight to the orders table rather than a table of its own, so it
  * inherits the whole machinery an order already has: a number, a status
- * lifecycle, staff commands, rider dispatch and customer notifications. The
- * fields line up: pickup_* is where the rider collects — a restaurant for food,
+ * lifecycle, staff commands, delivery associate dispatch and customer notifications. The
+ * fields line up: pickup_* is where the delivery associate collects — a restaurant for food,
  * the sender's door for a parcel — and the delivery pin is where it goes.
  *
  * It carries no products, so anything reading order_items must cope with an
@@ -1420,7 +1420,7 @@ export function clearParcelDraft(phone: string): void {
   db.prepare(`DELETE FROM parcel_drafts WHERE phone = ?`).run(phone);
 }
 
-/** Records which driver an order went to, so a second alert cannot send two. */
+/** Records which delivery associate an order went to, so a second alert cannot send two. */
 export function assignDriver(orderNo: string, driverPhone: string): void {
   db.prepare(`UPDATE orders SET driver_phone = ?, updated_at = ? WHERE order_no = ?`).run(
     driverPhone.replace(/[^0-9]/g, ''),
@@ -1450,7 +1450,7 @@ export function orderCounts(): Record<string, number> {
   return { total, ...counts };
 }
 
-/** Orders cooked and waiting for a rider, oldest first — food goes cold. */
+/** Orders cooked and waiting for a delivery associate, oldest first — food goes cold. */
 export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   const rows = db
     .prepare(`SELECT * FROM orders WHERE status = 'ready' ORDER BY id ASC LIMIT ?`)
@@ -1464,7 +1464,7 @@ export function setCancelReason(orderNo: string, reason: string): void {
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   // The stall stamp is cleared with every move, so each stage gets its own
-  // alarm. An order warned about while waiting for a rider must be able to
+  // alarm. An order warned about while waiting for a delivery associate must be able to
   // raise a second warning if the delivery then drags.
   db.prepare(
     `UPDATE orders SET status = ?, updated_at = ?, stall_alerted_at = NULL WHERE order_no = ?`,

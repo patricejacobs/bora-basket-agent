@@ -16,7 +16,7 @@ export type OutboundMessage =
    */
   | { kind: 'location_request'; text: string }
   /**
-   * A pin we send out, for the driver. Arrives in WhatsApp as a map card that
+   * A pin we send out, for the delivery associate. Arrives in WhatsApp as a map card that
    * opens straight in their maps app. `text` is what a channel without map
    * support falls back to showing.
    */

@@ -129,7 +129,7 @@ export function buildConversationContext(phone: string): string {
     const range = checkRange(customer.location, config.store.serviceArea);
     if (range.state === 'outside') {
       lines.push(
-        `That pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area, so no order can be placed to it. Say so early and warmly, and tell them staff will confirm whether a driver can reach them.`,
+        `That pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area, so no order can be placed to it. Say so early and warmly, and tell them staff will confirm whether a delivery associate can reach them.`,
       );
     }
   } else {

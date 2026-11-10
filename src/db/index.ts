@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS outlets (
   min_order      INTEGER NOT NULL DEFAULT 0,
   -- NULL means fall back to the shop's own delivery fee.
   delivery_fee   INTEGER,
-  -- Where the driver collects. A pin, for the same reason customers get one.
+  -- Where the delivery associate collects. A pin, for the same reason customers get one.
   pickup_address TEXT    NOT NULL DEFAULT '',
   pickup_lat     REAL,
   pickup_lng     REAL,
@@ -215,7 +215,7 @@ addColumnIfMissing('customers', 'profile_name', "TEXT");
 // When this customer last confirmed who they are and where they are. Deliveries
 // go to a person, so this is required before an order can be placed.
 addColumnIfMissing('customers', 'identity_confirmed_at', "TEXT");
-// The number the driver should call. Usually the WhatsApp number, but not
+// The number the delivery associate should call. Usually the WhatsApp number, but not
 // always: people order from a work phone, or want the household number rung.
 addColumnIfMissing('customers', 'contact_phone', "TEXT");
 addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
@@ -260,8 +260,8 @@ addColumnIfMissing('orders', 'pickup_address', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'pickup_lat', 'REAL');
 addColumnIfMissing('orders', 'pickup_lng', 'REAL');
 addColumnIfMissing('orders', 'prep_minutes', 'INTEGER NOT NULL DEFAULT 0');
-// Which driver the dispatch went to, so a second "food ready" does not send two
-// riders and a driver's later taps can be attributed.
+// Which delivery associate the dispatch went to, so a second "food ready" does not send two
+// delivery associates and a delivery associate's later taps can be attributed.
 addColumnIfMissing('orders', 'driver_phone', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('order_items', 'options', "TEXT NOT NULL DEFAULT ''");
 // Which menu the customer is currently looking at. Held in the database rather

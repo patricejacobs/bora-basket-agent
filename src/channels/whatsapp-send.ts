@@ -165,7 +165,7 @@ export async function sendLocationRequest(to: string, body: string): Promise<boo
 }
 
 /**
- * Sends a pin out — to the driver, as a map card they can tap and navigate to.
+ * Sends a pin out — to the delivery associate, as a map card they can tap and navigate to.
  *
  * Meta caps `name` and `address` at 1000 characters each, but these are read on
  * a phone while driving: anything long is noise.
