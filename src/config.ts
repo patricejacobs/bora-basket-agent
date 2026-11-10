@@ -40,6 +40,25 @@ const minorPerUnit = 10 ** decimals;
 export const config = {
   port: num('PORT', 3000),
   databasePath: str('DATABASE_PATH', './data/store.db'),
+
+  /**
+   * Keeping a copy of the orders, customers and saved addresses.
+   *
+   * `token` is the only thing standing between a public URL and every
+   * customer's home address, so the download routes are not mounted at all
+   * unless it is set and long enough to be worth having. Unset is the safe
+   * default: no endpoint rather than a weak one.
+   *
+   * `dir` defaults to a `backups` folder beside the database, which on a hosted
+   * deploy means the persistent disk. That protects against a bad write, not
+   * against losing the disk — the download is what covers that.
+   */
+  backup: {
+    token: str('BACKUP_TOKEN'),
+    dir: str('BACKUP_DIR', ''),
+    keep: num('BACKUP_KEEP', 14),
+    everyHours: num('BACKUP_EVERY_HOURS', 24),
+  },
   enableSimulator: bool('ENABLE_SIMULATOR', true),
   /**
    * CSV to import at startup when the catalogue is empty. A hosted deploy gets a

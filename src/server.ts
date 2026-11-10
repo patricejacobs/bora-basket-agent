@@ -1,11 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
 import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
 import { startStallWatch } from './stalls.ts';
+import {
+  ordersCsv,
+  ordersJson,
+  listSnapshots,
+  writeSnapshot,
+  backupDirectory,
+  startBackupSchedule,
+} from './backup.ts';
 import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
@@ -112,6 +121,7 @@ function loadCatalogue(): void {
 loadCatalogue();
 loadMenus();
 startStallWatch();
+startBackupSchedule();
 
 const app = express();
 app.disable('x-powered-by');
@@ -170,6 +180,14 @@ app.get('/health', (_req: Request, res: Response) => {
       open: hoursStatus(o.hours).state,
     })),
     orders: orderCounts(),
+    // Whether the trading record is being copied, and how recently. Never the
+    // token, and never a path to the data itself — a count and a timestamp are
+    // enough to notice that backups have silently stopped.
+    backup: {
+      configured: Boolean(config.backup.token),
+      snapshots: listSnapshots().length,
+      latest: listSnapshots().at(-1)?.modified ?? null,
+    },
     whatsappReady: Object.values(whatsapp).every(Boolean),
     config: {
       anthropicKey: Boolean(config.anthropic.apiKey),
@@ -201,6 +219,137 @@ app.use(
     // the error handler.
   }),
 );
+
+/**
+ * The backup downloads.
+ *
+ * This is the one route on the service that hands out customer names, home
+ * addresses and GPS pins in bulk, so it is the one route with a password. Three
+ * rules, in order of how much they matter:
+ *
+ *   1. No token, no routes. Not a 401 — the paths simply do not exist, so a
+ *      half-configured deploy cannot leave the customer list open while
+ *      somebody means to get round to setting it.
+ *   2. A short token is refused like no token at all. A four-character password
+ *      on a URL that returns every address is worse than nothing, because it
+ *      reads as protection.
+ *   3. The comparison is timing-safe, and a wrong token gets a flat 404 — the
+ *      same answer as an unconfigured service, so probing cannot tell the
+ *      difference between "wrong password" and "no such thing here".
+ */
+const BACKUP_TOKEN_MIN = 24;
+
+function mountBackupRoutes(): void {
+  const token = config.backup.token;
+  if (!token) {
+    console.log('[backup] BACKUP_TOKEN is not set — download routes are off');
+    return;
+  }
+  if (token.length < BACKUP_TOKEN_MIN) {
+    console.warn(
+      `[backup] BACKUP_TOKEN is only ${token.length} characters. Downloads stay off: this URL ` +
+        `returns every customer address, so it needs at least ${BACKUP_TOKEN_MIN}.`,
+    );
+    return;
+  }
+
+  const expected = Buffer.from(token, 'utf8');
+
+  /**
+   * Accepts the token as a bearer header or as `?key=`.
+   *
+   * The query form exists because the person who needs this is holding a phone,
+   * not a terminal, and a link they can tap is the difference between a backup
+   * taken weekly and one taken never. The cost is real and worth stating: a URL
+   * lands in the host's request log, so treat the link itself as the password
+   * and rotate BACKUP_TOKEN if it goes anywhere it should not.
+   */
+  function authorised(req: Request): boolean {
+    const header = req.get('authorization') ?? '';
+    const bearer = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+    const supplied = bearer || String(req.query.key ?? '');
+    if (!supplied) return false;
+
+    const given = Buffer.from(supplied, 'utf8');
+    // timingSafeEqual throws on a length mismatch, which would itself leak the
+    // length, so the lengths are compared into the same boolean first.
+    return given.length === expected.length && crypto.timingSafeEqual(given, expected);
+  }
+
+  const router = express.Router();
+
+  router.use((req: Request, res: Response, next: NextFunction) => {
+    if (!authorised(req)) {
+      res.sendStatus(404);
+      return;
+    }
+    // Belt and braces for anything between here and the browser: a customer
+    // list must not sit in a proxy cache or a history entry.
+    res.set('Cache-Control', 'no-store, private');
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
+
+  /** What there is to download, and when the last snapshot was taken. */
+  router.get('/', (req: Request, res: Response) => {
+    const key = String(req.query.key ?? '');
+    const link = (p: string): string => (key ? `${p}?key=${encodeURIComponent(key)}` : p);
+    const snapshots = listSnapshots();
+
+    res.json({
+      orders: orderCounts(),
+      download: {
+        spreadsheet: link('/backup/orders.csv'),
+        json: link('/backup/orders.json'),
+        database: link('/backup/store.db'),
+      },
+      snapshotsOnDisk: snapshots.length,
+      latestSnapshot: snapshots.at(-1)?.modified ?? null,
+      snapshotDirectory: backupDirectory(),
+      note: 'Snapshots live on the same disk as the database. Download a copy to keep one elsewhere.',
+    });
+  });
+
+  /** Every order as a spreadsheet. Dated filename, so copies do not overwrite. */
+  router.get('/orders.csv', (_req: Request, res: Response) => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="orders-${stamp}.csv"`);
+    res.send(ordersCsv());
+  });
+
+  router.get('/orders.json', (_req: Request, res: Response) => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.set('Content-Type', 'application/json; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="orders-${stamp}.json"`);
+    res.send(ordersJson());
+  });
+
+  /**
+   * The whole database.
+   *
+   * A snapshot is taken on demand rather than serving yesterday's file, because
+   * somebody who asks for the database wants the state now — and because
+   * streaming the live file while SQLite is writing to it is how you get a
+   * backup that restores into a corrupt database.
+   */
+  router.get('/store.db', async (_req: Request, res: Response) => {
+    try {
+      const snap = await writeSnapshot();
+      res.set('Content-Type', 'application/octet-stream');
+      res.set('Content-Disposition', `attachment; filename="${path.basename(snap.file)}"`);
+      res.sendFile(snap.file);
+    } catch (err) {
+      console.error('[backup] on-demand snapshot failed:', err);
+      res.status(500).send('Could not take a snapshot. Check the service logs.');
+    }
+  });
+
+  app.use('/backup', router);
+  console.log('[backup] downloads at /backup (token required)');
+}
+
+mountBackupRoutes();
 
 app.use('/whatsapp', whatsappRouter);
 

@@ -286,6 +286,38 @@ if (parcelBase <= 0 && parcelPerKm <= 0) {
   add('ok', 'parcel pricing', dim(`${parcelBase} base + ${parcelPerKm}/km`));
 }
 
+/* -------------------------------------------------------------- backups */
+
+/**
+ * A warning, never a failure: a shop with no backup still takes orders, and
+ * blocking a deploy over it would be wrong. But it is the one gap whose cost
+ * arrives all at once, so it is said plainly.
+ */
+{
+  const token = raw('BACKUP_TOKEN');
+  const hours = Number(raw('BACKUP_EVERY_HOURS') || '24');
+
+  if (!token) {
+    add(
+      'warn',
+      'BACKUP_TOKEN',
+      'not set — no way to download a copy of the orders. Generate one with: openssl rand -hex 24',
+    );
+  } else if (token.length < 24) {
+    add(
+      'warn',
+      'BACKUP_TOKEN',
+      `only ${token.length} characters — the download routes will refuse to mount. Needs 24+`,
+    );
+  } else {
+    add('ok', 'BACKUP_TOKEN', dim('backup downloads at /backup'));
+  }
+
+  if (Number.isFinite(hours) && hours <= 0) {
+    add('warn', 'BACKUP_EVERY_HOURS', 'is 0 — automatic snapshots are switched off');
+  }
+}
+
 /* ------------------------------------------------------- live key check */
 
 if (hasKey) {

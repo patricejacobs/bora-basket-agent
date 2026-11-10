@@ -6,4 +6,15 @@ node_modules/
 *.db-shm
 data/*.db
 data/catalog.csv
+
+# Backups. These hold real customer names, addresses and GPS pins — the one
+# thing in this project that must never reach a commit. Ignored by directory
+# and by filename, because a stray export written anywhere else is the same
+# mistake.
+data/backups/
+backups/
+orders-*.csv
+orders-*.json
+store-*.db
+*.db.partial
 .DS_Store

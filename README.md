@@ -651,6 +651,10 @@ All of this lives in `.env`.
 | `SEED_CATALOG_PATH` | — | CSV imported at boot when the catalogue is empty |
 | `SERVICE_CENTRE_LAT` / `SERVICE_CENTRE_LNG` | — | The shop's position, for the delivery-area check |
 | `SERVICE_RADIUS_KM` | `0` | How far you deliver. `0` switches the check off |
+| `BACKUP_TOKEN` | — | Guards the backup downloads. 24+ characters, or the routes stay off |
+| `BACKUP_DIR` | `backups` beside the database | Where snapshots are written |
+| `BACKUP_EVERY_HOURS` | `24` | `0` switches automatic snapshots off |
+| `BACKUP_KEEP` | `14` | How many snapshots to keep. `0` keeps every one |
 
 ### A note on `STORE_HOURS`
 
@@ -925,6 +929,72 @@ Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
 With no template configured, an out-of-window update is skipped and logged rather than
 failing silently.
 
+## Keeping a copy of the orders
+
+Every order, every customer and every saved address lives in one SQLite file on one
+hosted disk. The orders are replaceable; the **addresses and pins are not** — they were
+typed once by a customer who will not type them again.
+
+Two layers, because they fail differently.
+
+**A snapshot on the disk.** Taken on every boot and then every `BACKUP_EVERY_HOURS`
+(default 24), into `BACKUP_DIR`, keeping the last `BACKUP_KEEP` (default 14). It uses
+SQLite's own online backup, so it is safe to take while the agent is serving — copying a
+live database file with `cp` can produce a torn file that only reveals itself the day you
+need it. This survives a bad write, a bad migration and a mistaken delete. It does **not**
+survive losing the disk, because it is on the disk.
+
+**A download off the disk.** The only copy that survives the host:
+
+| URL | What you get |
+| --- | --- |
+| `/backup` | What is available, and when the last snapshot was taken |
+| `/backup/orders.csv` | Every order as a spreadsheet — opens in Excel |
+| `/backup/orders.json` | The same orders, complete and nested, for restoring |
+| `/backup/store.db` | The whole database, snapshotted on request |
+
+The spreadsheet has a column for each thing worth keeping: order number, time placed,
+status, customer name and phone, delivery address, latitude and longitude, a tappable map
+link, the delivery note, the restaurant, the pickup address, the delivery associate who
+carried it, what was ordered, the subtotal, the delivery fee and the total, the payment
+method, parcel recipient and contents, and who cancelled it and why.
+
+### The token
+
+These URLs return every customer's name, address and GPS pin, so they are the one part of
+the service with a password. Set `BACKUP_TOKEN`:
+
+```bash
+openssl rand -hex 24
+```
+
+Three rules, in order of how much they matter:
+
+1. **No token, no routes.** Not a 401 — the paths do not exist. A half-configured deploy
+   cannot leave the customer list open while somebody means to get round to it.
+2. **A short token is refused like no token.** Under 24 characters and the routes stay off,
+   with a warning in the log. A weak password on a URL like this is worse than none,
+   because it reads as protection.
+3. **A wrong token gets the same flat 404** as an unconfigured service, compared in
+   constant time, so probing cannot tell "wrong password" from "no such thing here".
+
+Pass it as a header, or as `?key=` so a link can simply be tapped:
+
+```bash
+curl -H "Authorization: Bearer $BACKUP_TOKEN" https://your-service.onrender.com/backup/orders.csv -o orders.csv
+```
+
+The query form is there because the person who needs a backup is usually holding a phone,
+not a terminal, and a link they can tap is the difference between a backup taken weekly and
+one taken never. The cost is real: **a URL lands in the host's request log**, so treat the
+link itself as the password and rotate `BACKUP_TOKEN` if it goes anywhere it should not.
+
+`/health` reports whether backups are configured, how many snapshots are on the disk and
+when the last one was taken — never the token, and never a path to the data. It is enough
+to notice that backups have silently stopped.
+
+With a shell, `npm run backup` writes all three files into `BACKUP_DIR` locally.
+
 ## What is not built yet
 
 Named plainly, because you will want some of these before going live:
@@ -973,6 +1043,7 @@ src/
   menu-options.ts        Size, spice, sides — parsing, pricing, validation
   restricted.ts          Alcohol and tobacco, refused at import
   dispatch.ts            Kitchen tickets and delivery associate job cards
+  backup.ts              Order exports and database snapshots (also a CLI)
   catalog/
     import-csv.ts        CSV parser and importer (also a CLI)
     import-menu.ts       Outlets and menus (also a CLI)
@@ -995,6 +1066,7 @@ npm run dev                                            # run with auto-restart o
 npm run import:catalog -- ./data/sample-products.csv   # load or refresh the catalogue
 npm run import:menu -- ./data/sample-outlets.csv ./data/sample-menu.csv   # outlets and menus
 npm run smoke                                          # offline test suite
+npm run backup                                         # export the orders and snapshot the database
 npm run check                                          # configuration doctor
 npm run typecheck                                      # tsc --noEmit
 ```

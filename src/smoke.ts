@@ -2787,6 +2787,154 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section('Backing up the trading record');
+{
+  const backup = await import('./backup.ts');
+
+  // A hostile order, placed directly: a name that Excel would read as a
+  // formula, an address full of the characters that break naive CSV, and a
+  // delivery note with a quote in it.
+  repo.saveCustomer('5926009999', {
+    name: '=1+1|cmd /c calc',
+    address: 'Lot 4, "Big" Yard, Kitty, Georgetown',
+    contactPhone: '5926009999',
+  });
+  // Any product still sellable at this point in the run: earlier tests
+  // deliberately exhaust the stock-tracked ones.
+  const sellable = (
+    db
+      .prepare(
+        `SELECT id FROM products
+          WHERE active = 1 AND sold_out = 0 AND (track_stock = 0 OR stock >= 2)
+          LIMIT 1`,
+      )
+      .get() as unknown as { id: number }
+  ).id;
+  repo.setCartQty('5926009999', sellable, 2, '');
+  const hostile = repo.placeOrder({
+    phone: '5926009999',
+    customerName: '=1+1|cmd /c calc',
+    address: 'Lot 4, "Big" Yard, Kitty, Georgetown',
+    contactPhone: '5926009999',
+    deliveryNote: 'Ring the bell, say "delivery"',
+    paymentMethod: 'cash',
+    location: { latitude: 6.8013, longitude: -58.1551, label: 'Kitty', pinnedAt: '' },
+  });
+
+  const archived = repo.allOrders();
+  check('every order is in the export', archived.length === repo.orderCounts().total);
+  const first = archived.at(0);
+  const last = archived.at(-1);
+  check(
+    'oldest first, so the file reads in trading order',
+    Boolean(first && last && first.orderNo < last.orderNo),
+  );
+
+  const withMoney = archived.find((o) => o.orderNo === hostile.orderNo);
+  check('the money is broken out, not just the total', Boolean(
+    withMoney && withMoney.subtotal > 0 && withMoney.total >= withMoney.subtotal,
+  ));
+  check('and the payment method is kept', withMoney?.paymentMethod === 'cash');
+
+  const csv = backup.ordersCsv();
+  check('the spreadsheet starts with a BOM so Excel reads UTF-8', csv.charCodeAt(0) === 0xfeff);
+
+  const rows = parseCsv(csv);
+  const header = rows[0] ?? [];
+  const body = rows.slice(1).filter((r) => r.length > 1);
+  check('one row per order, plus a header', body.length === archived.length);
+
+  const col = (name: string): number => header.indexOf(name);
+  for (const wanted of [
+    'Customer',
+    'Address',
+    'Latitude',
+    'Longitude',
+    'Total',
+    'Delivery associate',
+    'Restaurant',
+    'Items',
+  ]) {
+    check(`the export carries ${wanted.toLowerCase()}`, col(wanted) >= 0);
+  }
+
+  const row = body.find((r) => r[col('Order')] === hostile.orderNo);
+  check('the hostile order is in the file', Boolean(row));
+  const field = (name: string): string => row?.[col(name)] ?? '';
+  check(
+    'a name Excel would run as a formula is neutralised',
+    field('Customer').startsWith("'="),
+  );
+  check(
+    'quotes and commas in an address survive the round trip',
+    field('Address') === 'Lot 4, "Big" Yard, Kitty, Georgetown',
+  );
+  check(
+    'and so does a quote in the delivery note',
+    field('Delivery note') === 'Ring the bell, say "delivery"',
+  );
+  check('the pin is written to six places', field('Latitude') === '6.801300');
+  check('with a link somebody can tap', field('Map').includes('6.801300,-58.155100'));
+  check('the total is a plain number a spreadsheet can sum', field('Total') === String(hostile.total));
+  check('and a formatted one a person can read', field('Total (formatted)') === money(hostile.total));
+  check('what was ordered is listed', field('Items').includes(' x '));
+
+  // A restaurant order and its associate, from earlier in the run.
+  const cooked = archived.find((o) => o.outlet !== null);
+  if (cooked) {
+    const cookedRow = body.find((r) => r[col('Order')] === cooked.orderNo);
+    check(
+      'a restaurant order names its kitchen',
+      (cookedRow?.[col('Restaurant')] ?? '') === cooked.outlet?.name,
+    );
+  }
+  const carried = archived.find((o) => o.driverPhone !== '');
+  if (carried) {
+    const carriedRow = body.find((r) => r[col('Order')] === carried.orderNo);
+    check(
+      'and a delivered order names who carried it',
+      (carriedRow?.[col('Delivery associate')] ?? '') === carried.driverPhone,
+    );
+  }
+  const parcel = archived.find((o) => o.kind === 'parcel');
+  if (parcel) {
+    const parcelRow = body.find((r) => r[col('Order')] === parcel.orderNo);
+    check('a parcel describes its contents rather than listing items', (parcelRow?.[col('Items')] ?? '').startsWith('Parcel'));
+    check(
+      'and names the recipient, not the sender',
+      (parcelRow?.[col('Recipient')] ?? '') === parcel.recipientName,
+    );
+  }
+
+  const dump = JSON.parse(backup.ordersJson());
+  check('the JSON export parses', Array.isArray(dump.orders));
+  check('and holds every order', dump.orders.length === archived.length);
+  check('with its item lines intact, not flattened', Array.isArray(dump.orders.at(-1).items));
+  check('and says which currency the figures are in', dump.currency === config.currency.code);
+
+  // The full-database snapshot: it has to open, and it has to hold the same
+  // orders. A backup that restores into an empty table is worse than none,
+  // because it is believed.
+  const snap = await backup.writeSnapshot();
+  check('a snapshot is written', fs.existsSync(snap.file) && snap.bytes > 0);
+  check('no .partial file is left behind', !fs.existsSync(`${snap.file}.partial`));
+
+  const { DatabaseSync } = await import('node:sqlite');
+  const restored = new DatabaseSync(snap.file);
+  const restoredCount = (
+    restored.prepare('SELECT COUNT(*) AS n FROM orders').get() as unknown as { n: number }
+  ).n;
+  const restoredItems = (
+    restored.prepare('SELECT COUNT(*) AS n FROM order_items').get() as unknown as { n: number }
+  ).n;
+  check('the snapshot opens as a database', restoredCount === archived.length);
+  check('and the item lines came with it', restoredItems > 0);
+  restored.close();
+
+  check('the snapshot is listed', backup.listSnapshots().some((f) => f.file === snap.file));
+  fs.rmSync(backup.backupDirectory(), { recursive: true, force: true });
+}
+
 console.log('');
 
 // Windows keeps the file locked while the handle is open, so close before deleting.

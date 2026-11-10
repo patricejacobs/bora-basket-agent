@@ -1097,6 +1097,41 @@ export function customerOrder(phone: string, reference: string): OrderRecord | n
 }
 
 /**
+ * Every order ever placed, oldest first, with the money broken out.
+ *
+ * For the backup, and nothing else. `OrderRecord` deliberately omits the
+ * subtotal, the delivery fee and the payment method because no message ever
+ * needs them — but a record you are keeping in case the disk dies has to hold
+ * the whole transaction, not the parts that happened to be worth saying out
+ * loud. Oldest first so an export read top to bottom is the order of trading.
+ */
+export type ArchivedOrder = OrderRecord & {
+  subtotal: number;
+  deliveryFee: number;
+  paymentMethod: string;
+  /** When the status last moved. Falls back to the placing time on old rows. */
+  statusChangedAt: string;
+};
+
+export function allOrders(): ArchivedOrder[] {
+  const rows = db.prepare(`SELECT * FROM orders ORDER BY id ASC`).all() as unknown as (
+    Parameters<typeof hydrateOrder>[0] & {
+      subtotal: number;
+      delivery_fee: number;
+      payment_method: string;
+    }
+  )[];
+
+  return rows.map((row) => ({
+    ...hydrateOrder(row),
+    subtotal: row.subtotal,
+    deliveryFee: row.delivery_fee,
+    paymentMethod: row.payment_method ?? '',
+    statusChangedAt: row.updated_at || row.created_at,
+  }));
+}
+
+/**
  * A parcel job.
  *
  * Written straight to the orders table rather than a table of its own, so it

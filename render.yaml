@@ -41,6 +41,19 @@ services:
       # On the persistent disk, or photos are lost on every deploy.
       - key: PRODUCT_IMAGES_DIR
         value: /var/data/product-images
+      # Backups of the trading record. On the persistent disk, next to the
+      # database — which protects against a bad write or a mistaken delete, but
+      # NOT against losing the disk. For that, download a copy: the routes at
+      # /backup hand out the orders as a spreadsheet and the whole database as a
+      # file, and BACKUP_TOKEN below is what guards them.
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      # Daily, keeping a fortnight. 0 hours switches automatic snapshots off;
+      # 0 kept switches the pruning off and keeps every snapshot forever.
+      - key: BACKUP_EVERY_HOURS
+        value: "24"
+      - key: BACKUP_KEEP
+        value: "14"
       # The simulator has no authentication and can place real orders.
       - key: ENABLE_SIMULATOR
         value: "false"
@@ -76,6 +89,14 @@ services:
       - key: WHATSAPP_APP_SECRET
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      # The password on the backup downloads, which return every customer's name,
+      # address and pin. At least 24 characters, or the routes refuse to mount —
+      # generate one with `openssl rand -hex 24`. Unset means no download routes
+      # at all, which is the safe default but leaves you with no copy off the
+      # disk. Treat the resulting link as the password itself: it appears in the
+      # host's request log, so rotate this if it goes anywhere it should not.
+      - key: BACKUP_TOKEN
         sync: false
       # Voice-note transcription. Claude cannot hear audio, so this is the
       # one external service besides Anthropic. Unset = voice notes decline.
