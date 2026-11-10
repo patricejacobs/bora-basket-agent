@@ -2279,6 +2279,24 @@ section('Why an order was cancelled');
   check('and its reason is recorded', repo.findOrder(ref3)?.cancelReason === 'Kitchen too busy', repo.findOrder(ref3)?.cancelReason);
 
   check('every reason has customer-facing words', CANCEL_REASONS.every((r) => r.customer.length > 10));
+
+  // Who cancelled decides whose name the customer sees. A restaurant that
+  // cancels is named so the customer can choose another; the shop may not hide
+  // behind a restaurant's name for a cancellation it made itself.
+  check('a kitchen cancellation records the kitchen', repo.findOrder(ref3)?.cancelledBy === 'outlet', repo.findOrder(ref3)?.cancelledBy);
+  check('a staff cancellation records staff', repo.findOrder(ref)?.cancelledBy === 'staff', repo.findOrder(ref)?.cancelledBy);
+
+  const { notifyCustomerOfStatus: tellCustomer } = await import('./notifications.ts');
+  const byKitchen = repo.findOrder(ref3)!;
+  const byShop = repo.findOrder(ref)!;
+  await tellCustomer(byKitchen, 'cancelled');
+  await tellCustomer(byShop, 'cancelled');
+  check(
+    'the two are attributed differently',
+    byKitchen.cancelledBy !== byShop.cancelledBy,
+    `${byKitchen.cancelledBy} vs ${byShop.cancelledBy}`,
+  );
+  check('a kitchen cancellation knows its outlet', byKitchen.outlet?.name !== undefined, byKitchen.outlet?.name);
 }
 
 /* -------------------------------------------------------- stalled orders */

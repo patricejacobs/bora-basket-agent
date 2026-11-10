@@ -797,12 +797,21 @@ Then the reason goes where it is useful:
 
 | | |
 |---|---|
-| **Customer** | *"cancelled because the kitchen has run out of something on it. Nothing has been charged."* — the reason as the kitchen gave it, and nothing more. No invitation to write back: that implies the cancellation might be a mistake and puts the chasing on them |
+| **Customer** | *"**A Taste of Guyana Roti Shop & Bakery** has cancelled your order: the kitchen has run out of something on it. Nothing has been charged."* |
 | **Kitchen** | 🚫 *ORD-00002 cancelled — Customer changed their mind. Stop cooking it if you have started.* |
 | **The record** | stored on the order, so the pattern is readable later |
 
-Telling the kitchen matters: one that keeps cooking an order the shop cancelled is wasted
-food and wasted money.
+The customer is told **who** cancelled, not an order number they can do nothing with — a
+named restaurant is something they can act on, by picking another. But the shop cannot hide
+behind a restaurant's name: a cancellation your staff made says so, because *"they cancelled
+because you asked us to"* would be a lie, and an order you could not deliver is yours to own.
+
+No invitation to write back, either. That implies the cancellation might be a mistake and
+hands the chasing to the person who has just lost their dinner. The reason is what they
+need; it tells them whether to try another dish, another kitchen, or come back tomorrow.
+
+Telling the kitchen matters too: one that keeps cooking an order the shop cancelled is
+wasted food and wasted money.
 
 ### When an order stops moving
 

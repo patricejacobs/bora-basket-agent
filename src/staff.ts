@@ -322,7 +322,7 @@ ${ONBOARDING_HELP}`);
   if (status === 'cancelled' && order.status !== 'cancelled') {
     const ask = askWhyCancelled(order, trimmed, 'staff');
     if (ask) return ask;
-    repo.setCancelReason(order.orderNo, cancellationReason(order, trimmed));
+    repo.setCancelReason(order.orderNo, cancellationReason(order, trimmed), 'staff');
   }
 
   if (order.status === status) {
@@ -423,7 +423,7 @@ export async function handleOutletMessage(
   if (status === 'cancelled' && order.status !== 'cancelled') {
     const ask = askWhyCancelled(order, trimmed, 'outlet');
     if (ask) return ask;
-    repo.setCancelReason(order.orderNo, cancellationReason(order, trimmed));
+    repo.setCancelReason(order.orderNo, cancellationReason(order, trimmed), 'outlet');
   }
 
   if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);

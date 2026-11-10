@@ -980,6 +980,8 @@ export type OrderRecord = {
   parcelDetails: string;
   /** Why it was cancelled, empty unless it was. */
   cancelReason: string;
+  /** Who cancelled it: 'outlet', 'staff', or empty. */
+  cancelledBy: string;
   items: { name: string; qty: number; unit: string; options: string; lineTotal: number }[];
 };
 
@@ -1008,6 +1010,7 @@ function hydrateOrder(row: {
   recipient_phone: string | null;
   parcel_details: string | null;
   cancel_reason: string | null;
+  cancelled_by: string | null;
   total: number;
   status: string;
   created_at: string;
@@ -1053,6 +1056,7 @@ function hydrateOrder(row: {
     recipientPhone: row.recipient_phone ?? '',
     parcelDetails: row.parcel_details ?? '',
     cancelReason: row.cancel_reason ?? '',
+    cancelledBy: row.cancelled_by ?? '',
     items: (
       db
         .prepare(
@@ -1458,8 +1462,12 @@ export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   return rows.map(hydrateOrder);
 }
 
-export function setCancelReason(orderNo: string, reason: string): void {
-  db.prepare(`UPDATE orders SET cancel_reason = ? WHERE order_no = ?`).run(reason.slice(0, 200), orderNo);
+export function setCancelReason(orderNo: string, reason: string, by: 'outlet' | 'staff'): void {
+  db.prepare(`UPDATE orders SET cancel_reason = ?, cancelled_by = ? WHERE order_no = ?`).run(
+    reason.slice(0, 200),
+    by,
+    orderNo,
+  );
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {

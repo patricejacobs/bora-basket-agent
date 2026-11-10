@@ -88,22 +88,33 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   }
 }
 
-/** What a cancelled customer is told, in words that explain. */
+/**
+ * What a cancelled customer is told.
+ *
+ * Named by whoever actually cancelled. A restaurant that cancels is named, so
+ * the customer knows which kitchen let them down and can choose another; the
+ * order number tells them nothing they can act on. But the shop is not allowed
+ * to hide behind a restaurant's name — "they cancelled because you asked us to"
+ * would be a lie, and an order the shop could not deliver is the shop's to own.
+ */
 function cancelledMessage(order: repo.OrderRecord): string {
   const known = CANCEL_REASONS.find((r) => r.internal === order.cancelReason);
   const firstName = order.customerName.split(/\s+/)[0] ?? '';
+
+  const byOutlet = order.cancelledBy === 'outlet' && Boolean(order.outlet?.name);
+  const subject = byOutlet ? `*${order.outlet!.name}* has cancelled your order` : `Order ${order.orderNo} has been cancelled`;
 
   // The reason is passed on as given, and the message ends there. Inviting
   // somebody to write back if it is "not right" implies the cancellation might
   // be a mistake and puts the work of chasing it on them — when what they
   // actually need is to know why, so they can decide what to do next.
   if (known) {
-    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled because ${known.customer}. Nothing has been charged.`;
+    return `Sorry ${firstName} — ${subject}: ${known.customer}. Nothing has been charged.`;
   }
   if (order.cancelReason && order.cancelReason !== 'No reason given') {
-    return `Sorry ${firstName} — order ${order.orderNo} has been cancelled. Reason given: ${order.cancelReason}. Nothing has been charged.`;
+    return `Sorry ${firstName} — ${subject}. Reason given: ${order.cancelReason}. Nothing has been charged.`;
   }
-  return `Sorry ${firstName} — order ${order.orderNo} has been cancelled. Nothing has been charged.`;
+  return `Sorry ${firstName} — ${subject}. Nothing has been charged.`;
 }
 
 /**

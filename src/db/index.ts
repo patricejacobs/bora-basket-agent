@@ -276,6 +276,9 @@ addColumnIfMissing('orders', 'stall_alerted_at', 'TEXT');
 // Why a cancelled order was cancelled. "Cancelled" alone tells the customer
 // nothing and leaves no pattern to read later.
 addColumnIfMissing('orders', 'cancel_reason', "TEXT NOT NULL DEFAULT ''");
+// Who cancelled: 'outlet' or 'staff'. The customer is told which, and naming
+// the restaurant for a cancellation the shop made would be a lie.
+addColumnIfMissing('orders', 'cancelled_by', "TEXT NOT NULL DEFAULT ''");
 
 /* --------------------------------------------------------------- services */
 
