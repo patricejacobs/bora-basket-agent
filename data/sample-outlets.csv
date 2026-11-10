@@ -2,3 +2,6 @@ code,name,cuisine,hours,prep_minutes,min_order,delivery_fee,pickup_address,picku
 KFH,Kingston Fried Hut,"Fried chicken, burgers","Mon-Sat 10:00am - 10:00pm, Sun 11:00am - 9:00pm",20,1500,700,"12 Camp Street, Kingston, Georgetown",6.81490,-58.16280,,1
 SSC,Sheriff Street Chinese,"Chinese, chow mein, fried rice","Mon-Sun 11:00am - 11:00pm",25,2000,700,"88 Sheriff Street, Campbellville",6.80310,-58.14920,,1
 BRH,Bourda Roti House,"Roti, curry, local","Mon-Sat 7:00am - 4:00pm",15,1000,600,"Bourda Market, Robb Street, Georgetown",6.81020,-58.15470,,1
+PIZ,Guyana Pizza Co.,"Pizza, wings","Mon-Sun 11:00am - 11:00pm",30,2500,800,"Lot 5 Vlissengen Road, Bel Air",6.80680,-58.14310,,1
+SWB,Stabroek Bakery,"Bakery, pastries, local sweets","Mon-Sat 6:00am - 2:00pm",10,800,500,"Water Street, Stabroek, Georgetown",6.81560,-58.16610,,1
+FRJ,Fresh Juice Junction,"Juices, smoothies, local drinks","Mon-Sun 12:00am - 11:59pm",10,500,500,"Vreed-en-Hoop Junction, West Bank Demerara",6.80870,-58.18080,,1

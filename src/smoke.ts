@@ -1669,19 +1669,25 @@ section('Restaurant ordering');
 {
   const { importOutletsText, importMenuText } = await import('./catalog/import-menu.ts');
 
-  const outlets = importOutletsText(
-    fs.readFileSync(path.resolve('./data/sample-outlets.csv'), 'utf8'),
-  );
-  check('imports the sample outlets', outlets.imported === 3, JSON.stringify(outlets));
+  const outletCsv = fs.readFileSync(path.resolve('./data/sample-outlets.csv'), 'utf8');
+  // Derived from the file rather than hardcoded, so adding a sample outlet does
+  // not break the suite — the point is that every row imports, not that there
+  // happen to be six of them.
+  const outletRows = (outletCsv.match(/^[A-Z]{2,4},/gm) ?? []).length;
+
+  const outlets = importOutletsText(outletCsv);
+  check('imports every sample outlet', outlets.imported === outletRows, `${outlets.imported} of ${outletRows}`);
+  check('no outlet rows skipped', outlets.skipped.length === 0, JSON.stringify(outlets.skipped));
 
   const menu = importMenuText(fs.readFileSync(path.resolve('./data/sample-menu.csv'), 'utf8'));
-  check('imports the sample menus', menu.items >= 18, JSON.stringify(menu.items));
+  check('imports the sample menus', menu.items >= 30, JSON.stringify(menu.items));
   check('no menu rows skipped', menu.skipped.length === 0, JSON.stringify(menu.skipped.slice(0, 3)));
-  // The sample menu deliberately contains a rum punch and a beer.
-  check('refuses the alcohol on the menu', menu.refused.length === 2, JSON.stringify(menu.refused));
+  // The sample menus deliberately carry a rum punch, a beer and a glass of wine,
+  // one on each of three different outlets.
+  check('refuses the alcohol on the menu', menu.refused.length === 3, JSON.stringify(menu.refused));
   check(
     'and keeps it out of the catalogue entirely',
-    repo.getProductBySku('KFH-007') === null && repo.getProductBySku('BRH-007') === null,
+    ['KFH-007', 'BRH-007', 'PIZ-006'].every((sku) => repo.getProductBySku(sku) === null),
   );
 
   const bad = importMenuText('outlet,sku,name,price\nNOPE,X-1,Thing,100\n');
@@ -1700,7 +1706,7 @@ section('Restaurant ordering');
     JSON.parse(executeTool(name, input, foodCtx));
 
   const listed = food('list_outlets');
-  check('lists the outlets', listed.outlets?.length === 3, JSON.stringify(listed).slice(0, 100));
+  check('lists the outlets', listed.outlets?.length === outletRows, JSON.stringify(listed.outlets?.length));
   check('reports a cooking time', String(listed.outlets?.[0]?.typical_wait).includes('minutes'));
 
   // Searching before choosing a restaurant must stay in the grocery aisle.
@@ -1811,7 +1817,7 @@ section('Numbered kitchen list');
   const { numberedOutlets, outletListMessage, serviceOpening } = await import('./services.ts');
 
   const numbered = numberedOutlets();
-  check('numbers every outlet', numbered.length === 3, JSON.stringify(numbered.length));
+  check('numbers every outlet', numbered.length === repo.listOutlets().length, JSON.stringify(numbered.length));
   check('numbers start at 1 and run consecutively', numbered.every((n, i) => n.number === i + 1), JSON.stringify(numbered.map((n) => n.number)));
 
   // Bourda Roti House shuts at 4pm, so whether it is open depends on when this

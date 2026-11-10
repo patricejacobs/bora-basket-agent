@@ -19,3 +19,21 @@ BRH,BRH-005,Pholourie,Fried split pea dough balls with sour,Snacks,6 pieces,340,
 BRH,BRH-006,Metemgee,Ground provisions in coconut milk with dumplings,Local,bowl,1180,Meat:Salt Fish|Chicken|None,metemgee metem provisions,1
 BRH,BRH-007,Rum Punch,Local rum punch with fruit juice,Drinks,glass,900,Size:Regular|Large+300,rum punch cocktail drink,1
 KFH,KFH-007,Banks Beer,Cold local lager,Drinks,bottle,500,,beer lager cold,1
+PIZ,PIZ-001,Cheese Pizza,Stone baked with mozzarella,Pizza,each,2200,Size:Small|Medium+900|Large+1800;Extras*:Extra Cheese+400|Mushroom+350|Olives+300,pizza cheese margherita,1
+PIZ,PIZ-002,Pepperoni Pizza,Mozzarella and pepperoni,Pizza,each,2600,Size:Small|Medium+900|Large+1800;Extras*:Extra Cheese+400|Jalapeno+300,pizza pepperoni meat,1
+PIZ,PIZ-003,Chicken And Bacon Pizza,Grilled chicken with smoked bacon,Pizza,each,2900,Size:Small|Medium+900|Large+1800;Extras*:Extra Cheese+400,pizza chicken bacon,1
+PIZ,PIZ-004,Garlic Bread,Warm garlic butter bread,Sides,4 pieces,700,Dip?:Garlic|Marinara,garlic bread side starter,1
+PIZ,PIZ-005,Buffalo Wings,Fried wings tossed in sauce,Sides,portion,1400,Pieces:6 piece|12 piece+1200;Flavour:BBQ|Hot|Plain,wings buffalo chicken,1
+PIZ,PIZ-006,House Red Wine,Glass of house red,Drinks,glass,1500,,wine red drink,1
+SWB,SWB-001,Cheese Roll,Flaky pastry with cheese,Pastries,each,180,,cheese roll pastry snack,1
+SWB,SWB-002,Pine Tart,Pineapple filled tart,Pastries,each,200,,pine tart pineapple pastry,1
+SWB,SWB-003,Salara,Coconut roll with red coconut filling,Pastries,each,250,,salara coconut roll sweet,1
+SWB,SWB-004,Plait Bread,Soft plaited loaf,Bread,each,480,Size:Small|Large+200,plait bread loaf,1
+SWB,SWB-005,Butter Flap,Buttery layered flap,Pastries,each,160,,butter flap pastry,1
+SWB,SWB-006,Black Cake Slice,Traditional Guyanese dark fruit cake,Cakes,slice,550,,black cake fruit cake slice,1
+FRJ,FRJ-001,Fresh Lime Wash,Pressed lime with water and ice,Juices,cup,400,Size:Regular|Large+200;Sugar?:No Sugar|Less Sugar,lime wash lemonade fresh,1
+FRJ,FRJ-002,Mauby,Chilled mauby bark drink,Local Drinks,cup,400,Size:Regular|Large+200,mauby local drink bark,1
+FRJ,FRJ-003,Sorrel Drink,Chilled sorrel with ginger,Local Drinks,cup,450,Size:Regular|Large+200,sorrel local drink hibiscus,1
+FRJ,FRJ-004,Peanut Punch,Blended peanut punch,Smoothies,cup,700,Size:Regular|Large+250,peanut punch shake,1
+FRJ,FRJ-005,Fruit Smoothie,Blended fresh fruit,Smoothies,cup,900,Fruit:Mango|Banana|Pineapple|Mixed;Size:Regular|Large+300,smoothie fruit blended,1
+FRJ,FRJ-006,Coconut Water,Chilled coconut water,Local Drinks,bottle,500,,coconut water fresh,1
