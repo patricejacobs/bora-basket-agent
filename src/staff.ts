@@ -17,7 +17,7 @@ import {
   findCancelReason,
   type Audience,
 } from './order-status.ts';
-import { dispatchToDrivers } from './dispatch.ts';
+import { dispatchToDrivers, tellKitchenCancelled } from './dispatch.ts';
 import { summariseStored } from './menu-options.ts';
 import { mapsLink, type LocationPin } from './location.ts';
 import {
@@ -76,27 +76,8 @@ async function applyStatus(
   // A cancellation has to reach whoever else was working on it. A kitchen that
   // keeps cooking an order the shop cancelled is wasted food and wasted money.
   if (status === 'cancelled' && order.outlet) {
-    // Re-read: the reason was written to the row a moment ago, and the record
-    // in hand was fetched before that. The kitchen was getting a bare
-    // "cancelled" with the one useful word missing.
-    const reason = repo.findOrder(order.orderNo)?.cancelReason ?? '';
-    const outlet = repo.outletById(order.outlet.id);
-    if (outlet?.whatsapp) {
-      try {
-        await sendText(
-          outlet.whatsapp,
-          `🚫 *${order.orderNo} cancelled*${reason ? ` — ${reason}` : ''}.
-
-Stop cooking it if you have started.`,
-        );
-        notes.push('Kitchen told to stop.');
-      } catch (err) {
-        console.error('[staff] could not tell the kitchen about a cancellation:', err);
-        notes.push('⚠️ Could not tell the kitchen — ring them.');
-      }
-    } else {
-      notes.push('⚠️ Kitchen has no WhatsApp number — ring them to stop the order.');
-    }
+    const told = await tellKitchenCancelled(order.orderNo);
+    if (told) notes.push(told);
   }
 
   if (status === 'ready') {

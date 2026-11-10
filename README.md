@@ -813,6 +813,25 @@ need; it tells them whether to try another dish, another kitchen, or come back t
 Telling the kitchen matters too: one that keeps cooking an order the shop cancelled is
 wasted food and wasted money.
 
+### A customer who wants to cancel
+
+They get it stopped, or get it handed to someone who can — and either way the agent leads
+with what has happened rather than what it cannot do.
+
+| State | What happens |
+|---|---|
+| Kitchen has not accepted | cancelled there and then: *"ORD-00007 is cancelled, and nothing has been charged."* The kitchen is told to ignore the ticket |
+| Anything further along | food may be cooking or with a delivery associate, so it goes to staff: *"I've passed ORD-00002 to the team to stop. They'll come back to you right here."* |
+
+**The agent never announces its own limits.** "I can't do that myself", "you'll need to
+speak to staff", "I'll try" — all of them tell the customer nothing useful and make the shop
+look helpless. The rule is in the prompt and the tool enforces it: when an order is too far
+along, the refusal handed back to the agent says in as many words *do not say you are unable
+to do it*.
+
+A customer can only cancel their own orders, checked against the number they are messaging
+from — order numbers are sequential and read aloud.
+
 ### When an order stops moving
 
 Every stage of an order has somebody waiting on it who will chase — a kitchen chases a

@@ -21,6 +21,35 @@ import { checkRange, describePin, mapsLink } from './location.ts';
 import { notifyStaffOfNewOrder } from './notifications.ts';
 
 /**
+ * Tells a kitchen to stop cooking something that has been cancelled.
+ *
+ * Shared, because three different people can cancel an order and a kitchen
+ * that keeps cooking is wasted food however it happened. Returns what to tell
+ * whoever cancelled, so they know whether the kitchen actually heard.
+ */
+export async function tellKitchenCancelled(orderNo: string): Promise<string> {
+  const order = repo.findOrder(orderNo);
+  if (!order?.outlet) return '';
+
+  const outlet = repo.outletById(order.outlet.id);
+  if (!outlet?.whatsapp) return '⚠️ Kitchen has no WhatsApp number — ring them to stop the order.';
+
+  const reason = order.cancelReason ? ` — ${order.cancelReason}` : '';
+  try {
+    await sendText(
+      outlet.whatsapp,
+      `🚫 *${order.orderNo} cancelled*${reason}.
+
+Stop cooking it if you have started.`,
+    );
+    return 'Kitchen told to stop.';
+  } catch (err) {
+    console.error('[dispatch] could not tell the kitchen about a cancellation:', err);
+    return '⚠️ Could not tell the kitchen — ring them.';
+  }
+}
+
+/**
  * Everyone who needs to know a new order exists.
  *
  * The shop always, and the kitchen too when the food is someone else's to cook.

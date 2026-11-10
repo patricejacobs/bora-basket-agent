@@ -2280,6 +2280,55 @@ section('Why an order was cancelled');
 
   check('every reason has customer-facing words', CANCEL_REASONS.every((r) => r.customer.length > 10));
 
+  // A customer cancelling their own order. Allowed only while nothing is
+  // cooking — past that, undoing it costs food and is a person's decision.
+  const ownPhone = '5920009700';
+  const ownCtx: ToolContext = { phone: ownPhone, outbound: [] };
+  const own = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, ownCtx));
+
+  check('nothing to cancel is refused', typeof own('cancel_my_order').error === 'string');
+
+  repo.setService(ownPhone, 'grocery');
+  own('add_to_cart', { sku: 'RIC-002', quantity: 2 });
+  repo.saveCustomer(ownPhone, { name: 'Own Order', address: 'Somewhere' });
+  repo.saveLocationPin(ownPhone, { latitude: 6.807, longitude: -58.155, label: 'Home' });
+  repo.confirmIdentity(ownPhone);
+  const mine = own('place_order', { payment_method: 'cash_on_delivery' });
+  const mineRef = String(Number(String(mine.order_number).replace(/\D/g, '')));
+
+  const scrapped = own('cancel_my_order');
+  check('a pending order cancels on the spot', scrapped.cancelled !== undefined, JSON.stringify(scrapped));
+  check('and is recorded as the customer doing it', repo.findOrder(mineRef)?.cancelledBy === 'customer', repo.findOrder(mineRef)?.cancelledBy);
+  check('with a reason that does not apologise', repo.findOrder(mineRef)?.cancelReason === 'Customer changed their mind');
+  check('cancelling it twice is refused', typeof own('cancel_my_order', { order_number: mineRef }).error === 'string');
+
+  // Once a kitchen has accepted, it is not the agent's to undo.
+  own('add_to_cart', { sku: 'RIC-002', quantity: 2 });
+  repo.confirmIdentity(ownPhone);
+  const cooking = own('place_order', { payment_method: 'cash_on_delivery' });
+  const cookingRef = String(Number(String(cooking.order_number).replace(/\D/g, '')));
+  repo.setOrderStatus(String(cooking.order_number), 'confirmed');
+
+  const tooLate = own('cancel_my_order', { order_number: cookingRef });
+  check('a confirmed order is not cancelled here', typeof tooLate.error === 'string', JSON.stringify(tooLate));
+  check('and it really was not', repo.findOrder(cookingRef)?.status === 'confirmed');
+  // The whole point: the agent must not announce its own impotence.
+  check(
+    'the refusal forbids saying "I cannot"',
+    String(tooLate.error).includes('Do not say you are unable'),
+    tooLate.error,
+  );
+  check('and points at the handoff', String(tooLate.error).includes('request_staff_help'), tooLate.error);
+
+  // Somebody else's order is not theirs to cancel, however they ask.
+  const stranger: ToolContext = { phone: '5920009777', outbound: [] };
+  const snooped = JSON.parse(executeTool('cancel_my_order', { order_number: mineRef }, stranger));
+  check('cannot cancel another customer order', typeof snooped.error === 'string', JSON.stringify(snooped));
+
+  const prompt = (await import('./agent/system-prompt.ts')).SYSTEM_PROMPT;
+  check('the prompt forbids announcing limits', prompt.includes('Never say what you cannot do'));
+
   // Saying sorry to somebody for doing what they asked reads as a machine that
   // has not understood, and devalues the apology everywhere it is deserved.
   check(

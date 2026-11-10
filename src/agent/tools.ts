@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
-import { announceNewOrder } from '../dispatch.ts';
+import { announceNewOrder, tellKitchenCancelled } from '../dispatch.ts';
 import { notifyStaffOfRequest } from '../notifications.ts';
 import { quoteParcel, checkContents } from '../parcels.ts';
 import { productImageUrl } from '../product-images.ts';
@@ -346,6 +346,21 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
       },
       required: ['contents', 'recipient_name', 'recipient_phone'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'cancel_my_order',
+    description:
+      "Cancel one of this customer's own orders. Works only while the kitchen has not accepted it yet — after that food may already be cooking, so it needs a person and you should use request_staff_help instead. The tool tells you which case you are in; call it before promising anything.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        order_number: {
+          type: 'string',
+          description: "The order to cancel, e.g. 'ORD-00007' or '7'. Omit to cancel their most recent one.",
+        },
+      },
       additionalProperties: false,
     },
   },
@@ -1284,6 +1299,52 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
               note: 'Tell them the shop will confirm the cost before collecting. Do not quote a figure.',
             }),
         next: 'Give them the job number and what happens next: a delivery associate collects, then delivers. No time promise.',
+      });
+    }
+
+    case 'cancel_my_order': {
+      const reference = asString(input.order_number);
+      const order = reference
+        ? repo.customerOrder(ctx.phone, reference)
+        : (() => {
+            const recent = repo.recentOrders(ctx.phone, 1)[0];
+            return recent ? repo.customerOrder(ctx.phone, recent.orderNo) : null;
+          })();
+
+      if (!order) {
+        return fail(
+          reference
+            ? `No order ${reference} on this number. Offer to list their recent orders.`
+            : 'They have no orders to cancel.',
+        );
+      }
+      if (order.status === 'cancelled') return fail(`${order.orderNo} is already cancelled.`);
+      if (order.status === 'delivered') {
+        return fail(
+          `${order.orderNo} has already been delivered. If something was wrong with it, use request_staff_help.`,
+        );
+      }
+
+      // Past 'pending' somebody has started work — food on a stove, or a rider
+      // already moving. Undoing that costs money and is a person's decision.
+      if (order.status !== 'pending') {
+        return fail(
+          `${order.orderNo} is already ${CUSTOMER_STATUS[order.status]}, so it cannot be cancelled here — call request_staff_help and tell them the team is on it. Do not say you are unable to do it.`,
+        );
+      }
+
+      repo.setCancelReason(order.orderNo, 'Customer changed their mind', 'customer');
+      repo.setOrderStatus(order.orderNo, 'cancelled');
+
+      // The kitchen was told to cook this when it was placed, and has not
+      // answered yet — it must not accept it ten minutes from now.
+      void tellKitchenCancelled(order.orderNo).catch((err) =>
+        console.error('[tools] could not tell the kitchen about a cancellation:', err),
+      );
+
+      return ok({
+        cancelled: order.orderNo,
+        next: 'Confirm it plainly and say nothing has been charged. Do not apologise — they asked for this.',
       });
     }
 
