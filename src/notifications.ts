@@ -20,15 +20,29 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   const order = repo.findOrder(orderNo);
   if (!order) return;
 
+  const isParcel = order.kind === 'parcel';
+
   const lines = [
-    order.outlet ? `🍽️ *New order ${order.orderNo}* — ${order.outlet.name}` : `🛒 *New order ${order.orderNo}*`,
+    isParcel
+      ? `📦 *New parcel job ${order.orderNo}*`
+      : order.outlet
+        ? `🍽️ *New order ${order.orderNo}* — ${order.outlet.name}`
+        : `🛒 *New order ${order.orderNo}*`,
     '',
-    ...order.items.map((i) => {
-      const chosen = summariseStored(i.options);
-      return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''} — ${money(i.lineTotal)}`;
-    }),
+    // A parcel has no line items — one bag and a description.
+    ...(isParcel
+      ? [order.parcelDetails || 'Contents not described']
+      : order.items.map((i) => {
+          const chosen = summariseStored(i.options);
+          return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''} — ${money(i.lineTotal)}`;
+        })),
     '',
-    `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`,
+    order.total > 0
+      ? `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`
+      : '*Fee not set* — confirm the cost with the customer before collecting',
+    ...(isParcel && order.pickup
+      ? ['', `Collect from: ${order.pickup.address || 'pin below'}`, `Sender ${order.customerName} +${order.contactPhone || order.phone}`]
+      : []),
     // A restaurant order is not yours to pack, so the shop's line is the wait
     // and the collection rather than a picking list.
     ...(order.outlet
@@ -38,7 +52,7 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
         ]
       : []),
     '',
-    `${order.customerName}`,
+    isParcel ? `To: ${order.recipientName} +${order.recipientPhone}` : `${order.customerName}`,
     // Doorstep detail, which is often empty now that the pin carries the
     // location. Skipped rather than printed as a blank line.
     ...(order.address ? [order.address] : []),
@@ -72,6 +86,43 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
       });
     }
   }
+}
+
+/**
+ * Hands a conversation to a person.
+ *
+ * The one thing the agent genuinely cannot do is be a human being, and until
+ * now "a staff member will follow up" went nowhere. Staff get the customer's
+ * number as a tappable link so replying is one tap from the alert.
+ */
+export async function notifyStaffOfRequest(
+  phone: string,
+  summary: string,
+  urgent = false,
+): Promise<'sent' | 'no_staff'> {
+  if (config.staffNumbers.length === 0) {
+    console.warn(`[notify] ${phone} asked for a person but STAFF_NUMBERS is empty — nobody was told`);
+    return 'no_staff';
+  }
+
+  const customer = repo.getCustomer(phone);
+  const recent = repo.recentOrders(phone, 1)[0];
+
+  const body = [
+    urgent ? '🔴 *Customer needs help — urgent*' : '🙋 *Customer needs help*',
+    '',
+    summary.slice(0, 800),
+    '',
+    customer.name ? `${customer.name}` : 'Name not on file',
+    `📞 +${customer.contactPhone || phone}`,
+    `💬 https://wa.me/${phone.replace(/[^0-9]/g, '')}`,
+    ...(recent ? [`Last order ${recent.orderNo} — ${recent.status}`] : ['No previous orders']),
+    '',
+    'Reply to them directly on WhatsApp — the agent has told them to expect a person.',
+  ].join('\n');
+
+  for (const staff of config.staffNumbers) await sendText(staff, body);
+  return 'sent';
 }
 
 /**

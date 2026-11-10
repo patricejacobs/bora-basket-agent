@@ -131,6 +131,23 @@ CREATE TABLE IF NOT EXISTS search_misses (
 CREATE INDEX IF NOT EXISTS idx_search_misses_norm ON search_misses(normalized);
 CREATE INDEX IF NOT EXISTS idx_search_misses_at   ON search_misses(created_at);
 
+-- A parcel being put together, before it becomes an order.
+--
+-- Two pins are needed and they arrive in separate messages, so they are parked
+-- here rather than on the customer. That separation matters: a pickup pin for a
+-- parcel is somebody else's doorstep, and letting it overwrite the customer's
+-- saved delivery address would quietly send next week's groceries there.
+CREATE TABLE IF NOT EXISTS parcel_drafts (
+  phone        TEXT PRIMARY KEY,
+  pickup_lat   REAL,
+  pickup_lng   REAL,
+  pickup_label TEXT NOT NULL DEFAULT '',
+  dest_lat     REAL,
+  dest_lng     REAL,
+  dest_label   TEXT NOT NULL DEFAULT '',
+  updated_at   TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS message_log (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   phone      TEXT NOT NULL,
@@ -215,6 +232,27 @@ addColumnIfMissing('order_items', 'options', "TEXT NOT NULL DEFAULT ''");
 // than inferred from the conversation so a search cannot drift back to the
 // grocery aisle halfway through ordering a burger.
 addColumnIfMissing('customers', 'browsing_outlet_id', 'INTEGER');
+
+/* --------------------------------------------------------------- services */
+
+// Which service the customer picked at the start of this conversation:
+// groceries, a restaurant, a parcel, or something a person has to handle.
+// Persisted rather than inferred, because a shopping cart and a parcel job are
+// not interchangeable and a conversation that drifts between them produces an
+// order nobody can fulfil. Cleared when a conversation ends, so the next one
+// opens with the menu again.
+addColumnIfMissing('customers', 'service', 'TEXT');
+addColumnIfMissing('customers', 'service_chosen_at', 'TEXT');
+
+// A parcel has a sender and a recipient, and they are different people in
+// different places. The customer is the sender; these are who receives it.
+addColumnIfMissing('orders', 'recipient_name', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'recipient_phone', "TEXT NOT NULL DEFAULT ''");
+// What the job is. 'grocery' and 'restaurant' are product orders; 'parcel'
+// carries no products at all, so anything reading order_items must tolerate
+// an order with none.
+addColumnIfMissing('orders', 'kind', "TEXT NOT NULL DEFAULT 'grocery'");
+addColumnIfMissing('orders', 'parcel_details', "TEXT NOT NULL DEFAULT ''");
 
 /**
  * Two of the same burger with different options are two cart lines, so the

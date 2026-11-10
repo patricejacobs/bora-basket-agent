@@ -261,6 +261,33 @@ export function setBrowsingOutlet(phone: string, outletId: number | null): void 
   );
 }
 
+/* ----------------------------------------------------------------- service */
+
+/**
+ * Which service this customer picked for the conversation they are in.
+ *
+ * Null means they have not chosen yet, which is what makes the opening menu
+ * appear. Cleared when the conversation is reset or expires, so every new
+ * conversation starts with the welcome.
+ */
+export function getService(phone: string): string | null {
+  const row = db.prepare(`SELECT service FROM customers WHERE phone = ?`).get(phone) as
+    | { service: string | null }
+    | undefined;
+  return row?.service ?? null;
+}
+
+export function setService(phone: string, service: string | null): void {
+  // A customer may choose a service before we know anything else about them.
+  db.prepare(
+    `INSERT INTO customers (phone, created_at, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(phone) DO NOTHING`,
+  ).run(phone, nowIso(), nowIso());
+  db.prepare(
+    `UPDATE customers SET service = ?, service_chosen_at = ?, updated_at = ? WHERE phone = ?`,
+  ).run(service, service ? nowIso() : null, nowIso(), phone);
+}
+
 export function setItemSoldOut(sku: string, soldOut: boolean): void {
   db.prepare(`UPDATE products SET sold_out = ?, updated_at = ? WHERE sku = ? COLLATE NOCASE`).run(
     soldOut ? 1 : 0,
@@ -918,8 +945,24 @@ export type OrderRecord = {
     pickupLng: number | null;
     prepMinutes: number;
   } | null;
+  /**
+   * Where the rider collects, whoever it belongs to — a restaurant for food, a
+   * sender's door for a parcel. Read from the order's own columns rather than
+   * through the outlet, so a parcel (which has no outlet) still has a pickup.
+   */
+  pickup: { address: string; latitude: number | null; longitude: number | null } | null;
   /** The driver this was dispatched to, empty until the food is ready. */
   driverPhone: string;
+  /** 'grocery' | 'restaurant' | 'parcel'. A parcel carries no items. */
+  kind: string;
+  /**
+   * Who receives a parcel, which is not the customer who sent it. Empty on a
+   * shopping order, where the customer is also the recipient.
+   */
+  recipientName: string;
+  recipientPhone: string;
+  /** What is being sent, in the sender's words. */
+  parcelDetails: string;
   items: { name: string; qty: number; unit: string; options: string; lineTotal: number }[];
 };
 
@@ -941,6 +984,10 @@ function hydrateOrder(row: {
   pickup_lng: number | null;
   prep_minutes: number | null;
   driver_phone: string | null;
+  kind: string | null;
+  recipient_name: string | null;
+  recipient_phone: string | null;
+  parcel_details: string | null;
   total: number;
   status: string;
   created_at: string;
@@ -970,7 +1017,21 @@ function hydrateOrder(row: {
             pickupLng: row.pickup_lng ?? null,
             prepMinutes: row.prep_minutes ?? 0,
           },
+    pickup:
+      row.pickup_lat !== null && row.pickup_lng !== null
+        ? {
+            address: row.pickup_address ?? '',
+            latitude: row.pickup_lat,
+            longitude: row.pickup_lng,
+          }
+        : row.pickup_address
+          ? { address: row.pickup_address, latitude: null, longitude: null }
+          : null,
     driverPhone: row.driver_phone ?? '',
+    kind: row.kind ?? 'grocery',
+    recipientName: row.recipient_name ?? '',
+    recipientPhone: row.recipient_phone ?? '',
+    parcelDetails: row.parcel_details ?? '',
     items: (
       db
         .prepare(
@@ -1008,6 +1069,144 @@ export function findOrder(reference: string): OrderRecord | null {
 export function customerOrder(phone: string, reference: string): OrderRecord | null {
   const order = findOrder(reference);
   return order && order.phone === phone ? order : null;
+}
+
+/**
+ * A parcel job.
+ *
+ * Written straight to the orders table rather than a table of its own, so it
+ * inherits the whole machinery an order already has: a number, a status
+ * lifecycle, staff commands, rider dispatch and customer notifications. The
+ * fields line up: pickup_* is where the rider collects — a restaurant for food,
+ * the sender's door for a parcel — and the delivery pin is where it goes.
+ *
+ * It carries no products, so anything reading order_items must cope with an
+ * order that has none.
+ */
+export function createParcelJob(args: {
+  phone: string;
+  senderName: string;
+  pickup: { latitude: number; longitude: number; label?: string };
+  pickupAddress: string;
+  destination: { latitude: number; longitude: number; label?: string };
+  destinationAddress: string;
+  recipientName: string;
+  recipientPhone: string;
+  contents: string;
+  fee: number;
+  contactPhone: string;
+}): { orderNo: string } {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const next = db.prepare(`SELECT COALESCE(MAX(id), 0) + 1 AS next FROM orders`).get() as {
+      next: number;
+    };
+    const orderNo = `ORD-${String(next.next).padStart(5, '0')}`;
+
+    db.prepare(
+      `INSERT INTO orders
+         (order_no, kind, phone, customer_name, address, contact_phone, delivery_note,
+          latitude, longitude, location_label,
+          pickup_address, pickup_lat, pickup_lng,
+          recipient_name, recipient_phone, parcel_details,
+          subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, 'parcel', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'cash_on_delivery', 'pending', ?)`,
+    ).run(
+      orderNo,
+      args.phone,
+      args.senderName,
+      args.destinationAddress,
+      args.contactPhone,
+      args.destination.latitude,
+      args.destination.longitude,
+      args.destination.label ?? '',
+      args.pickupAddress,
+      args.pickup.latitude,
+      args.pickup.longitude,
+      args.recipientName,
+      args.recipientPhone,
+      args.contents,
+      args.fee,
+      args.fee,
+      nowIso(),
+    );
+    db.exec('COMMIT');
+    return { orderNo };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+/* ---------------------------------------------------------- parcel drafts */
+
+export type ParcelDraft = {
+  pickup: { latitude: number; longitude: number; label: string } | null;
+  destination: { latitude: number; longitude: number; label: string } | null;
+};
+
+export function getParcelDraft(phone: string): ParcelDraft {
+  const row = db.prepare(`SELECT * FROM parcel_drafts WHERE phone = ?`).get(phone) as
+    | {
+        pickup_lat: number | null;
+        pickup_lng: number | null;
+        pickup_label: string;
+        dest_lat: number | null;
+        dest_lng: number | null;
+        dest_label: string;
+      }
+    | undefined;
+  if (!row) return { pickup: null, destination: null };
+
+  return {
+    pickup:
+      row.pickup_lat !== null && row.pickup_lng !== null
+        ? { latitude: row.pickup_lat, longitude: row.pickup_lng, label: row.pickup_label ?? '' }
+        : null,
+    destination:
+      row.dest_lat !== null && row.dest_lng !== null
+        ? { latitude: row.dest_lat, longitude: row.dest_lng, label: row.dest_label ?? '' }
+        : null,
+  };
+}
+
+/**
+ * Files an incoming pin into the parcel being built.
+ *
+ * Pickup first, then destination, because that is the order a person describes
+ * a journey in. Returns which slot it filled so the customer can be told —
+ * silently overwriting the wrong one is how a parcel goes back where it came
+ * from.
+ */
+export function addParcelPin(
+  phone: string,
+  pin: { latitude: number; longitude: number; label?: string },
+  slot?: 'pickup' | 'destination',
+): 'pickup' | 'destination' {
+  const draft = getParcelDraft(phone);
+  const target = slot ?? (draft.pickup === null ? 'pickup' : 'destination');
+
+  db.prepare(
+    `INSERT INTO parcel_drafts (phone, updated_at) VALUES (?, ?)
+     ON CONFLICT(phone) DO NOTHING`,
+  ).run(phone, nowIso());
+
+  if (target === 'pickup') {
+    db.prepare(
+      `UPDATE parcel_drafts SET pickup_lat = ?, pickup_lng = ?, pickup_label = ?, updated_at = ?
+        WHERE phone = ?`,
+    ).run(pin.latitude, pin.longitude, pin.label ?? '', nowIso(), phone);
+  } else {
+    db.prepare(
+      `UPDATE parcel_drafts SET dest_lat = ?, dest_lng = ?, dest_label = ?, updated_at = ?
+        WHERE phone = ?`,
+    ).run(pin.latitude, pin.longitude, pin.label ?? '', nowIso(), phone);
+  }
+  return target;
+}
+
+export function clearParcelDraft(phone: string): void {
+  db.prepare(`DELETE FROM parcel_drafts WHERE phone = ?`).run(phone);
 }
 
 /** Records which driver an order went to, so a second alert cannot send two. */

@@ -36,8 +36,10 @@ async function applyStatus(
   const notes: string[] = [];
 
   // The moment the food exists, a rider is sent — and only now, or they stand
-  // in the restaurant watching a fryer.
-  if (status === 'ready') {
+  // in the restaurant watching a fryer. A parcel has nothing to cook, so
+  // accepting the job is itself the moment it is ready to collect.
+  const dispatchNow = status === 'ready' || (status === 'confirmed' && order.kind === 'parcel');
+  if (dispatchNow) {
     try {
       const how = await dispatchToDrivers(order.orderNo);
       notes.push(

@@ -1,4 +1,4 @@
-import { runAgent, friendlyErrorMessage } from './agent/run.ts';
+import { runAgent, friendlyErrorMessage, SESSION_TTL_MS as CONVERSATION_TTL_MS } from './agent/run.ts';
 import {
   isStaff,
   isDriver,
@@ -15,6 +15,12 @@ import {
   locationNote,
   type LocationPin,
 } from './location.ts';
+import {
+  parseServiceChoice,
+  serviceMenuReply,
+  serviceOpening,
+  wantsServiceMenu,
+} from './services.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
 /**
@@ -38,6 +44,30 @@ export function recordLocationPin(phone: string, pin: LocationPin): string {
     `[location] ${phone} pinned ${formatCoordinates(saved)}${saved.label ? ` (${saved.label})` : ''}${how}`,
   );
   return locationNote(saved, range);
+}
+
+/**
+ * Files a pin into the parcel being arranged, rather than onto the customer.
+ *
+ * Pickup first, destination second, which is the order a person describes a
+ * journey in. The slot it filled is named back to the agent so it can read it
+ * aloud — a parcel sent back where it came from because two pins were swapped
+ * is a wasted trip nobody notices until the rider arrives.
+ */
+export function recordParcelPin(phone: string, pin: LocationPin): string {
+  const slot = repo.addParcelPin(phone, pin);
+  const draft = repo.getParcelDraft(phone);
+
+  console.log(`[parcel] ${phone} pinned ${slot} ${formatCoordinates(pin)}`);
+
+  const which = slot === 'pickup' ? 'collection point' : 'destination';
+  const label = pin.label ? ` (${pin.label})` : '';
+  const stillNeeded =
+    draft.pickup && draft.destination
+      ? 'Both pins are now on file.'
+      : 'Still need the other one — ask for it with request_location.';
+
+  return `[The customer shared a location pin. Saved as the parcel's ${which}${label}. ${stillNeeded} Read back which one you took it as, so a mix-up is caught now rather than by the rider.]`;
 }
 
 /**
@@ -111,23 +141,83 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
 
   let text = msg.text.trim();
 
-  // A pin is saved the moment it arrives, and the agent is handed a note about
-  // it rather than the customer's (nonexistent) words. Done before the reset
-  // check below, which only ever matches typed text.
-  if (msg.location) {
-    const note = recordLocationPin(msg.phone, msg.location);
-    text = text ? `${note}\n\n${text}` : note;
-  }
-
   // Small operator escape hatch, useful during testing and when a customer is stuck.
   if (/^(reset|restart|start over)$/i.test(text)) {
     repo.resetConversation(msg.phone);
     repo.clearCart(msg.phone);
-    const reply: OutboundMessage[] = [
-      { kind: 'text', text: "Fresh start — your cart is empty. What would you like to order?" },
-    ];
-    repo.logMessage(msg.phone, 'out', msg.channel, reply[0]!.text);
+    repo.setService(msg.phone, null);
+    repo.setBrowsingOutlet(msg.phone, null);
+    const reply = serviceMenuReply(msg.phone);
+    for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
     return reply;
+  }
+
+  /* ------------------------------------------------------- service choice */
+
+  // Every conversation opens with a welcome and the four services, and nothing
+  // else happens until one is picked. Answered here rather than by the model:
+  // fixed text needs no language model, arrives instantly, costs nothing per
+  // message, and reads the same way to every customer every time.
+  // A choice belongs to a conversation, not to the customer. When the last one
+  // went cold the next message is a new visit, so it opens with the welcome
+  // again — matching the agent's own session window, or the two would disagree
+  // about whether this is a fresh conversation.
+  const lastTurn = repo.loadHistory(msg.phone).updatedAt;
+  if (lastTurn && Date.now() - new Date(lastTurn).getTime() > CONVERSATION_TTL_MS) {
+    repo.setService(msg.phone, null);
+    repo.setBrowsingOutlet(msg.phone, null);
+  }
+
+  const chosen = repo.getService(msg.phone);
+
+  if (chosen && wantsServiceMenu(text)) {
+    repo.setService(msg.phone, null);
+    repo.setBrowsingOutlet(msg.phone, null);
+    const reply = serviceMenuReply(msg.phone);
+    for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+    return reply;
+  }
+
+  if (!chosen) {
+    const picked = parseServiceChoice(text);
+    if (!picked) {
+      // Includes the case where their very first message is a photo, a voice
+      // note or a pin. Those are not a service choice, and guessing one from a
+      // picture would start the wrong job.
+      const reply = serviceMenuReply(msg.phone);
+      if (msg.image || msg.location || !text) {
+        reply.push({
+          kind: 'text',
+          text: 'Pick a number first and then send that again — I’ll read it properly once I know which service you want.',
+        });
+      }
+      for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return reply;
+    }
+
+    repo.setService(msg.phone, picked);
+    // The conversation starts here, not at the menu: the agent's first turn
+    // should be the service opening, with none of the menu in its history.
+    repo.resetConversation(msg.phone);
+
+    const reply: OutboundMessage[] = [{ kind: 'text', text: serviceOpening(picked) }];
+    for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+    return reply;
+  }
+
+  // A pin is saved the moment it arrives, and the agent is handed a note about
+  // it rather than the customer's (nonexistent) words.
+  //
+  // After the service choice rather than before, because where a pin belongs
+  // depends on which service this is: in parcel delivery it is somebody else's
+  // doorstep, and letting it overwrite the customer's saved address would
+  // quietly redirect next week's groceries to wherever they last sent a package.
+  if (msg.location) {
+    const note =
+      chosen === 'parcel'
+        ? recordParcelPin(msg.phone, msg.location)
+        : recordLocationPin(msg.phone, msg.location);
+    text = text ? `${note}\n\n${text}` : note;
   }
 
   let outbound: OutboundMessage[];

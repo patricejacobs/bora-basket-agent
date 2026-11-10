@@ -3,14 +3,20 @@ import { config } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
 import { TOOL_DEFS, executeTool, type ToolContext } from './tools.ts';
-import { buildConversationContext, buildTimeContext, CONTEXT_MARKER } from './context.ts';
+import { buildConversationContext, buildTurnContext, CONTEXT_MARKER } from './context.ts';
 import { splitReply } from './pacing.ts';
 import type { OutboundMessage, IncomingImage } from '../channels/types.ts';
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey || undefined });
 
 /** Conversations older than this start fresh — a shopper returning next week is not mid-order. */
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+/**
+ * How long a conversation stays open. Exported so the service menu expires on
+ * exactly the same clock — if the two disagreed, a customer could be mid-service
+ * with an agent that had forgotten the conversation, or re-greeted while the
+ * agent still held their cart.
+ */
+export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 /** Roughly a dozen exchanges of scrollback; older context is dropped at turn boundaries. */
 const MAX_HISTORY_MESSAGES = 40;
 /** Trailing text shorter than this, sent alongside buttons, is treated as filler. */
@@ -220,7 +226,7 @@ export async function runAgent(
   // transcript never accumulates contradicting timestamps.
   messages.push({
     role: 'system',
-    content: startingFresh ? buildConversationContext(phone) : buildTimeContext(),
+    content: startingFresh ? buildConversationContext(phone) : buildTurnContext(phone),
   });
 
   const ctx: ToolContext = { phone, outbound: [] };

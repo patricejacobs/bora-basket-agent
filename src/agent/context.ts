@@ -1,5 +1,8 @@
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
+import { serviceContextLine, SERVICES, type Service } from '../services.ts';
+
+const isService = (v: string): v is Service => (SERVICES as readonly string[]).includes(v);
 import { checkRange, formatDistance } from '../location.ts';
 
 /**
@@ -50,8 +53,29 @@ export function buildTimeContext(): string {
   return lines.join('\n');
 }
 
+/** The clock plus the chosen service — what every turn after the first gets. */
+export function buildTurnContext(phone: string): string {
+  const service = serviceLine(phone);
+  return service ? `${buildTimeContext()}\n${service}` : buildTimeContext();
+}
+
+/**
+ * The service the customer picked, restated on every turn.
+ *
+ * On every turn and not just the first: the choice is the one thing that must
+ * not drift. Twenty messages into a parcel job, a model that has forgotten
+ * which service it is in starts searching the grocery catalogue.
+ */
+function serviceLine(phone: string): string | null {
+  const service = repo.getService(phone);
+  if (!service || !isService(service)) return null;
+  return serviceContextLine(service);
+}
+
 export function buildConversationContext(phone: string): string {
   const lines: string[] = [buildTimeContext()];
+  const service = serviceLine(phone);
+  if (service) lines.push(service);
 
   const customer = repo.getCustomer(phone);
   const orders = repo.recentOrders(phone, 1);

@@ -36,8 +36,17 @@ export async function announceNewOrder(orderNo: string): Promise<void> {
   }
 }
 
-/** An order's lines as a kitchen or a rider wants to read them. */
+/**
+ * What is being carried, as a kitchen or a rider wants to read it.
+ *
+ * A parcel has no line items — it is one bag with a description — so it gets
+ * the sender's own words instead. Anything reading an order has to cope with
+ * both, or a parcel prints as an empty list.
+ */
 function itemLines(order: repo.OrderRecord): string[] {
+  if (order.kind === 'parcel') {
+    return [`📦 ${order.parcelDetails || 'Parcel (contents not described)'}`];
+  }
   return order.items.map((i) => {
     const chosen = summariseStored(i.options);
     return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''}`;
@@ -98,34 +107,45 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
     return 'no_drivers';
   }
 
-  const pickup = order.outlet;
+  const pickup = order.pickup;
   const pickupPin =
-    pickup && pickup.pickupLat !== null && pickup.pickupLng !== null
-      ? { latitude: pickup.pickupLat, longitude: pickup.pickupLng }
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
 
+  // A parcel goes to its recipient, not to the person who sent it. Printing the
+  // sender here would send the rider back where they started.
+  const isParcel = order.kind === 'parcel';
+  const receiverName = isParcel ? order.recipientName : order.customerName;
+  const receiverPhone = isParcel
+    ? order.recipientPhone
+    : order.contactPhone || order.phone;
+
   const body = [
-    `🛵 *Collect ${order.orderNo}*`,
+    isParcel ? `📦 *Parcel ${order.orderNo}*` : `🛵 *Collect ${order.orderNo}*`,
     '',
     ...(pickup
       ? [
-          `*Pick up:* ${pickup.name}`,
-          ...(pickup.pickupAddress ? [pickup.pickupAddress] : []),
+          `*Pick up:* ${order.outlet?.name ?? order.customerName}`,
+          ...(pickup.address ? [pickup.address] : []),
           ...(pickupPin ? [mapsLink(pickupPin)] : []),
+          ...(isParcel ? [`📞 sender +${order.contactPhone || order.phone}`] : []),
           '',
         ]
       : ['*Pick up:* the shop', '']),
     ...itemLines(order),
     '',
-    `*Deliver to:* ${order.customerName}`,
+    `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),
-    `📞 +${order.contactPhone || order.phone}`,
+    `📞 +${receiverPhone}`,
     ...(order.location
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
       : ['⚠️ No location pin on this order — ring the customer']),
     '',
     // The one number a rider must not get wrong: cash due on the doorstep.
-    `*Collect ${money(order.total)} cash* (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`,
+    order.total > 0
+      ? `*Collect ${money(order.total)} cash*${isParcel ? ' from the recipient' : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`}`
+      : '*Fee not set* — the shop will confirm it, do not quote one',
   ].join('\n');
 
   const actions = nextActions(order.orderNo, 'ready', 'driver');
@@ -139,15 +159,15 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       await sendLocation(driver, {
         latitude: pickupPin.latitude,
         longitude: pickupPin.longitude,
-        name: `Collect — ${pickup.name}`,
-        ...(pickup.pickupAddress ? { address: pickup.pickupAddress } : {}),
+        name: `Collect — ${order.outlet?.name ?? order.customerName}`,
+        ...(pickup.address ? { address: pickup.address } : {}),
       });
     }
     if (order.location) {
       await sendLocation(driver, {
         latitude: order.location.latitude,
         longitude: order.location.longitude,
-        name: `Deliver — ${order.customerName}`,
+        name: `Deliver — ${receiverName}`,
         ...(order.location.label || order.address
           ? { address: order.location.label || order.address }
           : {}),

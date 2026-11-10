@@ -1896,6 +1896,213 @@ section('Kitchen and rider commands');
   check('pausing does not deactivate the outlet', repo.getOutlet('SSC')?.active === 1);
 }
 
+/* ---------------------------------------------------------- service menu */
+
+section('Service menu');
+{
+  const { parseServiceChoice, welcomeMessage, wantsServiceMenu, SERVICE_MENU } = await import(
+    './services.ts'
+  );
+
+  const menu = welcomeMessage('5920009001');
+  check('welcomes before anything else', /welcome/i.test(menu), menu.split('\n')[0]);
+  check('asks what service is wanted', /what can we help/i.test(menu));
+  for (const [service, def] of Object.entries(SERVICE_MENU)) {
+    check(`offers ${service} as number ${def.number}`, menu.includes(`*${def.number}.* ${def.label}`), menu);
+  }
+  check('tells them to reply with a number', /reply with the number/i.test(menu));
+
+  // A customer who has ordered before is named, but still gets the menu: the
+  // service they want today is not the one they wanted last week.
+  repo.saveCustomer('5920009002', { name: 'Anita Persaud', address: 'Somewhere' });
+  const returning = welcomeMessage('5920009002');
+  check('greets a returning customer by name', returning.includes('Anita'), returning.split('\n')[0]);
+  check('and still shows the menu', returning.includes('*3.*'));
+
+  check('reads a bare number', parseServiceChoice('1') === 'grocery');
+  check('reads every number', parseServiceChoice('2') === 'restaurant' && parseServiceChoice('3') === 'parcel' && parseServiceChoice('4') === 'other');
+  check('reads a number with punctuation', parseServiceChoice('3.') === 'parcel' && parseServiceChoice('(2)') === 'restaurant');
+  check('reads "option 4"', parseServiceChoice('option 4') === 'other');
+  check('ignores a number out of range', parseServiceChoice('7') === null);
+
+  // Someone who answers in words has answered the question.
+  check('reads the service in words', parseServiceChoice('groceries') === 'grocery');
+  check('reads a synonym', parseServiceChoice('takeaway') === 'restaurant');
+  check('reads parcel in words', parseServiceChoice('parcel') === 'parcel');
+  check('an ambiguous reply is not a choice', parseServiceChoice('food shopping or restaurant?') === null);
+  check('a long message is not a menu pick', parseServiceChoice('I need help with a grocery order I placed last Tuesday and nobody called me back about it') === null);
+  check('empty is not a choice', parseServiceChoice('   ') === null);
+
+  check('"menu" asks to go back', wantsServiceMenu('menu') && wantsServiceMenu('Back'));
+  check('a sentence is not a request for the menu', !wantsServiceMenu('what is on the menu today'));
+}
+
+section('Service routing');
+{
+  const { handleIncoming } = await import('./conversation.ts');
+  const phone = '5920009100';
+  const send = async (text: string, extra: Record<string, unknown> = {}) =>
+    (await handleIncoming({ phone, text, channel: 'smoke', ...extra } as never)).map(
+      (m: { text?: string }) => m.text ?? '',
+    );
+
+  const first = await send('hello');
+  check('an opening message gets the welcome', /welcome/i.test(first[0] ?? ''), first[0]?.slice(0, 40));
+  check('and no service is set yet', repo.getService(phone) === null);
+
+  const nudge = await send('I want 2kg rice');
+  check('an unchosen service re-shows the menu', /\*1\.\*/.test(nudge[0] ?? ''), nudge[0]?.slice(0, 40));
+
+  const picked = await send('1');
+  check('a number selects the service', repo.getService(phone) === 'grocery');
+  check('and opens that service', /groceries/i.test(picked[0] ?? ''), picked[0]);
+
+  const back = await send('menu');
+  check('"menu" clears the service', repo.getService(phone) === null, String(repo.getService(phone)));
+  check('and shows the menu again', /\*4\.\*/.test(back[0] ?? ''));
+
+  // A pin before choosing must not be filed anywhere.
+  const pinFirst = await send('', { location: { latitude: 6.8, longitude: -58.1 } });
+  check('a pin before choosing shows the menu', /\*1\.\*/.test(pinFirst[0] ?? ''));
+  check('and explains what to do', (pinFirst[1] ?? '').includes('Pick a number first'), pinFirst[1]);
+  check('and files nothing', repo.getIdentity(phone).location === null);
+
+  // Staff are never shown a customer menu.
+  const staffReply = await handleIncoming({
+    phone: '5926497570',
+    text: 'orders',
+    channel: 'smoke',
+  } as never);
+  check(
+    'staff get the dispatch queue, not the service menu',
+    !/What can we help/i.test((staffReply[0] as { text?: string })?.text ?? ''),
+  );
+}
+
+section('Parcel delivery');
+{
+  const { quoteParcel, checkContents } = await import('./parcels.ts');
+
+  // Pricing. PARCEL_FEE_* are unset in this suite, so it must refuse to quote.
+  const unpriced = quoteParcel({ latitude: 6.81, longitude: -58.16 }, { latitude: 6.79, longitude: -58.12 });
+  check('does not invent a price when none is configured', 'priced' in unpriced && unpriced.priced === false, JSON.stringify(unpriced));
+  check('but still measures the distance', 'distanceKm' in unpriced && unpriced.distanceKm > 3, JSON.stringify(unpriced));
+  check(
+    'and tells the agent not to guess',
+    'reason' in unpriced && unpriced.reason.includes('never guess'),
+    'reason' in unpriced ? unpriced.reason : '',
+  );
+
+  // Contents. The refusal list is the part that matters.
+  check('asks what is inside before booking', checkContents('').allowed === false);
+  for (const [thing, label] of [
+    ['a handgun', 'weapons'],
+    ['some ammunition', 'ammunition'],
+    ['a bag of ganja', 'drugs'],
+    ['$500,000 cash', 'cash'],
+    ['my gold chain', 'gold'],
+    ['two puppies', 'animals'],
+    ['a gas cylinder', 'fuel'],
+    ['a bottle of rum for my uncle', 'alcohol'],
+    ['a carton of cigarettes', 'tobacco'],
+  ] as [string, string][]) {
+    check(`refuses to carry ${label}`, checkContents(thing).allowed === false, thing);
+  }
+  const refusal = checkContents('a handgun');
+  check(
+    'and tells the agent not to work around it',
+    !refusal.allowed && refusal.reason.includes('do not suggest a way around'),
+    !refusal.allowed ? refusal.reason : '',
+  );
+
+  for (const ordinary of [
+    'a laptop in a padded bag',
+    'documents for my lawyer',
+    'birthday cake, about 2kg',
+    'a pair of shoes',
+    'school books',
+  ]) {
+    check(`carries ${ordinary}`, checkContents(ordinary).allowed === true, ordinary);
+  }
+
+  // The tools, driven as the agent drives them.
+  const parcelPhone = '5920009200';
+  const parcelCtx: ToolContext = { phone: parcelPhone, outbound: [] };
+  const parcel = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, parcelCtx));
+
+  // Parcel tools are gated on the chosen service, not just on the prompt.
+  repo.setService(parcelPhone, 'grocery');
+  check('parcel tools refuse outside the parcel service', typeof parcel('parcel_status').error === 'string');
+  repo.setService(parcelPhone, 'parcel');
+
+  const empty = parcel('parcel_status');
+  check('reports no pins at the start', empty.pickup_pin === 'not yet' && empty.destination_pin === 'not yet', JSON.stringify(empty));
+
+  // Pins arrive in order, pickup first.
+  check('the first pin is the pickup', repo.addParcelPin(parcelPhone, { latitude: 6.8149, longitude: -58.1628, label: 'Camp St' }) === 'pickup');
+  check('the second is the destination', repo.addParcelPin(parcelPhone, { latitude: 6.7935, longitude: -58.118, label: 'Ogle' }) === 'destination');
+
+  const both = parcel('parcel_status');
+  check('reports both pins on file', both.pickup_pin.startsWith('on file') && both.destination_pin.startsWith('on file'), JSON.stringify(both));
+  check('and the distance between them', typeof both.distance === 'string', JSON.stringify(both));
+
+  check('refuses a job with no recipient number', typeof parcel('create_parcel_job', { contents: 'a book', recipient_name: 'Dave' }).error === 'string');
+  check('refuses an unusable recipient number', typeof parcel('create_parcel_job', { contents: 'a book', recipient_name: 'Dave', recipient_phone: '12' }).error === 'string');
+  // The sender has to be a known person before anything is booked.
+  const nameless = parcel('create_parcel_job', { contents: 'a laptop', recipient_name: 'Dave Singh', recipient_phone: '5926441122' });
+  check('refuses until the sender is named', typeof nameless.error === 'string', JSON.stringify(nameless));
+
+  repo.saveCustomer(parcelPhone, { name: 'Anita Persaud' });
+
+  // Checked with everything else in place, so the refusal can only be about the
+  // contents — otherwise this would pass on a missing name and prove nothing.
+  const banned = parcel('create_parcel_job', {
+    contents: 'a shotgun',
+    recipient_name: 'Dave Singh',
+    recipient_phone: '5926441122',
+  });
+  check(
+    'refuses forbidden contents at the tool as well',
+    String(banned.error).includes('cannot carry'),
+    JSON.stringify(banned),
+  );
+  check('and books nothing', repo.getParcelDraft(parcelPhone).pickup !== null);
+  const booked = parcel('create_parcel_job', {
+    contents: 'a laptop in a padded bag, about 2kg',
+    recipient_name: 'Dave Singh',
+    recipient_phone: '592 644 1122',
+    pickup_note: 'Blue gate, ask for Anita',
+    destination_note: 'Upstairs flat',
+  });
+  check('books the job', booked.booked === true, JSON.stringify(booked).slice(0, 140));
+  check('with no quoted fee when unpriced', booked.fee === 'to be confirmed', JSON.stringify(booked.fee));
+
+  const job = repo.findOrder(String(Number(String(booked.job_number).replace(/\D/g, ''))));
+  check('the job is a parcel, not a shopping order', job?.kind === 'parcel', job?.kind);
+  check('it carries no line items', job?.items.length === 0, JSON.stringify(job?.items));
+  check('it records what is being sent', (job?.parcelDetails ?? '').includes('laptop'), job?.parcelDetails);
+  check('it records the recipient', job?.recipientName === 'Dave Singh' && job?.recipientPhone === '5926441122', `${job?.recipientName} ${job?.recipientPhone}`);
+  check('the sender is the customer', job?.phone === parcelPhone);
+  check('pickup is where the rider collects', job?.pickup?.latitude === 6.8149, JSON.stringify(job?.pickup));
+  check('delivery is the destination pin', job?.location?.latitude === 6.7935, JSON.stringify(job?.location));
+  check('pickup and destination are not the same place', job?.pickup?.latitude !== job?.location?.latitude);
+
+  // A parcel pin must never become the customer's own saved address.
+  check(
+    'the parcel pins did not touch the customer address',
+    repo.getIdentity(parcelPhone).location === null,
+    JSON.stringify(repo.getIdentity(parcelPhone).location),
+  );
+  // And the draft is spent, or the next parcel starts with the last one's pins.
+  check('the draft is cleared after booking', repo.getParcelDraft(parcelPhone).pickup === null);
+
+  // Rider dispatch has to cope with an order that has no products.
+  const { dispatchToDrivers } = await import('./dispatch.ts');
+  const dispatched = await dispatchToDrivers(job!.orderNo);
+  check('a parcel can be dispatched to a rider', dispatched === 'sent', dispatched);
+}
+
 /* ------------------------------------------------------------------ report */
 
 console.log('');

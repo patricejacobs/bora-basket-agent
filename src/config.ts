@@ -162,6 +162,22 @@ export const config = {
     return raw.length > 0 ? [...new Set(raw)] : ['cash'];
   })() as ('cash' | 'card')[],
 
+  /**
+   * Parcel delivery pricing.
+   *
+   * Both default to 0, which means "not priced". The agent then takes the job
+   * and says staff will confirm the cost before pickup, rather than inventing a
+   * figure — a quoted price is a promise, and a wrong one is an argument on a
+   * doorstep. Set a base, and optionally a rate per kilometre between the two
+   * pins, to have it quote.
+   */
+  parcel: {
+    baseFee: Math.round(num('PARCEL_FEE_BASE', 0) * minorPerUnit),
+    perKm: Math.round(num('PARCEL_FEE_PER_KM', 0) * minorPerUnit),
+    /** Beyond this the job needs a person to agree it. 0 disables the cap. */
+    maxKm: num('PARCEL_MAX_KM', 0),
+  },
+
   store: {
     name: str('STORE_NAME', 'Our Grocery Store'),
     hours: str('STORE_HOURS', 'Mon-Sat 8:00am - 8:00pm'),

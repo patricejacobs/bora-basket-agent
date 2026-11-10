@@ -3,6 +3,8 @@ import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import { announceNewOrder } from '../dispatch.ts';
+import { notifyStaffOfRequest } from '../notifications.ts';
+import { quoteParcel, checkContents } from '../parcels.ts';
 import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
@@ -275,6 +277,63 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'parcel_status',
+    description:
+      'Check what you already have for the parcel being arranged: which pins are on file, how far apart they are, and the fee if one can be quoted. Call this before asking the customer for anything, so you do not ask twice.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'create_parcel_job',
+    description:
+      "Book the parcel once you have both pins, the recipient's name and number, and what is being sent. Creates the job and dispatches it. Call it once, only after reading the whole thing back and getting a clear yes.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        contents: {
+          type: 'string',
+          description:
+            "What is in the parcel, in the customer's own words, plus rough size or weight. Required — a rider has to know what they are carrying.",
+        },
+        recipient_name: { type: 'string', description: 'Who receives it.' },
+        recipient_phone: {
+          type: 'string',
+          description: "The recipient's telephone number, so the rider can ring on arrival.",
+        },
+        pickup_note: {
+          type: 'string',
+          description: 'Doorstep detail for the collection — which gate, which floor, who to ask for.',
+        },
+        destination_note: {
+          type: 'string',
+          description: 'The same for the drop-off.',
+        },
+      },
+      required: ['contents', 'recipient_name', 'recipient_phone'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'request_staff_help',
+    description:
+      "Hand this conversation to a person. Use it for the 'Other' service, and any time a customer needs something you cannot do — a complaint, a refund, a change to a placed order. Summarise what they want; staff get it with their number and pick it up on this same chat.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description:
+            "What the customer needs, in one or two plain sentences. Write what they actually said, not an interpretation.",
+        },
+        urgency: {
+          type: 'string',
+          description: "'normal' or 'urgent'. Urgent means someone is waiting on a delivery that has gone wrong.",
+        },
+      },
+      required: ['summary'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'list_recent_orders',
     description:
       "Look up this customer's own recent orders, with where each one has got to. Call this whenever they ask about an order — 'where is my order', 'has it left yet', 'did it go through' — and when they want to reorder the same items. Never answer from memory: a status can change between messages.",
@@ -345,6 +404,19 @@ const productView = (p: repo.Product) => {
       : {}),
   };
 };
+
+/**
+ * Refuses a tool that does not belong to the service the customer chose.
+ *
+ * The prompt already says which service this is, but a prompt is guidance and
+ * this is a gate. Booking a parcel from inside a grocery conversation would
+ * create a job against pins nobody shared.
+ */
+function requireService(phone: string, needed: string): string | null {
+  const current = repo.getService(phone);
+  if (current === needed) return null;
+  return `This is the ${current ?? 'unchosen'} service, not ${needed}. Ask the customer to send "menu" if they want to switch.`;
+}
 
 /**
  * Which catalogue this customer's searches should see.
@@ -986,6 +1058,117 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       } catch (err) {
         return fail(err instanceof Error ? err.message : 'Could not place the order.');
       }
+    }
+
+    case 'parcel_status': {
+      const wrong = requireService(ctx.phone, 'parcel');
+      if (wrong) return fail(wrong);
+
+      const draft = repo.getParcelDraft(ctx.phone);
+      const quote = draft.pickup && draft.destination ? quoteParcel(draft.pickup, draft.destination) : null;
+
+      return ok({
+        pickup_pin: draft.pickup ? `on file${draft.pickup.label ? ` (${draft.pickup.label})` : ''}` : 'not yet',
+        destination_pin: draft.destination
+          ? `on file${draft.destination.label ? ` (${draft.destination.label})` : ''}`
+          : 'not yet',
+        ...(quote === null
+          ? { next: 'Ask for whichever pin is missing with request_location, one at a time.' }
+          : 'tooFar' in quote
+            ? {
+                too_far: `${formatDistance(quote.distanceKm)} apart, over the ${quote.limitKm} km limit. Say we cannot cover that distance and offer to pass it to staff.`,
+              }
+            : quote.priced
+              ? { distance: formatDistance(quote.distanceKm), fee: money(quote.fee), how: quote.explanation }
+              : { distance: formatDistance(quote.distanceKm), fee: 'not priced', note: quote.reason }),
+      });
+    }
+
+    case 'create_parcel_job': {
+      const wrong = requireService(ctx.phone, 'parcel');
+      if (wrong) return fail(wrong);
+
+      const contents = asString(input.contents);
+      const recipientName = asString(input.recipient_name);
+      const recipientPhone = asString(input.recipient_phone).replace(/[^0-9+]/g, '');
+
+      if (!recipientName) return fail('recipient_name is required — a rider delivers to a person.');
+      if (recipientPhone.replace(/\D/g, '').length < 7) {
+        return fail('recipient_phone must be a usable number — the rider rings it on arrival.');
+      }
+
+      // What is inside is asked about and some answers are refused. A courier is
+      // handed a closed bag; this catches the customer who tells you honestly,
+      // which is most of them.
+      const allowed = checkContents(contents);
+      if (!allowed.allowed) return fail(allowed.reason);
+
+      const draft = repo.getParcelDraft(ctx.phone);
+      if (!draft.pickup) return fail('No collection pin yet. Ask for it with request_location.');
+      if (!draft.destination) return fail('No destination pin yet. Ask for it with request_location.');
+
+      const quote = quoteParcel(draft.pickup, draft.destination);
+      if ('tooFar' in quote) {
+        return fail(
+          `${formatDistance(quote.distanceKm)} is beyond the ${quote.limitKm} km we cover. Do not book it — offer to pass it to staff instead.`,
+        );
+      }
+
+      const customer = repo.getIdentity(ctx.phone);
+      if (!customer.name) {
+        return fail('Get the sender\'s name first and save it with save_customer_details.');
+      }
+
+      const fee = quote.priced ? quote.fee : 0;
+      const job = repo.createParcelJob({
+        phone: ctx.phone,
+        senderName: customer.name,
+        pickup: draft.pickup,
+        pickupAddress: asString(input.pickup_note),
+        destination: draft.destination,
+        destinationAddress: asString(input.destination_note),
+        recipientName,
+        recipientPhone,
+        contents,
+        fee,
+        contactPhone: customer.contactPhone || ctx.phone,
+      });
+
+      // The draft is spent. Left behind, the next parcel would start with the
+      // last one's pins already filled in.
+      repo.clearParcelDraft(ctx.phone);
+
+      void announceNewOrder(job.orderNo).catch((err) =>
+        console.error('[tools] parcel announcement failed:', err),
+      );
+
+      return ok({
+        booked: true,
+        job_number: job.orderNo,
+        distance: formatDistance(quote.distanceKm),
+        ...(quote.priced
+          ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
+          : {
+              fee: 'to be confirmed',
+              note: 'Tell them the shop will confirm the cost before collecting. Do not quote a figure.',
+            }),
+        next: 'Give them the job number and what happens next: a rider collects, then delivers. No time promise.',
+      });
+    }
+
+    case 'request_staff_help': {
+      const summary = asString(input.summary);
+      if (!summary) return fail('summary is required — say what the customer needs.');
+
+      const urgent = asString(input.urgency).toLowerCase() === 'urgent';
+      void notifyStaffOfRequest(ctx.phone, summary, urgent).catch((err) =>
+        console.error('[tools] staff help request failed:', err),
+      );
+
+      return ok({
+        passed_on: true,
+        next: 'Confirm it has gone to the team and that they will reply here. Do not promise when — you do not know.',
+      });
     }
 
     case 'list_recent_orders': {
