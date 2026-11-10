@@ -85,7 +85,14 @@ services:
         sync: false
 
       # --- store settings: safe to keep in version control ---------------
+      # Staff reach the dispatch queue instead of the shopping agent, and get
+      # every new order. Empty means orders are placed and nobody is told.
       - key: STAFF_NUMBERS
+        value: ""
+      # Riders. Told when food is cooked, with the pickup pin, the customer's
+      # pin and the cash to collect. Empty means food is cooked and no one is
+      # sent to fetch it — which a customer experiences as the shop not coming.
+      - key: DRIVER_NUMBERS
         value: ""
       - key: TEMPLATE_ORDER_ON_THE_WAY
         value: ""
