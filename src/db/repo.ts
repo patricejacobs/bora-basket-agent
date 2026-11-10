@@ -659,8 +659,9 @@ export function placeOrder(args: {
            (order_no, phone, customer_name, address, contact_phone, delivery_note,
             latitude, longitude, location_label,
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
+            kind,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -681,6 +682,12 @@ export function placeOrder(args: {
         cart.outlet?.pickupLat ?? null,
         cart.outlet?.pickupLng ?? null,
         cart.outlet?.prepMinutes ?? 0,
+        // What this order IS, written down rather than left to the column
+        // default. Without it every restaurant order was filed as a grocery
+        // one: the outlet name was right, so nothing broke, but counting
+        // orders by service answered the wrong question and the archive
+        // carried the wrong label for good.
+        cart.outlet ? 'restaurant' : 'grocery',
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -1575,9 +1582,22 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   // The stall stamp is cleared with every move, so each stage gets its own
   // alarm. An order warned about while waiting for a delivery associate must be able to
   // raise a second warning if the delivery then drags.
+  //
+  // A cancellation reason is cleared on any move that is not a cancellation.
+  // A reason is only ever written, so one set during a cancellation that was
+  // then abandoned used to stay on the order through to delivery — leaving a
+  // row that reads as both delivered and cancelled, which is unreadable in an
+  // archive six months later.
+  const keepReason = status === 'cancelled';
   db.prepare(
-    `UPDATE orders SET status = ?, updated_at = ?, stall_alerted_at = NULL WHERE order_no = ?`,
-  ).run(status, nowIso(), orderNo);
+    `UPDATE orders
+        SET status = ?,
+            updated_at = ?,
+            stall_alerted_at = NULL,
+            cancel_reason = CASE WHEN ? THEN cancel_reason ELSE '' END,
+            cancelled_by = CASE WHEN ? THEN cancelled_by ELSE '' END
+      WHERE order_no = ?`,
+  ).run(status, nowIso(), keepReason ? 1 : 0, keepReason ? 1 : 0, orderNo);
 }
 
 /* ----------------------------------------------------------------- stalls */

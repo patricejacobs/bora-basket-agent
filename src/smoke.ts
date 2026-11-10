@@ -2787,6 +2787,55 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section('What an order says it is');
+{
+  const archived = repo.allOrders();
+
+  const cooked = archived.filter((o) => o.outlet !== null);
+  check('there is a restaurant order to check', cooked.length > 0);
+  check(
+    'an order from a kitchen is recorded as a restaurant order',
+    cooked.every((o) => o.kind === 'restaurant'),
+    cooked.map((o) => `${o.orderNo}=${o.kind}`).slice(0, 3).join(' '),
+  );
+
+  const shelves = archived.filter((o) => o.outlet === null && o.kind !== 'parcel');
+  check(
+    'and one picked off the shelves is still a grocery order',
+    shelves.every((o) => o.kind === 'grocery'),
+  );
+  check(
+    'a parcel is neither',
+    archived.filter((o) => o.parcelDetails !== '').every((o) => o.kind === 'parcel'),
+  );
+}
+
+section('A cancellation reason belongs to the cancellation');
+{
+  // The bug: a reason is written when somebody starts a cancellation, and was
+  // never cleared. An order that then went on to be delivered read as both.
+  const victim = repo.allOrders().find((o) => o.status !== 'cancelled');
+  check('there is an order to move', Boolean(victim));
+  const no = victim?.orderNo ?? '';
+
+  repo.setCancelReason(no, 'Kitchen ran out', 'outlet');
+  check('a reason can be set', repo.findOrder(no)?.cancelReason === 'Kitchen ran out');
+
+  repo.setOrderStatus(no, 'cancelled');
+  check(
+    'cancelling keeps the reason',
+    repo.findOrder(no)?.cancelReason === 'Kitchen ran out',
+  );
+  check('and who cancelled it', repo.findOrder(no)?.cancelledBy === 'outlet');
+
+  // The abandoned cancellation: the order moves on instead.
+  repo.setOrderStatus(no, 'delivered');
+  const after = repo.findOrder(no);
+  check('a delivered order carries no cancellation reason', after?.cancelReason === '');
+  check('and nobody is recorded as having cancelled it', after?.cancelledBy === '');
+  check('while the status is the one it was moved to', after?.status === 'delivered');
+}
+
 section('Backing up the trading record');
 {
   const backup = await import('./backup.ts');

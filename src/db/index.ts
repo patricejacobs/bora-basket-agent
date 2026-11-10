@@ -318,6 +318,25 @@ addColumnIfMissing('orders', 'kind', "TEXT NOT NULL DEFAULT 'grocery'");
 addColumnIfMissing('orders', 'parcel_details', "TEXT NOT NULL DEFAULT ''");
 
 /**
+ * Repairs rows written before the two bugs above were fixed.
+ *
+ * Both are rewrites of what the row already meant, not guesses. An order with
+ * an outlet was cooked in a kitchen whatever its `kind` column says, and a
+ * cancellation reason on an order that is not cancelled described something
+ * that did not happen.
+ *
+ * Idempotent, and cheap once there is nothing left to mend: both run on every
+ * boot and match no rows after the first.
+ */
+db.exec(`
+  UPDATE orders SET kind = 'restaurant'
+   WHERE outlet_id IS NOT NULL AND kind = 'grocery';
+
+  UPDATE orders SET cancel_reason = '', cancelled_by = ''
+   WHERE status <> 'cancelled' AND (cancel_reason <> '' OR cancelled_by <> '');
+`);
+
+/**
  * Two of the same burger with different options are two cart lines, so the
  * primary key has to include the choices. SQLite cannot alter a primary key, so
  * the table is rebuilt — carrying any live carts across rather than clearing
