@@ -9,7 +9,7 @@ import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
-import { numberedOutlets } from '../services.ts';
+import { numberedOutlets, serviceOpening, SERVICES } from '../services.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance } from '../location.ts';
@@ -30,6 +30,42 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     description:
       'List every product category in the store with how many items each holds. Use this when the customer asks what you sell or seems unsure where to start.',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'switch_service',
+    description:
+      "Move the customer to a different service when they ask for one — groceries, restaurant food, a parcel, or something a person must handle. Call this instead of telling them to send 'menu'. If they have anything in their cart you must first ask whether to keep it for later or drop it, and pass their answer as cart_action; the tool refuses without it.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: "'grocery', 'restaurant', 'parcel' or 'other'.",
+        },
+        cart_action: {
+          type: 'string',
+          description:
+            "What to do with what is already in the cart: 'keep' sets it aside to come back to, 'cancel' drops it. Required whenever the cart has anything in it. Ask the customer — never choose for them.",
+        },
+      },
+      required: ['service'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'resume_parked_cart',
+    description:
+      'Bring back a cart the customer set aside earlier. Only works when the current cart is empty. Pass the outlet code for a restaurant cart, or omit it for the grocery cart.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        outlet_code: {
+          type: 'string',
+          description: 'The outlet whose cart to bring back. Omit for the grocery cart.',
+        },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: 'list_outlets',
@@ -416,7 +452,7 @@ const productView = (p: repo.Product) => {
 function requireService(phone: string, needed: string): string | null {
   const current = repo.getService(phone);
   if (current === needed) return null;
-  return `This is the ${current ?? 'unchosen'} service, not ${needed}. Ask the customer to send "menu" if they want to switch.`;
+  return `This is the ${current ?? 'unchosen'} service, not ${needed}. If the customer wants ${needed}, call switch_service — do not make them send "menu".`;
 }
 
 /**
@@ -752,6 +788,95 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
     case 'view_cart':
       return ok(cartView(ctx.phone));
+
+    case 'switch_service': {
+      const wanted = asString(input.service).toLowerCase();
+      if (!(SERVICES as readonly string[]).includes(wanted)) {
+        return fail(`service must be one of: ${SERVICES.join(', ')}.`);
+      }
+      const current = repo.getService(ctx.phone);
+      if (current === wanted) return fail(`They are already in the ${wanted} service.`);
+
+      const cart = repo.getCart(ctx.phone);
+      const action = asString(input.cart_action).toLowerCase();
+
+      // The customer's cart is not ours to throw away, and silently carrying it
+      // into another service is worse — one order, one source. So the decision
+      // is theirs, and this refuses until they have actually made it.
+      if (cart.lines.length > 0 && action !== 'keep' && action !== 'cancel') {
+        const what = cart.outlet ? `${cart.outlet.name} order` : 'grocery list';
+        return fail(
+          `They have ${cart.itemCount} item(s) in a ${what}. Ask first: keep it for later, or drop it? Then call this again with cart_action="keep" or "cancel". Do not decide for them.`,
+        );
+      }
+
+      let parked: repo.ParkedCart | null = null;
+      if (cart.lines.length > 0) {
+        if (action === 'keep') parked = repo.parkCart(ctx.phone);
+        else repo.clearCart(ctx.phone);
+      }
+
+      repo.setService(ctx.phone, wanted);
+      // Leaving a menu selected would scope the next search to a restaurant the
+      // customer has moved away from.
+      if (wanted !== 'restaurant') repo.setBrowsingOutlet(ctx.phone, null);
+
+      return ok({
+        now_in: wanted,
+        ...(parked
+          ? {
+              set_aside: `${parked.itemCount} item(s) from their ${parked.label} order are parked. Tell them it is safe and they can pick it up later.`,
+            }
+          : {}),
+        ...(cart.lines.length > 0 && action === 'cancel' ? { dropped: 'Their previous cart was cleared, as they asked.' } : {}),
+        ...(wanted === 'restaurant'
+          ? { next: 'Call list_outlets and show the kitchens, numbered.' }
+          : { next: serviceOpening(wanted as never) }),
+      });
+    }
+
+    case 'resume_parked_cart': {
+      const code = asString(input.outlet_code);
+      const outlet = code ? repo.getOutlet(code) : null;
+      if (code && !outlet) return fail(`No outlet with code "${code}".`);
+
+      const parkedCarts = repo.listParkedCarts(ctx.phone);
+      if (parkedCarts.length === 0) return fail('Nothing is parked for this customer.');
+
+      const target = outlet ? outlet.id : null;
+      const match = parkedCarts.find((p) => p.outletId === target);
+      if (!match) {
+        return fail(
+          `Nothing parked for that. They have: ${parkedCarts.map((p) => p.label).join(', ')}.`,
+        );
+      }
+
+      if (repo.getCart(ctx.phone).lines.length > 0) {
+        return fail(
+          'Their cart is not empty. Finish or set that aside first — two carts must not merge into one order.',
+        );
+      }
+
+      const restored = repo.restoreCart(ctx.phone, target);
+      if (restored === 0) {
+        return fail(
+          `Nothing could be brought back — those items are no longer available. Tell them and start fresh.`,
+        );
+      }
+
+      // Put them back in the right service and menu, or the restored cart would
+      // sit in a conversation that cannot add to it.
+      repo.setService(ctx.phone, target === null ? 'grocery' : 'restaurant');
+      repo.setBrowsingOutlet(ctx.phone, target);
+
+      return ok({
+        restored: `${restored} item(s) back from their ${match.label} order.`,
+        cart: cartView(ctx.phone),
+        ...(restored < match.itemCount
+          ? { note: `${match.itemCount - restored} item(s) were dropped — no longer available. Say which, if they ask.` }
+          : {}),
+      });
+    }
 
     case 'list_outlets': {
       const numbered = numberedOutlets();

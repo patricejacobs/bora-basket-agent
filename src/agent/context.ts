@@ -56,10 +56,26 @@ export function buildTimeContext(): string {
   return lines.join('\n');
 }
 
-/** The clock plus the chosen service — what every turn after the first gets. */
+/** The clock, the chosen service and anything parked — every turn after the first. */
 export function buildTurnContext(phone: string): string {
-  const service = serviceLine(phone);
-  return service ? `${buildTimeContext()}\n${service}` : buildTimeContext();
+  return [buildTimeContext(), serviceLine(phone), parkedLine(phone)].filter(Boolean).join('\n');
+}
+
+/**
+ * Carts the customer set aside earlier.
+ *
+ * On every turn, because the moment to offer one back is unpredictable — they
+ * may say "and what about my groceries?" twenty messages into a food order, and
+ * an agent that has forgotten the list exists will tell them it is gone.
+ */
+function parkedLine(phone: string): string | null {
+  const parked = repo.listParkedCarts(phone);
+  if (parked.length === 0) return null;
+
+  const described = parked
+    .map((p) => `${p.label} (${p.itemCount} item${p.itemCount === 1 ? '' : 's'})`)
+    .join('; ');
+  return `Set aside earlier, not lost: ${described}. Offer it back when it fits — resume_parked_cart brings it into the cart, and the cart must be empty first.`;
 }
 
 /**
@@ -79,6 +95,8 @@ export function buildConversationContext(phone: string): string {
   const lines: string[] = [buildTimeContext()];
   const service = serviceLine(phone);
   if (service) lines.push(service);
+  const parked = parkedLine(phone);
+  if (parked) lines.push(parked);
 
   const customer = repo.getCustomer(phone);
   const orders = repo.recentOrders(phone, 1);

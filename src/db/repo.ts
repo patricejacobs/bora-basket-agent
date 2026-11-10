@@ -1153,6 +1153,157 @@ export function createParcelJob(args: {
   }
 }
 
+/* ----------------------------------------------------------- parked carts */
+
+/**
+ * A cart set aside, identified by what it was for.
+ *
+ * 0 is the grocery cart; any other value is that outlet's id. Not null, because
+ * it is part of a primary key and SQLite does not treat nulls as equal.
+ */
+const GROCERY_KEY = 0;
+const cartKey = (outletId: number | null): number => outletId ?? GROCERY_KEY;
+
+export type ParkedCart = {
+  /** Null for the grocery cart. */
+  outletId: number | null;
+  /** The outlet's name, or 'Groceries'. */
+  label: string;
+  itemCount: number;
+  lines: { name: string; qty: number; options: string }[];
+  parkedAt: string;
+};
+
+/**
+ * Moves the live cart aside so another one can be built.
+ *
+ * Returns what was parked, or null when there was nothing in it. Replaces any
+ * cart already parked under the same key: a customer who parks groceries twice
+ * means the second lot, not both.
+ */
+export function parkCart(phone: string): ParkedCart | null {
+  const cart = getCart(phone);
+  if (cart.lines.length === 0) return null;
+
+  const key = cartKey(cart.outlet?.id ?? null);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare(`DELETE FROM parked_cart_items WHERE phone = ? AND outlet_key = ?`).run(phone, key);
+    const insert = db.prepare(
+      `INSERT INTO parked_cart_items (phone, outlet_key, product_id, options, qty, parked_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    for (const line of cart.lines) {
+      insert.run(phone, key, line.product.id, line.options, line.qty, nowIso());
+    }
+    db.prepare(`DELETE FROM cart_items WHERE phone = ?`).run(phone);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  return {
+    outletId: cart.outlet?.id ?? null,
+    label: cart.outlet?.name ?? 'Groceries',
+    itemCount: cart.itemCount,
+    lines: cart.lines.map((l) => ({
+      name: l.product.name,
+      qty: l.qty,
+      options: l.optionsSummary,
+    })),
+    parkedAt: nowIso(),
+  };
+}
+
+export function listParkedCarts(phone: string): ParkedCart[] {
+  const rows = db
+    .prepare(
+      `SELECT p.outlet_key AS outletKey, p.options, p.qty, p.parked_at AS parkedAt,
+              pr.name AS name
+         FROM parked_cart_items p
+         JOIN products pr ON pr.id = p.product_id
+        WHERE p.phone = ? ORDER BY p.outlet_key, p.parked_at`,
+    )
+    .all(phone) as unknown as {
+    outletKey: number;
+    options: string;
+    qty: number;
+    parkedAt: string;
+    name: string;
+  }[];
+
+  const byKey = new Map<number, ParkedCart>();
+  for (const row of rows) {
+    const outletId = row.outletKey === GROCERY_KEY ? null : row.outletKey;
+    let cart = byKey.get(row.outletKey);
+    if (!cart) {
+      cart = {
+        outletId,
+        label: outletId === null ? 'Groceries' : (outletById(outletId)?.name ?? 'a restaurant'),
+        itemCount: 0,
+        lines: [],
+        parkedAt: row.parkedAt,
+      };
+      byKey.set(row.outletKey, cart);
+    }
+    cart.itemCount += row.qty;
+    cart.lines.push({ name: row.name, qty: row.qty, options: summariseStored(row.options) });
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * Brings a parked cart back into the live cart.
+ *
+ * Refuses rather than merging when something is already in the cart — two carts
+ * silently becoming one is how an order goes out with somebody's lunch in it.
+ */
+export function restoreCart(phone: string, outletId: number | null): number {
+  if (getCart(phone).lines.length > 0) {
+    throw new Error('The cart is not empty. Park or clear it before restoring another.');
+  }
+
+  const key = cartKey(outletId);
+  const rows = db
+    .prepare(`SELECT product_id AS productId, options, qty FROM parked_cart_items WHERE phone = ? AND outlet_key = ?`)
+    .all(phone, key) as unknown as { productId: number; options: string; qty: number }[];
+  if (rows.length === 0) return 0;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const insert = db.prepare(
+      `INSERT INTO cart_items (phone, product_id, options, qty, added_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(phone, product_id, options) DO UPDATE SET qty = excluded.qty`,
+    );
+    let restored = 0;
+    for (const row of rows) {
+      // A dish withdrawn or sold out while parked is dropped rather than
+      // restored, so a customer is never handed back something unbuyable.
+      const product = db
+        .prepare(`SELECT id FROM products WHERE id = ? AND active = 1 AND sold_out = 0`)
+        .get(row.productId) as { id: number } | undefined;
+      if (!product) continue;
+      insert.run(phone, row.productId, row.options, row.qty, nowIso());
+      restored += row.qty;
+    }
+    db.prepare(`DELETE FROM parked_cart_items WHERE phone = ? AND outlet_key = ?`).run(phone, key);
+    db.exec('COMMIT');
+    return restored;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+export function discardParkedCart(phone: string, outletId: number | null): void {
+  db.prepare(`DELETE FROM parked_cart_items WHERE phone = ? AND outlet_key = ?`).run(
+    phone,
+    cartKey(outletId),
+  );
+}
+
 /* ------------------------------------------------------------ menu drafts */
 
 export type MenuDraftRow = { code: string; payload: string; pages: number };

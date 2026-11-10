@@ -171,8 +171,35 @@ pick, so "I need help with an order I placed last Tuesday" is not swallowed as m
 
 Once chosen, the service is pinned for the conversation and restated to the agent on every
 turn — twenty messages into a parcel job a model that has forgotten which service it is in
-starts searching the grocery catalogue. Sending **`menu`** goes back. The choice expires
-with the conversation (12 hours), so the next visit opens with the welcome again.
+starts searching the grocery catalogue. The choice expires with the conversation (12 hours),
+so the next visit opens with the welcome again.
+
+### Changing their mind
+
+A customer can switch service **at any point, in the same breath** — "actually, can I get
+pizza instead?" is a switch, not a request to find a menu. Sending `menu` still works, but
+nobody is made to.
+
+Their cart cannot follow them (one order comes from one source) and it is not the agent's
+to throw away, so switching with anything in it asks first:
+
+> You've got rice and eggs in the grocery cart — keep it for later, or drop it?
+
+**Keep** sets it aside safely. **Drop** clears it. An empty cart needs no question and
+switches silently. The tool refuses to act without that answer — deciding for them loses
+somebody's shopping.
+
+A set-aside cart is kept per source: one grocery list and one cart per restaurant, so both
+can wait at once. It stays in the agent's context every turn, so "what about my groceries?"
+twenty messages later gets them back rather than a blank look:
+
+> Got them back, nothing lost:
+> • White Rice, 2 kg — $780
+> • Eggs, dozen — $960
+
+Restoring puts them back in the right service and menu, refuses to merge onto a cart that
+already has something in it, and quietly drops anything that sold out while it waited —
+reprised from the live catalogue, so a price that moved overnight comes back at today's.
 
 ## Parcel delivery
 

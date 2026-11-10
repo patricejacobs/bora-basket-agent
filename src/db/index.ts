@@ -155,6 +155,27 @@ CREATE TABLE IF NOT EXISTS parcel_drafts (
 -- wrong price is money — so nothing reaches a customer until a staff member has
 -- read it back and published it. Keyed by the staff member, so two people can
 -- onboard two restaurants at once without colliding.
+-- A cart set aside so the customer can do something else first.
+--
+-- Someone halfway through a grocery list who suddenly wants lunch should not
+-- have to abandon the list or finish it first. The live cart holds one source
+-- at a time, so the other one is parked here and brought back later.
+--
+-- Keyed by what the cart was for: NULL outlet_id is the grocery cart, and each
+-- restaurant can hold one of its own. Stored as rows rather than a blob so a
+-- parked cart reprices itself when it comes back — a price that moved overnight
+-- should not come back at yesterday's figure.
+CREATE TABLE IF NOT EXISTS parked_cart_items (
+  phone      TEXT    NOT NULL,
+  outlet_key INTEGER NOT NULL,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  options    TEXT    NOT NULL DEFAULT '',
+  qty        INTEGER NOT NULL CHECK (qty > 0),
+  parked_at  TEXT    NOT NULL,
+  PRIMARY KEY (phone, outlet_key, product_id, options)
+);
+CREATE INDEX IF NOT EXISTS idx_parked_phone ON parked_cart_items(phone);
+
 CREATE TABLE IF NOT EXISTS menu_drafts (
   phone      TEXT PRIMARY KEY,
   code       TEXT NOT NULL,

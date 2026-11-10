@@ -1776,11 +1776,14 @@ section('Restaurant ordering');
   check('says sold out, not unavailable', String(soldOut.error).includes('sold out'), soldOut.error);
   repo.setItemSoldOut('SSC-005', false);
 
-  // A paused or shut kitchen cannot be chosen.
-  repo.setOutletAccepting('KFH', false);
+  // A paused or shut kitchen cannot be chosen. Paused is tested on the outlet
+  // that trades around the clock, so the refusal can only be about the pause —
+  // on a kitchen with real hours this assertion depended on when the suite ran.
+  repo.setOutletAccepting('FRJ', false);
   food('clear_cart');
-  check('refuses a paused kitchen', String(food('choose_outlet', { code: 'KFH' }).error).includes('paused'), food('choose_outlet', { code: 'KFH' }).error);
-  repo.setOutletAccepting('KFH', true);
+  check('refuses a paused kitchen', String(food('choose_outlet', { code: 'FRJ' }).error).includes('paused'), food('choose_outlet', { code: 'FRJ' }).error);
+  repo.setOutletAccepting('FRJ', true);
+  check('and accepts it once unpaused', food('choose_outlet', { code: 'FRJ' }).ordering_from?.code === 'FRJ');
   check('a shut kitchen cannot be chosen', String(food('choose_outlet', { code: 'BRH' }).error || '').length >= 0);
 
   // Checkout.
@@ -2159,6 +2162,103 @@ section('Parcel delivery');
   const { dispatchToDrivers } = await import('./dispatch.ts');
   const dispatched = await dispatchToDrivers(job!.orderNo);
   check('a parcel can be dispatched to a rider', dispatched === 'sent', dispatched);
+}
+
+/* ------------------------------------------------- switching mid-order */
+
+section('Changing service mid-conversation');
+{
+  const phone = '5920009400';
+  const ctx2: ToolContext = { phone, outbound: [] };
+  const call2 = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, ctx2));
+
+  repo.setService(phone, 'grocery');
+  call2('add_to_cart', { sku: 'RIC-002', quantity: 2 });
+  call2('add_to_cart', { sku: 'DAI-005', quantity: 1 });
+
+  // The customer's cart is not the agent's to throw away, and it cannot follow
+  // them into another service. So the tool refuses until they have decided.
+  const undecided = call2('switch_service', { service: 'restaurant' });
+  check('refuses to switch with a full cart and no decision', typeof undecided.error === 'string', JSON.stringify(undecided));
+  check('and says to ask rather than choose', String(undecided.error).includes('Do not decide for them'), undecided.error);
+  check('nothing moved', repo.getService(phone) === 'grocery' && repo.getCart(phone).lines.length === 2);
+
+  check('refuses an unknown service', typeof call2('switch_service', { service: 'laundry' }).error === 'string');
+  check('refuses switching to the service they are in', typeof call2('switch_service', { service: 'grocery' }).error === 'string');
+
+  // Keeping it.
+  const kept = call2('switch_service', { service: 'restaurant', cart_action: 'keep' });
+  check('switches when told to keep', kept.now_in === 'restaurant', JSON.stringify(kept));
+  check('says the cart is safe', String(kept.set_aside).includes('parked'), kept.set_aside);
+  check('the live cart is now empty', repo.getCart(phone).lines.length === 0);
+  check('the service changed', repo.getService(phone) === 'restaurant');
+
+  const parked = repo.listParkedCarts(phone);
+  check('the groceries are parked', parked.length === 1 && parked[0]?.label === 'Groceries', JSON.stringify(parked));
+  check('with everything in them', parked[0]?.itemCount === 3, String(parked[0]?.itemCount));
+
+  // The agent is reminded on every turn, or it will tell them the list is gone.
+  const { buildTurnContext } = await import('./agent/context.ts');
+  check('parked carts stay in the shop context', buildTurnContext(phone).includes('Set aside earlier'), buildTurnContext(phone));
+
+  // A second cart can be built while the first waits.
+  call2('choose_outlet', { code: 'FRJ' });
+  call2('add_to_cart', { sku: 'FRJ-006', quantity: 1 });
+  check('a new cart builds alongside the parked one', repo.getCart(phone).lines.length === 1);
+
+  // Two carts must never merge into one order.
+  const clash = call2('resume_parked_cart');
+  check('refuses to restore onto a full cart', typeof clash.error === 'string', JSON.stringify(clash));
+  check('and explains why', String(clash.error).includes('must not merge'), clash.error);
+
+  // Park the drink too, so both are waiting.
+  const both = call2('switch_service', { service: 'grocery', cart_action: 'keep' });
+  check('the second cart parks as well', both.now_in === 'grocery');
+  check('both are now waiting', repo.listParkedCarts(phone).length === 2, JSON.stringify(repo.listParkedCarts(phone).map((p) => p.label)));
+
+  // Restoring.
+  const back = call2('resume_parked_cart');
+  check('brings the grocery cart back', String(back.restored).includes('3 item'), JSON.stringify(back).slice(0, 120));
+  check('the items are really in the cart', repo.getCart(phone).lines.length === 2);
+  check('and that one is no longer parked', repo.listParkedCarts(phone).every((p) => p.label !== 'Groceries'));
+  check('it put them back in the right service', repo.getService(phone) === 'grocery');
+
+  // Restoring an outlet cart puts them back in that menu, not just the service.
+  repo.clearCart(phone);
+  const drink = call2('resume_parked_cart', { outlet_code: 'FRJ' });
+  check('restores a restaurant cart by code', String(drink.restored).includes('1 item'), JSON.stringify(drink).slice(0, 120));
+  check('and reopens that menu', repo.getBrowsingOutlet(phone)?.code === 'FRJ', repo.getBrowsingOutlet(phone)?.code);
+  check('nothing is left parked', repo.listParkedCarts(phone).length === 0);
+
+  check('restoring nothing is refused', typeof call2('resume_parked_cart').error === 'string');
+  check('an unknown outlet code is refused', typeof call2('resume_parked_cart', { outlet_code: 'NOPE' }).error === 'string');
+
+  // Cancelling.
+  repo.setService(phone, 'grocery');
+  repo.clearCart(phone);
+  call2('add_to_cart', { sku: 'RIC-002', quantity: 1 });
+  const dropped = call2('switch_service', { service: 'parcel', cart_action: 'cancel' });
+  check('cancelling clears the cart', repo.getCart(phone).lines.length === 0, JSON.stringify(dropped));
+  check('and parks nothing', repo.listParkedCarts(phone).length === 0);
+  check('and leaves no menu selected', repo.getBrowsingOutlet(phone) === null);
+
+  // An empty cart needs no question at all.
+  const easy = call2('switch_service', { service: 'restaurant' });
+  check('an empty cart switches without asking', easy.now_in === 'restaurant', JSON.stringify(easy));
+
+  // A dish withdrawn while parked is dropped rather than handed back unbuyable.
+  repo.clearCart(phone);
+  call2('choose_outlet', { code: 'FRJ' });
+  call2('add_to_cart', { sku: 'FRJ-006', quantity: 1 });
+  call2('add_to_cart', { sku: 'FRJ-002', quantity: 1, choices: ['Regular'] });
+  call2('switch_service', { service: 'grocery', cart_action: 'keep' });
+  repo.setItemSoldOut('FRJ-006', true);
+  const partial = call2('resume_parked_cart', { outlet_code: 'FRJ' });
+  check('a sold-out item is not restored', repo.getCart(phone).lines.every((l) => l.product.sku !== 'FRJ-006'), JSON.stringify(partial));
+  check('and the agent is told some were dropped', typeof partial.note === 'string', JSON.stringify(partial));
+  repo.setItemSoldOut('FRJ-006', false);
+  repo.clearCart(phone);
 }
 
 /* -------------------------------------------------- onboarding by photo */
