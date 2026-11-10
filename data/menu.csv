@@ -1,30 +1,30 @@
 outlet,sku,name,description,category,unit,price,options,keywords,active
-TOG,TOG-001,Chicken Fried Rice,,Main Dishes,plate,950,Size:Small|Large+350,chicken fried rice main,1
-TOG,TOG-002,Vegetable Fried Rice,,Main Dishes,plate,750,Size:Small|Large+150,vegetable veggie fried rice main,1
-TOG,TOG-003,Vegetable Chowmein,,Main Dishes,plate,750,Size:Small|Large+150,vegetable veggie chowmein chow mein noodles,1
-TOG,TOG-004,Cookup Rice,,Main Dishes,plate,950,Size:Small|Large+200,cookup cook up rice local main,1
-TOG,TOG-005,Jerk Chicken Fried Rice,,Main Dishes,plate,1300,Size:Small|Large+300,jerk chicken fried rice main,1
-TOG,TOG-006,Jerk Chicken,Side order,Main Dishes,side order,700,,jerk chicken side order,1
-TOG,TOG-007,Roti,,Sides,each,200,,roti side bread,1
-TOG,TOG-008,Dhal,1 cup,Sides,1 cup,200,,dhal dal split pea side,1
-TOG,TOG-009,Dhal Puri,,Sides,each,350,,dhal puri dhalpuri roti side,1
-TOG,TOG-010,Plain Rice,,Sides,plate,150,Size:Small|Large+100,plain white rice side,1
-TOG,TOG-011,Pumpkin,,Sides,portion,500,,pumpkin side vegetable,1
-TOG,TOG-012,Baigan Choka & Roti,Eggplant choka served with roti,Sides,portion,800,,baigan boulanger eggplant choka roti,1
-TOG,TOG-013,Callaloo & Roti,Spinach served with roti,Sides,portion,600,,callaloo calaloo spinach greens roti,1
-TOG,TOG-014,Fish & Bread,,Sides,portion,650,,fish bread side,1
-TOG,TOG-015,Cassava Balls,2 pieces. Yucca,Snacks,2 pieces,125,,cassava yucca balls snack,1
-TOG,TOG-016,Egg Ball,1 piece,Snacks,each,175,,egg ball eggball snack cassava,1
-TOG,TOG-017,Bara,3 pieces,Snacks,3 pieces,125,,bara snack fried,1
-TOG,TOG-018,Plantain Chips,,Snacks,pack,175,,plantain chips snack,1
-TOG,TOG-019,Chicken Foot,,Snacks,portion,175,,chicken foot feet snack,1
-TOG,TOG-020,Mix Veggie Food,,Mixed Food,plate,1150,,mix mixed veggie vegetable food,1
-TOG,TOG-021,Dhal & Rice with Shrimp,,Mixed Food,plate,1350,,dhal rice shrimp prawn mixed,1
-TOG,TOG-022,Dhal & Rice with Salt Fish,,Mixed Food,plate,1250,,dhal rice saltfish salt fish mixed,1
-TOG,TOG-023,Dhal & Rice with Shrimp & Salt Fish,,Mixed Food,plate,1550,,dhal rice shrimp saltfish salt fish mixed,1
-TOG,TOG-024,Chicken Curry,Does not include roti dhal puri or rice,Curry Dishes,plate,850,,chicken curry,1
-TOG,TOG-025,Duck Curry,Does not include roti dhal puri or rice,Curry Dishes,plate,1250,,duck curry,1
-TOG,TOG-026,Goat Curry,Does not include roti dhal puri or rice,Curry Dishes,plate,1350,,goat curry mutton,1
-TOG,TOG-027,Pine Tart,1 piece,Pastries,each,150,,pine tart pineapple pastry,1
-TOG,TOG-028,Cheese Roll,1 piece,Pastries,each,150,,cheese roll pastry,1
-TOG,TOG-029,Black Eye,1 piece,Pastries,each,150,,black eye blackeye pastry,1
+TOG,TOG-001,Chicken Fried Rice,,Main Dishes,plate,1900,Size:Small|Large+700,chicken fried rice main,1
+TOG,TOG-002,Vegetable Fried Rice,,Main Dishes,plate,1500,Size:Small|Large+300,vegetable veggie fried rice main,1
+TOG,TOG-003,Vegetable Chowmein,,Main Dishes,plate,1500,Size:Small|Large+300,vegetable veggie chowmein chow mein noodles,1
+TOG,TOG-004,Cookup Rice,,Main Dishes,plate,1900,Size:Small|Large+400,cookup cook up rice local main,1
+TOG,TOG-005,Jerk Chicken Fried Rice,,Main Dishes,plate,2600,Size:Small|Large+600,jerk chicken fried rice main,1
+TOG,TOG-006,Jerk Chicken,Side order,Main Dishes,side order,1400,,jerk chicken side order,1
+TOG,TOG-007,Roti,,Sides,each,400,,roti side bread,1
+TOG,TOG-008,Dhal,1 cup,Sides,1 cup,400,,dhal dal split pea side,1
+TOG,TOG-009,Dhal Puri,,Sides,each,700,,dhal puri dhalpuri roti side,1
+TOG,TOG-010,Plain Rice,,Sides,plate,300,Size:Small|Large+200,plain white rice side,1
+TOG,TOG-011,Pumpkin,,Sides,portion,1000,,pumpkin side vegetable,1
+TOG,TOG-012,Baigan Choka & Roti,Eggplant choka served with roti,Sides,portion,1600,,baigan boulanger eggplant choka roti,1
+TOG,TOG-013,Callaloo & Roti,Spinach served with roti,Sides,portion,1200,,callaloo calaloo spinach greens roti,1
+TOG,TOG-014,Fish & Bread,,Sides,portion,1300,,fish bread side,1
+TOG,TOG-015,Cassava Balls,2 pieces. Yucca,Snacks,2 pieces,250,,cassava yucca balls snack,1
+TOG,TOG-016,Egg Ball,1 piece,Snacks,each,350,,egg ball eggball snack cassava,1
+TOG,TOG-017,Bara,3 pieces,Snacks,3 pieces,250,,bara snack fried,1
+TOG,TOG-018,Plantain Chips,,Snacks,pack,350,,plantain chips snack,1
+TOG,TOG-019,Chicken Foot,,Snacks,portion,350,,chicken foot feet snack,1
+TOG,TOG-020,Mix Veggie Food,,Mixed Food,plate,2300,,mix mixed veggie vegetable food,1
+TOG,TOG-021,Dhal & Rice with Shrimp,,Mixed Food,plate,2700,,dhal rice shrimp prawn mixed,1
+TOG,TOG-022,Dhal & Rice with Salt Fish,,Mixed Food,plate,2500,,dhal rice saltfish salt fish mixed,1
+TOG,TOG-023,Dhal & Rice with Shrimp & Salt Fish,,Mixed Food,plate,3100,,dhal rice shrimp saltfish salt fish mixed,1
+TOG,TOG-024,Chicken Curry,Does not include roti dhal puri or rice,Curry Dishes,plate,1700,,chicken curry,1
+TOG,TOG-025,Duck Curry,Does not include roti dhal puri or rice,Curry Dishes,plate,2500,,duck curry,1
+TOG,TOG-026,Goat Curry,Does not include roti dhal puri or rice,Curry Dishes,plate,2700,,goat curry mutton,1
+TOG,TOG-027,Pine Tart,1 piece,Pastries,each,300,,pine tart pineapple pastry,1
+TOG,TOG-028,Cheese Roll,1 piece,Pastries,each,300,,cheese roll pastry,1
+TOG,TOG-029,Black Eye,1 piece,Pastries,each,300,,black eye blackeye pastry,1
