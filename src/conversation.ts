@@ -123,7 +123,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // any meaning in the dispatch queue, so there is nothing to disambiguate.
       () => handleStaffMessage(msg.text, msg.phone, msg.image, msg.location)
     : isDriver(msg.phone)
-      ? () => handleDriverMessage(msg.text, msg.phone)
+      ? () => handleDriverMessage(msg.text, msg.phone, msg.location)
       : (() => {
           const outlet = repo.outletByWhatsapp(msg.phone);
           return outlet ? () => handleOutletMessage(outlet, msg.text) : null;

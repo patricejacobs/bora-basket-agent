@@ -1454,6 +1454,50 @@ export function orderCounts(): Record<string, number> {
   return { total, ...counts };
 }
 
+/* --------------------------------------------------- associate locations */
+
+export type AssociateLocation = {
+  latitude: number;
+  longitude: number;
+  label: string;
+  /** 'shared' when they sent a pin, 'delivery' when inferred from a drop-off. */
+  source: string;
+  updatedAt: string;
+};
+
+export function saveAssociateLocation(
+  phone: string,
+  at: { latitude: number; longitude: number; label?: string },
+  source: 'shared' | 'delivery',
+): void {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return;
+  db.prepare(
+    `INSERT INTO associate_locations (phone, latitude, longitude, label, source, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       latitude = excluded.latitude, longitude = excluded.longitude,
+       label = excluded.label, source = excluded.source,
+       updated_at = excluded.updated_at`,
+  ).run(digits, at.latitude, at.longitude, at.label ?? '', source, nowIso());
+}
+
+export function getAssociateLocation(phone: string): AssociateLocation | null {
+  const row = db
+    .prepare(`SELECT * FROM associate_locations WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as
+    | { latitude: number; longitude: number; label: string; source: string; updated_at: string }
+    | undefined;
+  if (!row) return null;
+  return {
+    latitude: row.latitude,
+    longitude: row.longitude,
+    label: row.label,
+    source: row.source,
+    updatedAt: row.updated_at,
+  };
+}
+
 /**
  * Deliveries an associate is currently holding.
  *

@@ -163,6 +163,19 @@ export const config = {
   })() as ('cash' | 'card')[],
 
   /**
+   * Only offer a job to associates within this many miles of the pickup.
+   *
+   * 0 disables it, which is the default. Switched on, it never excludes
+   * somebody whose position is unknown or stale — an associate who has not
+   * shared a pin would otherwise silently stop receiving work and nobody would
+   * understand why. And if the filter leaves nobody at all, every associate is
+   * told anyway: a long trip beats an order nobody hears about.
+   */
+  associateRadiusMiles: Math.max(0, num('ASSOCIATE_RADIUS_MILES', 0)),
+  /** How long a known position is trusted before it counts as unknown. */
+  associateLocationTtlMinutes: Math.max(5, num('ASSOCIATE_LOCATION_TTL_MINUTES', 180)),
+
+  /**
    * How many deliveries one associate may hold at once. 0 means no limit.
    *
    * Off by default, because the obvious rule is wrong: several orders from one

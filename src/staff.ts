@@ -20,6 +20,7 @@ import {
 import { dispatchToDrivers, tellKitchenCancelled } from './dispatch.ts';
 import { summariseStored } from './menu-options.ts';
 import { mapsLink, type LocationPin } from './location.ts';
+const chr10 = String.fromCharCode(10);
 import {
   handleMenuPhoto,
   handleOnboardingCommand,
@@ -445,6 +446,8 @@ const DRIVER_HELP = [
   '`7 collected` — you have the food',
   '`7 delivered` — dropped off, cash taken',
   '',
+  'Share your location to be offered collections near you.',
+  '',
   'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
 ].join('\n');
 
@@ -455,10 +458,29 @@ const DRIVER_HELP = [
  * one, or see the queue — those are decisions for the shop and the kitchen, and
  * a mis-tap on a bike should not be able to void somebody's dinner.
  */
-export async function handleDriverMessage(text: string, phone = ''): Promise<OutboundMessage[]> {
+export async function handleDriverMessage(
+  text: string,
+  phone = '',
+  location?: LocationPin,
+): Promise<OutboundMessage[]> {
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
   const holding = repo.activeJobsFor(phone);
+
+  // A pin from an associate says where they are, which decides which jobs are
+  // near enough to be worth offering them.
+  if (location) {
+    repo.saveAssociateLocation(phone, location, 'shared');
+    const radius = config.associateRadiusMiles;
+    return reply(
+      [
+        `📍 Got it${location.label ? ` — ${location.label}` : ''}.`,
+        radius > 0
+          ? `You will be offered collections within ${radius} miles of here. Send another pin when you move.`
+          : 'Noted. Send another pin when you move.',
+      ].join(chr10),
+    );
+  }
 
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(DRIVER_HELP);
 
@@ -534,6 +556,12 @@ export async function handleDriverMessage(text: string, phone = ''): Promise<Out
   if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
 
   if (status === 'on_the_way' && phone) repo.assignDriver(order.orderNo, phone);
+
+  // A completed delivery is the one position we never have to ask for: they
+  // were demonstrably at that doorstep when they tapped the button.
+  if (status === 'delivered' && phone && order.location) {
+    repo.saveAssociateLocation(phone, order.location, 'delivery');
+  }
 
   const { body } = await applyStatus(order, status);
   const actions = nextActions(order.orderNo, status, 'driver');

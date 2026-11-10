@@ -96,6 +96,10 @@ services:
         value: ""
       # Minutes an order may sit in a stage before staff are told it has
       # stopped moving. 0 on STALL_ALERT_MINUTES switches the watch off.
+      # Only offer a collection to associates within this many miles of the
+      # pickup. 0 = off. Nobody whose position is unknown is ever excluded.
+      - key: ASSOCIATE_RADIUS_MILES
+        value: "0"
       # Cap on deliveries one associate may hold. 0 = no cap, which is right
       # while several orders from one kitchen are collected in a single trip.
       - key: MAX_JOBS_PER_ASSOCIATE

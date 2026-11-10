@@ -176,6 +176,22 @@ CREATE TABLE IF NOT EXISTS parked_cart_items (
 );
 CREATE INDEX IF NOT EXISTS idx_parked_phone ON parked_cart_items(phone);
 
+-- Where a delivery associate was last known to be.
+--
+-- WhatsApp does not report anyone's position, so this is only ever as good as
+-- the last thing that told us: a pin they shared, or the doorstep of their last
+-- delivery, which is where they demonstrably were when they tapped Delivered.
+-- Both go stale, which is why nothing here is ever used to exclude somebody
+-- whose location we are guessing at.
+CREATE TABLE IF NOT EXISTS associate_locations (
+  phone      TEXT PRIMARY KEY,
+  latitude   REAL NOT NULL,
+  longitude  REAL NOT NULL,
+  label      TEXT NOT NULL DEFAULT '',
+  source     TEXT NOT NULL DEFAULT 'shared',
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS menu_drafts (
   phone      TEXT PRIMARY KEY,
   code       TEXT NOT NULL,

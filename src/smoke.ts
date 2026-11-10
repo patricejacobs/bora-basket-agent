@@ -2016,6 +2016,48 @@ section('Kitchen and delivery associate commands');
   check('another associate owns what they collect', repo.findOrder(jobC)?.driverPhone === otherPhone, repo.findOrder(jobC)?.driverPhone);
   await handleDriverMessage(`${jobC} delivered`, otherPhone);
 
+  /* --- where associates are --------------------------------------------- */
+
+  {
+    const here = '5926003333';
+    check('an unknown associate has no position', repo.getAssociateLocation(here) === null);
+
+    // A pin they share.
+    await handleDriverMessage('', here, { latitude: 6.8102, longitude: -58.1547, label: 'Bourda' });
+    const shared = repo.getAssociateLocation(here);
+    check('a shared pin is saved', shared?.latitude === 6.8102, JSON.stringify(shared));
+    check('and recorded as shared', shared?.source === 'shared');
+
+    // Confirmed back, so they know it landed.
+    const ack = (await handleDriverMessage('', here, { latitude: 6.81, longitude: -58.15, label: 'Camp St' }))[0]?.text ?? '';
+    check('the associate is told it was received', /Got it/.test(ack), ack);
+
+    // A completed delivery tells us where they are without asking.
+    const deliveredJob = mk('SSC-005', 4, ['Sweet Chilli']);
+    await handleDriverMessage(`${deliveredJob} collected`, here);
+    await handleDriverMessage(`${deliveredJob} delivered`, here);
+    const after = repo.getAssociateLocation(here);
+    check('delivering updates their position', after?.source === 'delivery', JSON.stringify(after?.source));
+    check('to where the order went', after?.latitude === 6.807, String(after?.latitude));
+
+    // The filter itself. Off by default, so nothing is excluded.
+    check('the radius is off by default', config.associateRadiusMiles === 0, String(config.associateRadiusMiles));
+
+    const { distanceKm } = await import('./location.ts');
+    const pickup = { latitude: 6.8031, longitude: -58.1492 };
+    const far = { latitude: 6.9500, longitude: -58.3000 };
+    check(
+      'the maths puts a far pin outside five miles',
+      distanceKm(far, pickup) > 5 * 1.60934,
+      `${distanceKm(far, pickup).toFixed(1)} km`,
+    );
+    check(
+      'and a nearby one inside',
+      distanceKm({ latitude: 6.8102, longitude: -58.1547 }, pickup) < 5 * 1.60934,
+      `${distanceKm({ latitude: 6.8102, longitude: -58.1547 }, pickup).toFixed(1)} km`,
+    );
+  }
+
   const notRiders = (await handleDriverMessage(`${ref} cancel`))[0]?.text ?? '';
   check('a delivery associate cannot cancel', notRiders.includes('for the shop'), notRiders);
 

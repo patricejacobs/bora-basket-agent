@@ -17,8 +17,47 @@ import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendLocation } from './channels/whatsapp-send.ts';
 import { nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
-import { checkRange, describePin, mapsLink } from './location.ts';
+import { checkRange, describePin, mapsLink, distanceKm } from './location.ts';
 import { notifyStaffOfNewOrder } from './notifications.ts';
+
+/**
+ * The associates near enough to a pickup to be worth telling.
+ *
+ * Three rules, and the last two matter more than the first.
+ *
+ * Distance is measured from the last position we know: a pin they shared, or
+ * the doorstep of their last delivery. Anyone whose position is unknown, or
+ * known but stale, is included — an associate who has not shared a pin would
+ * otherwise stop receiving work and nobody would be able to say why.
+ *
+ * And if the filter leaves nobody at all, everybody is told. A long trip is a
+ * complaint; an order nobody hears about is a customer who never gets dinner.
+ */
+function withinReach(
+  associates: string[],
+  pickup: { latitude: number; longitude: number } | null,
+): string[] {
+  const miles = config.associateRadiusMiles;
+  if (miles <= 0 || !pickup) return associates;
+
+  const radiusKm = miles * 1.60934;
+  const freshAfter = Date.now() - config.associateLocationTtlMinutes * 60_000;
+
+  const near = associates.filter((phone) => {
+    const at = repo.getAssociateLocation(phone);
+    if (!at) return true;
+    if (new Date(at.updatedAt).getTime() < freshAfter) return true;
+    return distanceKm(at, pickup) <= radiusKm;
+  });
+
+  if (near.length === 0) {
+    console.warn(
+      `[dispatch] no associate within ${miles} miles of the pickup — telling everyone instead`,
+    );
+    return associates;
+  }
+  return near;
+}
 
 /**
  * Tells a kitchen to stop cooking something that has been cancelled.
@@ -188,14 +227,16 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
     limit > 0
       ? config.driverNumbers.filter((phone) => repo.activeJobsFor(phone).length < limit)
       : config.driverNumbers;
-  if (free.length === 0) {
+
+  const nearby = withinReach(free, pickupPin);
+  if (nearby.length === 0) {
     console.warn(
       `[dispatch] ${orderNo} is ready but every delivery associate is already carrying one`,
     );
     return 'no_drivers';
   }
 
-  for (const associate of free) {
+  for (const associate of nearby) {
     await sendButtons(associate, body, actions);
 
     // The pins as map cards, in the order the delivery associate needs them: collection

@@ -832,6 +832,24 @@ to do it*.
 A customer can only cancel their own orders, checked against the number they are messaging
 from — order numbers are sequential and read aloud.
 
+### Offering jobs by distance
+
+`ASSOCIATE_RADIUS_MILES` stops associates being offered collections far from them. **Off by
+default** — set it to `5` and only associates within five miles of the pickup are told.
+
+WhatsApp never reports where anyone is, so position comes from two places:
+
+| Source | How |
+|---|---|
+| **A pin they share** | they send a location; the reply confirms it. Send another when they move |
+| **Their last delivery** | the doorstep they were demonstrably standing at when they tapped *Delivered* — free, and needs no habit to maintain |
+
+**Two rules matter more than the filter itself.** An associate whose position is unknown, or
+older than `ASSOCIATE_LOCATION_TTL_MINUTES` (default 3 hours), is **always included** —
+otherwise somebody who never shares a pin quietly stops getting work and nobody can say why.
+And if the filter leaves nobody at all, **everyone is told anyway**, with a line in the log:
+a long trip is a complaint, an order nobody hears about is a customer who never gets dinner.
+
 ### Several orders, one trip
 
 Associates are **not** limited to one delivery. Three orders from the same kitchen are one
