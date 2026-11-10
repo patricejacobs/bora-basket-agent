@@ -1693,6 +1693,23 @@ section('Restaurant ordering');
   const bad = importMenuText('outlet,sku,name,price\nNOPE,X-1,Thing,100\n');
   check('refuses a menu row for an unknown outlet', bad.items === 0 && bad.skipped.length === 1);
 
+  // The ordering tests below need one kitchen that is open and one that is shut,
+  // whatever time this suite runs at. Sheriff Street's real hours made them pass
+  // before eleven and fail after seven, so both are set explicitly here rather
+  // than left to the clock.
+  const ALWAYS_OPEN = 'Mon-Sun 12:00am - 11:59pm';
+  const todayShort = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Guyana',
+    weekday: 'short',
+  })
+    .format(new Date())
+    .slice(0, 3);
+  const otherDay = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].find(
+    (d) => d.toLowerCase() !== todayShort.toLowerCase(),
+  );
+  repo.upsertOutlet({ ...repo.getOutlet('SSC')!, hours: ALWAYS_OPEN });
+  repo.upsertOutlet({ ...repo.getOutlet('BRH')!, hours: `${otherDay} 9:00am - 5:00pm` });
+
   // A menu item is not grocery stock.
   const dish = repo.getProductBySku('SSC-001');
   check('a dish belongs to its outlet', dish?.outletId === repo.getOutlet('SSC')?.id);
@@ -1784,7 +1801,9 @@ section('Restaurant ordering');
   check('refuses a paused kitchen', String(food('choose_outlet', { code: 'FRJ' }).error).includes('paused'), food('choose_outlet', { code: 'FRJ' }).error);
   repo.setOutletAccepting('FRJ', true);
   check('and accepts it once unpaused', food('choose_outlet', { code: 'FRJ' }).ordering_from?.code === 'FRJ');
-  check('a shut kitchen cannot be chosen', String(food('choose_outlet', { code: 'BRH' }).error || '').length >= 0);
+  const shut = food('choose_outlet', { code: 'BRH' });
+  check('a shut kitchen cannot be chosen', typeof shut.error === 'string', JSON.stringify(shut));
+  check('and says when it opens', /not cooking right now/.test(String(shut.error)), shut.error);
 
   // Checkout.
   food('choose_outlet', { code: 'SSC' });
