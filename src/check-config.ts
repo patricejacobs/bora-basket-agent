@@ -32,6 +32,7 @@ const PLACEHOLDERS = new Set([
   'sk-ant-...',
   'change-me-to-a-random-string',
   'Your Grocery Store',
+  'Our Delivery Service',
 ]);
 
 function requireValue(name: string, hint: string): boolean {
@@ -102,7 +103,7 @@ if (!/^v\d+\.\d+$/.test(graph)) {
 
 /* ---------------------------------------------------------------- store */
 
-if (raw('STORE_NAME') === 'Your Grocery Store' || !raw('STORE_NAME')) {
+if (PLACEHOLDERS.has(raw('STORE_NAME')) || !raw('STORE_NAME')) {
   add('fail', 'STORE_NAME', 'still the default — customers see this in the greeting');
 } else {
   add('ok', 'STORE_NAME', dim(raw('STORE_NAME')));

@@ -203,7 +203,7 @@ app.listen(config.port, () => {
   const products = productCount();
 
   console.log('');
-  console.log(`  ${config.store.name} — WhatsApp grocery agent`);
+  console.log(`  ${config.store.name} — WhatsApp delivery agent`);
   console.log(`  listening on http://localhost:${config.port}`);
   console.log('');
   const photos = photoCoverage();

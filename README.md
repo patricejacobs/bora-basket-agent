@@ -145,7 +145,7 @@ instead. Bad rows are skipped and reported by line number rather than failing th
 Every conversation opens the same way, whatever the customer types first:
 
 ```
-Welcome to Bora Basket! 👋
+Welcome to Next Minute Delivery! 👋
 
 What can we help you with today?
 
@@ -501,7 +501,7 @@ All of this lives in `.env`.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Required |
 | `AGENT_EFFORT` | `low` | `low`\|`medium`\|`high`\|`xhigh`\|`max`. See the note below |
-| `STORE_NAME` | Your Grocery Store | Used in the greeting and the system prompt |
+| `STORE_NAME` | — | The name customers see, in the welcome and throughout |
 | `STORE_HOURS` | — | Quoted to customers verbatim, and read per day. See below |
 | `DELIVERY_AREAS` | — | Where you deliver |
 | `DELIVERY_FEE` | 500 | In display currency, not minor units |

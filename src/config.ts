@@ -179,7 +179,7 @@ export const config = {
   },
 
   store: {
-    name: str('STORE_NAME', 'Our Grocery Store'),
+    name: str('STORE_NAME', 'Our Delivery Service'),
     hours: str('STORE_HOURS', 'Mon-Sat 8:00am - 8:00pm'),
     /** IANA zone, so the agent can greet by time of day and warn before closing. */
     timezone: str('STORE_TIMEZONE', 'America/Guyana'),
