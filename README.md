@@ -651,6 +651,7 @@ All of this lives in `.env`.
 | `SEED_CATALOG_PATH` | — | CSV imported at boot when the catalogue is empty |
 | `SERVICE_CENTRE_LAT` / `SERVICE_CENTRE_LNG` | — | The shop's position, for the delivery-area check |
 | `SERVICE_RADIUS_KM` | `0` | How far you deliver. `0` switches the check off |
+| `TEMPLATE_KITCHEN_NEW_ORDER` | — | Reaches a kitchen outside the 24h window. Unset means staff are warned instead |
 | `BACKUP_TOKEN` | — | Guards the backup downloads. 24+ characters, or the routes stay off |
 | `BACKUP_DIR` | `backups` beside the database | Where snapshots are written |
 | `BACKUP_EVERY_HOURS` | `24` | `0` switches automatic snapshots off |
@@ -928,6 +929,37 @@ Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
 
 With no template configured, an out-of-window update is skipped and logged rather than
 failing silently.
+
+### Kitchens and the window
+
+A kitchen is the hard case. A customer has just messaged to order, so their window is open
+by definition — but a restaurant has no reason to message the shop each morning, so the
+**first ticket of the day routinely lands on a shut window** and Meta refuses it. The order
+then sits at `pending` with nobody aware the kitchen never saw it.
+
+The ticket path therefore checks the window first:
+
+| Window | What happens |
+|---|---|
+| Open | The ticket is sent as normal, and recorded as delivered only if Meta accepted it |
+| Shut, template set | `TEMPLATE_KITCHEN_NEW_ORDER` is sent instead, carrying just the order number |
+| Shut, no template | Staff are warned by name: *"ORD-00031 could not reach A Taste of Guyana. Ring them."* |
+
+The template carries a **quick-reply button**. Tapping it counts as an inbound message, so
+the window opens, and the held ticket — with its Confirm and Food ready buttons — is
+delivered the moment they reply. Any message from a kitchen triggers that flush, not just
+the button.
+
+Two rules keep this honest. An order is marked as delivered to the kitchen **only when Meta
+actually accepted it**, so a refused send stays owed. And only live orders are ever flushed,
+with every pre-existing order treated as already delivered — so switching this on cannot
+bury a kitchen under a month of history for saying hello.
+
+Create the template in WhatsApp Manager as **Utility**, with one body variable:
+
+```
+New order {{1}} from Next Minute Delivery. Tap below to open it.
+```
 
 ## Keeping a copy of the orders
 

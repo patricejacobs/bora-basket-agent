@@ -14,11 +14,11 @@
  */
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { sendText, sendButtons, sendLocation } from './channels/whatsapp-send.ts';
+import { sendText, sendButtons, sendLocation, sendTemplate } from './channels/whatsapp-send.ts';
 import { nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin, mapsLink, distanceKm } from './location.ts';
-import { notifyStaffOfNewOrder } from './notifications.ts';
+import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 
 /**
  * The associates near enough to a pickup to be worth telling.
@@ -104,6 +104,9 @@ export async function announceNewOrder(orderNo: string): Promise<void> {
   if (outcome === 'no_number') {
     console.warn(`[dispatch] ${orderNo} needs cooking but the outlet cannot be reached`);
   }
+  if (outcome === 'nudged') {
+    console.log(`[dispatch] ${orderNo}: kitchen nudged by template, ticket held until they reply`);
+  }
 }
 
 /**
@@ -130,7 +133,9 @@ function itemLines(order: repo.OrderRecord): string[] {
  * a restaurant the home address and number of every customer who orders through
  * you gives away the relationship and tells them nothing they need.
  */
-export async function notifyOutletOfOrder(orderNo: string): Promise<'sent' | 'no_number' | 'not_a_restaurant'> {
+export type TicketOutcome = 'sent' | 'nudged' | 'unreachable' | 'no_number' | 'not_a_restaurant';
+
+export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcome> {
   const order = repo.findOrder(orderNo);
   if (!order?.outlet) return 'not_a_restaurant';
 
@@ -138,6 +143,13 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<'sent' | 'no
   if (!outlet?.whatsapp) {
     console.warn(`[dispatch] ${orderNo} is for ${order.outlet.name}, which has no WhatsApp number`);
     return 'no_number';
+  }
+
+  // The 24-hour window. A ticket is a plain message with buttons, and Meta
+  // refuses those outside it — silently, as far as the kitchen is concerned.
+  // Sending anyway is how an order sits at pending with nobody wondering why.
+  if (!repo.serviceWindowOpen(outlet.whatsapp)) {
+    return nudgeOutlet(order, outlet.whatsapp);
   }
 
   const body = [
@@ -157,8 +169,75 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<'sent' | 'no
     'Tap *Confirm* to accept, then *Food ready* when it is up and a delivery associate will come.',
   ].join('\n');
 
-  await sendButtons(outlet.whatsapp, body, nextActions(order.orderNo, order.status, 'outlet'));
+  const ok = await sendButtons(
+    outlet.whatsapp,
+    body,
+    nextActions(order.orderNo, order.status, 'outlet'),
+  );
+  // A send can still be refused for a reason the window check cannot see — a
+  // clock that disagrees with Meta's, or a number that has blocked the shop.
+  // Falling back rather than trusting the check keeps one rule: a ticket is
+  // only ever marked delivered when Meta actually took it.
+  if (!ok) return nudgeOutlet(order, outlet.whatsapp);
+
+  repo.markOutletNotified(order.orderNo);
   return 'sent';
+}
+
+/**
+ * What to do when the real ticket cannot get through.
+ *
+ * The template carries no detail beyond the order number, and does not need
+ * any: its whole job is to make somebody tap. A tap is an inbound message, the
+ * window opens, and the ticket they can actually act on follows at once.
+ *
+ * With no template configured there is nothing to send, and the honest answer
+ * is to tell staff to pick up the phone. That alone is most of the value here —
+ * the failure used to be invisible.
+ */
+async function nudgeOutlet(order: repo.OrderRecord, whatsapp: string): Promise<TicketOutcome> {
+  const name = order.outlet?.name ?? 'the kitchen';
+  const template = config.templates.kitchenNewOrder;
+
+  if (template && (await sendTemplate(whatsapp, template, [order.orderNo]))) {
+    console.warn(`[dispatch] ${order.orderNo}: ${name} is outside the 24h window — template sent`);
+    return 'nudged';
+  }
+
+  console.error(
+    `[dispatch] ${order.orderNo} could not reach ${name}` +
+      (template ? ' — the template was refused too' : ' — no TEMPLATE_KITCHEN_NEW_ORDER is set'),
+  );
+  await warnStaff(
+    `⚠️ *${order.orderNo}* could not reach *${name}*.
+
+` +
+      `They are outside WhatsApp's 24-hour window${template ? ' and the template was refused' : ' and no template is set up'}. ` +
+      `Ring them — the order is waiting and they have not seen it.`,
+  );
+  return 'unreachable';
+}
+
+/**
+ * Hands a kitchen the tickets it never received, the moment it messages.
+ *
+ * Called on any inbound message from an outlet, because any message at all
+ * reopens the window — a tapped template button, a question, a thumbs up.
+ *
+ * Only live orders are handed over, and every order that existed before this
+ * was recorded as already delivered, so switching it on cannot bury a kitchen
+ * under a month of history for saying hello.
+ */
+export async function flushOutletTickets(outletId: number): Promise<number> {
+  const owed = repo.ordersAwaitingTicket(outletId);
+  let delivered = 0;
+  for (const order of owed) {
+    if ((await notifyOutletOfOrder(order.orderNo)) === 'sent') delivered++;
+  }
+  if (delivered > 0) {
+    console.log(`[dispatch] window reopened — ${delivered} held ticket(s) delivered`);
+  }
+  return delivered;
 }
 
 /**

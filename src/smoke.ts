@@ -2787,6 +2787,82 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section("WhatsApp's 24-hour window");
+{
+  const { notifyOutletOfOrder, flushOutletTickets } = await import('./dispatch.ts');
+
+  const fresh = '5926123456';
+  check('a number that has never written is outside the window', !repo.serviceWindowOpen(fresh));
+
+  repo.logMessage(fresh, 'in', 'whatsapp', 'hello');
+  check('and inside it the moment they do', repo.serviceWindowOpen(fresh));
+
+  // Outbound does not count: the shop talking to itself never opened a window.
+  const quiet = '5926123457';
+  repo.logMessage(quiet, 'out', 'whatsapp', 'are you there?');
+  check('the shop messaging them does not open it', !repo.serviceWindowOpen(quiet));
+
+  // Measured from their last message, with an hour of margin against Meta's
+  // own clock. 23 hours ago is already treated as shut.
+  const stale = '5926123458';
+  db.prepare(
+    `INSERT INTO message_log (phone, direction, channel, body, created_at) VALUES (?, 'in', 'whatsapp', 'hi', ?)`,
+  ).run(stale, new Date(Date.now() - 23.5 * 3600_000).toISOString());
+  check('a message 23.5 hours old is treated as shut', !repo.serviceWindowOpen(stale));
+  db.prepare(
+    `INSERT INTO message_log (phone, direction, channel, body, created_at) VALUES (?, 'in', 'whatsapp', 'hi', ?)`,
+  ).run('5926123459', new Date(Date.now() - 2 * 3600_000).toISOString());
+  check('two hours old is still open', repo.serviceWindowOpen('5926123459'));
+
+  // A ticket that could not be sent is owed to the kitchen.
+  const cooked = repo.allOrders().find((o) => o.outlet !== null);
+  check('there is a restaurant order to hold', Boolean(cooked));
+
+  if (cooked?.outlet) {
+    const outletId = cooked.outlet.id;
+    // Put it back to the moment it was placed and never acknowledged, and give
+    // the kitchen a number so the window is what decides, not a missing one.
+    db.prepare(
+      `UPDATE orders SET status = 'pending', outlet_notified_at = '' WHERE order_no = ?`,
+    ).run(cooked.orderNo);
+    db.prepare(`UPDATE outlets SET whatsapp = '5926120000' WHERE id = ?`).run(outletId);
+    const owed = repo.ordersAwaitingTicket(outletId);
+    check('an undelivered ticket is owed', owed.some((o) => o.orderNo === cooked.orderNo));
+
+    repo.markOutletNotified(cooked.orderNo);
+    check(
+      'and is no longer owed once the kitchen has it',
+      !repo.ordersAwaitingTicket(outletId).some((o) => o.orderNo === cooked.orderNo),
+    );
+
+    // Nothing can actually be sent here — WhatsApp is unconfigured in the
+    // suite — which is exactly the failure this guards: a refused send must
+    // never be recorded as a delivered ticket.
+    db.prepare(`UPDATE orders SET outlet_notified_at = '' WHERE order_no = ?`).run(cooked.orderNo);
+    const outcome = await notifyOutletOfOrder(cooked.orderNo);
+    check('a ticket that cannot be sent reports it', outcome === 'unreachable', String(outcome));
+    check(
+      'and is still owed afterwards, not marked delivered',
+      repo.ordersAwaitingTicket(outletId).some((o) => o.orderNo === cooked.orderNo),
+    );
+
+    const delivered = await flushOutletTickets(outletId);
+    check('flushing delivers nothing while sending fails', delivered === 0);
+
+    // Only live orders are ever handed over. A kitchen saying hello must not
+    // receive a month of cancelled history.
+    db.prepare(`UPDATE orders SET status = 'cancelled' WHERE order_no = ?`).run(cooked.orderNo);
+    check(
+      'a cancelled order is never owed to the kitchen',
+      !repo.ordersAwaitingTicket(outletId).some((o) => o.orderNo === cooked.orderNo),
+    );
+    db.prepare(`UPDATE orders SET status = 'pending', outlet_notified_at = ? WHERE order_no = ?`).run(
+      new Date().toISOString(),
+      cooked.orderNo,
+    );
+  }
+}
+
 section('What an order says it is');
 {
   const archived = repo.allOrders();

@@ -165,6 +165,16 @@ export const config = {
   templates: {
     onTheWay: str('TEMPLATE_ORDER_ON_THE_WAY'),
     delivered: str('TEMPLATE_ORDER_DELIVERED'),
+    /**
+     * Reaches a kitchen whose 24-hour window has shut, which is most first
+     * orders of the day: a restaurant has no reason to message the shop each
+     * morning, so the window a customer opens by ordering does not exist here.
+     *
+     * One body variable, the order number. It carries no detail on purpose —
+     * it exists to make the kitchen tap, and a tap reopens the window for the
+     * real ticket.
+     */
+    kitchenNewOrder: str('TEMPLATE_KITCHEN_NEW_ORDER'),
     language: str('TEMPLATE_LANGUAGE', 'en'),
   },
 

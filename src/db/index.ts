@@ -316,6 +316,10 @@ addColumnIfMissing('orders', 'recipient_phone', "TEXT NOT NULL DEFAULT ''");
 // an order with none.
 addColumnIfMissing('orders', 'kind', "TEXT NOT NULL DEFAULT 'grocery'");
 addColumnIfMissing('orders', 'parcel_details', "TEXT NOT NULL DEFAULT ''");
+// When the kitchen was handed the real ticket. Empty means it never arrived —
+// almost always because the 24-hour window was shut — and the ticket is owed
+// to them the moment they next message.
+addColumnIfMissing('orders', 'outlet_notified_at', "TEXT NOT NULL DEFAULT ''");
 
 /**
  * Repairs rows written before the two bugs above were fixed.
@@ -334,6 +338,9 @@ db.exec(`
 
   UPDATE orders SET cancel_reason = '', cancelled_by = ''
    WHERE status <> 'cancelled' AND (cancel_reason <> '' OR cancelled_by <> '');
+
+  UPDATE orders SET outlet_notified_at = created_at
+   WHERE outlet_notified_at = '' AND outlet_id IS NOT NULL;
 `);
 
 /**

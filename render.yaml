@@ -135,6 +135,12 @@ services:
         value: ""
       - key: TEMPLATE_ORDER_DELIVERED
         value: ""
+      # Reaches a kitchen whose 24-hour window has shut, which is most first
+      # orders of the day. One body variable, the order number, and a
+      # quick-reply button: the tap reopens the window and the real ticket
+      # follows. Unset means staff are told to ring them instead.
+      - key: TEMPLATE_KITCHEN_NEW_ORDER
+        value: ""
       - key: TEMPLATE_LANGUAGE
         value: "en"
       - key: STORE_TIMEZONE

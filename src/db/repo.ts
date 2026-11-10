@@ -827,6 +827,62 @@ export function logMessage(
   ).run(phone, direction, channel, body, nowIso());
 }
 
+/**
+ * Whether WhatsApp will still carry a plain message to this number.
+ *
+ * Meta only allows free-form messages within 24 hours of that number's last
+ * message TO the shop; outside it, nothing but an approved template gets
+ * through. A customer is almost never a problem — they just messaged to order,
+ * so the window is open by definition. A kitchen is the opposite: it has no
+ * reason to message the shop each morning, so the first ticket of the day
+ * routinely lands on a shut window.
+ *
+ * Read from the inbound log, which is written for every sender before routing,
+ * so it covers kitchens and associates as well as customers. A tapped button
+ * counts as an inbound message, which is what makes the template worth sending.
+ *
+ * An hour of margin is taken off, because the window is measured by Meta from
+ * its own receipt time, and a send that loses a race with the deadline fails
+ * for a reason nobody can see afterwards.
+ */
+export function serviceWindowOpen(phone: string, marginMinutes = 60): boolean {
+  const row = db
+    .prepare(
+      `SELECT created_at FROM message_log
+        WHERE phone = ? AND direction = 'in'
+        ORDER BY id DESC LIMIT 1`,
+    )
+    .get(phone) as { created_at: string } | undefined;
+  if (!row) return false;
+
+  const age = Date.now() - new Date(row.created_at).getTime();
+  if (!Number.isFinite(age)) return false;
+  return age < (24 * 60 - marginMinutes) * 60_000;
+}
+
+/** Records that the kitchen was handed the real ticket, not just a nudge. */
+export function markOutletNotified(orderNo: string): void {
+  db.prepare(`UPDATE orders SET outlet_notified_at = ? WHERE order_no = ?`).run(nowIso(), orderNo);
+}
+
+/**
+ * Orders this kitchen was never actually given.
+ *
+ * Only live ones: an order already cancelled, delivered, or long since cooked
+ * is not something to hand over now. Oldest first, so a kitchen that reopens
+ * the window gets them in the order they were placed.
+ */
+export function ordersAwaitingTicket(outletId: number): OrderRecord[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders
+        WHERE outlet_id = ? AND outlet_notified_at = '' AND status = 'pending'
+        ORDER BY id ASC`,
+    )
+    .all(outletId) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
+}
+
 /* ------------------------------------------------------------ unmet demand */
 
 /**

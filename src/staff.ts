@@ -17,7 +17,11 @@ import {
   findCancelReason,
   type Audience,
 } from './order-status.ts';
-import { dispatchToDrivers, tellKitchenCancelled } from './dispatch.ts';
+import {
+  dispatchToDrivers,
+  flushOutletTickets,
+  tellKitchenCancelled,
+} from './dispatch.ts';
 import { summariseStored } from './menu-options.ts';
 import { mapsLink, type LocationPin } from './location.ts';
 const chr10 = String.fromCharCode(10);
@@ -357,6 +361,12 @@ export async function handleOutletMessage(
 ): Promise<OutboundMessage[]> {
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
+
+  // Anything at all from a kitchen reopens WhatsApp's 24-hour window — a
+  // tapped template button, a question, a thumbs up. Tickets that could not be
+  // delivered while it was shut are handed over now, before the message itself
+  // is answered, so a kitchen replying to a nudge gets the order it is about.
+  await flushOutletTickets(outlet.id);
 
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(OUTLET_HELP);
 

@@ -11,6 +11,27 @@ import { checkRange, describePin } from './location.ts';
  * Without this an order lands in the database and nobody finds out, which is
  * the difference between a demo and a shop that can trade.
  */
+/**
+ * One line to everyone running the shop, for something that needs a person.
+ *
+ * Logged as well as sent, because the case this exists for is a shop with no
+ * staff numbers configured — where the warning would otherwise go nowhere and
+ * the problem would stay invisible, which is the whole failure being fixed.
+ */
+export async function warnStaff(body: string): Promise<void> {
+  if (config.staffNumbers.length === 0) {
+    console.warn(`[notify] nobody to warn (STAFF_NUMBERS is empty): ${body.replace(/\s+/g, ' ')}`);
+    return;
+  }
+  for (const staff of config.staffNumbers) {
+    try {
+      await sendText(staff, body);
+    } catch (err) {
+      console.error('[notify] could not warn staff:', err);
+    }
+  }
+}
+
 export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   if (config.staffNumbers.length === 0) {
     console.warn(`[notify] ${orderNo} placed but STAFF_NUMBERS is empty — nobody was told`);
