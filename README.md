@@ -258,6 +258,50 @@ Size:Regular|Large+520;Protein:Chicken|Pork+100|Shrimp+350;Spice:Mild|Hot;Extras
 The agent is told which groups are compulsory and refuses to add a dish until they are
 answered — so nobody gets a burger with no size and the kitchen never guesses.
 
+### Ordering, in as few messages as possible
+
+Picking *Restaurant ordering* shows the kitchens immediately, numbered, with what each
+costs **before** anything is added:
+
+```
+Kitchens cooking right now:
+
+*1.* Kingston Fried Hut — Fried chicken, burgers · 20 min · $700 delivery · min $1,500
+*2.* Sheriff Street Chinese — Chinese, chow mein · 25 min · $700 delivery · min $2,000
+
+*3.* Bourda Roti House — _opens 7:00am tomorrow_
+
+Reply with the number.
+```
+
+The fee and the minimum are here rather than at checkout on purpose: a customer who builds
+a $1,800 order and is only then told the kitchen will not take it under $2,000 has been
+wasted, and it reads as a bait and switch.
+
+The numbers the customer sees and the numbers `list_outlets` returns come from **one
+ordering**. If those drifted apart, a reply of "2" would pick the wrong restaurant and
+look to everyone like it had worked. Naming the place or describing it — "the chinese
+one" — works just as well.
+
+Choices are asked for once, numbered, so the reply is a few digits:
+
+```
+*Chicken Chow Mein* — $1,280
+Size: *1* Small · *2* Large +$520
+Protein: *1* Chicken · *2* Pork +$100 · *3* Shrimp +$350
+Spice: *1* Mild · *2* Hot · *3* Extra hot
+
+Reply like `2 1 2` — large, chicken, hot.
+```
+
+Words work too — "large chicken hot" is the same answer. Optional extras never get a turn
+of their own; a dip is mentioned inside the message already being sent, because asking
+"dip with that?" and waiting is a whole round trip spent on something free. And the agent
+never asks whether to show the menu: the customer picked the restaurant.
+
+Checkout is one message carrying the whole order, ending *"anything else, or shall I place
+it?"* — "that's all" answers it, and the order goes.
+
 ### How a food order runs
 
 ```

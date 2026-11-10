@@ -11,8 +11,10 @@
  * there are four services. A numbered list also works in the simulator, in a
  * quoted reply, and for the customer who would rather type.
  */
-import { config } from './config.ts';
+import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
+import type { Outlet } from './db/repo.ts';
+import { hoursStatus } from './hours.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 export const SERVICES = ['grocery', 'restaurant', 'parcel', 'other'] as const;
@@ -38,7 +40,8 @@ export const SERVICE_MENU: Record<Service, Definition> = {
     number: 2,
     label: 'Restaurant ordering',
     spoken: /\b(restaurant|takeaway|take\s*out|fast\s*food|cooked|hot\s*food|lunch|dinner|meal|eat)\b/i,
-    opening: "Let's get you fed. I'll show you which kitchens are cooking right now.",
+    // Unused: serviceOpening renders the live kitchen list for this one.
+    opening: "Let's get you fed.",
   },
   parcel: {
     number: 3,
@@ -86,7 +89,90 @@ export function welcomeMessage(phone: string): string {
   ].join('\n');
 }
 
+/* --------------------------------------------------------------- kitchens */
+
+export type NumberedOutlet = { number: number; outlet: Outlet; open: boolean };
+
+/**
+ * The outlets in the order a customer sees them, each with its number.
+ *
+ * One ordering, used by both the message the customer reads and the tool the
+ * agent calls. If those two disagreed, a customer replying "2" would get the
+ * wrong restaurant — the worst kind of bug, because it looks like it worked.
+ *
+ * Kitchens that are cooking come first: a list led by three closed restaurants
+ * reads as a shop that is shut.
+ */
+export function numberedOutlets(): NumberedOutlet[] {
+  const withState = repo.listOutlets().map((outlet) => ({
+    outlet,
+    open: hoursStatus(outlet.hours).state !== 'closed' && Boolean(outlet.accepting),
+  }));
+
+  withState.sort(
+    (a, b) =>
+      Number(b.open) - Number(a.open) || a.outlet.name.localeCompare(b.outlet.name),
+  );
+
+  return withState.map((entry, index) => ({ number: index + 1, ...entry }));
+}
+
+/**
+ * The kitchens, numbered, with what it costs before anything is added.
+ *
+ * The fee and the minimum are here rather than at checkout deliberately. A
+ * customer who builds a $1,800 order and is only then told the kitchen will not
+ * take it under $2,000 has been wasted, and it reads as a bait and switch.
+ */
+export function outletListMessage(): string {
+  const outlets = numberedOutlets();
+  if (outlets.length === 0) {
+    return 'No restaurants are set up yet, so there is nothing to order from — but I can help you with groceries. Send *menu* to switch.';
+  }
+
+  const line = ({ number, outlet, open }: NumberedOutlet): string => {
+    const facts = [
+      outlet.cuisine,
+      `${outlet.prepMinutes} min`,
+      `${money(outlet.deliveryFee ?? config.store.deliveryFee)} delivery`,
+      ...(outlet.minOrder > 0 ? [`min ${money(outlet.minOrder)}`] : []),
+    ].filter(Boolean);
+
+    if (open) return `*${number}.* ${outlet.name} — ${facts.join(' · ')}`;
+
+    const status = hoursStatus(outlet.hours);
+    const why =
+      !outlet.accepting
+        ? 'kitchen paused'
+        : status.state === 'closed' && status.opensAt
+          ? `opens ${status.opensAt}`
+          : 'closed';
+    return `*${number}.* ${outlet.name} — _${why}_`;
+  };
+
+  const cooking = outlets.filter((o) => o.open);
+  const shut = outlets.filter((o) => !o.open);
+
+  return [
+    cooking.length > 0 ? 'Kitchens cooking right now:' : 'Nothing is cooking right now:',
+    '',
+    ...cooking.map(line),
+    ...(shut.length > 0 ? ['', ...shut.map(line)] : []),
+    '',
+    cooking.length > 0 ? 'Reply with the number.' : 'Send *menu* if you would rather shop groceries.',
+  ].join('\n');
+}
+
+/**
+ * The line that opens a service.
+ *
+ * Restaurant ordering renders its kitchens straight away rather than promising
+ * to: the static version said "I'll show you which kitchens are cooking" and
+ * then showed nothing, leaving the customer to guess the name of a restaurant
+ * they had never been shown.
+ */
 export function serviceOpening(service: Service): string {
+  if (service === 'restaurant') return outletListMessage();
   return SERVICE_MENU[service].opening;
 }
 

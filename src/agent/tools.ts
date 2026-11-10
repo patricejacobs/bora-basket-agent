@@ -8,7 +8,8 @@ import { quoteParcel, checkContents } from '../parcels.ts';
 import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
-import { hoursStatus } from './context.ts';
+import { hoursStatus } from '../hours.ts';
+import { numberedOutlets } from '../services.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance } from '../location.ts';
@@ -753,18 +754,23 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       return ok(cartView(ctx.phone));
 
     case 'list_outlets': {
-      const outlets = repo.listOutlets();
-      if (outlets.length === 0) {
+      const numbered = numberedOutlets();
+      if (numbered.length === 0) {
         return ok({
           outlets: [],
           note: 'No restaurants are set up yet. Offer the grocery catalogue instead — do not invent outlets.',
         });
       }
-      const views = outlets.map(outletView);
+
+      // The numbers come from the same ordering the customer was shown when
+      // they picked this service. If the two ever drifted apart, "2" would
+      // choose the wrong restaurant and look to everyone like it had worked.
+      const views = numbered.map((n) => ({ number: n.number, ...outletView(n.outlet) }));
       return ok({
         outlets: views,
+        note: 'The customer has already been shown this list with these numbers. A reply of "2" means the outlet numbered 2 here.',
         ...(views.every((v) => !v.taking_orders)
-          ? { note: 'Nothing is taking orders right now. Say when the nearest one opens rather than listing them all as shut.' }
+          ? { closed: 'Nothing is taking orders right now. Say when the nearest one opens rather than listing them all as shut.' }
           : {}),
       });
     }

@@ -1806,6 +1806,58 @@ section('Restaurant ordering');
   check('groceries are reachable again', food('search_products', { query: 'rice' }).results?.length > 0);
 }
 
+section('Numbered kitchen list');
+{
+  const { numberedOutlets, outletListMessage, serviceOpening } = await import('./services.ts');
+
+  const numbered = numberedOutlets();
+  check('numbers every outlet', numbered.length === 3, JSON.stringify(numbered.length));
+  check('numbers start at 1 and run consecutively', numbered.every((n, i) => n.number === i + 1), JSON.stringify(numbered.map((n) => n.number)));
+
+  // Bourda Roti House shuts at 4pm, so whether it is open depends on when this
+  // suite runs. What must always hold is that open kitchens come first — a list
+  // led by closed restaurants reads as a shop that is shut.
+  const firstClosed = numbered.findIndex((n) => !n.open);
+  const lastOpen = numbered.map((n) => n.open).lastIndexOf(true);
+  check(
+    'kitchens that are cooking come first',
+    firstClosed === -1 || lastOpen < firstClosed,
+    numbered.map((n) => `${n.outlet.name}:${n.open}`).join(', '),
+  );
+
+  const message = outletListMessage();
+  check('the list is numbered for the customer', /\*1\.\*/.test(message), message.slice(0, 80));
+  check('tells them to reply with a number', /reply with the number/i.test(message), message);
+
+  // The fee and the minimum belong here, not at checkout. A customer who builds
+  // a $1,800 order and is only then refused has been wasted.
+  check('shows the delivery fee up front', message.includes('delivery'), message);
+  check('shows a minimum order up front', message.includes('min '), message);
+  check('shows the cooking time', /\d+ min/.test(message), message);
+
+  // The numbers the customer sees and the numbers the agent gets must be the
+  // same, or a reply of "2" picks the wrong restaurant and looks like it worked.
+  const toolView = JSON.parse(executeTool('list_outlets', {}, { phone: '5920009300', outbound: [] }));
+  check(
+    'the tool numbers match the message',
+    toolView.outlets.every((o: { number: number; code: string }) =>
+      numbered.find((n) => n.number === o.number)?.outlet.code === o.code,
+    ),
+    JSON.stringify(toolView.outlets.map((o: { number: number; code: string }) => `${o.number}:${o.code}`)),
+  );
+  check('and the tool says what the numbers mean', String(toolView.note).includes('numbered 2'), toolView.note);
+
+  // The opening line used to promise a list and show nothing, leaving the
+  // customer to guess the name of a restaurant they had never seen.
+  const opening = serviceOpening('restaurant');
+  check('choosing the service shows the kitchens at once', /\*1\.\*/.test(opening), opening.slice(0, 80));
+  check('grocery keeps its own opening', !/\*1\.\*/.test(serviceOpening('grocery')));
+
+  // A closed outlet is listed but plainly marked, with when it opens.
+  const closedLine = message.split('\n').find((l) => l.includes('_'));
+  check('a closed kitchen is marked as such', closedLine !== undefined, message);
+}
+
 section('Kitchen and rider commands');
 {
   const { handleOutletMessage, handleDriverMessage, isDriver } = await import('./staff.ts');
