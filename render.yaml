@@ -54,6 +54,17 @@ services:
         value: "true"
       - key: RESTRICTED_SKUS
         value: "BEV-001"
+      # Restaurants and their menus, on the same principle as the catalogue
+      # above. Outlets import first; a menu row names its outlet and is skipped
+      # if that outlet is not there yet.
+      #
+      # These point at the real partner files. ./data/sample-outlets.csv and
+      # ./data/sample-menu.csv hold six invented restaurants instead, for
+      # testing against something that is not somebody's real business.
+      - key: SEED_OUTLETS_PATH
+        value: ./data/outlets.csv
+      - key: SEED_MENU_PATH
+        value: ./data/menu.csv
 
       # --- secrets: set these in the Render dashboard, never in this file ---
       - key: ANTHROPIC_API_KEY
