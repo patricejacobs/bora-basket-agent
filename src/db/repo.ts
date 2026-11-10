@@ -1425,6 +1425,27 @@ export function assignDriver(orderNo: string, driverPhone: string): void {
   );
 }
 
+/**
+ * How many orders sit in each status.
+ *
+ * Operational, not analytical: when somebody reports that a ticket never
+ * arrived, the first question is whether an order was ever placed, and nothing
+ * else in /health could answer it.
+ */
+export function orderCounts(): Record<string, number> {
+  const rows = db
+    .prepare(`SELECT status, COUNT(*) AS n FROM orders GROUP BY status`)
+    .all() as unknown as { status: string; n: number }[];
+
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const row of rows) {
+    counts[row.status] = row.n;
+    total += row.n;
+  }
+  return { total, ...counts };
+}
+
 /** Orders cooked and waiting for a rider, oldest first — food goes cold. */
 export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   const rows = db

@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
 import { startStallWatch } from './stalls.ts';
+import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
 import { simulatorRouter } from './channels/simulator.ts';
@@ -156,6 +157,19 @@ app.get('/health', (_req: Request, res: Response) => {
     menuItems: menuItemCount(),
     outlets: listOutlets().length,
     outletsTakingOrders: listOutlets().filter((o) => o.accepting).length,
+    // Enough to diagnose "the kitchen never got its ticket" without a shell:
+    // whether each outlet has somewhere to send one, and whether any order has
+    // ever been placed. Booleans rather than the number itself — this URL is
+    // public and a kitchen's phone number is not ours to publish.
+    outletDetail: listOutlets().map((o) => ({
+      code: o.code,
+      name: o.name,
+      kitchenNumber: Boolean(o.whatsapp),
+      pickupPin: o.pickupLat !== null && o.pickupLng !== null,
+      accepting: Boolean(o.accepting),
+      open: hoursStatus(o.hours).state,
+    })),
+    orders: orderCounts(),
     whatsappReady: Object.values(whatsapp).every(Boolean),
     config: {
       anthropicKey: Boolean(config.anthropic.apiKey),
