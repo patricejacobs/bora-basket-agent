@@ -27,7 +27,7 @@ import { notifyStaffOfNewOrder } from './notifications.ts';
  * that keeps cooking is wasted food however it happened. Returns what to tell
  * whoever cancelled, so they know whether the kitchen actually heard.
  */
-export async function tellKitchenCancelled(orderNo: string): Promise<string> {
+export async function tellKitchenCancelled(orderNo: string, hadAccepted = true): Promise<string> {
   const order = repo.findOrder(orderNo);
   if (!order?.outlet) return '';
 
@@ -35,13 +35,15 @@ export async function tellKitchenCancelled(orderNo: string): Promise<string> {
   if (!outlet?.whatsapp) return '⚠️ Kitchen has no WhatsApp number — ring them to stop the order.';
 
   const reason = order.cancelReason ? ` — ${order.cancelReason}` : '';
+  // A kitchen that never accepted the ticket has not started, and telling it to
+  // "stop cooking" invites a worried phone call about food it never made.
+  const what = hadAccepted
+    ? 'Stop cooking it if you have started.'
+    : 'Do not start it — ignore the ticket.';
   try {
-    await sendText(
-      outlet.whatsapp,
-      `🚫 *${order.orderNo} cancelled*${reason}.
+    await sendText(outlet.whatsapp, `🚫 *${order.orderNo} cancelled*${reason}.
 
-Stop cooking it if you have started.`,
-    );
+${what}`);
     return 'Kitchen told to stop.';
   } catch (err) {
     console.error('[dispatch] could not tell the kitchen about a cancellation:', err);

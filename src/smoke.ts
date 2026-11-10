@@ -2326,6 +2326,26 @@ section('Why an order was cancelled');
   const snooped = JSON.parse(executeTool('cancel_my_order', { order_number: mineRef }, stranger));
   check('cannot cancel another customer order', typeof snooped.error === 'string', JSON.stringify(snooped));
 
+  // The buttons on an old WhatsApp message do not disappear when an order
+  // moves on, so a cook can tap Confirm long after a cancellation.
+  const { handleOutletMessage: kitchenSays } = await import('./staff.ts');
+  const stale = await kitchenSays(repo.getOutlet('SSC')!, `${ref3} confirm`);
+  check(
+    'a stale button cannot revive a cancelled order',
+    repo.findOrder(ref3)?.status === 'cancelled',
+    repo.findOrder(ref3)?.status,
+  );
+  check('and the kitchen is told not to cook it', /cannot be changed/.test(stale[0]?.text ?? ''), stale[0]?.text);
+
+  const doneOrder = repo.openOrders(20).find((o) => o.status === 'on_the_way');
+  if (doneOrder) {
+    repo.setOrderStatus(doneOrder.orderNo, 'delivered');
+    const reopened = await handleStaffMessage(`${Number(doneOrder.orderNo.replace(/\D/g, ''))} on the way`, '5926497570');
+    check('a delivered order cannot be reopened', repo.findOrder(doneOrder.orderNo)?.status === 'delivered', reopened[0]?.text);
+  } else {
+    check('a delivered order cannot be reopened', true, '(none on hand to try)');
+  }
+
   const prompt = (await import('./agent/system-prompt.ts')).SYSTEM_PROMPT;
   check('the prompt forbids announcing limits', prompt.includes('Never say what you cannot do'));
 

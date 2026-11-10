@@ -46,6 +46,19 @@ async function applyStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
 ): Promise<{ body: string; status: repo.OrderStatus }> {
+  // Delivered and cancelled are the end. The buttons on an old message do not
+  // disappear when an order moves on, so a cook tapping "Confirm" twenty
+  // minutes after a cancellation would otherwise revive it and start cooking
+  // something nobody wants.
+  if (order.status === 'cancelled' || order.status === 'delivered') {
+    return {
+      body: `${order.orderNo} is already *${STATUS_LABEL[order.status]}* and cannot be changed.${
+        order.status === 'cancelled' ? ' Do not cook it.' : ''
+      }`,
+      status: order.status,
+    };
+  }
+
   repo.setOrderStatus(order.orderNo, status);
   const updated = { ...order, status };
 
@@ -76,7 +89,7 @@ async function applyStatus(
   // A cancellation has to reach whoever else was working on it. A kitchen that
   // keeps cooking an order the shop cancelled is wasted food and wasted money.
   if (status === 'cancelled' && order.outlet) {
-    const told = await tellKitchenCancelled(order.orderNo);
+    const told = await tellKitchenCancelled(order.orderNo, order.status !== 'pending');
     if (told) notes.push(told);
   }
 

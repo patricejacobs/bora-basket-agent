@@ -1338,7 +1338,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       // The kitchen was told to cook this when it was placed, and has not
       // answered yet — it must not accept it ten minutes from now.
-      void tellKitchenCancelled(order.orderNo).catch((err) =>
+      // Only reachable while still pending, so the kitchen never accepted it.
+      void tellKitchenCancelled(order.orderNo, false).catch((err) =>
         console.error('[tools] could not tell the kitchen about a cancellation:', err),
       );
 
