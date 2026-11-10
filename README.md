@@ -149,10 +149,10 @@ Welcome to Next Minute Delivery! 👋
 
 What can we help you with today?
 
-*1.* Grocery shopping — order from our shelves
-*2.* Restaurant ordering — cooked food delivered
-*3.* Parcel delivery — send a package across town
-*4.* Other — a person will help you
+*1.* Grocery shopping
+*2.* Restaurant ordering
+*3.* Parcel delivery
+*4.* Other
 
 Just reply with the number.
 ```

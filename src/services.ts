@@ -21,8 +21,6 @@ export type Service = (typeof SERVICES)[number];
 type Definition = {
   number: number;
   label: string;
-  /** What the customer sees under the number. */
-  blurb: string;
   /** Words a customer might type instead of the number. */
   spoken: RegExp;
   /** The line that opens that service, once chosen. */
@@ -33,21 +31,18 @@ export const SERVICE_MENU: Record<Service, Definition> = {
   grocery: {
     number: 1,
     label: 'Grocery shopping',
-    blurb: 'order from our shelves',
     spoken: /\b(grocer(y|ies)|shopping|shop|market|food\s*shop|supermarket|provisions?)\b/i,
     opening: 'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
   },
   restaurant: {
     number: 2,
     label: 'Restaurant ordering',
-    blurb: 'cooked food delivered',
     spoken: /\b(restaurant|takeaway|take\s*out|fast\s*food|cooked|hot\s*food|lunch|dinner|meal|eat)\b/i,
     opening: "Let's get you fed. I'll show you which kitchens are cooking right now.",
   },
   parcel: {
     number: 3,
     label: 'Parcel delivery',
-    blurb: 'send a package across town',
     spoken: /\b(parcel|package|courier|delivery\s*only|send\s*(something|a\s*thing)|drop\s*off|pick\s*up\s*something)\b/i,
     opening:
       "Parcel delivery. I'll need to know where it's coming from, where it's going, and who's receiving it.",
@@ -55,7 +50,6 @@ export const SERVICE_MENU: Record<Service, Definition> = {
   other: {
     number: 4,
     label: 'Other',
-    blurb: 'a person will help you',
     spoken: /\b(other|something\s*else|help|complain|complaint|speak\s*to|talk\s*to|manager|staff|problem)\b/i,
     opening:
       "No problem — tell me what you need and I'll pass it straight to the team with your number.",
@@ -86,7 +80,7 @@ export function welcomeMessage(phone: string): string {
     '',
     'What can we help you with today?',
     '',
-    ...ORDERED.map((s) => `*${s.number}.* ${s.label} — ${s.blurb}`),
+    ...ORDERED.map((s) => `*${s.number}.* ${s.label}`),
     '',
     'Just reply with the number.',
   ].join('\n');
