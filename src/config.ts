@@ -163,6 +163,32 @@ export const config = {
   })() as ('cash' | 'card')[],
 
   /**
+   * Watching for orders that have stopped moving.
+   *
+   * Every other stage of an order has somebody waiting on it who will chase:
+   * a kitchen chases an unconfirmed ticket, a customer chases an undelivered
+   * meal. "Cooked, waiting for a rider" has nobody watching it, which is how
+   * food goes cold on a counter while the system reports everything as normal.
+   *
+   * Each threshold is minutes in that status before staff are told. Set
+   * STALL_ALERT_MINUTES to 0 to switch the whole thing off.
+   */
+  stalls: {
+    /** Cooked and waiting for a rider. The one this was built for. */
+    readyMinutes: num('STALL_ALERT_MINUTES', 15),
+    /** Placed and the kitchen has not accepted it. */
+    pendingMinutes: num('STALL_PENDING_MINUTES', 10),
+    /** With a rider and still not delivered. */
+    deliveryMinutes: num('STALL_DELIVERY_MINUTES', 60),
+    /**
+     * How often to look. A sweep rather than a timer per order: timers die with
+     * the process, and an alarm that silently vanishes on deploy is worse than
+     * none, because you believe you are covered.
+     */
+    sweepSeconds: num('STALL_SWEEP_SECONDS', 120),
+  },
+
+  /**
    * Parcel delivery pricing.
    *
    * Both default to 0, which means "not priced". The agent then takes the job

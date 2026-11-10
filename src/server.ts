@@ -5,6 +5,7 @@ import { config, assertWhatsAppConfigured, money } from './config.ts';
 import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
+import { startStallWatch } from './stalls.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats } from './channels/whatsapp-send.ts';
 import { simulatorRouter } from './channels/simulator.ts';
@@ -109,6 +110,7 @@ function loadCatalogue(): void {
 
 loadCatalogue();
 loadMenus();
+startStallWatch();
 
 const app = express();
 app.disable('x-powered-by');

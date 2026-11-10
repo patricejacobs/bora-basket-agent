@@ -2183,6 +2183,93 @@ section('Parcel delivery');
   check('a parcel can be dispatched to a rider', dispatched === 'sent', dispatched);
 }
 
+/* -------------------------------------------------------- stalled orders */
+
+section('Orders that stop moving');
+{
+  const { sweepStalls } = await import('./stalls.ts');
+
+  // Backdating the row drives the clock, so nothing here waits on a timer.
+  const age = (orderNo: string, minutes: number): void => {
+    db.prepare(`UPDATE orders SET updated_at = ? WHERE order_no = ?`).run(
+      new Date(Date.now() - minutes * 60_000).toISOString(),
+      orderNo,
+    );
+  };
+  const thresholds = { pendingMinutes: 10, readyMinutes: 15, deliveryMinutes: 60 };
+  const stuck = (): string[] =>
+    repo.stalledOrders(thresholds).map((s) => `${s.order.orderNo}:${s.order.status}`);
+
+  // Build an order to age. Its own customer, so the counts below cannot be
+  // disturbed by orders other sections placed.
+  const stallPhone = '5920009500';
+  const stallCtx: ToolContext = { phone: stallPhone, outbound: [] };
+  const stallCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, stallCtx));
+
+  repo.setService(stallPhone, 'grocery');
+  // Two bags, to clear the shop's minimum order.
+  stallCall('add_to_cart', { sku: 'RIC-002', quantity: 2 });
+  repo.saveCustomer(stallPhone, { name: 'Stall Test', address: 'Somewhere' });
+  repo.saveLocationPin(stallPhone, { latitude: 6.807, longitude: -58.155, label: 'Home' });
+  repo.confirmIdentity(stallPhone);
+  const placed = stallCall('place_order', { payment_method: 'cash_on_delivery' });
+  const no = String(placed.order_number);
+  check('an order was placed to age', placed.placed === true, JSON.stringify(placed).slice(0, 80));
+
+  // Fresh orders are not stalls.
+  check('a new order is not reported', !stuck().includes(`${no}:pending`), stuck().join(','));
+
+  age(no, 11);
+  check('an unconfirmed order is reported after its threshold', stuck().includes(`${no}:pending`), stuck().join(','));
+
+  // Reported once, then silent — not every two minutes for the rest of the night.
+  repo.markStallAlerted(no);
+  check('and only once', !stuck().includes(`${no}:pending`), stuck().join(','));
+
+  // Each stage gets its own alarm: moving the order clears the stamp.
+  repo.setOrderStatus(no, 'ready');
+  check('moving it clears the stamp', repo.findOrder(no)?.status === 'ready');
+  check('a freshly ready order is not a stall', !stuck().some((s) => s.startsWith(no)), stuck().join(','));
+
+  age(no, 16);
+  check('an uncollected order is reported', stuck().includes(`${no}:ready`), stuck().join(','));
+  check('which is the stall this was built for', thresholds.readyMinutes === 15);
+
+  // Thresholds differ by stage: an hour with a rider is fine, sixteen minutes
+  // on a counter is not.
+  repo.setOrderStatus(no, 'on_the_way');
+  age(no, 20);
+  check('twenty minutes with a rider is not a stall', !stuck().some((s) => s.startsWith(no)), stuck().join(','));
+  age(no, 61);
+  check('an hour with a rider is', stuck().includes(`${no}:on_the_way`), stuck().join(','));
+
+  // Finished orders are never stalls, however old.
+  repo.setOrderStatus(no, 'delivered');
+  age(no, 600);
+  check('a delivered order is never reported', !stuck().some((s) => s.startsWith(no)), stuck().join(','));
+  repo.setOrderStatus(no, 'cancelled');
+  age(no, 600);
+  check('nor a cancelled one', !stuck().some((s) => s.startsWith(no)), stuck().join(','));
+
+  // A threshold of zero switches that stage off rather than reporting everything.
+  repo.setOrderStatus(no, 'ready');
+  age(no, 300);
+  check(
+    'a zero threshold switches a stage off',
+    repo.stalledOrders({ ...thresholds, readyMinutes: 0 }).every((s) => s.order.orderNo !== no),
+  );
+
+  // The sweep itself. STAFF_NUMBERS is set for this suite but WhatsApp is not
+  // configured, so the send is dropped — what matters is that it stamps every
+  // order it reports, so a failed send cannot replay on the next pass.
+  const before = repo.stalledOrders(config.stalls).length;
+  await sweepStalls();
+  check('the sweep stamps what it reports', repo.stalledOrders(config.stalls).length === 0, `${before} before`);
+  const second = await sweepStalls();
+  check('a second sweep finds nothing to repeat', second === 0, String(second));
+}
+
 /* ------------------------------------------------- switching mid-order */
 
 section('Changing service mid-conversation');

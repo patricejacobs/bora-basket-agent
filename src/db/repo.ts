@@ -1000,6 +1000,8 @@ function hydrateOrder(row: {
   prep_minutes: number | null;
   driver_phone: string | null;
   kind: string | null;
+  /** Written on every status change; empty on rows that predate the column. */
+  updated_at: string | null;
   recipient_name: string | null;
   recipient_phone: string | null;
   parcel_details: string | null;
@@ -1432,11 +1434,72 @@ export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {
-  db.prepare(`UPDATE orders SET status = ?, updated_at = ? WHERE order_no = ?`).run(
-    status,
-    nowIso(),
-    orderNo,
-  );
+  // The stall stamp is cleared with every move, so each stage gets its own
+  // alarm. An order warned about while waiting for a rider must be able to
+  // raise a second warning if the delivery then drags.
+  db.prepare(
+    `UPDATE orders SET status = ?, updated_at = ?, stall_alerted_at = NULL WHERE order_no = ?`,
+  ).run(status, nowIso(), orderNo);
+}
+
+/* ----------------------------------------------------------------- stalls */
+
+export type StalledOrder = {
+  order: OrderRecord;
+  /** How long it has sat in this status. */
+  minutes: number;
+};
+
+/**
+ * Orders that have stopped moving, and have not already been reported.
+ *
+ * Measured from `updated_at`, which every status change writes — except for a
+ * brand new order, where nothing has moved yet and `created_at` is the honest
+ * clock. Orders placed before this column existed have an empty updated_at,
+ * hence the fallback rather than a null check.
+ */
+export function stalledOrders(thresholds: {
+  pendingMinutes: number;
+  readyMinutes: number;
+  deliveryMinutes: number;
+}): StalledOrder[] {
+  const limits: Partial<Record<OrderStatus, number>> = {
+    pending: thresholds.pendingMinutes,
+    ready: thresholds.readyMinutes,
+    on_the_way: thresholds.deliveryMinutes,
+  };
+
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders
+        WHERE status IN ('pending', 'ready', 'on_the_way')
+          AND stall_alerted_at IS NULL
+        ORDER BY id ASC`,
+    )
+    .all() as unknown as Parameters<typeof hydrateOrder>[0][];
+
+  const now = Date.now();
+  const stalled: StalledOrder[] = [];
+
+  for (const row of rows) {
+    const order = hydrateOrder(row);
+    const limit = limits[order.status];
+    // A threshold of 0 or less switches that stage off rather than alerting on
+    // everything the moment it is placed.
+    if (!limit || limit <= 0) continue;
+
+    const since = new Date(row.updated_at || row.created_at).getTime();
+    if (!Number.isFinite(since)) continue;
+
+    const minutes = Math.floor((now - since) / 60_000);
+    if (minutes >= limit) stalled.push({ order, minutes });
+  }
+  return stalled;
+}
+
+/** Marks an order as reported, so the same stall is not announced twice. */
+export function markStallAlerted(orderNo: string): void {
+  db.prepare(`UPDATE orders SET stall_alerted_at = ? WHERE order_no = ?`).run(nowIso(), orderNo);
 }
 
 /** Orders still needing action, oldest first — the dispatcher's work queue. */

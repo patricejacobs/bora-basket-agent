@@ -269,6 +269,11 @@ addColumnIfMissing('order_items', 'options', "TEXT NOT NULL DEFAULT ''");
 // grocery aisle halfway through ordering a burger.
 addColumnIfMissing('customers', 'browsing_outlet_id', 'INTEGER');
 
+// When staff were last warned that this order had stopped moving. Cleared every
+// time the status changes, so each stage can raise its own alarm once and an
+// order that stalls twice is reported twice.
+addColumnIfMissing('orders', 'stall_alerted_at', 'TEXT');
+
 /* --------------------------------------------------------------- services */
 
 // Which service the customer picked at the start of this conversation:

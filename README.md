@@ -771,6 +771,42 @@ A customer can name an order (`ORD-00007`), but the lookup is scoped to the numb
 are messaging from. Order numbers are sequential and get read aloud, so an unscoped
 lookup would hand anyone their neighbour's name and address for the price of a guess.
 
+### When an order stops moving
+
+Every stage of an order has somebody waiting on it who will chase — a kitchen chases a
+ticket, a customer chases a meal. **"Cooked, waiting for a rider" has nobody watching it.**
+The order is not late in the database; it is in a perfectly normal status. The first person
+to notice is the customer, and by then the food is cold and the complaint is yours.
+
+So the shop is told when one stops:
+
+```
+⏰ *ORD-00001* stuck — cooked, waiting for a rider for 18 minutes
+
+Cooked and sitting at A Taste of Guyana Roti Shop & Bakery.
+No rider has collected it.
+
+Anita Persaud · +5926007002
+$4,600 to collect
+```
+
+| Stage | Default | Setting |
+|---|---|---|
+| Placed, kitchen has not accepted | 10 min | `STALL_PENDING_MINUTES` |
+| Cooked, no rider has collected | 15 min | `STALL_ALERT_MINUTES` |
+| With a rider, not delivered | 60 min | `STALL_DELIVERY_MINUTES` |
+
+Each stage alarms **once**. Moving the order clears the stamp, so one that stalls twice is
+reported twice — but a sweep every two minutes does not re-send the same warning all night.
+`STALL_ALERT_MINUTES=0` switches the whole thing off; a `0` on any one stage switches just
+that stage off.
+
+**It is a sweep, not a timer per order.** Timers die with the process: a deploy at 7:30pm
+would silently cancel an alarm set at 7:21pm and nobody would ever know. The state lives in
+the database, so the next sweep after a restart picks up exactly where it left off. The
+order is stamped *before* the message is sent, so a send that fails cannot replay the same
+alert every two minutes afterwards.
+
 ### The 24-hour rule
 
 WhatsApp only permits free-form messages within 24 hours of the customer's last message.

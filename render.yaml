@@ -94,6 +94,14 @@ services:
       # sent to fetch it — which a customer experiences as the shop not coming.
       - key: DRIVER_NUMBERS
         value: ""
+      # Minutes an order may sit in a stage before staff are told it has
+      # stopped moving. 0 on STALL_ALERT_MINUTES switches the watch off.
+      - key: STALL_ALERT_MINUTES
+        value: "15"
+      - key: STALL_PENDING_MINUTES
+        value: "10"
+      - key: STALL_DELIVERY_MINUTES
+        value: "60"
       - key: TEMPLATE_ORDER_ON_THE_WAY
         value: ""
       - key: TEMPLATE_ORDER_DELIVERED
