@@ -2280,6 +2280,17 @@ section('Why an order was cancelled');
 
   check('every reason has customer-facing words', CANCEL_REASONS.every((r) => r.customer.length > 10));
 
+  // Saying sorry to somebody for doing what they asked reads as a machine that
+  // has not understood, and devalues the apology everywhere it is deserved.
+  check(
+    'a customer-requested cancellation does not apologise',
+    CANCEL_REASONS.find((r) => r.key === 'customer')?.apologise === false,
+  );
+  check(
+    'every other reason does',
+    CANCEL_REASONS.filter((r) => r.key !== 'customer').every((r) => r.apologise),
+  );
+
   // Who cancelled decides whose name the customer sees. A restaurant that
   // cancels is named so the customer can choose another; the shop may not hide
   // behind a restaurant's name for a cancellation it made itself.

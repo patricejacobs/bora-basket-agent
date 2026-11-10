@@ -77,13 +77,20 @@ export type CancelReason = {
   audiences: Audience[];
   /** How it reads in the shop's own records. */
   internal: string;
-  /** What the customer is told, as the end of "...because ___". */
+  /** What the customer is told, as the end of "...cancelled: ___". */
   customer: string;
+  /**
+   * Whether to apologise. False where the customer asked for it — saying sorry
+   * to somebody for doing what they requested reads as a machine that has not
+   * understood, and devalues the apology everywhere it is deserved.
+   */
+  apologise: boolean;
 };
 
 export const CANCEL_REASONS: CancelReason[] = [
   {
     key: 'sold_out',
+    apologise: true,
     title: (n) => `${n} sold out`,
     match: /\b(sold\s*out|out\s*of\s*stock|ran\s*out|finished)\b/i,
     audiences: ['outlet', 'staff'],
@@ -92,6 +99,7 @@ export const CANCEL_REASONS: CancelReason[] = [
   },
   {
     key: 'too_busy',
+    apologise: true,
     title: (n) => `${n} too busy`,
     match: /\b(too\s*busy|busy|slammed|backed\s*up)\b/i,
     audiences: ['outlet', 'staff'],
@@ -100,6 +108,7 @@ export const CANCEL_REASONS: CancelReason[] = [
   },
   {
     key: 'closing',
+    apologise: true,
     title: (n) => `${n} closing`,
     match: /\b(closing|closed|shutting)\b/i,
     audiences: ['outlet', 'staff'],
@@ -108,6 +117,7 @@ export const CANCEL_REASONS: CancelReason[] = [
   },
   {
     key: 'customer',
+    apologise: false,
     title: (n) => `${n} cust changed`,
     match: /\b(customer|cust|changed\s*mind|they\s*cancelled)\b/i,
     audiences: ['staff'],
@@ -116,6 +126,7 @@ export const CANCEL_REASONS: CancelReason[] = [
   },
   {
     key: 'undeliverable',
+    apologise: true,
     title: (n) => `${n} cant deliver`,
     match: /\b(can'?t\s*deliver|cannot\s*deliver|no\s*(rider|driver|associate)|out\s*of\s*area|too\s*far)\b/i,
     audiences: ['staff'],

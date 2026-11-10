@@ -102,19 +102,25 @@ function cancelledMessage(order: repo.OrderRecord): string {
   const firstName = order.customerName.split(/\s+/)[0] ?? '';
 
   const byOutlet = order.cancelledBy === 'outlet' && Boolean(order.outlet?.name);
-  const subject = byOutlet ? `*${order.outlet!.name}* has cancelled your order` : `Order ${order.orderNo} has been cancelled`;
+  const subject = byOutlet
+    ? `*${order.outlet!.name}* has cancelled your order`
+    : `Order ${order.orderNo} has been cancelled`;
+
+  // An order the customer asked us to cancel is not something to apologise for.
+  // Anything else is, and the regret goes first, before the explanation.
+  const opening = known && !known.apologise ? `Done ${firstName} —` : `Sorry about this ${firstName} —`;
 
   // The reason is passed on as given, and the message ends there. Inviting
   // somebody to write back if it is "not right" implies the cancellation might
   // be a mistake and puts the work of chasing it on them — when what they
   // actually need is to know why, so they can decide what to do next.
   if (known) {
-    return `Sorry ${firstName} — ${subject}: ${known.customer}. Nothing has been charged.`;
+    return `${opening} ${subject}: ${known.customer}. Nothing has been charged.`;
   }
   if (order.cancelReason && order.cancelReason !== 'No reason given') {
-    return `Sorry ${firstName} — ${subject}. Reason given: ${order.cancelReason}. Nothing has been charged.`;
+    return `${opening} ${subject}. Reason given: ${order.cancelReason}. Nothing has been charged.`;
   }
-  return `Sorry ${firstName} — ${subject}. Nothing has been charged.`;
+  return `${opening} ${subject}. Nothing has been charged.`;
 }
 
 /**
