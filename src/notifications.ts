@@ -155,7 +155,9 @@ export async function notifyCustomerOfStatus(
   const freeForm: Partial<Record<repo.OrderStatus, string>> = {
     confirmed: `Thanks ${firstName} — order ${order.orderNo} is confirmed. We'll let you know when it's on the way.`,
     on_the_way: `${firstName}, your order ${order.orderNo} is on its way 🛵\nTotal ${money(order.total)}, payable to the driver.`,
-    delivered: `Order ${order.orderNo} delivered. Thanks for shopping with ${config.store.name}!`,
+    // The store name rather than the words, so a rename carries through here
+    // too — this is the last thing a customer reads from every order.
+    delivered: `Order ${order.orderNo} delivered. Thank you for choosing ${config.store.name}!`,
     // The reason is the difference between an apology and an explanation. A
     // customer told the kitchen ran out knows to try something else; one told
     // only "cancelled" assumes they did something wrong.
