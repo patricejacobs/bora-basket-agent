@@ -279,6 +279,51 @@ export async function flushOutletTickets(outletId: number): Promise<number> {
 }
 
 /**
+ * Where it is going, who to ring, and what to take off them.
+ *
+ * Shared, because an associate reads it twice: once on the job card, and
+ * again the moment they have the food and the only thing left is the drop.
+ * Repeating it there is the point - WhatsApp cannot retire the old card, so
+ * the newest message has to be worth more than scrolling back to it.
+ */
+export function dropLines(order: repo.OrderRecord): string[] {
+  const isParcel = order.kind === 'parcel';
+  const receiverName = isParcel ? order.recipientName : order.customerName;
+  const receiverPhone = isParcel ? order.recipientPhone : order.contactPhone || order.phone;
+
+  return [
+    `*Deliver to:* ${receiverName}`,
+    ...(order.address ? [order.address] : []),
+    `📞 +${receiverPhone}`,
+    ...(order.location
+      ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
+      : ['⚠️ No location pin on this order - ring the customer']),
+    '',
+    // What it is made of, so the cash can be checked against the bag rather
+      // than taken on trust at the door.
+    order.total > 0
+      ? `*Collect ${money(order.total)} cash*` +
+        (isParcel
+          ? ' from the recipient'
+          : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`)
+      : '*Fee not set* - the shop will confirm it, do not quote one',
+  ];
+}
+
+/**
+ * The card an associate gets once the food is in the bag.
+ *
+ * Only the half still ahead of them. The uplift address is behind them and
+ * the items are in their hands; what remains is where to go, who to ring and
+ * what to take.
+ */
+export function onTheWayCard(order: repo.OrderRecord): string {
+  return [`🛵 *${order.orderNo}* on the way`, '', ...dropLines(order)].join(
+    String.fromCharCode(10),
+  );
+}
+
+/**
  * The delivery associate's job card: where to collect, where to go, who to ring, what to collect.
  *
  * This is the message that has to be complete, because a delivery associate reading it is
@@ -325,17 +370,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       : ['*Uplift from:* the shop', '']),
     ...itemLines(order),
     '',
-    `*Deliver to:* ${receiverName}`,
-    ...(order.address ? [order.address] : []),
-    `📞 +${receiverPhone}`,
-    ...(order.location
-      ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
-      : ['⚠️ No location pin on this order — ring the customer']),
-    '',
-    // The one number a delivery associate must not get wrong: cash due on the doorstep.
-    order.total > 0
-      ? `*Collect ${money(order.total)} cash*${isParcel ? ' from the recipient' : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`}`
-      : '*Fee not set* — the shop will confirm it, do not quote one',
+    ...dropLines(order),
   ].join('\n');
 
   const actions = nextActions(order.orderNo, 'ready', 'driver');

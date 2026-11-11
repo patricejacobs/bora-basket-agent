@@ -21,6 +21,7 @@ import {
 import {
   dispatchToDrivers,
   flushOutletTickets,
+  onTheWayCard,
   tellAssociatesCancelled,
   tellKitchenCancelled,
 } from './dispatch.ts';
@@ -689,9 +690,19 @@ export async function handleDriverMessage(
     repo.saveAssociateLocation(phone, order.location, 'delivery');
   }
 
-  const { body } = await applyStatus(order, status);
-  const actions = nextActions(order.orderNo, status, 'driver');
-  return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
+  const { body, status: landed } = await applyStatus(order, status, 'driver');
+  const actions = nextActions(order.orderNo, landed, 'driver');
+
+  // The food is in the bag and only the drop is left, so this message is the
+  // one they will work from. WhatsApp cannot retire the job card above it, so
+  // the newest message has to be worth more than scrolling back - the address,
+  // the phone, the pin and the cash, repeated where they are now needed.
+  const shown =
+    landed === 'on_the_way' ? onTheWayCard(repo.findOrder(order.orderNo) ?? order) : body;
+
+  return actions.length > 0
+    ? [{ kind: 'buttons', text: shown, buttons: actions }]
+    : reply(shown);
 }
 
 const describeForDriver = (o: repo.OrderRecord): string =>
