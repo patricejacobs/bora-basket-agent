@@ -294,6 +294,9 @@ export function dropLines(order: repo.OrderRecord): string[] {
   return [
     `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),
+    // What the customer said about finding the door. It was going to staff
+    // and not to the person standing outside, which is the wrong way round.
+    ...(order.deliveryNote ? [order.deliveryNote] : []),
     `📞 +${receiverPhone}`,
     ...(order.location
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
@@ -318,9 +321,32 @@ export function dropLines(order: repo.OrderRecord): string[] {
  * what to take.
  */
 export function onTheWayCard(order: repo.OrderRecord): string {
-  return [`🛵 *${order.orderNo}* on the way`, '', ...dropLines(order)].join(
-    String.fromCharCode(10),
-  );
+  const isParcel = order.kind === 'parcel';
+  const receiverName = isParcel ? order.recipientName : order.customerName;
+  const receiverPhone = isParcel ? order.recipientPhone : order.contactPhone || order.phone;
+
+  return [
+    `🛵 *${order.orderNo}* on the way`,
+    '',
+    // The link first and announced, because it is the one thing they will act
+    // on before reading anything else - and a bare URL in a message reads as
+    // something to ignore unless it is told what it opens.
+    ...(order.location
+      ? ['Click the link below for the delivery address:', mapsLink(order.location)]
+      : ['⚠️ No location pin on this order - ring the customer']),
+    '',
+    `*Deliver to:* ${receiverName}`,
+    ...(order.address ? [order.address] : []),
+    ...(order.deliveryNote ? [order.deliveryNote] : []),
+    `📞 +${receiverPhone}`,
+    '',
+    order.total > 0
+      ? `*Collect ${money(order.total)} cash*` +
+        (isParcel
+          ? ' from the recipient'
+          : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`)
+      : '*Fee not set* - the shop will confirm it, do not quote one',
+  ].join(String.fromCharCode(10));
 }
 
 /**

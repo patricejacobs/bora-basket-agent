@@ -1012,26 +1012,28 @@ ORD-00031 has not been accepted yet - press *Confirm* first, then *Ready*
 when the food is up.
 ```
 
-### One map card at a time
+### One map card, and one message after it
 
-An associate gets one map card when the job arrives - the **uplift** - and the second when
-they say they have the food:
+An associate gets the job as two messages - the card, and a map card for the **uplift**.
+After they tap **Uplifted** they get one message and no map card:
 
 ```
-job arrives     job card                      then  map card: Uplift - A Taste of Guyana
-taps Uplifted   map card: the drop pin        then  delivery card + [Delivered]
+job arrives     job card  then  map card: Uplift - A Taste of Guyana
+taps Uplifted   one message, with the link in it
 ```
 
-Both pins used to arrive together with the job. Two map cards side by side is how somebody
-glancing at a phone on a bike navigates to the customer instead of the restaurant, and for
-the next fifteen minutes the destination is not where they are going.
+Both pins used to arrive with the job. Two map cards side by side is how somebody glancing
+at a phone on a bike navigates to the customer instead of the restaurant, and for the next
+fifteen minutes the destination is not where they are going.
 
-**The card and its map cannot be one message.** A WhatsApp location message carries a
-latitude, a longitude, a name and an address, and nothing else - no body, no buttons - so
-anything to read or tap travels separately. The nearest thing available is what is done
-here: the delivery pin goes out on its own, carrying the coordinates and a link to them and
-no name at all. Who and where is on the card beneath it, so a name on the pin would only put
-the customer on one more screen.
+The message after uplifting is the one they work from on the doorstep, so it is ordered the
+way it is used: the order, then the link announced as a link, then who to deliver to with
+whatever the customer said about finding the door, then the phone, then the cash, then the
+button.
+
+**A card and a map cannot share a message.** A WhatsApp location message carries a
+latitude, a longitude, a name and an address and nothing else - no body, no buttons - so
+the link travels in the text instead.
 
 ### Who says the food has left
 

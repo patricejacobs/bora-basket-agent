@@ -746,37 +746,10 @@ export async function handleDriverMessage(
   const fresh = repo.findOrder(order.orderNo) ?? order;
   const shown = landed === 'on_the_way' ? onTheWayCard(fresh) : body;
 
-  // The map card goes FIRST, then the card with the button. An associate
-  // getting on a bike wants the pin in their hand before anything they have to
-  // read, and a map card arriving after the instruction to deliver reads as an
-  // afterthought - the thing to act on should be the thing that stays at the
-  // bottom of the chat.
-  //
-  // Two messages, because WhatsApp will not carry both in one: a location
-  // message has no body and no buttons.
-  //
-  // Sent here rather than with the job card, where it sat beside the uplift pin
-  // and two map cards side by side is how somebody glancing at a phone
-  // navigates to the customer instead of the restaurant.
+  // No map card. The card itself opens with a link to the pin, announced as
+  // such, which is one message instead of two and puts the thing they act on
+  // at the bottom of the chat where they come back to it.
   const out: OutboundMessage[] = [];
-
-  if (landed === 'on_the_way' && fresh.location) {
-    out.push({
-      kind: 'location',
-      text: '',
-      // No name on the card. The message under it already says who and
-      // where; repeating the customer on a pin only puts their name on one
-      // more screen, and the pin's own label is whatever they happened to
-      // call the place - which is why it is cleared rather than left to be
-      // used as a fallback.
-      pin: { ...fresh.location, label: '' },
-      // A map card has exactly two lines. The name is the person, so the
-      // second carries the coordinates as a link, which opens the same pin in
-      // whatever maps app the associate actually navigates with. The street is
-      // on the delivery card.
-      address: mapsLink(fresh.location),
-    });
-  }
 
   out.push(
     ...(actions.length > 0
