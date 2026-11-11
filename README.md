@@ -1046,6 +1046,29 @@ orders that are **prepared and still there** count - nothing is going cold that 
 been made - and the orders are named rather than only counted, because a count says there
 is a problem and the numbers say which bag to look for.
 
+### How a food order says goodbye
+
+The delivered message thanks the customer, and a food order adds a line:
+
+```
+Order ORD-00043 delivered. Thank you for choosing Next Minute Delivery!
+Enjoy your meal!
+```
+
+Seven lines are in rotation, from *Enjoy!* to *Bon appétit!* to *Enjoy your meal! Message
+us any time to order again.* - the last doing two jobs, since a reply from the customer
+also reopens WhatsApp's free messaging window.
+
+**Food only.** A bag of rice or a parcel carried across town gets the thank-you alone.
+Wishing somebody a good meal over a delivery that was not one reads as a machine that does
+not know what it delivered. Which order is food is decided by whether a kitchen cooked it,
+not by a label that could be wrong.
+
+**Chosen by order number, not at random.** Varied across customers, fixed for any one
+order - because this message can be sent twice, through a retry or a template fallback or
+a dispatcher re-closing an order, and a customer who gets two goodbyes in different words
+is talking to something unwell.
+
 ### Timing an order
 
 Two moments are stamped on every order as they happen, and never moved afterwards:

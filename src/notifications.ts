@@ -188,6 +188,42 @@ export async function notifyStaffOfRequest(
  * message. Outside that window an approved template is the only route, so this
  * picks automatically and says plainly when neither is possible.
  */
+/**
+ * How a food order says goodbye.
+ *
+ * Only food. A bag of rice or a parcel carried across town gets the thank-you
+ * alone - wishing somebody a good meal over a delivery that was not one reads
+ * as a machine that does not know what it delivered.
+ */
+export const MEAL_SIGN_OFFS = [
+  'Enjoy your meal! Message us any time to order again.',
+  'Enjoy your meal, see you next time!',
+  'Enjoy your meal!',
+  'Enjoy your food!',
+  'Enjoy!',
+  'Enjoy every bite!',
+  'Bon appétit!',
+];
+
+/**
+ * One of them, chosen by the order number rather than at random.
+ *
+ * Varied across customers, fixed for any one order. That second half is the
+ * point: this message can be sent twice - a retry, a template fallback, a
+ * dispatcher re-closing an order - and a customer who gets two goodbyes in
+ * different words is talking to something unwell. It also means a complaint
+ * about a particular message can be traced to the order that sent it.
+ */
+export function signOffFor(order: repo.OrderRecord): string {
+  // Food is food because a kitchen cooked it, which is the one fact that
+  // cannot be wrong - a grocery order has no outlet and neither does a parcel.
+  if (!order.outlet) return '';
+
+  const n = Number(order.orderNo.replace(/[^0-9]/g, ''));
+  const pick = Number.isFinite(n) ? n % MEAL_SIGN_OFFS.length : 0;
+  return String.fromCharCode(10) + MEAL_SIGN_OFFS[pick];
+}
+
 export async function notifyCustomerOfStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
@@ -199,7 +235,9 @@ export async function notifyCustomerOfStatus(
     on_the_way: `${firstName}, your order ${order.orderNo} is on its way 🛵\nTotal ${money(order.total)}, payable to the delivery associate.`,
     // The store name rather than the words, so a rename carries through here
     // too — this is the last thing a customer reads from every order.
-    delivered: `Order ${order.orderNo} delivered. Thank you for choosing ${config.store.name}!`,
+    delivered:
+      `Order ${order.orderNo} delivered. Thank you for choosing ${config.store.name}!` +
+      signOffFor(order),
     // The reason is the difference between an apology and an explanation. A
     // customer told the kitchen ran out knows to try something else; one told
     // only "cancelled" assumes they did something wrong.

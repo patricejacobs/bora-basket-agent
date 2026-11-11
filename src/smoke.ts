@@ -2950,6 +2950,41 @@ section('What else is still on the counter');
   }
 }
 
+section('How a food order says goodbye');
+{
+  const { MEAL_SIGN_OFFS, signOffFor } = await import('./notifications.ts');
+
+  check('there are several sign-offs', MEAL_SIGN_OFFS.length > 1, String(MEAL_SIGN_OFFS.length));
+  check('including the French one', MEAL_SIGN_OFFS.some((l) => /Bon app/.test(l)));
+
+  const food = repo.allOrders().find((o) => o.outlet !== null);
+  const other = repo.allOrders().find((o) => o.outlet === null);
+  check('there is a food order', Boolean(food));
+  check('and one that is not', Boolean(other));
+
+  if (food) {
+    const line = signOffFor(food);
+    check('a food order gets one', line !== '', JSON.stringify(line));
+    check('it is one of the listed ones', MEAL_SIGN_OFFS.some((l) => line.includes(l)), line);
+    // Fixed per order: this message can be sent twice - a retry, a template
+    // fallback, a dispatcher re-closing an order - and two goodbyes in
+    // different words read as something unwell.
+    check('and is the same every time for that order', signOffFor(food) === line);
+  }
+
+  if (other) {
+    check('a grocery or parcel gets none', signOffFor(other) === '', signOffFor(other));
+  }
+
+  // Across order numbers, every line is used.
+  const seen = new Set(
+    Array.from({ length: MEAL_SIGN_OFFS.length * 3 }, (_, i) =>
+      signOffFor({ ...food!, orderNo: `ORD-${String(i).padStart(5, '0')}` }),
+    ),
+  );
+  check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
+}
+
 section('Timing an order');
 {
   const { handleOutletMessage, handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
