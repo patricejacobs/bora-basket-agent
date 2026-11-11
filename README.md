@@ -1012,28 +1012,20 @@ ORD-00031 has not been accepted yet - press *Confirm* first, then *Ready*
 when the food is up.
 ```
 
-### One map card, and one message after it
+### One message per step, no map cards
 
-An associate gets the job as two messages - the card, and a map card for the **uplift**.
-After they tap **Uplifted** they get one message and no map card:
+A delivery associate gets one message when the job arrives and one when they say they have
+the food. Nothing else - no map cards at either end.
 
-```
-job arrives     job card  then  map card: Uplift - A Taste of Guyana
-taps Uplifted   one message, with the link in it
-```
+Addresses travel as links in the card itself. A link opens in whatever maps app they
+actually navigate with, where a WhatsApp map card opens WhatsApp's own, and everything
+about the job stays in the message they come back to rather than being spread over three.
+Each link is announced rather than left bare, because a URL on its own in a message reads
+as something to ignore unless it says what it opens.
 
-Both pins used to arrive with the job. Two map cards side by side is how somebody glancing
-at a phone on a bike navigates to the customer instead of the restaurant, and for the next
-fifteen minutes the destination is not where they are going.
-
-The message after uplifting is the one they work from on the doorstep, so it is ordered the
-way it is used: the order, then the link announced as a link, then who to deliver to with
-whatever the customer said about finding the door, then the phone, then the cash, then the
-button.
-
-**A card and a map cannot share a message.** A WhatsApp location message carries a
-latitude, a longitude, a name and an address and nothing else - no body, no buttons - so
-the link travels in the text instead.
+The message after uplifting is ordered the way it is used standing outside a house: the
+order, the link, who to deliver to with whatever the customer said about finding the door,
+the phone, the cash, the button.
 
 ### Who says the food has left
 

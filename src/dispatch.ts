@@ -14,7 +14,7 @@
  */
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { sendText, sendButtons, sendLocation, sendTemplate } from './channels/whatsapp-send.ts';
+import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
 import { nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin, mapsLink, distanceKm } from './location.ts';
@@ -386,7 +386,9 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       ? [
           `*Uplift from:* ${order.outlet?.name ?? order.customerName}`,
           ...(pickup.address ? [pickup.address] : []),
-          ...(pickupPin ? [mapsLink(pickupPin)] : []),
+          // Announced, like the one on the delivery card. A bare URL in a
+          // message reads as something to ignore unless it says what it opens.
+          ...(pickupPin ? ['Click the link below for the uplift address:', mapsLink(pickupPin)] : []),
           ...(isParcel ? [`📞 sender +${order.contactPhone || order.phone}`] : []),
           '',
         ]
@@ -417,24 +419,11 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
   for (const associate of nearby) {
     await sendButtons(associate, body, actions);
 
-    // The pins as map cards, in the order the delivery associate needs them: collection
-    // first, then the drop. A link is for reading; these are for navigating.
-    if (pickupPin && pickup) {
-      await sendLocation(associate, {
-        latitude: pickupPin.latitude,
-        longitude: pickupPin.longitude,
-        name: `Uplift — ${order.outlet?.name ?? order.customerName}`,
-        ...(pickup.address ? { address: pickup.address } : {}),
-      });
-    }
-    // The drop pin is deliberately NOT sent here. Two map cards arriving
-    // together is how somebody glancing at a phone on a bike navigates to the
-    // customer instead of the restaurant, and for the next fifteen minutes
-    // the destination is not where they are going. It follows the moment they
-    // say they have the food, attached to the card they will work from.
-    //
-    // The address and a tappable link are still on the job card, so they can
-    // judge the trip before accepting it.
+    // No map cards. The addresses travel as links in the card itself, which
+    // is one message instead of three and keeps everything about the job in
+    // the place they will come back to. A link also opens in whatever maps
+    // app they actually navigate with, where a WhatsApp map card opens
+    // WhatsApp's own.
   }
 
   return 'sent';
