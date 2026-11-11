@@ -1055,9 +1055,10 @@ Order ORD-00043 delivered. Thank you for choosing Next Minute Delivery!
 Enjoy your meal!
 ```
 
-Seven lines are in rotation, from *Enjoy!* to *Bon appétit!* to *Enjoy your meal! Message
-us any time to order again.* - the last doing two jobs, since a reply from the customer
-also reopens WhatsApp's free messaging window.
+Seven lines are in rotation, each with an emoji matched to it - a wave on *see you next
+time*, a speech bubble on *message us any time to order again*, a plate on *Bon appétit*.
+That last line does two jobs, since a reply from the customer also reopens WhatsApp's free
+messaging window.
 
 **Food only.** A bag of rice or a parcel carried across town gets the thank-you alone.
 Wishing somebody a good meal over a delivery that was not one reads as a machine that does

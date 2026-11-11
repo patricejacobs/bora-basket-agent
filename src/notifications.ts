@@ -196,13 +196,13 @@ export async function notifyStaffOfRequest(
  * as a machine that does not know what it delivered.
  */
 export const MEAL_SIGN_OFFS = [
-  'Enjoy your meal! Message us any time to order again.',
-  'Enjoy your meal, see you next time!',
-  'Enjoy your meal!',
-  'Enjoy your food!',
-  'Enjoy!',
-  'Enjoy every bite!',
-  'Bon appétit!',
+  'Enjoy your meal! Message us any time to order again. 💬',
+  'Enjoy your meal, see you next time! 👋',
+  'Enjoy your meal! 🍽️',
+  'Enjoy your food! 😋',
+  'Enjoy! 😊',
+  'Enjoy every bite! 😋',
+  'Bon appétit! 🥘',
 ];
 
 /**
