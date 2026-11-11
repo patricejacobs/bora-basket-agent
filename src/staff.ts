@@ -746,34 +746,42 @@ export async function handleDriverMessage(
   const fresh = repo.findOrder(order.orderNo) ?? order;
   const shown = landed === 'on_the_way' ? onTheWayCard(fresh) : body;
 
-  const out: OutboundMessage[] =
-    actions.length > 0 ? [{ kind: 'buttons', text: shown, buttons: actions }] : reply(shown);
-
-  // The map card for the doorstep, right behind the card that names it.
-  // WhatsApp will not carry both in one message - a location message has no
-  // body and no buttons - so the best available is the two together, with the
-  // customer's name and street printed on the card itself.
+  // The map card goes FIRST, then the card with the button. An associate
+  // getting on a bike wants the pin in their hand before anything they have to
+  // read, and a map card arriving after the instruction to deliver reads as an
+  // afterthought - the thing to act on should be the thing that stays at the
+  // bottom of the chat.
   //
-  // It is sent here rather than with the job card because there it sat under
-  // the uplift pin, and two map cards side by side is how somebody glancing at
-  // a phone navigates to the customer instead of the restaurant.
+  // Two messages, because WhatsApp will not carry both in one: a location
+  // message has no body and no buttons.
+  //
+  // Sent here rather than with the job card, where it sat beside the uplift pin
+  // and two map cards side by side is how somebody glancing at a phone
+  // navigates to the customer instead of the restaurant.
+  const out: OutboundMessage[] = [];
+
   if (landed === 'on_the_way' && fresh.location) {
     const isParcel = fresh.kind === 'parcel';
     out.push({
       kind: 'location',
       text: '',
       pin: fresh.location,
-      // The person, not an instruction. The card sits under a message that
-      // already says what to do with it, and "Deliver -" spends the only
-      // line WhatsApp gives the card on a word the associate can infer.
+      // The person, not an instruction: the card that follows already says
+      // what to do with it.
       name: isParcel ? fresh.recipientName : fresh.customerName,
-      // A map card has exactly two lines: a name and an address. The name is
-      // the person, so the second carries the coordinates as a link - which
-      // opens the same pin in whatever maps app the associate actually uses
-      // for navigation. The street is on the delivery card directly above.
+      // A map card has exactly two lines. The name is the person, so the
+      // second carries the coordinates as a link, which opens the same pin in
+      // whatever maps app the associate actually navigates with. The street is
+      // on the delivery card.
       address: mapsLink(fresh.location),
     });
   }
+
+  out.push(
+    ...(actions.length > 0
+      ? ([{ kind: 'buttons', text: shown, buttons: actions }] as OutboundMessage[])
+      : reply(shown)),
+  );
 
   return out;
 }

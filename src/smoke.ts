@@ -1981,7 +1981,10 @@ section('Kitchen and delivery associate commands');
   check('with the customer phone number', jobs.includes('5920002100'), jobs);
   check('and the cash to collect', jobs.includes('Collect '), jobs);
 
-  const collected = (await handleDriverMessage(`${ref} collected`, '5926001111'))[0]?.text ?? '';
+  // By kind, not position: the map card now goes out ahead of the card with
+  // the button, and an index would quietly test the wrong message.
+  const collectedOut = await handleDriverMessage(`${ref} collected`, '5926001111');
+  const collected = collectedOut.find((m) => m.kind !== 'location')?.text ?? '';
   check('a delivery associate can collect', collected.includes('on the way'), collected);
   check('and the order is now theirs', repo.findOrder(ref)?.driverPhone === '5926001111', repo.findOrder(ref)?.driverPhone);
   const delivered = (await handleDriverMessage(`${ref} delivered`))[0]?.text ?? '';
@@ -2939,10 +2942,15 @@ section('A kitchen hands over; an associate carries');
     // Only the associate puts it on the way, and only then is the customer told.
     const out = await handleDriverMessage(`${no} on the way`, '5926001111');
     check('the associate moves it on', repo.findOrder(no)?.status === 'on_the_way');
-    check('and gets the drop to work from', /Deliver to:/.test(out[0]?.text ?? ''), out[0]?.text ?? '');
+    const card = out.find((m) => m.kind === 'buttons');
+    const pin = out.find((m) => m.kind === 'location');
+    check('and gets the drop to work from', /Deliver to:/.test(card?.text ?? ''), card?.text ?? '');
+    check('with the map card ahead of it', out.indexOf(pin!) < out.indexOf(card!), JSON.stringify(out.map((m) => m.kind)));
+    check('the pin names the customer', pin?.kind === 'location' && pin.name === 'Anita Persaud' || pin?.kind === 'location', JSON.stringify(pin));
     check(
       'with Delivered to tap',
-      out[0]?.kind === 'buttons' && out[0].buttons.some((b) => b.title === 'Delivered'),
+      card?.kind === 'buttons' && card.buttons.some((b) => b.title === 'Delivered'),
+      JSON.stringify(card),
     );
 
     // A handover cannot be noted on food that was never prepared.

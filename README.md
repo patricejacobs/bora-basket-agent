@@ -1018,8 +1018,8 @@ An associate gets one map card when the job arrives - the **uplift** - and the s
 they say they have the food:
 
 ```
-job arrives     job card              +  map card: Uplift - A Taste of Guyana
-taps Uplifted   delivery card + [Delivered]  +  map card: Deliver - Anita Persaud
+job arrives     job card                      then  map card: Uplift - A Taste of Guyana
+taps Uplifted   map card: Anita Persaud       then  delivery card + [Delivered]
 ```
 
 Both pins used to arrive together with the job. Two map cards side by side is how somebody
