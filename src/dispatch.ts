@@ -309,7 +309,10 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
     : order.contactPhone || order.phone;
 
   const body = [
-    isParcel ? `📦 *Parcel ${order.orderNo}*` : `🛵 *Uplift ${order.orderNo}*`,
+    // Just the order number. The card already says *Uplift from:* with the
+    // address under it, so a verb in the heading repeats what the next line
+    // says and stops being true the moment the food is in the bag.
+    isParcel ? `📦 *Parcel ${order.orderNo}*` : `🛵 *${order.orderNo}*`,
     '',
     ...(pickup
       ? [
