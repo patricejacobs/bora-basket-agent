@@ -2944,10 +2944,11 @@ section('A kitchen hands over; an associate carries');
     check('the associate moves it on', repo.findOrder(no)?.status === 'on_the_way');
     const card = out.find((m) => m.kind === 'buttons');
     const pin = out.find((m) => m.kind === 'location');
-    check('and gets the drop to work from', /Deliver to:/.test(card?.text ?? ''), card?.text ?? '');
-    // No map card at all now: the link rides on the card itself.
-    check('no separate map card is sent', pin === undefined, JSON.stringify(out.map((m) => m.kind)));
-    check('the card announces the link', /Click the link below/.test(card?.text ?? ''), card?.text ?? '');
+    // One line and a button. The drop details are on the job card they
+    // accepted; repeating them here only buries that card further up.
+    check('the reply says the order is on the way', /on the way/.test(card?.text ?? ''), card?.text ?? '');
+    check('and says nothing else', (card?.text ?? '').split(String.fromCharCode(10)).length === 1, card?.text ?? '');
+    check('no map card is sent', pin === undefined, JSON.stringify(out.map((m) => m.kind)));
     check(
       'with Delivered to tap',
       card?.kind === 'buttons' && card.buttons.some((b) => b.title === 'Delivered'),

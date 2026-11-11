@@ -314,39 +314,14 @@ export function dropLines(order: repo.OrderRecord): string[] {
 }
 
 /**
- * The card an associate gets once the food is in the bag.
+ * What an associate gets when they say they have the food.
  *
- * Only the half still ahead of them. The uplift address is behind them and
- * the items are in their hands; what remains is where to go, who to ring and
- * what to take.
+ * One line and a button. Everything needed on the doorstep - the address, the
+ * link, the door description, the phone, the cash - is on the job card they
+ * accepted, and repeating it here only buries that card further up the chat.
  */
 export function onTheWayCard(order: repo.OrderRecord): string {
-  const isParcel = order.kind === 'parcel';
-  const receiverName = isParcel ? order.recipientName : order.customerName;
-  const receiverPhone = isParcel ? order.recipientPhone : order.contactPhone || order.phone;
-
-  return [
-    `🛵 *${order.orderNo}* on the way`,
-    '',
-    // The link first and announced, because it is the one thing they will act
-    // on before reading anything else - and a bare URL in a message reads as
-    // something to ignore unless it is told what it opens.
-    ...(order.location
-      ? ['Click the link below for the delivery address:', mapsLink(order.location)]
-      : ['⚠️ No location pin on this order - ring the customer']),
-    '',
-    `*Deliver to:* ${receiverName}`,
-    ...(order.address ? [order.address] : []),
-    ...(order.deliveryNote ? [order.deliveryNote] : []),
-    `📞 +${receiverPhone}`,
-    '',
-    order.total > 0
-      ? `*Collect ${money(order.total)} cash*` +
-        (isParcel
-          ? ' from the recipient'
-          : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`)
-      : '*Fee not set* - the shop will confirm it, do not quote one',
-  ].join(String.fromCharCode(10));
+  return `🛵 *${order.orderNo}* on the way`;
 }
 
 /**

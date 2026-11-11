@@ -1023,9 +1023,10 @@ about the job stays in the message they come back to rather than being spread ov
 Each link is announced rather than left bare, because a URL on its own in a message reads
 as something to ignore unless it says what it opens.
 
-The message after uplifting is ordered the way it is used standing outside a house: the
-order, the link, who to deliver to with whatever the customer said about finding the door,
-the phone, the cash, the button.
+The message after uplifting is one line and a button: *ORD-00031 on the way*, with
+**Delivered**. Everything needed on the doorstep - the address, the link, the door
+description, the phone, the cash - is on the job card they accepted, and repeating it only
+buries that card further up the chat.
 
 ### Who says the food has left
 
