@@ -1028,6 +1028,41 @@ The message after uplifting is one line and a button: *ORD-00031 on the way*, wi
 description, the phone, the cash - is on the job card they accepted, and repeating it only
 buries that card further up the chat.
 
+### Timing an order
+
+Two moments are stamped on every order as they happen, and never moved afterwards:
+
+| Stamp | Set when |
+|---|---|
+| `ready_at` | the kitchen marks the food ready |
+| `uplifted_at` | a delivery associate says they have it |
+| `handed_over_at` | the kitchen reports the food left its counter |
+
+`updated_at` cannot answer this - every later move overwrites it, so by the time an order
+is delivered it has forgotten when it was ready. Each stamp is written once, because a tap
+on an old message would otherwise move it and quietly flatter every number derived from
+it.
+
+**Who sees them.** Staff, and nobody else. Looking an order up shows the gaps as
+durations rather than clock times, because nobody reads two timestamps and subtracts:
+
+```
+Ready 17 min after ordering
+Uplifted 9 min after that
+```
+
+While an order is still waiting the line counts up instead - *Waiting 9 min for a delivery
+associate* - because the number still running is the one worth acting on.
+
+The backup export carries both stamps, the handover, and the two gaps as plain minutes, so
+a spreadsheet can average them across every order rather than one at a time.
+
+Nothing is sent to anyone at the moment a stamp is written. A message per timestamp is
+noise and costs money, and the case worth knowing about - food sitting too long - is
+already covered by the stall watch, which speaks by exception rather than narrating.
+**The customer never sees any of it**: "ready at 1:05, uplifted at 1:22" only invites a
+question about the seventeen minutes in between.
+
 ### Who says the food has left
 
 Both the kitchen and the delivery associate get a button marked **Uplifted**, because both

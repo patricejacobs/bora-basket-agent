@@ -91,6 +91,11 @@ const HEADER = [
   'Recipient',
   'Recipient phone',
   'Parcel contents',
+  'Ready at',
+  'Uplifted at',
+  'Kitchen handover',
+  'Minutes to ready',
+  'Minutes waiting for uplift',
   'Cancelled by',
   'Cancel reason',
   'Status changed',
@@ -125,6 +130,13 @@ function itemsCell(order: repo.ArchivedOrder): string {
     .join('; ');
 }
 
+/** Whole minutes between two stamps, or blank when either leg never happened. */
+function gapMinutes(from: string, to: string): string {
+  if (!from || !to) return '';
+  const gap = (new Date(to).getTime() - new Date(from).getTime()) / 60_000;
+  return Number.isFinite(gap) && gap >= 0 ? String(Math.round(gap)) : '';
+}
+
 function orderRow(o: repo.ArchivedOrder): string {
   const pin = o.location;
   return csvRow([
@@ -152,6 +164,14 @@ function orderRow(o: repo.ArchivedOrder): string {
     o.recipientName,
     o.recipientPhone,
     o.parcelDetails,
+    localTime(o.readyAt),
+    localTime(o.upliftedAt),
+    localTime(o.handedOverAt),
+    // Plain numbers, so a spreadsheet can average them. Blank rather than
+    // zero where the leg never happened: a zero would be averaged in and
+    // would flatter every figure it touched.
+    gapMinutes(o.placedAt, o.readyAt),
+    gapMinutes(o.readyAt, o.upliftedAt),
     o.cancelledBy,
     o.cancelReason,
     localTime(o.statusChangedAt),

@@ -1035,6 +1035,9 @@ export type OrderRecord = {
    * associate knows they are carrying it.
    */
   handedOverAt: string;
+  /** When the food was marked ready, and when an associate took it. */
+  readyAt: string;
+  upliftedAt: string;
   /** The delivery associate this was dispatched to, empty until the food is ready. */
   driverPhone: string;
   /** 'grocery' | 'restaurant' | 'parcel'. A parcel carries no items. */
@@ -1073,6 +1076,8 @@ function hydrateOrder(row: {
   prep_minutes: number | null;
   driver_phone: string | null;
   handed_over_at: string | null;
+  ready_at: string | null;
+  uplifted_at: string | null;
   kind: string | null;
   /** Written on every status change; empty on rows that predate the column. */
   updated_at: string | null;
@@ -1121,6 +1126,8 @@ function hydrateOrder(row: {
           ? { address: row.pickup_address, latitude: null, longitude: null }
           : null,
     handedOverAt: row.handed_over_at ?? '',
+    readyAt: row.ready_at ?? '',
+    upliftedAt: row.uplifted_at ?? '',
     driverPhone: row.driver_phone ?? '',
     kind: row.kind ?? 'grocery',
     recipientName: row.recipient_name ?? '',
@@ -1650,6 +1657,27 @@ export function setCancelReason(
  * not move it later. Returns the time that stands, whether it was just set or
  * was already there.
  */
+/**
+ * Stamps a moment on an order, once.
+ *
+ * Never overwritten, because the question these answer is how long something
+ * took - and a second tap on an old message would quietly make every number
+ * derived from it wrong, in the flattering direction.
+ */
+function stampOnce(orderNo: string, column: 'ready_at' | 'uplifted_at'): void {
+  db.prepare(
+    `UPDATE orders SET ${column} = ? WHERE order_no = ? AND ${column} = ''`,
+  ).run(nowIso(), orderNo);
+}
+
+export function markReadyAt(orderNo: string): void {
+  stampOnce(orderNo, 'ready_at');
+}
+
+export function markUpliftedAt(orderNo: string): void {
+  stampOnce(orderNo, 'uplifted_at');
+}
+
 export function markHandedOver(orderNo: string): string {
   const existing = db
     .prepare(`SELECT handed_over_at AS at FROM orders WHERE order_no = ?`)

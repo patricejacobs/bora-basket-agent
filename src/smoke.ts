@@ -2903,6 +2903,48 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section('Timing an order');
+{
+  const { handleOutletMessage, handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
+  const ssc9 = repo.getOutlet('SSC');
+  const o9 = repo.allOrders().find((x) => x.outlet?.id === ssc9?.id);
+  check('there is an order to time', Boolean(ssc9 && o9));
+
+  if (ssc9 && o9) {
+    const no = o9.orderNo;
+    db.prepare(`UPDATE orders SET ready_at = '', uplifted_at = '' WHERE order_no = ?`).run(no);
+    repo.setOrderStatus(no, 'confirmed');
+
+    check('nothing is stamped before it happens', !repo.findOrder(no)?.readyAt);
+    await handleOutletMessage(ssc9, `${no} ready`);
+    const readyAt = repo.findOrder(no)?.readyAt ?? '';
+    check('ready is stamped when the kitchen says so', Boolean(readyAt));
+    check('and uplifted is not yet', !repo.findOrder(no)?.upliftedAt);
+
+    await handleDriverMessage(`${no} on the way`, '5926001111');
+    check('uplifted is stamped when an associate takes it', Boolean(repo.findOrder(no)?.upliftedAt));
+    check('and the ready stamp did not move', repo.findOrder(no)?.readyAt === readyAt);
+
+    // Written once: the whole point is measuring how long something took, and
+    // a tap on an old message would quietly flatter every number.
+    repo.markReadyAt(no);
+    repo.markUpliftedAt(no);
+    check('a second stamp changes nothing', repo.findOrder(no)?.readyAt === readyAt);
+
+    // Staff read gaps, not clock times.
+    const view = (await handleStaffMessage(no, '5926497570'))[0]?.text ?? '';
+    check('staff are shown how long it took to be ready', /Ready \d+ min after ordering/.test(view), view);
+    check('and how long it waited', /Uplifted \d+ min after that/.test(view), view);
+
+    // The customer is never shown any of it.
+    const { CUSTOMER_STATUS } = await import('./order-status.ts');
+    check(
+      'no timing reaches the customer wording',
+      !Object.values(CUSTOMER_STATUS).some((v) => /min|minute/i.test(String(v))),
+    );
+  }
+}
+
 section('A kitchen hands over; an associate carries');
 {
   const { handleOutletMessage, handleDriverMessage } = await import('./staff.ts');

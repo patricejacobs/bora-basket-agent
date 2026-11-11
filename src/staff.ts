@@ -83,6 +83,10 @@ async function applyStatus(
   }
 
   repo.setOrderStatus(order.orderNo, status);
+  // The two moments an order is measured by, stamped as they happen. Written
+  // once each, so a tap on an old message cannot move them.
+  if (status === 'ready') repo.markReadyAt(order.orderNo);
+  if (status === 'on_the_way') repo.markUpliftedAt(order.orderNo);
   const updated = { ...order, status };
 
   const notes: string[] = [];
@@ -275,7 +279,38 @@ const describe = (o: repo.OrderRecord): string =>
       ? describePin(o.location, checkRange(o.location, config.store.serviceArea))
       : '⚠️ no location pin',
     ...(o.deliveryNote ? [`Note: ${o.deliveryNote}`] : []),
+    // Durations, not clock times: nobody reads "ready 13:41, uplifted 13:58"
+    // and subtracts. The gap is the thing - one says how fast the kitchen is,
+    // the other how long the food sat waiting for somebody to come.
+    ...timings(o),
   ].join('\n');
+
+/**
+ * How long each leg took, in the words a dispatcher would use.
+ *
+ * Only the legs that have happened. An order still being prepared has nothing
+ * to say about how long it waited, and a line reading "waited 0 min" invites
+ * somebody to believe it.
+ */
+function timings(o: repo.OrderRecord): string[] {
+  const mins = (from: string, to: string): number | null => {
+    if (!from || !to) return null;
+    const gap = (new Date(to).getTime() - new Date(from).getTime()) / 60_000;
+    return Number.isFinite(gap) && gap >= 0 ? Math.round(gap) : null;
+  };
+
+  const prep = mins(o.placedAt, o.readyAt);
+  const wait = mins(o.readyAt, o.upliftedAt);
+  const out: string[] = [];
+  if (prep !== null) out.push(`Ready ${prep} min after ordering`);
+  if (wait !== null) out.push(`Uplifted ${wait} min after that`);
+  // Still sitting there: the number that matters most is the one still running.
+  else if (o.readyAt && o.status === 'ready') {
+    const since = mins(o.readyAt, new Date().toISOString());
+    if (since !== null) out.push(`Waiting ${since} min for a delivery associate`);
+  }
+  return out;
+}
 
 
 /**

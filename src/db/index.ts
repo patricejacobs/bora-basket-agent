@@ -325,6 +325,12 @@ addColumnIfMissing('orders', 'outlet_notified_at', "TEXT NOT NULL DEFAULT ''");
 // they have it. This measures the wait between food being prepared and food
 // leaving, which is the gap a kitchen and a shop argue about.
 addColumnIfMissing('orders', 'handed_over_at', "TEXT NOT NULL DEFAULT ''");
+// The two moments worth measuring an order by: when the food was ready, and
+// when somebody actually took it. updated_at cannot answer this - it is
+// overwritten by every later move, so by the time an order is delivered it
+// has forgotten when it was ready.
+addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'uplifted_at', "TEXT NOT NULL DEFAULT ''");
 
 /**
  * Repairs rows written before the two bugs above were fixed.
