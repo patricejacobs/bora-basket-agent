@@ -320,6 +320,10 @@ addColumnIfMissing('orders', 'parcel_details', "TEXT NOT NULL DEFAULT ''");
 // almost always because the 24-hour window was shut — and the ticket is owed
 // to them the moment they next message.
 addColumnIfMissing('orders', 'outlet_notified_at', "TEXT NOT NULL DEFAULT ''");
+// When a temporary shortage ends and the dish comes back on by itself. Empty
+// alongside sold_out = 1 means off until somebody says otherwise, which is what
+// `sold out` meant before there was a clock on it.
+addColumnIfMissing('products', 'sold_out_until', "TEXT NOT NULL DEFAULT ''");
 
 /**
  * Repairs rows written before the two bugs above were fixed.

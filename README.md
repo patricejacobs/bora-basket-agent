@@ -942,6 +942,44 @@ Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
 With no template configured, an out-of-window update is skipped and logged rather than
 failing silently.
 
+### Running out for a while
+
+A kitchen runs out of duck at lunchtime and has more at four. That is not taking a dish off
+the menu, and it is not running out for the day — so a shortage carries a time and comes
+back on by itself.
+
+The kitchen names the dish, not a code:
+
+```
+sold out dhal puri                 off until they say otherwise
+sold out dhal puri until 4pm       back on by itself at four
+sold out duck curry for 2 hours    same, by the clock
+no fish and bread today            off for the rest of the day
+back dhal puri                     on again now
+menu                               what they sell, and what is off
+```
+
+The customer is told when, not just that it is gone: *"that one is back at 4:00pm"* is a
+different conversation from *"we don't have it"*, and often still a sale.
+
+Three things make it safe to use:
+
+- **Availability is judged on the end time, not a flag.** A dish is back the moment its hour
+  arrives, not whenever a sweep next runs, so there is no window where a customer is refused
+  something the shop thinks is on.
+- **Names are matched against that kitchen's own menu, on the dish name alone.** The
+  catalogue search is the wrong tool here because it always has a best row — asked for
+  another kitchen's "Fried Chicken" it answered "Chicken Chow Mein". Every word typed has to
+  appear in the dish's own name, give or take a letter, so a typo lands and a different dish
+  does not.
+- **A word matching two dishes is asked about, never guessed.** Taking the wrong dish off
+  sale is silent, and surfaces days later as a customer refused something that was available
+  all along.
+
+A sweep every two minutes puts expired shortages back and tells the kitchen, which is
+housekeeping rather than the mechanism — the cook who set a two-hour shortage should not
+have to remember whether it lapsed.
+
 ### Kitchens and the window
 
 A kitchen is the hard case. A customer has just messaged to order, so their window is open

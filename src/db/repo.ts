@@ -1,6 +1,11 @@
 import { db, nowIso } from './index.ts';
 import { config } from '../config.ts';
-import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
+import {
+  searchCatalog,
+  invalidateSearchIndex,
+  queryTokens,
+  editDistance,
+} from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
 
@@ -27,6 +32,8 @@ export type Product = {
   trackStock: number;
   /** Set by the outlet when it has run out for the day. */
   soldOut: number;
+  /** ISO time the shortage lifts, or empty for one with no end set. */
+  soldOutUntil: string;
 };
 
 /**
@@ -37,7 +44,7 @@ export type Product = {
  */
 export const PRODUCT_COLUMNS = `
   image_url AS imageUrl, outlet_id AS outletId,
-  track_stock AS trackStock, sold_out AS soldOut`;
+  track_stock AS trackStock, sold_out AS soldOut, sold_out_until AS soldOutUntil`;
 
 export type Outlet = {
   id: number;
@@ -303,14 +310,100 @@ export function setService(phone: string, service: string | null): void {
   ).run(service, service ? nowIso() : null, nowIso(), phone);
 }
 
-export function setItemSoldOut(sku: string, soldOut: boolean): void {
-  db.prepare(`UPDATE products SET sold_out = ?, updated_at = ? WHERE sku = ? COLLATE NOCASE`).run(
+export function setItemSoldOut(sku: string, soldOut: boolean, until: Date | null = null): void {
+  db.prepare(
+    `UPDATE products SET sold_out = ?, sold_out_until = ?, updated_at = ?
+      WHERE sku = ? COLLATE NOCASE`,
+  ).run(
     soldOut ? 1 : 0,
+    // Cleared whenever the dish comes back on, so an old end time cannot be
+    // read as the end of a later shortage that has no clock on it.
+    soldOut && until ? until.toISOString() : '',
     nowIso(),
     sku,
   );
   invalidateSearchIndex();
 }
+
+/**
+ * Puts back anything whose shortage has run out.
+ *
+ * Availability answers this correctly without the sweep — a dish is judged on
+ * its end time, not on the flag alone — so this is housekeeping, not the
+ * mechanism. It exists so the stored state matches what customers are being
+ * told, and so the kitchen can be told its dish is back on.
+ */
+export function restoreExpiredShortages(now = new Date()): Product[] {
+  const due = db
+    .prepare(
+      `SELECT ${PRODUCT_COLUMNS.trim() ? `*, ${PRODUCT_COLUMNS}` : '*'}
+         FROM products
+        WHERE sold_out = 1 AND sold_out_until <> '' AND sold_out_until <= ?`,
+    )
+    .all(now.toISOString()) as unknown as Product[];
+  if (due.length === 0) return [];
+
+  db.prepare(
+    `UPDATE products SET sold_out = 0, sold_out_until = '', updated_at = ?
+      WHERE sold_out = 1 AND sold_out_until <> '' AND sold_out_until <= ?`,
+  ).run(nowIso(), now.toISOString());
+  invalidateSearchIndex();
+  return due;
+}
+
+/**
+ * Dishes on this outlet's menu that the kitchen could have meant.
+ *
+ * Matched on the dish's NAME and nothing else. The catalogue search is the
+ * right tool for a customer browsing — it reaches into keywords, category and
+ * description so that "something spicy" finds dinner — but it is the wrong one
+ * here, because it always has a best row. Asked for another kitchen's "Fried
+ * Chicken" it answered "Chicken Chow Mein", which would have taken an
+ * unrelated dish off sale and reported success.
+ *
+ * So: every word the cook typed has to appear in the dish's own name, give or
+ * take a letter. A typo still lands; a different dish does not.
+ */
+export function findMenuMatches(outletId: number, name: string): Product[] {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return [];
+
+  const menu = outletMenu(outletId);
+
+  const exact = menu.filter(
+    (p) => p.name.toLowerCase() === wanted || p.sku.toLowerCase() === wanted,
+  );
+  if (exact.length > 0) return exact;
+
+  const substring = menu.filter((p) => p.name.toLowerCase().includes(wanted));
+  if (substring.length > 0) return substring;
+
+  const tokens = queryTokens(wanted);
+  if (tokens.length === 0) return [];
+
+  return menu.filter((p) => {
+    const nameTokens = queryTokens(p.name);
+    return tokens.every((t) =>
+      nameTokens.some(
+        (n) => n === t || n.startsWith(t) || t.startsWith(n) || editDistance(n, t, 1) <= 1,
+      ),
+    );
+  });
+}
+
+/**
+ * The one dish meant, or null when that is not clear.
+ *
+ * Null for nothing found AND for several found, because both end the same way:
+ * the kitchen is asked rather than guessed at. Taking the wrong dish off sale
+ * is silent — the cook believes it worked, and the mistake surfaces as a
+ * customer being refused something that was available all along.
+ */
+export function findMenuItem(outletId: number, name: string): Product | null {
+  const matches = findMenuMatches(outletId, name);
+  return matches.length === 1 ? (matches[0] ?? null) : null;
+}
+
 
 /**
  * Ranked catalogue search. The matching itself lives in catalog/search.ts.
