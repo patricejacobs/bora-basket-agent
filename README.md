@@ -1019,7 +1019,7 @@ they say they have the food:
 
 ```
 job arrives     job card                      then  map card: Uplift - A Taste of Guyana
-taps Uplifted   map card: Anita Persaud       then  delivery card + [Delivered]
+taps Uplifted   map card: the drop pin        then  delivery card + [Delivered]
 ```
 
 Both pins used to arrive together with the job. Two map cards side by side is how somebody
@@ -1029,9 +1029,9 @@ the next fifteen minutes the destination is not where they are going.
 **The card and its map cannot be one message.** A WhatsApp location message carries a
 latitude, a longitude, a name and an address, and nothing else - no body, no buttons - so
 anything to read or tap travels separately. The nearest thing available is what is done
-here: a map card has exactly two lines, a name and an address, so the name carries the
-customer and the second line carries the coordinates as a link. The street is on the
-delivery card directly above it.
+here: the delivery pin goes out on its own, carrying the coordinates and a link to them and
+no name at all. Who and where is on the card beneath it, so a name on the pin would only put
+the customer on one more screen.
 
 ### Who says the food has left
 

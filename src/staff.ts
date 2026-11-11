@@ -761,14 +761,15 @@ export async function handleDriverMessage(
   const out: OutboundMessage[] = [];
 
   if (landed === 'on_the_way' && fresh.location) {
-    const isParcel = fresh.kind === 'parcel';
     out.push({
       kind: 'location',
       text: '',
-      pin: fresh.location,
-      // The person, not an instruction: the card that follows already says
-      // what to do with it.
-      name: isParcel ? fresh.recipientName : fresh.customerName,
+      // No name on the card. The message under it already says who and
+      // where; repeating the customer on a pin only puts their name on one
+      // more screen, and the pin's own label is whatever they happened to
+      // call the place - which is why it is cleared rather than left to be
+      // used as a fallback.
+      pin: { ...fresh.location, label: '' },
       // A map card has exactly two lines. The name is the person, so the
       // second carries the coordinates as a link, which opens the same pin in
       // whatever maps app the associate actually navigates with. The street is
