@@ -1899,7 +1899,8 @@ section('Numbered kitchen list');
 
 section('Kitchen and delivery associate commands');
 {
-  const { handleOutletMessage, handleDriverMessage, isDriver } = await import('./staff.ts');
+  const { handleOutletMessage, handleDriverMessage, handleStaffMessage, isDriver } =
+    await import('./staff.ts');
   const { nextActions, commandFromButtonId } = await import('./order-status.ts');
 
   check('recognises a configured delivery associate', isDriver('5926001111'));
@@ -1952,13 +1953,26 @@ section('Kitchen and delivery associate commands');
 
   const ready = (await handleOutletMessage(ssc, `${ref} ready`))[0]?.text ?? '';
   check('a kitchen can mark food ready', ready.includes('waiting for a delivery associate'), ready);
+  // The kitchen's own reply is deliberately one line, so the dispatch and the
+  // decision not to tell the customer are checked where they are reported:
+  // the shop's view of the same move.
+  check('the kitchen reply stays to the point', !/dispatched|customer/i.test(ready), ready);
+
+  // The kitchen already moved it, so wind it back directly - the raw setter,
+  // not a command, because a command is exactly what cannot go backwards.
+  repo.setOrderStatus(repo.findOrder(String(ref))?.orderNo ?? '', 'confirmed');
+  const staffView = (await handleStaffMessage(`${ref} ready`, '5926497570'))[0]?.text ?? '';
   // DRIVER_NUMBERS is set for this suite, but WhatsApp is not configured, so the
   // send is dropped — what matters is that dispatch was attempted.
-  check('marking it ready dispatches a delivery associate', ready.includes('Delivery associate dispatched'), ready);
+  check(
+    'marking it ready dispatches a delivery associate',
+    staffView.includes('Delivery associate dispatched'),
+    staffView,
+  );
   check(
     'the customer is deliberately not told at "ready"',
-    ready.includes('nothing has changed for them'),
-    ready,
+    staffView.includes('nothing has changed for them'),
+    staffView,
   );
   check('dispatch assigns nobody yet', (repo.findOrder(ref)?.driverPhone ?? '') === '', repo.findOrder(ref)?.driverPhone);
 
@@ -2921,9 +2935,11 @@ section('The kitchen can say it was collected');
     const tap = commandFromButtonId(nextActions(no, 'ready', 'outlet')[0]?.id ?? '') ?? '';
     const body = await say(tap);
     check('tapping it moves the order on', repo.findOrder(no)?.status === 'on_the_way', String(repo.findOrder(no)?.status));
-    // Either notified, or told plainly why not - never silence about it.
-    check('the kitchen is told where the customer stands', /Customer/i.test(body), body);
-    check('and that the shop was told', /Shop told/i.test(body), body);
+    // Whether the customer was reached is the shop's business, not the
+    // kitchen's, so it is no longer in the kitchen's reply.
+    check('the kitchen is not given the customer bookkeeping', !/Customer/i.test(body), body);
+    // The shop is told separately; the kitchen's own reply stays clean.
+    check('but the kitchen is not shown the bookkeeping', !/shop told/i.test(body), body);
 
     // Tapping it twice is somebody being thorough, not an error.
     const again = await say(tap);
@@ -2935,6 +2951,33 @@ section('The kitchen can say it was collected');
     const closed = await say(tap);
     check('a tap after delivery changes nothing', /cannot be changed|already/i.test(closed), closed);
     check('and the order stays delivered', repo.findOrder(no)?.status === 'delivered');
+  }
+}
+
+section('What a kitchen reads after a tap');
+{
+  const { handleOutletMessage } = await import('./staff.ts');
+  const ssc6 = repo.getOutlet('SSC');
+  const o6 = repo.allOrders().find((x) => x.outlet?.id === ssc6?.id);
+  check('there is an order to tap', Boolean(ssc6 && o6));
+
+  if (ssc6 && o6) {
+    const no = o6.orderNo;
+    repo.setOrderStatus(no, 'confirmed');
+    const body = (await handleOutletMessage(ssc6, `${no} ready`))[0]?.text ?? '';
+    const lines = body.split(String.fromCharCode(10)).filter(Boolean);
+
+    check('the order is named', Boolean(lines[0]?.includes(no)), body);
+    check('and where it stands', /prepared, waiting for a delivery associate/.test(lines[0] ?? ''), body);
+
+    // Everything the shop finds useful is bookkeeping to a cook.
+    check('nothing about the customer', !/customer/i.test(body), body);
+    check('nothing about the shop being told', !/shop told/i.test(body), body);
+    check('and no report that dispatch worked', !/dispatched/i.test(body), body);
+
+    // The one thing it must still say: when nobody is coming for the food.
+    // DRIVER_NUMBERS is set in this suite, so the happy path is one line.
+    check('one line when all is well', lines.length === 1, JSON.stringify(lines));
   }
 }
 
@@ -3046,7 +3089,10 @@ section('Cancelling after the food is cooked');
     repo.setCancelReason(no, '', 'outlet');
     const body = (await handleOutletMessage(ssc3, `${no} cancel sold out`))[0]?.text ?? '';
     check('the kitchen can cancel a cooked order', repo.findOrder(no)?.status === 'cancelled', body);
-    check('and is told the associate was called off', /called off/i.test(body), body);
+    // The associate was reached, so there is nothing for the kitchen to do
+    // about it and nothing is said. It hears only when somebody may still
+    // turn up for food that is no longer going anywhere.
+    check('and is not told the associate was called off', !/called off/i.test(body), body);
     check('with the reason recorded', repo.findOrder(no)?.cancelReason !== '', String(repo.findOrder(no)?.cancelReason));
   }
 }

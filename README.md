@@ -963,6 +963,31 @@ Tapping the stage an order is already at is not a backward move - it is somebody
 twice, and gets "already ready" rather than a refusal. Cancelling is allowed from any
 stage, and is the one way out when something is genuinely wrong.
 
+### What a kitchen reads after a tap
+
+One line: which order, and where it now stands.
+
+```
+*ORD-00031* prepared, waiting for a delivery associate.
+```
+
+Not that the customer was notified, not that an associate was dispatched, not that the
+shop was told. All of that is true and all of it is useful - to the people running the
+shop, who still see every line. To a cook it is bookkeeping, and a cook who reads three
+lines after every tap soon reads none of them.
+
+The exception is anything a kitchen can act on, which is why the cut is worth making
+rather than an inconsistency in it:
+
+```
+*ORD-00031* prepared, waiting for a delivery associate.
+⚠️ Nobody has been sent to uplift this yet - ring the shop.
+```
+
+That one decides whether the food waits on a counter or on nobody. The same applies to a
+cancellation nobody could be called off from: an associate may still turn up, and the
+kitchen is the one who has to turn them away.
+
 ### An action is unavailable by being absent
 
 **WhatsApp has no disabled button.** A reply button is on a message or it is not; there is

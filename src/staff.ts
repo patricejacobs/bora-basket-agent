@@ -85,6 +85,12 @@ async function applyStatus(
   const updated = { ...order, status };
 
   const notes: string[] = [];
+  // What a cook can actually do something about. Everything else a status
+  // change produces - the customer was told, the shop was told - is the
+  // shop's bookkeeping, and a kitchen that reads it after every tap soon
+  // reads nothing. Whether an associate is coming is the exception: that one
+  // decides whether the food waits on a counter or on nobody.
+  const kitchenNotes: string[] = [];
 
   // The moment the food exists, a delivery associate is sent — and only now, or they stand
   // in the restaurant watching a fryer. A parcel has nothing to cook, so
@@ -98,9 +104,13 @@ async function applyStatus(
           ? '🛵 Delivery associate dispatched to uplift.'
           : '⚠️ No delivery associate was told — DRIVER_NUMBERS is empty.',
       );
+      if (how !== 'sent') {
+        kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the shop.');
+      }
     } catch (err) {
       console.error('[staff] failed to dispatch a delivery associate:', err);
       notes.push('⚠️ Status saved, but dispatching a delivery associate failed.');
+      kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the shop.');
     }
   }
 
@@ -127,9 +137,13 @@ async function applyStatus(
           ? `Delivery associate called off (${reached}).`
           : '⚠️ Nobody was called off - no delivery associate could be reached.',
       );
+      if (reached === 0) {
+        kitchenNotes.push('⚠️ A delivery associate may still turn up for this — turn them away.');
+      }
     } catch (err) {
       console.error('[staff] failed to call off an associate:', err);
       notes.push('⚠️ Status saved, but calling off the delivery associate failed.');
+      kitchenNotes.push('⚠️ A delivery associate may still turn up for this — turn them away.');
     }
   }
 
@@ -168,6 +182,27 @@ async function applyStatus(
       ].join(String.fromCharCode(10)),
     );
     notes.push('Shop told.');
+  }
+
+  // A kitchen is not a dispatcher. After a tap it wants the fact and nothing
+  // else: which order, and where it now stands. That the customer was told,
+  // that an associate was sent, that the shop was told - all useful to the
+  // people running the shop, all bookkeeping to a cook. A cook who reads
+  // three lines after every tap soon reads none of them.
+  //
+  // Warnings survive the cut, and that is the point of the cut rather than an
+  // exception to it. "No delivery associate was told" means nobody is coming
+  // for the food; dropping it for the sake of brevity would leave a kitchen
+  // waiting on somebody who was never sent. Silence when all is well, and a
+  // line only when something needs doing.
+  if (reportedBy === 'outlet') {
+    const problems = kitchenNotes;
+    return {
+      body: [`*${order.orderNo}* ${STATUS_LABEL[status]}.`, ...problems].join(
+        String.fromCharCode(10),
+      ),
+      status,
+    };
   }
 
   return { body: `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${notes.join('\n')}`, status };
