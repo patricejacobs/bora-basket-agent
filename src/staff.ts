@@ -743,12 +743,17 @@ export async function handleDriverMessage(
   // one they will work from. WhatsApp cannot retire the job card above it, so
   // the newest message has to be worth more than scrolling back - the address,
   // the phone, the pin and the cash, repeated where they are now needed.
-  const shown =
-    landed === 'on_the_way' ? onTheWayCard(repo.findOrder(order.orderNo) ?? order) : body;
+  const fresh = repo.findOrder(order.orderNo) ?? order;
+  const shown = landed === 'on_the_way' ? onTheWayCard(fresh) : body;
 
-  return actions.length > 0
-    ? [{ kind: 'buttons', text: shown, buttons: actions }]
-    : reply(shown);
+  const out: OutboundMessage[] =
+    actions.length > 0 ? [{ kind: 'buttons', text: shown, buttons: actions }] : reply(shown);
+
+  // No map card for the doorstep. The delivery card carries a tappable link,
+  // which is one message instead of two and leaves nothing to mistake for the
+  // uplift pin further up the chat.
+
+  return out;
 }
 
 const describeForDriver = (o: repo.OrderRecord): string =>

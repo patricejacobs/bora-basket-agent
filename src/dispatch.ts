@@ -345,13 +345,10 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
 
-  // A parcel goes to its recipient, not to the person who sent it. Printing the
-  // sender here would send the delivery associate back where they started.
+  // A parcel goes to its recipient, not to the person who sent it - which
+  // dropLines handles. All this needs it for is the sender's number on the
+  // uplift half, since a parcel is fetched from a person rather than a shop.
   const isParcel = order.kind === 'parcel';
-  const receiverName = isParcel ? order.recipientName : order.customerName;
-  const receiverPhone = isParcel
-    ? order.recipientPhone
-    : order.contactPhone || order.phone;
 
   const body = [
     // Just the order number. The card already says *Uplift from:* with the
@@ -404,16 +401,14 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
         ...(pickup.address ? { address: pickup.address } : {}),
       });
     }
-    if (order.location) {
-      await sendLocation(associate, {
-        latitude: order.location.latitude,
-        longitude: order.location.longitude,
-        name: `Deliver — ${receiverName}`,
-        ...(order.location.label || order.address
-          ? { address: order.location.label || order.address }
-          : {}),
-      });
-    }
+    // The drop pin is deliberately NOT sent here. Two map cards arriving
+    // together is how somebody glancing at a phone on a bike navigates to the
+    // customer instead of the restaurant, and for the next fifteen minutes
+    // the destination is not where they are going. It follows the moment they
+    // say they have the food, attached to the card they will work from.
+    //
+    // The address and a tappable link are still on the job card, so they can
+    // judge the trip before accepting it.
   }
 
   return 'sent';

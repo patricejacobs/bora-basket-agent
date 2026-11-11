@@ -1012,6 +1012,20 @@ ORD-00031 has not been accepted yet - press *Confirm* first, then *Ready*
 when the food is up.
 ```
 
+### One map card, not two
+
+When a job arrives the associate gets two messages: the job card, and a map card for the
+**uplift** only. The destination is on the card as an address and a tappable link, so the
+trip can be judged before accepting it - but not as a second map card.
+
+Two map cards arriving together is how somebody glancing at a phone on a bike navigates to
+the customer instead of the restaurant. For the next fifteen minutes the destination is
+not where they are going, and a card they do not need yet sits directly under the one they
+do. It is also a third billable message on every food order.
+
+After they tap **Uplifted**, the delivery card carries the address, the phone, the link and
+the cash - one message, and the only one they then need.
+
 ### Who says the food has left
 
 Both the kitchen and the delivery associate get a button marked **Uplifted**, because both
