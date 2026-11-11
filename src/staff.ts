@@ -563,7 +563,26 @@ export async function handleOutletMessage(
       hour: 'numeric',
       minute: '2-digit',
     });
-    return reply(`*${order.orderNo}* uplifted at ${clock}`);
+    // Anything prepared before this one and still on the counter. A count
+    // says there is a problem; the numbers say which bag to look for, which
+    // is the difference between a cook knowing and a cook acting.
+    //
+    // By when the customer ordered, not by when the food was ready: that is
+    // the queue the customer is in, and an order that jumped it is exactly
+    // what somebody should see.
+    const waiting = repo.earlierStillWaiting(outlet.id, order.placedAt);
+
+    return reply(
+      [
+        `*${order.orderNo}* uplifted at ${clock}`,
+        ...(waiting.length > 0
+          ? [
+              `${waiting.length} earlier order${waiting.length === 1 ? '' : 's'} ready and waiting: ` +
+                waiting.map((o) => o.orderNo).join(', '),
+            ]
+          : []),
+      ].join(String.fromCharCode(10)),
+    );
   }
 
 

@@ -1028,6 +1028,24 @@ The message after uplifting is one line and a button: *ORD-00031 on the way*, wi
 description, the phone, the cash - is on the job card they accepted, and repeating it only
 buries that card further up the chat.
 
+### What else is on the counter
+
+When a kitchen notes an uplift, it is also told what it has left behind:
+
+```
+*ORD-00043* uplifted at 17:51
+2 earlier orders ready and waiting: ORD-00041, ORD-00042
+```
+
+The second line appears only when there is something to say - the oldest order waiting
+gets the first line alone.
+
+Counted by when the **customer placed** the order, not when the food was ready: that is
+the queue the customer is in, and an order that jumped it is the thing worth seeing. Only
+orders that are **prepared and still there** count - nothing is going cold that has not
+been made - and the orders are named rather than only counted, because a count says there
+is a problem and the numbers say which bag to look for.
+
 ### Timing an order
 
 Two moments are stamped on every order as they happen, and never moved afterwards:

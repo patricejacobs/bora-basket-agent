@@ -1678,6 +1678,28 @@ export function markUpliftedAt(orderNo: string): void {
   stampOnce(orderNo, 'uplifted_at');
 }
 
+/**
+ * Earlier orders of this kitchen's that are prepared and still on the counter.
+ *
+ * Ready, and not yet uplifted. Orders still being prepared are not counted -
+ * nothing is going cold that has not been made - and neither are ones already
+ * gone, whether the kitchen reported the uplift or an associate did, since
+ * taking an order moves it past 'ready' on its own.
+ *
+ * Ordered by when the customer placed it, because that is the queue the
+ * customer experiences and an order that jumped it is the thing worth seeing.
+ */
+export function earlierStillWaiting(outletId: number, before: string): OrderRecord[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders
+        WHERE outlet_id = ? AND status = 'ready' AND handed_over_at = '' AND created_at < ?
+        ORDER BY created_at ASC`,
+    )
+    .all(outletId, before) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
+}
+
 export function markHandedOver(orderNo: string): string {
   const existing = db
     .prepare(`SELECT handed_over_at AS at FROM orders WHERE order_no = ?`)

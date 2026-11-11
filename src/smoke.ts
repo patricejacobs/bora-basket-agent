@@ -2903,6 +2903,53 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section('What else is still on the counter');
+{
+  const { handleOutletMessage } = await import('./staff.ts');
+  const sscA = repo.getOutlet('SSC');
+  check('there is a kitchen to queue at', Boolean(sscA));
+
+  if (sscA) {
+    const mine = repo.allOrders().filter((o) => o.outlet?.id === sscA.id).slice(0, 3);
+    check('with orders to queue', mine.length >= 2, String(mine.length));
+
+    if (mine.length >= 2) {
+      // Three prepared and waiting, placed ten minutes apart.
+      mine.forEach((o, i) => {
+        db.prepare(
+          `UPDATE orders SET status = 'ready', handed_over_at = '', created_at = ? WHERE order_no = ?`,
+        ).run(new Date(Date.now() - (mine.length - i) * 600_000).toISOString(), o.orderNo);
+      });
+
+      const newest = mine[mine.length - 1]!;
+      const said = (await handleOutletMessage(sscA, `${newest.orderNo} uplifted`))[0]?.text ?? '';
+      check('the uplift time is still stated', /uplifted at \d/.test(said), said);
+      check(
+        'and how many earlier ones are still waiting',
+        new RegExp(`${mine.length - 1} earlier order`).test(said),
+        said,
+      );
+      check('naming them', said.includes(mine[0]!.orderNo), said);
+      check('but not the one just uplifted', !said.split(String.fromCharCode(10))[1]?.includes(newest.orderNo), said);
+
+      // Clearing the queue oldest-last: the line disappears when nothing is left.
+      for (const o of mine.slice(0, -1)) {
+        const last = (await handleOutletMessage(sscA, `${o.orderNo} uplifted`))[0]?.text ?? '';
+        if (o.orderNo === mine[0]!.orderNo) {
+          check('the oldest is told of nothing behind it', last.split(String.fromCharCode(10)).length === 1, last);
+        }
+      }
+
+      // Food still being prepared is not counted - nothing is going cold that
+      // has not been made.
+      db.prepare(`UPDATE orders SET status = 'confirmed', handed_over_at = '' WHERE order_no = ?`).run(mine[0]!.orderNo);
+      db.prepare(`UPDATE orders SET status = 'ready', handed_over_at = '' WHERE order_no = ?`).run(newest.orderNo);
+      const again = (await handleOutletMessage(sscA, `${newest.orderNo} uplifted`))[0]?.text ?? '';
+      check('an order still being prepared is not counted', !again.includes(mine[0]!.orderNo), again);
+    }
+  }
+}
+
 section('Timing an order');
 {
   const { handleOutletMessage, handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
