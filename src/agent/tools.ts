@@ -70,7 +70,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'list_outlets',
     description:
-      'List the restaurants and fast-food outlets the customer can order from, with whether each is taking orders right now and how long it typically takes to cook. Call this when they ask about food, takeaway, or a particular restaurant — never name an outlet or claim it is open without calling this first.',
+      'List the restaurants and fast-food outlets the customer can order from, with whether each is taking orders right now and how long it typically takes to prepare. Call this when they ask about food, takeaway, or a particular restaurant — never name an outlet or claim it is open without calling this first.',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
@@ -547,7 +547,7 @@ function outletView(outlet: repo.Outlet) {
     ...(open ? {} : { closed_now: true }),
     ...(open && !outlet.accepting ? { paused: 'Kitchen has paused new orders.' } : {}),
     ...(status.state === 'closed' && status.opensAt ? { opens: status.opensAt } : {}),
-    typical_wait: `about ${outlet.prepMinutes} minutes to cook`,
+    typical_wait: `about ${outlet.prepMinutes} minutes to prepare`,
     delivery_fee: money(outlet.deliveryFee ?? config.store.deliveryFee),
     ...(outlet.minOrder > 0 ? { minimum_order: money(outlet.minOrder) } : {}),
   };
