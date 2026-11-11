@@ -486,6 +486,15 @@ export async function handleOutletMessage(
       `A kitchen can confirm an order, mark it ready, say it was uplifted, or cancel it. Delivery is the delivery associate's end.`,
     );
   }
+  // Ready before anyone accepted the order. The button is no longer offered
+  // at this stage, but messages already sent still carry it, and a tap on a
+  // message from last week works exactly as well as one from a minute ago.
+  if (status === 'ready' && order.status === 'pending') {
+    return reply(
+      `${order.orderNo} has not been accepted yet - press *Confirm* first, then *Ready* when the food is up.`,
+    );
+  }
+
   // Collected before it was ever cooked is somebody tapping an old message.
   // Only the stages BEFORE ready. An order already on its way falls through
   // to the plain "already" reply below, and a delivered or cancelled one is

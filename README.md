@@ -963,17 +963,29 @@ Tapping the stage an order is already at is not a backward move - it is somebody
 twice, and gets "already ready" rather than a refusal. Cancelling is allowed from any
 stage, and is the one way out when something is genuinely wrong.
 
-Because of that rule, the kitchen can keep one group of buttons for the whole cooking
-stage instead of hunting for the newest message:
+### An action is unavailable by being absent
+
+**WhatsApp has no disabled button.** A reply button is on a message or it is not; there is
+no greyed-out state to offer. So a step that is not allowed yet is simply not shown:
 
 | Stage | Buttons |
 |---|---|
-| `pending` | `Confirm` · `Ready` · `Cancel` |
-| `confirmed` | `Confirm` · `Ready` · `Cancel` |
+| `pending` | `Confirm` · `Cancel` |
+| `confirmed` | `Ready` · `Cancel` |
 | `ready` | `Uplifted` · `Cancel` |
 
-Three is WhatsApp's hard limit, which is why `Uplifted` arrives on the message that
-follows `Ready` rather than joining the group.
+`Ready` appears only once an order has been accepted, so a cook cannot mark food ready for
+an order nobody has taken.
+
+Leaving it off is not enough on its own, and this is the part that is easy to miss:
+**messages already sent keep their buttons**. A `Ready` button on a message from last week
+still works. So the rule is enforced on arrival as well - a tap that arrives out of turn is
+refused with what to do instead:
+
+```
+ORD-00031 has not been accepted yet - press *Confirm* first, then *Ready*
+when the food is up.
+```
 
 ### Who says the food has left
 

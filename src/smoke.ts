@@ -1908,8 +1908,8 @@ section('Kitchen and delivery associate commands');
   // Role-appropriate buttons. A cook must not be able to close an order.
   const kitchenPending = nextActions('ORD-00009', 'pending', 'outlet');
   check(
-    'a kitchen is offered confirm, ready and cancel',
-    kitchenPending.map((b) => b.title).join('|') === 'Confirm|Ready|Cancel',
+    'a kitchen is offered confirm and cancel',
+    kitchenPending.map((b) => b.title).join('|') === 'Confirm|Cancel',
     JSON.stringify(kitchenPending.map((b) => b.title)),
   );
   check(
@@ -2953,11 +2953,28 @@ section('An order only goes forward');
   check('cancelling is never backwards', !isBackwards('on_the_way', 'cancelled'));
   check('nor from the very start', !isBackwards('pending', 'cancelled'));
 
-  // The kitchen now works from one group of buttons while it cooks.
-  for (const st of ['pending', 'confirmed'] as const) {
-    const b = nextActions('ORD-00031', st, 'outlet');
-    check(`${st}: the same three buttons`, b.map((x) => x.title).join('|') === 'Confirm|Ready|Cancel', JSON.stringify(b.map((x) => x.title)));
-    check(`${st}: within WhatsApp's three`, b.length <= 3);
+  // Ready is not offered until the order has been accepted. WhatsApp has no
+  // disabled button, so leaving it off the message is the only way to make an
+  // action unavailable.
+  const pend = nextActions('ORD-00031', 'pending', 'outlet').map((b) => b.title);
+  check('a new order offers confirm and cancel', pend.join('|') === 'Confirm|Cancel', JSON.stringify(pend));
+  check('and no way to mark it ready', !pend.includes('Ready'), JSON.stringify(pend));
+  const conf = nextActions('ORD-00031', 'confirmed', 'outlet').map((b) => b.title);
+  check('an accepted order offers ready', conf.join('|') === 'Ready|Cancel', JSON.stringify(conf));
+
+  // Absence is not enough on its own: messages already sent still carry the
+  // old buttons, and a tap on last week's message works as well as today's.
+  {
+    const ssc5 = repo.getOutlet('SSC');
+    const o5 = repo.allOrders().find((x) => x.outlet?.id === ssc5?.id);
+    if (ssc5 && o5) {
+      repo.setOrderStatus(o5.orderNo, 'pending');
+      const early = (await handleOutletMessage(ssc5, `${o5.orderNo} ready`))[0]?.text ?? '';
+      check('a stale Ready before Confirm is refused', /not been accepted/i.test(early), early);
+      check('and the order stays pending', repo.findOrder(o5.orderNo)?.status === 'pending');
+      await handleOutletMessage(ssc5, `${o5.orderNo} confirm`);
+      check('while confirming first works', repo.findOrder(o5.orderNo)?.status === 'confirmed');
+    }
   }
 
   // Which is only safe because the old ones cannot wind an order back.

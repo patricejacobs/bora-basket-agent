@@ -292,13 +292,14 @@ export function nextActions(
   // dispatches or closes an order — that is the delivery associate's end of the job.
   if (audience === 'outlet') {
     switch (status) {
-      // One group of buttons for the whole cooking stage, so a kitchen keeps
-      // working from a single message per order instead of hunting for the
-      // newest one. Safe only because an order cannot move backwards: these
-      // same three sit in the chat forever.
+      // Ready is deliberately absent until the order is accepted. WhatsApp
+      // has no disabled button - a reply button is on the message or it is
+      // not - so the only way to stop a cook marking food ready for an order
+      // nobody has taken is to leave it off until Confirm has been pressed.
       case 'pending':
+        return [confirm, cancel];
       case 'confirmed':
-        return [confirm, ready, cancel];
+        return [ready, cancel];
       // Food on the counter: the kitchen can see it leave, and often sees it
       // before anyone else does. The associate has the same button on their
       // own job card — whichever of them taps first moves the order, and the
