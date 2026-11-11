@@ -60,7 +60,7 @@ export function recordParcelPin(phone: string, pin: LocationPin): string {
 
   console.log(`[parcel] ${phone} pinned ${slot} ${formatCoordinates(pin)}`);
 
-  const which = slot === 'pickup' ? 'collection point' : 'destination';
+  const which = slot === 'pickup' ? 'uplift point' : 'destination';
   const label = pin.label ? ` (${pin.label})` : '';
   const stillNeeded =
     draft.pickup && draft.destination

@@ -271,17 +271,17 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
     : order.contactPhone || order.phone;
 
   const body = [
-    isParcel ? `📦 *Parcel ${order.orderNo}*` : `🛵 *Collect ${order.orderNo}*`,
+    isParcel ? `📦 *Parcel ${order.orderNo}*` : `🛵 *Uplift ${order.orderNo}*`,
     '',
     ...(pickup
       ? [
-          `*Pick up:* ${order.outlet?.name ?? order.customerName}`,
+          `*Uplift from:* ${order.outlet?.name ?? order.customerName}`,
           ...(pickup.address ? [pickup.address] : []),
           ...(pickupPin ? [mapsLink(pickupPin)] : []),
           ...(isParcel ? [`📞 sender +${order.contactPhone || order.phone}`] : []),
           '',
         ]
-      : ['*Pick up:* the shop', '']),
+      : ['*Uplift from:* the shop', '']),
     ...itemLines(order),
     '',
     `*Deliver to:* ${receiverName}`,
@@ -324,7 +324,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       await sendLocation(associate, {
         latitude: pickupPin.latitude,
         longitude: pickupPin.longitude,
-        name: `Collect — ${order.outlet?.name ?? order.customerName}`,
+        name: `Uplift — ${order.outlet?.name ?? order.customerName}`,
         ...(pickup.address ? { address: pickup.address } : {}),
       });
     }

@@ -37,7 +37,7 @@ export function quoteParcel(from: Coordinates, to: Coordinates): ParcelQuote {
       priced: false,
       distanceKm: km,
       reason:
-        'No parcel pricing is configured, so you cannot quote a fee. Take the job and say the shop will confirm the cost before collecting — never guess a price.',
+        'No parcel pricing is configured, so you cannot quote a fee. Take the job and say the shop will confirm the cost before uplifting — never guess a price.',
     };
   }
 

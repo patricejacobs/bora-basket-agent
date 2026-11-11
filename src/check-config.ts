@@ -248,7 +248,7 @@ try {
           add(
             'fail',
             'DRIVER_NUMBERS',
-            'empty, but restaurants are set up — food will be cooked and no delivery associate will be sent to collect it',
+            'empty, but restaurants are set up — food will be cooked and no delivery associate will be sent to uplift it',
           );
         } else {
           add('ok', 'DRIVER_NUMBERS', dim(`${associates.length} delivery associate(s)`));

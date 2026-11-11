@@ -338,7 +338,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
         pickup_note: {
           type: 'string',
-          description: 'Doorstep detail for the collection — which gate, which floor, who to ask for.',
+          description: 'Doorstep detail for the uplift — which gate, which floor, who to ask for.',
         },
         destination_note: {
           type: 'string',
@@ -1250,7 +1250,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!allowed.allowed) return fail(allowed.reason);
 
       const draft = repo.getParcelDraft(ctx.phone);
-      if (!draft.pickup) return fail('No collection pin yet. Ask for it with request_location.');
+      if (!draft.pickup) return fail('No uplift pin yet. Ask for it with request_location.');
       if (!draft.destination) return fail('No destination pin yet. Ask for it with request_location.');
 
       const quote = quoteParcel(draft.pickup, draft.destination);
@@ -1296,9 +1296,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
           : {
               fee: 'to be confirmed',
-              note: 'Tell them the shop will confirm the cost before collecting. Do not quote a figure.',
+              note: 'Tell them the shop will confirm the cost before uplifting. Do not quote a figure.',
             }),
-        next: 'Give them the job number and what happens next: a delivery associate collects, then delivers. No time promise.',
+        next: 'Give them the job number and what happens next: a delivery associate uplifts it, then delivers. No time promise.',
       });
     }
 

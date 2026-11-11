@@ -221,7 +221,7 @@ export function serviceContextLine(service: Service): string {
     restaurant:
       'Service chosen: *restaurant ordering*. Call list_outlets and choose_outlet; the grocery catalogue is out of scope. If they ask for groceries or a parcel, call switch_service rather than sending them back to a menu.',
     parcel:
-      'Service chosen: *parcel delivery*. No catalogue is involved: collect the pickup point, the destination, the recipient and what is being sent, then call create_parcel_job. Do not search for products. If they ask for food or groceries instead, call switch_service.',
+      'Service chosen: *parcel delivery*. No catalogue is involved: ask for the uplift point, the destination, the recipient and what is being sent, then call create_parcel_job. Do not search for products. If they ask for food or groceries instead, call switch_service.',
     other:
       'Service chosen: *other*. You cannot resolve this yourself. Find out what they need in one or two questions, then call request_staff_help so a person picks it up. Do not promise a time.',
   };

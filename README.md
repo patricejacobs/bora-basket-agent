@@ -944,7 +944,7 @@ failing silently.
 
 ### Who says the food has left
 
-After the kitchen marks an order ready, its message carries a **Collected** button. The
+After the kitchen marks an order ready, its message carries an **Uplifted** button. The
 associate has the same button on their own job card, and whichever taps first moves the
 order; the second is told it has already moved rather than being refused.
 
@@ -960,7 +960,7 @@ is the noise that makes people stop reading alerts.
 
 A collection reported by the kitchen leaves the delivery associate unrecorded, and the
 message to staff says so. The association is normally made when the associate taps
-**Collected** on their own card; if the kitchen gets there first there is nobody to record.
+**Uplifted** on their own card; if the kitchen gets there first there is nobody to record.
 
 What the kitchen still cannot do is close an order. Delivered is the doorstep, and only
 whoever stood on it can say so.
@@ -975,7 +975,7 @@ rather than `Delivered 31`. The detail is already in the message above it.
 |---|---|---|
 | Kitchen | `Confirm` · `Ready` · `Cancel` | `31 confirm` · `31 ready` · `31 cancel` |
 | Staff | `Confirm` · `Ready` · `On the way` · `Delivered` · `Cancel` | the same, with the order number |
-| Delivery associate | `Collected` · `Delivered` | `31 on the way` · `31 delivered` |
+| Delivery associate | `Uplifted` · `Delivered` | `31 on the way` · `31 delivered` |
 | Cancelling | `Sold out` · `Too busy` · `Closing` · `Customer asked` | `31 sold out`, and so on |
 
 Only ids the system recognises are translated. **This matters more than it looks:** the

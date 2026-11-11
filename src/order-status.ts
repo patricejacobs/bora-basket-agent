@@ -25,7 +25,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
 export const CUSTOMER_STATUS: Record<OrderStatus, string> = {
   pending: 'received, waiting for the shop to confirm it',
   confirmed: 'confirmed and being prepared',
-  ready: 'ready, waiting for the delivery associate to collect it',
+  ready: 'ready, waiting for the delivery associate to uplift it',
   on_the_way: 'out with the delivery associate',
   delivered: 'delivered',
   cancelled: 'cancelled',
@@ -173,7 +173,7 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   // "collected" and "picked up" mean a delivery associate has the food and is moving, which
   // is the same state as on the way for everyone downstream.
   [
-    /\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone|collected|picked\s*up)\b/i,
+    /\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone|uplift(ed)?|collected|picked\s*up)\b/i,
     'on_the_way',
   ],
   [/\b(delivered|done|complete[d]?|dropped)\b/i, 'delivered'],
@@ -250,7 +250,11 @@ export function nextActions(
   const confirm = act(`confirm_${n}`, 'Confirm', `${n} confirm`);
   const ready = act(`ready_${n}`, 'Ready', `${n} ready`);
   const otw = act(`otw_${n}`, 'On the way', `${n} on the way`);
-  const collected = act(`otw_${n}`, 'Collected', `${n} on the way`);
+  // Shares the id, and therefore the command, with staff's own "On the way".
+  // The two read differently because the people differ - an associate reports
+  // that they have the food, a dispatcher records that it is moving - but it
+  // is one transition, and the command has to stay what the id translates to.
+  const uplifted = act(`otw_${n}`, 'Uplifted', `${n} on the way`);
   const delivered = act(`delivered_${n}`, 'Delivered', `${n} delivered`);
   const cancel = act(`cancel_${n}`, 'Cancel', `${n} cancel`);
 
@@ -267,7 +271,7 @@ export function nextActions(
       // own job card — whichever of them taps first moves the order, and the
       // second is told it has already moved rather than being refused.
       case 'ready':
-        return [collected];
+        return [uplifted];
       default:
         return [];
     }
@@ -277,7 +281,7 @@ export function nextActions(
   if (audience === 'driver') {
     switch (status) {
       case 'ready':
-        return [collected];
+        return [uplifted];
       case 'on_the_way':
         return [delivered];
       default:

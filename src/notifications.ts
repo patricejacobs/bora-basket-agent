@@ -60,15 +60,15 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     '',
     order.total > 0
       ? `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`
-      : '*Fee not set* — confirm the cost with the customer before collecting',
+      : '*Fee not set* — confirm the cost with the customer before uplifting',
     ...(isParcel && order.pickup
-      ? ['', `Collect from: ${order.pickup.address || 'pin below'}`, `Sender ${order.customerName} +${order.contactPhone || order.phone}`]
+      ? ['', `Uplift from: ${order.pickup.address || 'pin below'}`, `Sender ${order.customerName} +${order.contactPhone || order.phone}`]
       : []),
     // A restaurant order is not yours to pack, so the shop's line is the wait
     // and the collection rather than a picking list.
     ...(order.outlet
       ? [
-          `Collect from ${order.outlet.name}${order.outlet.pickupAddress ? `, ${order.outlet.pickupAddress}` : ''}`,
+          `Uplift from ${order.outlet.name}${order.outlet.pickupAddress ? `, ${order.outlet.pickupAddress}` : ''}`,
           `Kitchen reckons about ${order.outlet.prepMinutes} minutes`,
         ]
       : []),

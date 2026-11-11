@@ -1917,7 +1917,7 @@ section('Kitchen and delivery associate commands');
     nextActions('ORD-00009', 'confirmed', 'outlet').some((a) => a.id.startsWith('ready')),
   );
   const riderReady = nextActions('ORD-00009', 'ready', 'driver');
-  check('a delivery associate collects a ready order', riderReady[0]?.title.startsWith('Collected') === true, JSON.stringify(riderReady));
+  check('a delivery associate uplifts a ready order', riderReady[0]?.title.startsWith('Uplifted') === true, JSON.stringify(riderReady));
   check('a delivery associate gets nothing on an unconfirmed order', nextActions('ORD-00009', 'pending', 'driver').length === 0);
 
   const ssc = repo.getOutlet('SSC')!;
@@ -2010,11 +2010,11 @@ section('Kitchen and delivery associate commands');
   check('and both are theirs', repo.activeJobsFor(busyPhone).length === 2);
 
   // jobs shows what they hold and flags anything at a kitchen they are already
-  // visiting, because collecting both costs one trip.
+  // visiting, because uplifting both costs one trip.
   const jobC = mk('SSC-002', 2, ['Small', 'Mild']);
   const view = (await handleDriverMessage('jobs', busyPhone))[0]?.text ?? '';
   check('jobs lists what they are carrying', /With you now \(2\)/.test(view), view.slice(0, 60));
-  check('and still offers more', /ready to collect/i.test(view), view.slice(0, 200));
+  check('and still offers more', /ready to uplift/i.test(view), view.slice(0, 200));
   check('flagging one at the same stop', /same stop as yours/i.test(view), view.slice(-200));
 
   // Delivering releases them.
@@ -2839,7 +2839,7 @@ section('Onboarding a restaurant');
 
   // A pin from staff sets where the delivery associate collects.
   const pinned = handleStaffPin(staffPhone, { latitude: 6.8102, longitude: -58.1547, label: 'Front door' })[0]?.text ?? '';
-  check('a staff pin sets the collection point', /Collection point set/.test(pinned), pinned);
+  check('a staff pin sets the uplift point', /Uplift point set/.test(pinned), pinned);
   check('and lands on the right outlet', repo.getOutlet('MGH')?.pickupLat === 6.8102);
 
   // The remaining details, by command.
@@ -2887,7 +2887,7 @@ section('The kitchen can say it was collected');
   // The button exists on the message the kitchen gets after marking it ready.
   const afterReady = nextActions('ORD-00031', 'ready', 'outlet');
   check('a ready order offers the kitchen a button', afterReady.length === 1, JSON.stringify(afterReady));
-  check('which reads as one word', afterReady[0]?.title === 'Collected', JSON.stringify(afterReady[0]));
+  check('which reads as one word', afterReady[0]?.title === 'Uplifted', JSON.stringify(afterReady[0]));
   check('and means the order moved on', afterReady[0]?.command === '31 on the way');
   check(
     'the same button the associate gets',

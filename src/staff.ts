@@ -79,7 +79,7 @@ async function applyStatus(
       const how = await dispatchToDrivers(order.orderNo);
       notes.push(
         how === 'sent'
-          ? '🛵 Delivery associate dispatched to collect.'
+          ? '🛵 Delivery associate dispatched to uplift.'
           : '⚠️ No delivery associate was told — DRIVER_NUMBERS is empty.',
       );
     } catch (err) {
@@ -126,7 +126,7 @@ async function applyStatus(
     const associate = order.driverPhone ? `+${order.driverPhone}` : 'not recorded yet';
     await warnStaff(
       [
-        `*${order.orderNo}* collected from *${who}*.`,
+        `*${order.orderNo}* uplifted from *${who}*.`,
         '',
         'Reported by the kitchen, not by the associate.',
         `Delivery associate: ${associate}.`,
@@ -449,7 +449,7 @@ export async function handleOutletMessage(
   // on it can say so.
   if (!['confirmed', 'ready', 'on_the_way', 'cancelled'].includes(status)) {
     return reply(
-      `A kitchen can confirm an order, mark it ready, say it was collected, or cancel it. Delivery is the delivery associate's end.`,
+      `A kitchen can confirm an order, mark it ready, say it was uplifted, or cancel it. Delivery is the delivery associate's end.`,
     );
   }
   // Collected before it was ever cooked is somebody tapping an old message.
@@ -459,7 +459,7 @@ export async function handleOutletMessage(
   // telling a cook to mark ready food ready.
   if (status === 'on_the_way' && ['pending', 'confirmed'].includes(order.status)) {
     return reply(
-      `${order.orderNo} is ${STATUS_LABEL[order.status]} - mark it ready before saying it was collected.`,
+      `${order.orderNo} is ${STATUS_LABEL[order.status]} - mark it ready before saying it was uplifted.`,
     );
   }
 
@@ -490,11 +490,11 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
 const DRIVER_HELP = [
   '*Delivery associate commands*',
   '',
-  '`jobs` — collections waiting',
-  '`7 collected` — you have the food',
+  '`jobs` — uplifts waiting',
+  '`7 uplifted` — you have the food',
   '`7 delivered` — dropped off, cash taken',
   '',
-  'Share your location to be offered collections near you.',
+  'Share your location to be offered uplifts near you.',
   '',
   'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
 ].join('\n');
@@ -524,7 +524,7 @@ export async function handleDriverMessage(
       [
         `📍 Got it${location.label ? ` — ${location.label}` : ''}.`,
         radius > 0
-          ? `You will be offered collections within ${radius} miles of here. Send another pin when you move.`
+          ? `You will be offered uplifts within ${radius} miles of here. Send another pin when you move.`
           : 'Noted. Send another pin when you move.',
       ].join(chr10),
     );
@@ -532,7 +532,7 @@ export async function handleDriverMessage(
 
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(DRIVER_HELP);
 
-  if (/^(jobs|job|queue|pickups?|collections?)$/i.test(trimmed)) {
+  if (/^(jobs|job|queue|pickups?|collections?|uplifts?)$/i.test(trimmed)) {
     const waiting = repo.ordersAwaitingPickup(10);
 
     // What they are already carrying is shown, never used to refuse more. Two
@@ -542,7 +542,7 @@ export async function handleDriverMessage(
       ? [`*With you now (${holding.length})*`, ...holding.map(describeForDriver)]
       : [];
 
-    if (waiting.length === 0 && mine.length === 0) return reply('Nothing to collect right now.');
+    if (waiting.length === 0 && mine.length === 0) return reply('Nothing to uplift right now.');
 
     // Anything ready at a kitchen they are already going to is worth flagging:
     // it costs them nothing to pick up both.
@@ -555,7 +555,7 @@ export async function handleDriverMessage(
         ...mine,
         ...(waiting.length > 0
           ? [
-              `*${waiting.length} ready to collect*`,
+              `*${waiting.length} ready to uplift*`,
               ...waiting.map((o) => describeForDriver(o) + label(o)),
             ]
           : []),
@@ -574,7 +574,7 @@ export async function handleDriverMessage(
 
   const status = matched[1];
   if (status !== 'on_the_way' && status !== 'delivered') {
-    return reply('A delivery associate can mark an order collected or delivered. Anything else is for the shop.');
+    return reply('A delivery associate can mark an order uplifted or delivered. Anything else is for the shop.');
   }
   // One delivery at a time. Somebody already carrying hot food across town
   // cannot also be collecting from another kitchen, and a second job is how
