@@ -201,15 +201,14 @@ export function nextActions(
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
 
   const confirm = { id: `confirm_${n}`, title: `Confirm ${n}` };
-  const ready = { id: `ready_${n}`, title: `Food ready ${n}` };
-  // The kitchen's own button names the order it is about. A cook is looking at
-  // a ticket with ORD-00031 printed on it, not holding a dispatcher's list
-  // where "7" is unambiguous — and a kitchen with three tickets on the pass
-  // should not have to work out which short number belongs to which.
+  // The ready button names its order in full, for the kitchen and for staff
+  // alike. A cook is looking at a ticket with ORD-00031 printed on it, and
+  // somebody with three of them on the pass should not have to work out which
+  // short number belongs to which.
   //
   // 15 characters, inside WhatsApp's 20-character limit, and it stays 15: the
   // number is always padded to five digits.
-  const readyOutlet = { id: `ready_${n}`, title: `${orderNo} ready` };
+  const ready = { id: `ready_${n}`, title: `${orderNo} ready` };
   const otw = { id: `otw_${n}`, title: `On the way ${n}` };
   const collected = { id: `otw_${n}`, title: `Collected ${n}` };
   const delivered = { id: `delivered_${n}`, title: `Delivered ${n}` };
@@ -222,7 +221,7 @@ export function nextActions(
       case 'pending':
         return [confirm, cancel];
       case 'confirmed':
-        return [readyOutlet, cancel];
+        return [ready, cancel];
       default:
         return [];
     }

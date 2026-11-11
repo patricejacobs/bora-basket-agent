@@ -2328,10 +2328,31 @@ section('Why an order was cancelled');
     );
     check('while still carrying the ready action', kitchenReady?.id === 'ready_7');
 
-    // Staff keep the short form: a dispatcher works down a list where "7" is
-    // unambiguous, and their buttons are not what was being changed.
+    // Staff see the same wording, so the two audiences cannot drift apart and
+    // leave one of them with a button nobody recognises from the other's.
     const staffReady = nextActions('ORD-00007', 'confirmed', 'staff').find((b) => b.id === 'ready_7');
-    check('staff still see the short form', staffReady?.title === 'Food ready 7', JSON.stringify(staffReady));
+    check('staff see the same wording', staffReady?.title === 'ORD-00007 ready', JSON.stringify(staffReady));
+
+    // Every button a tap can produce has to parse as its own command and fit
+    // the twenty characters WhatsApp allows, for every audience and status.
+    const audiences = ['staff', 'outlet', 'driver'] as const;
+    const statuses = ['pending', 'confirmed', 'ready', 'on_the_way'] as const;
+    const everyButton = audiences.flatMap((a) =>
+      statuses.flatMap((st) => nextActions('ORD-00007', st, a)),
+    );
+    check('there are buttons to check', everyButton.length > 0);
+    check(
+      'every title fits twenty characters',
+      everyButton.every((b) => b.title.length <= 20),
+      JSON.stringify(everyButton.filter((b) => b.title.length > 20).map((b) => `${b.title}:${b.title.length}`)),
+    );
+    check(
+      'and every title still names its order',
+      everyButton.every((b) => /(?:\bORD-0*7\b|\b7\b)/i.test(b.title)),
+      JSON.stringify(
+        everyButton.filter((b) => !/(?:\bORD-0*7\b|\b7\b)/i.test(b.title)).map((b) => b.title),
+      ),
+    );
   }
 
   check('reads a tapped reason', findCancelReason('7 sold out')?.key === 'sold_out');

@@ -122,6 +122,7 @@ const HELP = [
   '',
   '`orders` — list open orders',
   '`7 confirmed` — accept order 7',
+  '`ORD-00007 ready` — food is up, a delivery associate is sent',
   '`7 on the way` — dispatch, customer is told',
   '`7 delivered` — close it, customer is told',
   '`7 cancel` — cancel it',
