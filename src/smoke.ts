@@ -2981,6 +2981,45 @@ section('What a kitchen reads after a tap');
   }
 }
 
+section('When two people report the same uplift');
+{
+  const { handleOutletMessage, handleDriverMessage } = await import('./staff.ts');
+  const ssc7 = repo.getOutlet('SSC');
+  const o7 = repo.allOrders().find((x) => x.outlet?.id === ssc7?.id);
+  check('there is an order for both to touch', Boolean(ssc7 && o7));
+
+  if (ssc7 && o7) {
+    const no = o7.orderNo;
+    repo.setOrderStatus(no, 'ready');
+
+    // The kitchen gets there first, which it can now do.
+    await handleOutletMessage(ssc7, `${no} on the way`);
+    check('the kitchen can report the uplift', repo.findOrder(no)?.status === 'on_the_way');
+
+    // The associate then taps Uplifted on their own job card.
+    const out = await handleDriverMessage(`${no} on the way`, '5926001111');
+    const body = out[0]?.text ?? '';
+    check(
+      'the associate is not told to wait for the kitchen',
+      !/wait for the kitchen/i.test(body),
+      body,
+    );
+    // And is left able to finish the job: the drop details and the one button.
+    check('they are given the drop', /Deliver to:/.test(body), body);
+    check('and the cash due', /cash/i.test(body), body);
+    check(
+      'with Delivered to tap',
+      out[0]?.kind === 'buttons' && out[0].buttons.some((b) => b.title === 'Delivered'),
+      JSON.stringify(out[0]),
+    );
+
+    // Uplifting food nobody has prepared is still refused.
+    repo.setOrderStatus(no, 'confirmed');
+    const early = (await handleDriverMessage(`${no} on the way`, '5926001111'))[0]?.text ?? '';
+    check('uplifting unprepared food is still refused', /wait for the kitchen/i.test(early), early);
+  }
+}
+
 section('An order only goes forward');
 {
   const { isBackwards, nextActions } = await import('./order-status.ts');

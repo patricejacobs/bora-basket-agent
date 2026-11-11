@@ -673,14 +673,35 @@ export async function handleDriverMessage(
     );
   }
 
-  // Collecting food nobody has cooked is how an order gets marked delivered
+  // Uplifting food nobody has prepared is how an order gets marked delivered
   // while it is still in a fryer.
-  if (status === 'on_the_way' && order.outlet && order.status !== 'ready') {
+  //
+  // Only the stages BEFORE ready, which is the whole of it. Written as
+  // "not ready" this also caught an order already on its way - which the
+  // kitchen can now put there itself - and answered a delivery associate
+  // tapping Uplifted on their own job card with "wait for the kitchen to
+  // mark it ready",
+  // about an order the kitchen had marked ready some minutes earlier.
+  if (status === 'on_the_way' && order.outlet && ['pending', 'confirmed'].includes(order.status)) {
     return reply(
       `${order.orderNo} is ${STATUS_LABEL[order.status]} — wait for the kitchen to mark it ready.`,
     );
   }
-  if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
+  // Somebody else got there first - most often the kitchen, which can now
+  // report the uplift itself. Saying only "already on the way" would leave
+  // the associate holding the food with no Delivered button and no drop
+  // details, since both of those ride on the message their own tap produces.
+  // So they get that message anyway.
+  if (order.status === status) {
+    const already = nextActions(order.orderNo, status, 'driver');
+    const text =
+      status === 'on_the_way'
+        ? onTheWayCard(order)
+        : `${order.orderNo} is already ${STATUS_LABEL[status]}.`;
+    return already.length > 0
+      ? [{ kind: 'buttons', text, buttons: already }]
+      : reply(text);
+  }
 
   if (status === 'on_the_way' && phone) repo.assignDriver(order.orderNo, phone);
 
