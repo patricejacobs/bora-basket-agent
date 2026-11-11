@@ -664,6 +664,18 @@ Sun 9:00am - 4:00pm` gives Sunday its own shorter day. Day ranges (`Mon-Sat`), d
 (`Mon, Wed, Fri`), `Sun closed`, and hours crossing midnight (`6:00pm - 2:00am`) all read
 correctly. A day you never list is a day off.
 
+To trade around the clock, set it to **`24 hours`** — or `24/7`, `always open`, `open 24
+hours a day` or `round the clock`, all of which read sensibly when quoted back to a
+customer. There is then no closing time at all: orders are taken at any hour and the agent
+never says deliveries have finished for the day.
+
+This covers the shop's own window only. **A restaurant keeps its own hours**, so a kitchen
+that shuts at seven cannot cook at two in the morning whatever the shop is doing. Groceries
+and parcels run all night; food does not.
+
+`/health` reports `storeHours` and `storeOpen`, so the live setting can be confirmed
+without a shell.
+
 **Outside those hours the agent does not say "we're closed."** It says when deliveries
 start and keeps taking the order:
 

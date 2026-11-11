@@ -151,8 +151,13 @@ services:
         value: v23.0
       - key: STORE_NAME
         value: "Next Minute Delivery"
+      # Quoted to customers verbatim AND parsed per day. "24 hours", "24/7",
+      # "always open" and "round the clock" all mean the shop never closes:
+      # orders are taken at any hour and nothing is ever said about deliveries
+      # having finished for the day. A restaurant still keeps its own hours —
+      # a kitchen that is shut cannot cook, whatever the shop is doing.
       - key: STORE_HOURS
-        value: "Mon-Sat 8:00am - 8:00pm, Sun 9:00am - 4:00pm"
+        value: "24 hours"
       - key: DELIVERY_AREAS
         value: "Georgetown, East Bank Demerara, East Coast Demerara"
       # The delivery area as a circle, checked against every location pin.

@@ -2787,6 +2787,59 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section('A shop that never closes');
+{
+  const { hoursStatus } = await import('./hours.ts');
+  const { buildTimeContext } = await import('./agent/context.ts');
+
+  for (const form of [
+    '24 hours',
+    '24/7',
+    'Open 24 hours',
+    'open 24 hours a day',
+    'always open',
+    'Round the clock',
+    '24 hrs',
+  ]) {
+    const st = hoursStatus(form);
+    check(`"${form}" means open`, st.state === 'open', JSON.stringify(st));
+  }
+
+  const always = hoursStatus('24 hours');
+  check(
+    'with no closing time to count down to',
+    always.state === 'open' && always.closesInMinutes === null,
+  );
+
+  // The point of the setting: whatever the hour, a customer is never told the
+  // day is over. Checked through the real context the agent reads.
+  const saved = config.store.hours;
+  try {
+    (config.store as { hours: string }).hours = '24 hours';
+    const ctx24 = buildTimeContext();
+    check('the agent is never told deliveries have finished', !ctx24.includes('finished'));
+    check('nor that there are none today', !ctx24.includes('No deliveries'));
+    check('nor warned about a closing time', !ctx24.includes('closes in'));
+
+    // And a shop with ordinary hours still behaves as before: this is an
+    // opt-in setting, not a change to everybody's clock.
+    (config.store as { hours: string }).hours = 'Mon-Sun 8:00am - 8:01am';
+    const ctxShut = buildTimeContext();
+    check(
+      'ordinary hours still close the day',
+      ctxShut.includes('Deliveries') && /finished|start at/.test(ctxShut),
+      ctxShut.split(String.fromCharCode(10)).pop() ?? '',
+    );
+  } finally {
+    (config.store as { hours: string }).hours = saved;
+  }
+
+  // A restaurant keeps its own hours whatever the shop does: a shut kitchen
+  // cannot cook at 2am just because the shop is taking orders.
+  const kitchenShut = hoursStatus('Mon-Sun 8:00am - 8:01am');
+  check('a kitchen is unaffected by the shop being 24 hours', kitchenShut.state === 'closed');
+}
+
 section("WhatsApp's 24-hour window");
 {
   const { notifyOutletOfOrder, flushOutletTickets } = await import('./dispatch.ts');

@@ -158,6 +158,11 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({
     ok: true,
     store: config.store.name,
+    // The shop's own trading window, so a change to STORE_HOURS can be
+    // confirmed without a shell — and so "why did it say we are closed?" has
+    // an answer that does not depend on reading the dashboard.
+    storeHours: config.store.hours,
+    storeOpen: hoursStatus(config.store.hours).state,
     products: productCount(),
     productsWithPhotos: photoCoverage().withPhoto,
     localImageFiles: imageCount(),

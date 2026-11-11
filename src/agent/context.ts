@@ -46,7 +46,7 @@ export function buildTimeContext(): string {
     lines.push(
       `${opening} Take the order as normal and tell them it goes out from then. Say it that way round: talk about when deliveries run, never about the shop being shut, and never turn them away.`,
     );
-  } else if (status.state === 'open' && status.closesInMinutes <= 60) {
+  } else if (status.state === 'open' && status.closesInMinutes !== null && status.closesInMinutes <= 60) {
     lines.push(
       `The shop closes in about ${status.closesInMinutes} minutes — mention it if they are still browsing.`,
     );

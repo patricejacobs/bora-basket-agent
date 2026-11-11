@@ -23,7 +23,8 @@ function formatter(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
  * of the week, telling Wednesday shoppers the shop shut at four.
  */
 export type ShopStatus =
-  | { state: 'open'; closesInMinutes: number }
+  /** `closesInMinutes` is null for a place that does not close at all. */
+  | { state: 'open'; closesInMinutes: number | null }
   | {
       state: 'closed';
       /**
@@ -171,9 +172,25 @@ export function shopStatus(now = new Date()): ShopStatus {
  * fast-food counter open till eleven — so this takes the text rather than
  * reaching for the shop's configuration.
  */
+/**
+ * Round the clock, however somebody wrote it.
+ *
+ * Checked before the day parser, which has no way to express a day with no
+ * end: "12:00am - 11:59pm" leaves a minute shut at midnight and reads like a
+ * loophole when quoted to a customer. This is also what customers are shown
+ * verbatim, so the setting has to be a phrase a person would actually write.
+ */
+const ALWAYS_OPEN =
+  /^(we(\s|')?re\s+)?(open\s+)?(24\s*\/\s*7|24\s*h(ou)?rs?(\s+a\s+day)?|always\s+open|open\s+all\s+day|round\s+the\s+clock)\.?$/i;
+
 export function hoursStatus(hoursText: string, now = new Date()): ShopStatus {
   const hours = hoursText.trim();
   if (!hours) return { state: 'unknown' };
+
+  // Nothing to compare against a clock: there is no closing time to count down
+  // to, so `closesInMinutes` is null rather than a number that would make the
+  // agent warn about a closing that never comes.
+  if (ALWAYS_OPEN.test(hours)) return { state: 'open', closesInMinutes: null };
 
   const today = DAY_INDEX[
     formatter({ weekday: 'short' }).format(now).slice(0, 3).toLowerCase()
