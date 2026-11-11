@@ -9,7 +9,7 @@ import type { OrderStatus } from './db/repo.ts';
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'new, not yet confirmed',
   confirmed: 'confirmed',
-  ready: 'cooked, waiting for a delivery associate',
+  ready: 'prepared, waiting for a delivery associate',
   on_the_way: 'on the way',
   delivered: 'delivered',
   cancelled: 'cancelled',
@@ -209,7 +209,7 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   [/\b(delivered|done|complete[d]?|dropped)\b/i, 'delivered'],
   // Before 'confirmed', so a kitchen typing "food ready" is not read as
   // "ready to confirm" and the delivery associate is not sent to an empty counter.
-  [/\b(ready|cooked|food\s*up)\b/i, 'ready'],
+  [/\b(ready|prepared|cooked|food\s*up)\b/i, 'ready'],
   [/\b(confirm(ed)?|accept(ed)?|packing|preparing)\b/i, 'confirmed'],
   [/\b(cancel(led)?|void)\b/i, 'cancelled'],
 ];

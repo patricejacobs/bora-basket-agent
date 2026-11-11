@@ -77,7 +77,7 @@ export async function tellKitchenCancelled(orderNo: string, hadAccepted = true):
   // A kitchen that never accepted the ticket has not started, and telling it to
   // "stop cooking" invites a worried phone call about food it never made.
   const what = hadAccepted
-    ? 'Stop cooking it if you have started.'
+    ? 'Stop preparing it if you have started.'
     : 'Do not start it — ignore the ticket.';
   try {
     await sendText(outlet.whatsapp, `🚫 *${order.orderNo} cancelled*${reason}.
@@ -191,7 +191,7 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
   }
 
   const body = [
-    `👨‍🍳 *Order ${order.orderNo}* — please cook`,
+    `👨‍🍳 *Order ${order.orderNo}* — please prepare`,
     '',
     ...itemLines(order),
     '',

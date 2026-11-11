@@ -27,7 +27,7 @@ function chase(order: repo.OrderRecord): string {
         : 'Nobody has confirmed it yet.';
     case 'ready':
       return order.outlet
-        ? `Cooked and sitting at ${order.outlet.name}. No delivery associate has uplifted it.`
+        ? `Prepared and sitting at ${order.outlet.name}. No delivery associate has uplifted it.`
         : 'Packed and waiting. No delivery associate has uplifted it.';
     case 'on_the_way':
       return 'With a delivery associate and still not delivered. Ring them.';

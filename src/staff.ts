@@ -61,7 +61,7 @@ async function applyStatus(
   if (order.status === 'cancelled' || order.status === 'delivered') {
     return {
       body: `${order.orderNo} is already *${STATUS_LABEL[order.status]}* and cannot be changed.${
-        order.status === 'cancelled' ? ' Do not cook it.' : ''
+        order.status === 'cancelled' ? ' Do not prepare it.' : ''
       }`,
       status: order.status,
     };
