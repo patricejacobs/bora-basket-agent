@@ -6,7 +6,19 @@ import type { LocationPin } from '../location.ts';
  */
 export type OutboundMessage =
   | { kind: 'text'; text: string }
-  | { kind: 'buttons'; text: string; buttons: { id: string; title: string }[] }
+  | {
+      kind: 'buttons';
+      text: string;
+      /**
+       * `title` is what the person reads; `command` is what the tap means.
+       *
+       * They were the same thing until the titles had to carry an order number
+       * to stay unambiguous, which spent most of WhatsApp's 20 characters on
+       * bookkeeping. The order now rides in the button's id, which the person
+       * never sees, so the title can be a plain word.
+       */
+      buttons: { id: string; title: string; command?: string }[];
+    }
   /** A product photo. `text` is the caption shown beneath it. */
   | { kind: 'image'; text: string; imageUrl: string }
   /**

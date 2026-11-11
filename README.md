@@ -942,6 +942,28 @@ Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
 With no template configured, an out-of-window update is skipped and logged rather than
 failing silently.
 
+### Buttons say one word
+
+A tapped WhatsApp button sends back two things: what it said, and the id we gave it. The
+order number rides in the id, which nobody sees, so the button itself can read `Delivered`
+rather than `Delivered 31`. The detail is already in the message above it.
+
+| Who | What they see | What the tap means |
+|---|---|---|
+| Kitchen | `Confirm` · `Ready` · `Cancel` | `31 confirm` · `31 ready` · `31 cancel` |
+| Staff | `Confirm` · `Ready` · `On the way` · `Delivered` · `Cancel` | the same, with the order number |
+| Delivery associate | `Collected` · `Delivered` | `31 on the way` · `31 delivered` |
+| Cancelling | `Sold out` · `Too busy` · `Closing` · `Customer asked` | `31 sold out`, and so on |
+
+Only ids the system recognises are translated. **This matters more than it looks:** the
+agent builds its own buttons for customers, whose titles are meaningful sentences the model
+must receive as written — reading those taps as ids would feed it `option_1` instead of
+`Grocery shopping`. Anything unrecognised keeps its title, which also keeps buttons sent
+before this change working, since their titles still carry the number.
+
+Typed commands are unchanged: `31 ready`, `ORD-00031 delivered` and the rest all still work,
+and a tap and a typed command still meet in the same parser.
+
 ### Kitchens and the window
 
 A kitchen is the hard case. A customer has just messaged to order, so their window is open

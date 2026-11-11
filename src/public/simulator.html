@@ -206,7 +206,13 @@ function renderOutbound(msg) {
       const el = document.createElement('button');
       el.type = 'button';
       el.textContent = btn.title;
-      el.onclick = () => { wrap.querySelectorAll('button').forEach(x => x.disabled = true); send(btn.title); };
+      // What is sent is the button's command when it has one, and its title
+      // otherwise — matching what WhatsApp does with the id. The bubble still
+      // shows the title, because that is the word the person tapped.
+      el.onclick = () => {
+        wrap.querySelectorAll('button').forEach(x => x.disabled = true);
+        send(btn.command || btn.title, null, btn.title);
+      };
       wrap.appendChild(el);
     }
     b.appendChild(wrap);
@@ -267,7 +273,7 @@ function renderState(state) {
 }
 
 let busy = false;
-async function send(text, pin) {
+async function send(text, pin, shown) {
   if (busy || (!text.trim() && !pending && !pin)) return;
   busy = true;
   sendBtn.disabled = true;
@@ -281,7 +287,7 @@ async function send(text, pin) {
   const preview = attached
     ? '<img src="data:' + attached.mediaType + ';base64,' + attached.base64 + '" alt="attached photo">'
     : '';
-  bubble('out', preview + (pin ? pinCard(pin) : '') + waFormat(text));
+  bubble('out', preview + (pin ? pinCard(pin) : '') + waFormat(shown ?? text));
 
   const typing = document.createElement('div');
   typing.className = 'meta typing';

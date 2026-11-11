@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { commandFromButtonId } from '../order-status.ts';
 import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
@@ -161,7 +162,25 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
             text = m.text?.body ?? '';
             break;
           case 'interactive':
-            text = m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? '';
+            {
+              // A tapped button sends back both what it said and the id we
+              // gave it. For dispatch buttons the id carries the order number,
+              // which frees the title to be a plain word — so the id wins when
+              // we recognise it.
+              //
+              // The title remains the answer for everything else, and that is
+              // not a fallback so much as the main path for customers: the
+              // agent's own buttons say things like "Grocery shopping", and
+              // the model has to receive those words, not "option_1". It also
+              // keeps buttons sent before this change working, since their
+              // titles still carry the number.
+              const reply = m.interactive?.button_reply;
+              text =
+                (reply?.id ? commandFromButtonId(reply.id) : null) ??
+                reply?.title ??
+                m.interactive?.list_reply?.title ??
+                '';
+            }
             break;
           case 'button':
             text = m.button?.text ?? '';

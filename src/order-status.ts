@@ -69,8 +69,10 @@ export function describeAge(iso: string): string {
  */
 export type CancelReason = {
   key: string;
-  /** Button title, which is also the typed command. WhatsApp caps these at 20. */
+  /** The typed command this reason corresponds to, e.g. "7 sold out". */
   title: (shortNo: string) => string;
+  /** What the button reads, with no order number in it. */
+  label: string;
   /** What a person might type instead of tapping. */
   match: RegExp;
   /** Who may give this reason. */
@@ -92,6 +94,7 @@ export const CANCEL_REASONS: CancelReason[] = [
     key: 'sold_out',
     apologise: true,
     title: (n) => `${n} sold out`,
+    label: 'Sold out',
     match: /\b(sold\s*out|out\s*of\s*stock|ran\s*out|finished)\b/i,
     audiences: ['outlet', 'staff'],
     internal: 'Kitchen ran out',
@@ -101,6 +104,7 @@ export const CANCEL_REASONS: CancelReason[] = [
     key: 'too_busy',
     apologise: true,
     title: (n) => `${n} too busy`,
+    label: 'Too busy',
     match: /\b(too\s*busy|busy|slammed|backed\s*up)\b/i,
     audiences: ['outlet', 'staff'],
     internal: 'Kitchen too busy',
@@ -110,6 +114,7 @@ export const CANCEL_REASONS: CancelReason[] = [
     key: 'closing',
     apologise: true,
     title: (n) => `${n} closing`,
+    label: 'Closing',
     match: /\b(closing|closed|shutting)\b/i,
     audiences: ['outlet', 'staff'],
     internal: 'Kitchen closing',
@@ -119,6 +124,7 @@ export const CANCEL_REASONS: CancelReason[] = [
     key: 'customer',
     apologise: false,
     title: (n) => `${n} cust changed`,
+    label: 'Customer asked',
     match: /\b(customer|cust|changed\s*mind|they\s*cancelled)\b/i,
     audiences: ['staff'],
     internal: 'Customer changed their mind',
@@ -128,6 +134,7 @@ export const CANCEL_REASONS: CancelReason[] = [
     key: 'undeliverable',
     apologise: true,
     title: (n) => `${n} cant deliver`,
+    label: "Can't deliver",
     match: /\b(can'?t\s*deliver|cannot\s*deliver|no\s*(rider|driver|associate)|out\s*of\s*area|too\s*far)\b/i,
     audiences: ['staff'],
     internal: 'Could not be delivered',
@@ -147,7 +154,10 @@ export function findCancelReason(text: string): CancelReason | null {
  * ones and anything else is typed. The titles are valid commands, so a tap and
  * a typed reason go through one parser.
  */
-export function cancelButtons(orderNo: string, audience: Audience): { id: string; title: string }[] {
+export function cancelButtons(
+  orderNo: string,
+  audience: Audience,
+): { id: string; title: string; command: string }[] {
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
   return CANCEL_REASONS.filter((r) => r.audiences.includes(audience))
     // Reasons only this audience can give come first. Three slots fill quickly
@@ -155,7 +165,7 @@ export function cancelButtons(orderNo: string, audience: Audience): { id: string
     // "customer changed their mind" — the reason they use most.
     .sort((a, b) => a.audiences.length - b.audiences.length)
     .slice(0, 3)
-    .map((r) => ({ id: `cancel_${r.key}_${n}`, title: r.title(n) }));
+    .map((r) => ({ id: `cancel_${r.key}_${n}`, title: r.label, command: r.title(n) }));
 }
 
 /** Words a dispatcher might actually type, mapped to a status. */
@@ -191,28 +201,58 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
  */
 export type Audience = 'staff' | 'outlet' | 'driver';
 
+/**
+ * The typed command a tapped button stands for, or null if the id is not ours.
+ *
+ * Buttons carry their order in the id, which nobody sees, so the title is free
+ * to be a plain word. Returning null for an unrecognised id matters as much as
+ * the mapping: the agent builds its own buttons for customers, whose titles
+ * are meaningful sentences the model must receive as written — reading those
+ * taps as ids would feed it "option_1" instead of "Grocery shopping".
+ */
+export function commandFromButtonId(id: string): string | null {
+  const simple = /^(confirm|ready|otw|delivered|cancel)_(\d+)$/.exec(id);
+  if (simple) {
+    const verb = simple[1] === 'otw' ? 'on the way' : simple[1];
+    return `${simple[2]} ${verb}`;
+  }
+
+  // A cancellation with a reason on it: the reason's own typed form, so a tap
+  // and a typed reason still arrive at the same parser.
+  const reasoned = /^cancel_([a-z_]+)_(\d+)$/.exec(id);
+  if (reasoned) {
+    const reason = CANCEL_REASONS.find((r) => r.key === reasoned[1]);
+    return reason ? reason.title(reasoned[2] ?? '') : `${reasoned[2]} cancel`;
+  }
+
+  return null;
+}
+
 export function nextActions(
   orderNo: string,
   status: OrderStatus,
   audience: Audience = 'staff',
-): { id: string; title: string }[] {
+): { id: string; title: string; command: string }[] {
   // "ORD-00007" -> "7": dispatchers read the short form, and it keeps titles
   // inside the 20-character limit.
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
 
-  const confirm = { id: `confirm_${n}`, title: `Confirm ${n}` };
-  // The ready button names its order in full, for the kitchen and for staff
-  // alike. A cook is looking at a ticket with ORD-00031 printed on it, and
-  // somebody with three of them on the pass should not have to work out which
-  // short number belongs to which.
-  //
-  // 15 characters, inside WhatsApp's 20-character limit, and it stays 15: the
-  // number is always padded to five digits.
-  const ready = { id: `ready_${n}`, title: `${orderNo} ready` };
-  const otw = { id: `otw_${n}`, title: `On the way ${n}` };
-  const collected = { id: `otw_${n}`, title: `Collected ${n}` };
-  const delivered = { id: `delivered_${n}`, title: `Delivered ${n}` };
-  const cancel = { id: `cancel_${n}`, title: `Cancel ${n}` };
+  // The title is what a person reads; the command is what the tap means. The
+  // order number lives in the id, so a button can read "Delivered" rather than
+  // spending half of WhatsApp's twenty characters repeating what the message
+  // above it already says.
+  const act = (
+    id: string,
+    title: string,
+    command: string,
+  ): { id: string; title: string; command: string } => ({ id, title, command });
+
+  const confirm = act(`confirm_${n}`, 'Confirm', `${n} confirm`);
+  const ready = act(`ready_${n}`, 'Ready', `${n} ready`);
+  const otw = act(`otw_${n}`, 'On the way', `${n} on the way`);
+  const collected = act(`otw_${n}`, 'Collected', `${n} on the way`);
+  const delivered = act(`delivered_${n}`, 'Delivered', `${n} delivered`);
+  const cancel = act(`cancel_${n}`, 'Cancel', `${n} cancel`);
 
   // A kitchen only ever accepts, says the food is up, or hands it back. It never
   // dispatches or closes an order — that is the delivery associate's end of the job.

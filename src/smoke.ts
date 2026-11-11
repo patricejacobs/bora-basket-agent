@@ -792,7 +792,7 @@ section('Staff dispatch');
 
 section('Staff action buttons');
 {
-  const { nextActions, STATUS_WORDS } = await import('./order-status.ts');
+  const { nextActions, STATUS_WORDS, commandFromButtonId } = await import('./order-status.ts');
 
   const pending = nextActions('ORD-00007', 'pending');
   check('a new order offers three actions', pending.length === 3, JSON.stringify(pending));
@@ -821,18 +821,29 @@ section('Staff action buttons');
     );
   }
 
-  // The whole design rests on this: tapping a button sends its title back as an
-  // ordinary message, so each title must parse as the command it claims to be.
+  // The whole design rests on this: a tap sends back the button's id, which is
+  // translated into the command it stands for. The title is only what the
+  // person reads, so it is the COMMAND that has to parse and name the order.
   const roundTrip = nextActions('ORD-00042', 'pending');
   for (const action of roundTrip) {
-    const matched = STATUS_WORDS.find(([pattern]) => pattern.test(action.title));
-    check(`"${action.title}" parses as a status command`, matched !== undefined);
+    const matched = STATUS_WORDS.find(([pattern]) => pattern.test(action.command));
+    check(`"${action.title}" means a status command`, matched !== undefined, action.command);
     check(
-      `"${action.title}" carries the order number`,
-      /42/.test(action.title),
-      action.title,
+      `"${action.title}" carries the order number out of sight`,
+      /42/.test(action.command) && !/42/.test(action.title),
+      `${action.title} -> ${action.command}`,
+    );
+    check(
+      `"${action.title}" is translated from its id`,
+      commandFromButtonId(action.id) === action.command,
+      `${action.id} -> ${commandFromButtonId(action.id)}`,
     );
   }
+
+  // Buttons the agent builds for customers must keep their titles: the model
+  // has to receive "Grocery shopping", never "option_1".
+  check('an id that is not ours is left alone', commandFromButtonId('option_1') === null);
+  check('and so is an empty one', commandFromButtonId('') === null);
 }
 
 /* --------------------------------------------------- 24-hour service window */
@@ -1889,7 +1900,7 @@ section('Numbered kitchen list');
 section('Kitchen and delivery associate commands');
 {
   const { handleOutletMessage, handleDriverMessage, isDriver } = await import('./staff.ts');
-  const { nextActions } = await import('./order-status.ts');
+  const { nextActions, commandFromButtonId } = await import('./order-status.ts');
 
   check('recognises a configured delivery associate', isDriver('5926001111'));
   check('does not treat a customer as a delivery associate', !isDriver('5926002222'));
@@ -2074,8 +2085,11 @@ section('Kitchen and delivery associate commands');
 
     if (fresh && itsOutlet) {
       repo.setOrderStatus(fresh.orderNo, 'confirmed');
-      const tapped = nextActions(fresh.orderNo, 'confirmed', 'outlet')[0]?.title ?? '';
-      check('the button names this order', tapped === `${fresh.orderNo} ready`, tapped);
+      const button = nextActions(fresh.orderNo, 'confirmed', 'outlet')[0];
+      check('the button reads as one word', button?.title === 'Ready', JSON.stringify(button));
+      // What a tap actually delivers: the id, translated.
+      const tapped = commandFromButtonId(button?.id ?? '') ?? '';
+      check('and its id names this order', tapped.startsWith(String(Number(fresh.orderNo.replace(/[^0-9]/g, '')))), tapped);
 
       await handleOutletMessage(itsOutlet, tapped);
       const after = repo.findOrder(fresh.orderNo)?.status;
@@ -2310,50 +2324,53 @@ section('Parcel delivery');
 section('Why an order was cancelled');
 {
   const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');
-  const { CANCEL_REASONS, findCancelReason, cancelButtons } = await import('./order-status.ts');
+  const { CANCEL_REASONS, findCancelReason, cancelButtons, commandFromButtonId } =
+    await import('./order-status.ts');
 
-  // The kitchen's own button names the order it belongs to.
+  // One word on the button; the order travels in the id.
   {
-    const { nextActions } = await import('./order-status.ts');
-    const kitchenReady = nextActions('ORD-00007', 'confirmed', 'outlet')[0];
-    check(
-      'a kitchen button quotes the order number',
-      kitchenReady?.title === 'ORD-00007 ready',
-      JSON.stringify(kitchenReady),
-    );
-    check(
-      'and fits the 20-character limit',
-      (kitchenReady?.title.length ?? 99) <= 20,
-      String(kitchenReady?.title.length),
-    );
-    check('while still carrying the ready action', kitchenReady?.id === 'ready_7');
+    const { nextActions: acts } = await import('./order-status.ts');
+    const kitchenReady = acts('ORD-00007', 'confirmed', 'outlet')[0];
+    check('the kitchen button is one word', kitchenReady?.title === 'Ready', JSON.stringify(kitchenReady));
+    check('and means the order it came with', kitchenReady?.command === '7 ready');
+    check('with the order in its id', kitchenReady?.id === 'ready_7');
 
-    // Staff see the same wording, so the two audiences cannot drift apart and
-    // leave one of them with a button nobody recognises from the other's.
-    const staffReady = nextActions('ORD-00007', 'confirmed', 'staff').find((b) => b.id === 'ready_7');
-    check('staff see the same wording', staffReady?.title === 'ORD-00007 ready', JSON.stringify(staffReady));
+    const staffReady = acts('ORD-00007', 'confirmed', 'staff').find((b) => b.id === 'ready_7');
+    check('staff see the same word', staffReady?.title === 'Ready', JSON.stringify(staffReady));
 
-    // Every button a tap can produce has to parse as its own command and fit
-    // the twenty characters WhatsApp allows, for every audience and status.
+    // Every button a tap can produce, across every audience and status.
     const audiences = ['staff', 'outlet', 'driver'] as const;
     const statuses = ['pending', 'confirmed', 'ready', 'on_the_way'] as const;
     const everyButton = audiences.flatMap((a) =>
-      statuses.flatMap((st) => nextActions('ORD-00007', st, a)),
+      statuses.flatMap((st) => acts('ORD-00031', st, a)),
     );
     check('there are buttons to check', everyButton.length > 0);
     check(
       'every title fits twenty characters',
       everyButton.every((b) => b.title.length <= 20),
-      JSON.stringify(everyButton.filter((b) => b.title.length > 20).map((b) => `${b.title}:${b.title.length}`)),
+      JSON.stringify(everyButton.filter((b) => b.title.length > 20).map((b) => b.title)),
     );
     check(
-      'and every title still names its order',
-      everyButton.every((b) => /(?:\bORD-0*7\b|\b7\b)/i.test(b.title)),
+      'no title carries an order number any more',
+      everyButton.every((b) => !/\d/.test(b.title)),
+      JSON.stringify(everyButton.filter((b) => /\d/.test(b.title)).map((b) => b.title)),
+    );
+    check(
+      'but every command still names its order',
+      everyButton.every((b) => /\b31\b/.test(b.command)),
+      JSON.stringify(everyButton.filter((b) => !/\b31\b/.test(b.command)).map((b) => b.command)),
+    );
+    check(
+      'and every id translates back to it',
+      everyButton.every((b) => commandFromButtonId(b.id) === b.command),
       JSON.stringify(
-        everyButton.filter((b) => !/(?:\bORD-0*7\b|\b7\b)/i.test(b.title)).map((b) => b.title),
+        everyButton
+          .filter((b) => commandFromButtonId(b.id) !== b.command)
+          .map((b) => `${b.id} -> ${commandFromButtonId(b.id)} != ${b.command}`),
       ),
     );
   }
+
 
   check('reads a tapped reason', findCancelReason('7 sold out')?.key === 'sold_out');
   check('reads it typed differently', findCancelReason('7 cancel we ran out')?.key === 'sold_out');
@@ -2374,8 +2391,18 @@ section('Why an order was cancelled');
   );
   check('staff can', staffReasons.some((b) => /cust/i.test(b.title)), JSON.stringify(staffReasons));
   check(
-    'the titles are valid commands',
-    kitchenReasons.every((b) => findCancelReason(b.title) !== null),
+    'the commands behind them are valid',
+    kitchenReasons.every((b) => findCancelReason(b.command) !== null),
+    JSON.stringify(kitchenReasons.map((b) => b.command)),
+  );
+  check(
+    'and each is what its id translates to',
+    kitchenReasons.every((b) => commandFromButtonId(b.id) === b.command),
+    JSON.stringify(kitchenReasons.map((b) => `${b.id} -> ${commandFromButtonId(b.id)}`)),
+  );
+  check(
+    'while the titles stay plain words',
+    kitchenReasons.every((b) => !/\d/.test(b.title)),
     JSON.stringify(kitchenReasons.map((b) => b.title)),
   );
 
