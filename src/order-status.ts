@@ -262,6 +262,12 @@ export function nextActions(
         return [confirm, cancel];
       case 'confirmed':
         return [ready, cancel];
+      // Food on the counter: the kitchen can see it leave, and often sees it
+      // before anyone else does. The associate has the same button on their
+      // own job card — whichever of them taps first moves the order, and the
+      // second is told it has already moved rather than being refused.
+      case 'ready':
+        return [collected];
       default:
         return [];
     }

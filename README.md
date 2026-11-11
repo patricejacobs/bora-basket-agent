@@ -942,6 +942,29 @@ Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
 With no template configured, an out-of-window update is skipped and logged rather than
 failing silently.
 
+### Who says the food has left
+
+After the kitchen marks an order ready, its message carries a **Collected** button. The
+associate has the same button on their own job card, and whichever taps first moves the
+order; the second is told it has already moved rather than being refused.
+
+Letting the kitchen say it matters because the kitchen watches the food leave, and usually
+sees it go before anyone else does. When the kitchen reports it:
+
+- **the customer** is told their order is on the way, as they would be for any collection
+- **staff** are told as well, because they did not do it and the associate has not spoken
+  yet, so otherwise the only people who know the food has left are the cook and the customer
+
+Staff are not told when they move an order themselves. Telling somebody what they just did
+is the noise that makes people stop reading alerts.
+
+A collection reported by the kitchen leaves the delivery associate unrecorded, and the
+message to staff says so. The association is normally made when the associate taps
+**Collected** on their own card; if the kitchen gets there first there is nobody to record.
+
+What the kitchen still cannot do is close an order. Delivered is the doorstep, and only
+whoever stood on it can say so.
+
 ### Buttons say one word
 
 A tapped WhatsApp button sends back two things: what it said, and the id we gave it. The

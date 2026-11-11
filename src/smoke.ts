@@ -2879,6 +2879,58 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
+section('The kitchen can say it was collected');
+{
+  const { handleOutletMessage } = await import('./staff.ts');
+  const { nextActions, commandFromButtonId } = await import('./order-status.ts');
+
+  // The button exists on the message the kitchen gets after marking it ready.
+  const afterReady = nextActions('ORD-00031', 'ready', 'outlet');
+  check('a ready order offers the kitchen a button', afterReady.length === 1, JSON.stringify(afterReady));
+  check('which reads as one word', afterReady[0]?.title === 'Collected', JSON.stringify(afterReady[0]));
+  check('and means the order moved on', afterReady[0]?.command === '31 on the way');
+  check(
+    'the same button the associate gets',
+    afterReady[0]?.id === nextActions('ORD-00031', 'ready', 'driver')[0]?.id,
+  );
+
+  const ssc2 = repo.getOutlet('SSC');
+  const order = repo.allOrders().find((o) => o.outlet?.id === ssc2?.id);
+  check('there is an order to walk through', Boolean(ssc2 && order));
+
+  if (ssc2 && order) {
+    const no = order.orderNo;
+    const say = async (t: string): Promise<string> =>
+      (await handleOutletMessage(ssc2, t))[0]?.text ?? '';
+
+    // Cannot report a collection on food that was never cooked.
+    repo.setOrderStatus(no, 'confirmed');
+    const tooEarly = await say(`${no} on the way`);
+    check('collected before ready is refused', /mark it ready/.test(tooEarly), tooEarly);
+    check('and the order has not moved', repo.findOrder(no)?.status === 'confirmed');
+
+    // The real path: ready, then the kitchen taps Collected.
+    repo.setOrderStatus(no, 'ready');
+    const tap = commandFromButtonId(nextActions(no, 'ready', 'outlet')[0]?.id ?? '') ?? '';
+    const body = await say(tap);
+    check('tapping it moves the order on', repo.findOrder(no)?.status === 'on_the_way', String(repo.findOrder(no)?.status));
+    // Either notified, or told plainly why not - never silence about it.
+    check('the kitchen is told where the customer stands', /Customer/i.test(body), body);
+    check('and that the shop was told', /Shop told/i.test(body), body);
+
+    // Tapping it twice is somebody being thorough, not an error.
+    const again = await say(tap);
+    check('a second tap says it already moved', /already/i.test(again), again);
+    check('and not that it needs marking ready', !/mark it ready/.test(again), again);
+
+    // Once delivered, the kitchen's old button cannot reopen it.
+    repo.setOrderStatus(no, 'delivered');
+    const closed = await say(tap);
+    check('a tap after delivery changes nothing', /cannot be changed|already/i.test(closed), closed);
+    check('and the order stays delivered', repo.findOrder(no)?.status === 'delivered');
+  }
+}
+
 section('A shop that never closes');
 {
   const { hoursStatus } = await import('./hours.ts');

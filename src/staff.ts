@@ -7,7 +7,7 @@
  */
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { notifyCustomerOfStatus } from './notifications.ts';
+import { notifyCustomerOfStatus, warnStaff } from './notifications.ts';
 import { sendText } from './channels/whatsapp-send.ts';
 import {
   STATUS_LABEL,
@@ -50,6 +50,7 @@ export const isDriver = (phone: string): boolean => config.driverNumbers.include
 async function applyStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
+  reportedBy: 'staff' | 'outlet' | 'driver' = 'staff',
 ): Promise<{ body: string; status: repo.OrderStatus }> {
   // Delivered and cancelled are the end. The buttons on an old message do not
   // disappear when an order moves on, so a cook tapping "Confirm" twenty
@@ -112,6 +113,27 @@ async function applyStatus(
       console.error('[staff] failed to notify customer:', err);
       notes.push('⚠️ Status saved, but notifying the customer failed.');
     }
+  }
+
+  // A collection reported by the kitchen is news to the shop. Staff did not
+  // do it and the associate has not said anything yet, so without this the
+  // only people who know the food has left are the cook and the customer.
+  //
+  // Not sent when staff moved it themselves: telling somebody what they just
+  // did is the noise that makes people stop reading alerts.
+  if (status === 'on_the_way' && reportedBy === 'outlet') {
+    const who = order.outlet?.name ?? 'The kitchen';
+    const associate = order.driverPhone ? `+${order.driverPhone}` : 'not recorded yet';
+    await warnStaff(
+      [
+        `*${order.orderNo}* collected from *${who}*.`,
+        '',
+        'Reported by the kitchen, not by the associate.',
+        `Delivery associate: ${associate}.`,
+        'The customer has been told it is on the way.',
+      ].join(String.fromCharCode(10)),
+    );
+    notes.push('Shop told.');
   }
 
   return { body: `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${notes.join('\n')}`, status };
@@ -421,11 +443,26 @@ export async function handleOutletMessage(
   if (!matched) return reply(describeForKitchen(order));
 
   const status = matched[1];
-  if (!['confirmed', 'ready', 'cancelled'].includes(status)) {
+  // A kitchen can also report the collection, because it watches the food
+  // leave and often sees it go before anyone else does. What it still cannot
+  // do is close the order: delivered is the doorstep, and only whoever stood
+  // on it can say so.
+  if (!['confirmed', 'ready', 'on_the_way', 'cancelled'].includes(status)) {
     return reply(
-      `A kitchen can confirm an order, mark it ready, or cancel it. Delivery is the delivery associate's end.`,
+      `A kitchen can confirm an order, mark it ready, say it was collected, or cancel it. Delivery is the delivery associate's end.`,
     );
   }
+  // Collected before it was ever cooked is somebody tapping an old message.
+  // Only the stages BEFORE ready. An order already on its way falls through
+  // to the plain "already" reply below, and a delivered or cancelled one is
+  // stopped by the terminal guard - both of which say something truer than
+  // telling a cook to mark ready food ready.
+  if (status === 'on_the_way' && ['pending', 'confirmed'].includes(order.status)) {
+    return reply(
+      `${order.orderNo} is ${STATUS_LABEL[order.status]} - mark it ready before saying it was collected.`,
+    );
+  }
+
   if (status === 'cancelled' && order.status !== 'cancelled') {
     const ask = askWhyCancelled(order, trimmed, 'outlet');
     if (ask) return ask;
@@ -434,7 +471,7 @@ export async function handleOutletMessage(
 
   if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
 
-  const { body } = await applyStatus(order, status);
+  const { body } = await applyStatus(order, status, 'outlet');
   const actions = nextActions(order.orderNo, status, 'outlet');
   return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
 }
