@@ -1029,8 +1029,9 @@ the next fifteen minutes the destination is not where they are going.
 **The card and its map cannot be one message.** A WhatsApp location message carries a
 latitude, a longitude, a name and an address, and nothing else - no body, no buttons - so
 anything to read or tap travels separately. The nearest thing available is what is done
-here: the map card is labelled with the customer's name and street, so it is legible on its
-own rather than being a bare pin.
+here: a map card has exactly two lines, a name and an address, so the name carries the
+customer and the second line carries the coordinates as a link. The street is on the
+delivery card directly above it.
 
 ### Who says the food has left
 

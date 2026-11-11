@@ -763,10 +763,15 @@ export async function handleDriverMessage(
       kind: 'location',
       text: '',
       pin: fresh.location,
-      name: `Deliver - ${isParcel ? fresh.recipientName : fresh.customerName}`,
-      ...(fresh.address || fresh.location.label
-        ? { address: fresh.address || fresh.location.label }
-        : {}),
+      // The person, not an instruction. The card sits under a message that
+      // already says what to do with it, and "Deliver -" spends the only
+      // line WhatsApp gives the card on a word the associate can infer.
+      name: isParcel ? fresh.recipientName : fresh.customerName,
+      // A map card has exactly two lines: a name and an address. The name is
+      // the person, so the second carries the coordinates as a link - which
+      // opens the same pin in whatever maps app the associate actually uses
+      // for navigation. The street is on the delivery card directly above.
+      address: mapsLink(fresh.location),
     });
   }
 
