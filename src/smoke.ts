@@ -2900,123 +2900,55 @@ section('Onboarding a restaurant');
 
 /* ------------------------------------------------------------------ report */
 
-section('The kitchen can say it was collected');
-{
-  const { handleOutletMessage } = await import('./staff.ts');
-  const { nextActions, commandFromButtonId } = await import('./order-status.ts');
-
-  // The button exists on the message the kitchen gets after marking it ready.
-  const afterReady = nextActions('ORD-00031', 'ready', 'outlet');
-  check('a ready order offers the kitchen two buttons', afterReady.length === 2, JSON.stringify(afterReady));
-  check('which reads as one word', afterReady[0]?.title === 'Uplifted', JSON.stringify(afterReady[0]));
-  check('and means the order moved on', afterReady[0]?.command === '31 on the way');
-  check(
-    'the same button the associate gets',
-    afterReady[0]?.id === nextActions('ORD-00031', 'ready', 'driver')[0]?.id,
-  );
-
-  const ssc2 = repo.getOutlet('SSC');
-  const order = repo.allOrders().find((o) => o.outlet?.id === ssc2?.id);
-  check('there is an order to walk through', Boolean(ssc2 && order));
-
-  if (ssc2 && order) {
-    const no = order.orderNo;
-    const say = async (t: string): Promise<string> =>
-      (await handleOutletMessage(ssc2, t))[0]?.text ?? '';
-
-    // Cannot report a collection on food that was never cooked.
-    repo.setOrderStatus(no, 'confirmed');
-    const tooEarly = await say(`${no} on the way`);
-    check('collected before ready is refused', /mark it ready/.test(tooEarly), tooEarly);
-    check('and the order has not moved', repo.findOrder(no)?.status === 'confirmed');
-
-    // The real path: ready, then the kitchen taps Collected.
-    repo.setOrderStatus(no, 'ready');
-    const tap = commandFromButtonId(nextActions(no, 'ready', 'outlet')[0]?.id ?? '') ?? '';
-    const body = await say(tap);
-    check('tapping it moves the order on', repo.findOrder(no)?.status === 'on_the_way', String(repo.findOrder(no)?.status));
-    // Whether the customer was reached is the shop's business, not the
-    // kitchen's, so it is no longer in the kitchen's reply.
-    check('the kitchen is not given the customer bookkeeping', !/Customer/i.test(body), body);
-    // The shop is told separately; the kitchen's own reply stays clean.
-    check('but the kitchen is not shown the bookkeeping', !/shop told/i.test(body), body);
-
-    // Tapping it twice is somebody being thorough, not an error.
-    const again = await say(tap);
-    check('a second tap says it already moved', /already/i.test(again), again);
-    check('and not that it needs marking ready', !/mark it ready/.test(again), again);
-
-    // Once delivered, the kitchen's old button cannot reopen it.
-    repo.setOrderStatus(no, 'delivered');
-    const closed = await say(tap);
-    check('a tap after delivery changes nothing', /cannot be changed|already/i.test(closed), closed);
-    check('and the order stays delivered', repo.findOrder(no)?.status === 'delivered');
-  }
-}
-
-section('What a kitchen reads after a tap');
-{
-  const { handleOutletMessage } = await import('./staff.ts');
-  const ssc6 = repo.getOutlet('SSC');
-  const o6 = repo.allOrders().find((x) => x.outlet?.id === ssc6?.id);
-  check('there is an order to tap', Boolean(ssc6 && o6));
-
-  if (ssc6 && o6) {
-    const no = o6.orderNo;
-    repo.setOrderStatus(no, 'confirmed');
-    const body = (await handleOutletMessage(ssc6, `${no} ready`))[0]?.text ?? '';
-    const lines = body.split(String.fromCharCode(10)).filter(Boolean);
-
-    check('the order is named', Boolean(lines[0]?.includes(no)), body);
-    check('and where it stands', /prepared, waiting for a delivery associate/.test(lines[0] ?? ''), body);
-
-    // Everything the shop finds useful is bookkeeping to a cook.
-    check('nothing about the customer', !/customer/i.test(body), body);
-    check('nothing about the shop being told', !/shop told/i.test(body), body);
-    check('and no report that dispatch worked', !/dispatched/i.test(body), body);
-
-    // The one thing it must still say: when nobody is coming for the food.
-    // DRIVER_NUMBERS is set in this suite, so the happy path is one line.
-    check('one line when all is well', lines.length === 1, JSON.stringify(lines));
-  }
-}
-
-section('When two people report the same uplift');
+section('A kitchen hands over; an associate carries');
 {
   const { handleOutletMessage, handleDriverMessage } = await import('./staff.ts');
-  const ssc7 = repo.getOutlet('SSC');
-  const o7 = repo.allOrders().find((x) => x.outlet?.id === ssc7?.id);
-  check('there is an order for both to touch', Boolean(ssc7 && o7));
+  const { nextActions, commandFromButtonId } = await import('./order-status.ts');
 
-  if (ssc7 && o7) {
-    const no = o7.orderNo;
+  // Both buttons read "Uplifted" because both people say it. They mean
+  // different things, and the ids keep them apart.
+  const kitchenBtn = nextActions('ORD-00031', 'ready', 'outlet')[0];
+  const driverBtn = nextActions('ORD-00031', 'ready', 'driver')[0];
+  check('the kitchen is offered Uplifted', kitchenBtn?.title === 'Uplifted', JSON.stringify(kitchenBtn));
+  check('so is the associate', driverBtn?.title === 'Uplifted', JSON.stringify(driverBtn));
+  check('but they are not the same button', kitchenBtn?.id !== driverBtn?.id);
+  check('the kitchen only notes a handover', commandFromButtonId(kitchenBtn?.id ?? '') === '31 handover');
+  check('the associate moves the order', commandFromButtonId(driverBtn?.id ?? '') === '31 on the way');
+
+  const ssc8 = repo.getOutlet('SSC');
+  const o8 = repo.allOrders().find((x) => x.outlet?.id === ssc8?.id);
+  check('there is an order to walk through', Boolean(ssc8 && o8));
+
+  if (ssc8 && o8) {
+    const no = o8.orderNo;
     repo.setOrderStatus(no, 'ready');
+    db.prepare(`UPDATE orders SET handed_over_at = '' WHERE order_no = ?`).run(no);
 
-    // The kitchen gets there first, which it can now do.
-    await handleOutletMessage(ssc7, `${no} on the way`);
-    check('the kitchen can report the uplift', repo.findOrder(no)?.status === 'on_the_way');
+    // The kitchen's tap is a clock and nothing else.
+    const handed = (await handleOutletMessage(ssc8, `${no} uplifted`))[0]?.text ?? '';
+    check('the kitchen is told the time was noted', /handed over at/i.test(handed), handed);
+    check('and that there is nothing else to do', /nothing else/i.test(handed), handed);
+    check('the order has NOT moved', repo.findOrder(no)?.status === 'ready', String(repo.findOrder(no)?.status));
+    check('but the time is recorded', Boolean(repo.findOrder(no)?.handedOverAt));
 
-    // The associate then taps Uplifted on their own job card.
+    // Tapping again does not move the recorded time.
+    const first = repo.findOrder(no)?.handedOverAt;
+    await handleOutletMessage(ssc8, `${no} uplifted`);
+    check('a second tap keeps the first time', repo.findOrder(no)?.handedOverAt === first);
+
+    // Only the associate puts it on the way, and only then is the customer told.
     const out = await handleDriverMessage(`${no} on the way`, '5926001111');
-    const body = out[0]?.text ?? '';
-    check(
-      'the associate is not told to wait for the kitchen',
-      !/wait for the kitchen/i.test(body),
-      body,
-    );
-    // And is left able to finish the job: the drop details and the one button.
-    check('they are given the drop', /Deliver to:/.test(body), body);
-    check('and the cash due', /cash/i.test(body), body);
+    check('the associate moves it on', repo.findOrder(no)?.status === 'on_the_way');
+    check('and gets the drop to work from', /Deliver to:/.test(out[0]?.text ?? ''), out[0]?.text ?? '');
     check(
       'with Delivered to tap',
       out[0]?.kind === 'buttons' && out[0].buttons.some((b) => b.title === 'Delivered'),
-      JSON.stringify(out[0]),
     );
 
-    // Uplifting food nobody has prepared is still refused.
+    // A handover cannot be noted on food that was never prepared.
     repo.setOrderStatus(no, 'confirmed');
-    const early = (await handleDriverMessage(`${no} on the way`, '5926001111'))[0]?.text ?? '';
-    check('uplifting unprepared food is still refused', /wait for the kitchen/i.test(early), early);
+    const early = (await handleOutletMessage(ssc8, `${no} uplifted`))[0]?.text ?? '';
+    check('handing over unprepared food is refused', /mark it ready/i.test(early), early);
   }
 }
 

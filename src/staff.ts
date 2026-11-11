@@ -215,6 +215,7 @@ const HELP = [
   '`orders` — list open orders',
   '`7 confirmed` — accept order 7',
   '`ORD-00007 ready` — food is up, a delivery associate is sent',
+  '`ORD-00007 uplifted` — note the time it left you; nothing else happens',
   '`7 on the way` — dispatch, customer is told',
   '`7 delivered` — close it, customer is told',
   '`7 cancel` — cancel it',
@@ -507,6 +508,30 @@ export async function handleOutletMessage(
     return reply(`No order ${ref[1]} for ${outlet.name}. Send \`orders\` to see yours.`);
   }
 
+  // The kitchen handing the food over. A clock, not a status - the order is
+  // only on its way when the associate says so, because only they know they
+  // have it. So this writes a time and tells nobody: not the customer, who
+  // would be promised a delivery that has not started, and not the shop,
+  // which learns it from the associate a moment later anyway.
+  //
+  // Matched before the status words, because "uplifted" means on its way when
+  // an associate says it and only a handover when a kitchen does.
+  if (/\b(handover|handed\s*over|uplift(ed)?|gone|left|picked\s*up|collected)\b/i.test(trimmed)) {
+    if (order.status !== 'ready') {
+      return reply(
+        `${order.orderNo} is ${STATUS_LABEL[order.status]} - mark it ready before handing it over.`,
+      );
+    }
+    const at = repo.markHandedOver(order.orderNo);
+    const clock = new Date(at).toLocaleTimeString('en-GB', {
+      timeZone: config.store.timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    return reply(`*${order.orderNo}* handed over at ${clock}. Nothing else to do.`);
+  }
+
+
   const matchedStatus = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
   const matched: [RegExp, repo.OrderStatus] | undefined =
     matchedStatus ?? (findCancelReason(trimmed) ? [/./, 'cancelled'] : undefined);
@@ -517,9 +542,9 @@ export async function handleOutletMessage(
   // leave and often sees it go before anyone else does. What it still cannot
   // do is close the order: delivered is the doorstep, and only whoever stood
   // on it can say so.
-  if (!['confirmed', 'ready', 'on_the_way', 'cancelled'].includes(status)) {
+  if (!['confirmed', 'ready', 'cancelled'].includes(status)) {
     return reply(
-      `A kitchen can confirm an order, mark it ready, say it was uplifted, or cancel it. Delivery is the delivery associate's end.`,
+      `A kitchen can confirm an order, mark it ready, note that it was uplifted, or cancel it. Delivery is the delivery associate's end.`,
     );
   }
   // Ready before anyone accepted the order. The button is no longer offered

@@ -1014,32 +1014,24 @@ when the food is up.
 
 ### Who says the food has left
 
-After the kitchen marks an order ready, its message carries an **Uplifted** button. The
-associate has the same button on their own job card, and whichever taps first moves the
-order; the second is told it has already moved rather than being refused.
+Both the kitchen and the delivery associate get a button marked **Uplifted**, because both
+of them say the word. They mean different things by it, and the system treats them
+differently.
 
-Letting the kitchen say it matters because the kitchen watches the food leave, and usually
-sees it go before anyone else does. When the kitchen reports it:
+| Who taps it | What it means | What happens |
+|---|---|---|
+| Kitchen | The food left my counter | The time is recorded. Nothing else |
+| Delivery associate | I have the food | The order moves to on the way, and the customer is told |
 
-- **the customer** is told their order is on the way, as they would be for any collection
-- **staff** are told as well, because they did not do it and the associate has not spoken
-  yet, so otherwise the only people who know the food has left are the cook and the customer
+Only the person carrying the food can say it is on its way, so only their tap tells the
+customer. The kitchen's tap is a clock: it measures the gap between food being prepared and
+food leaving, which is the thing a kitchen and a shop otherwise argue about from memory.
 
-Staff are not told when they move an order themselves. Telling somebody what they just did
-is the noise that makes people stop reading alerts.
-
-A collection reported by the kitchen leaves the delivery associate unrecorded, and the
-message to staff says so. The association is normally made when the associate taps
-**Uplifted** on their own card; if the kitchen gets there first there is nobody to record.
-
-Cancel stays on that message too. Cancelling cooked food is rare and wasteful, but it
-happens - nobody comes, or the kitchen is closing - and the alternative was a cook typing
-`31 cancel` from memory.
-
-Because a job card has already gone out by then, **a cancellation at or after `ready` calls
-the associates back**: whoever is carrying it if that is known, everyone otherwise, since
-the card went to several and there is no record of who read it. Before `ready` nobody has
-been asked to go anywhere, so nothing is sent.
+The handover time is written once and never moved, so a second tap on an old message cannot
+rewrite it. It also changes what a stall alert says: an order prepared an hour ago reads
+differently when the kitchen has already handed it over, because then the food is not
+sitting on a counter - it is with somebody who has not said so, and the person to ring is
+the associate rather than the kitchen.
 
 What the kitchen still cannot do is close an order. Delivered is the doorstep, and only
 whoever stood on it can say so.

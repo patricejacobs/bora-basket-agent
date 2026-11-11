@@ -241,7 +241,7 @@ export type Audience = 'staff' | 'outlet' | 'driver';
  * taps as ids would feed it "option_1" instead of "Grocery shopping".
  */
 export function commandFromButtonId(id: string): string | null {
-  const simple = /^(confirm|ready|otw|delivered|cancel)_(\d+)$/.exec(id);
+  const simple = /^(confirm|ready|otw|delivered|cancel|handover)_(\d+)$/.exec(id);
   if (simple) {
     const verb = simple[1] === 'otw' ? 'on the way' : simple[1];
     return `${simple[2]} ${verb}`;
@@ -284,7 +284,14 @@ export function nextActions(
   // The two read differently because the people differ - an associate reports
   // that they have the food, a dispatcher records that it is moving - but it
   // is one transition, and the command has to stay what the id translates to.
+  // Two buttons, same word, different meaning - which is right, because the
+  // two people mean different things by it. An associate saying "uplifted"
+  // means they have the food and the customer should be told. A kitchen
+  // saying it means the food left the counter, which is worth the time it
+  // happened and nothing else: only the person carrying it can say it is on
+  // its way.
   const uplifted = act(`otw_${n}`, 'Uplifted', `${n} on the way`);
+  const handedOver = act(`handover_${n}`, 'Uplifted', `${n} handover`);
   const delivered = act(`delivered_${n}`, 'Delivered', `${n} delivered`);
   const cancel = act(`cancel_${n}`, 'Cancel', `${n} cancel`);
 
@@ -308,7 +315,7 @@ export function nextActions(
       // wasteful, but it happens - nobody comes, or the kitchen is closing -
       // and the alternative was a cook typing `31 cancel` from memory.
       case 'ready':
-        return [uplifted, cancel];
+        return [handedOver, cancel];
       default:
         return [];
     }

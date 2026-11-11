@@ -320,6 +320,11 @@ addColumnIfMissing('orders', 'parcel_details', "TEXT NOT NULL DEFAULT ''");
 // almost always because the 24-hour window was shut — and the ticket is owed
 // to them the moment they next message.
 addColumnIfMissing('orders', 'outlet_notified_at', "TEXT NOT NULL DEFAULT ''");
+// When the kitchen handed the food over. A clock, not a status: the order is
+// only on its way when the delivery associate says so, because only they know
+// they have it. This measures the wait between food being prepared and food
+// leaving, which is the gap a kitchen and a shop argue about.
+addColumnIfMissing('orders', 'handed_over_at', "TEXT NOT NULL DEFAULT ''");
 
 /**
  * Repairs rows written before the two bugs above were fixed.

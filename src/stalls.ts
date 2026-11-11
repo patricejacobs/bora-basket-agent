@@ -26,6 +26,12 @@ function chase(order: repo.OrderRecord): string {
         ? `${order.outlet.name} has not accepted it. Ring the kitchen — they may not have seen the ticket.`
         : 'Nobody has confirmed it yet.';
     case 'ready':
+      // The kitchen may have handed it over already. That changes the problem
+      // entirely: the food is not sitting on a counter, it is with somebody
+      // who has not said so, and the person to ring is the associate.
+      if (order.handedOverAt) {
+        return `${order.outlet?.name ?? 'The shop'} says it was uplifted, but no delivery associate has confirmed carrying it. Ring them.`;
+      }
       return order.outlet
         ? `Prepared and sitting at ${order.outlet.name}. No delivery associate has uplifted it.`
         : 'Packed and waiting. No delivery associate has uplifted it.';

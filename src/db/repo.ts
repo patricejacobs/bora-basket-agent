@@ -1029,6 +1029,12 @@ export type OrderRecord = {
    * through the outlet, so a parcel (which has no outlet) still has a pickup.
    */
   pickup: { address: string; latitude: number | null; longitude: number | null } | null;
+  /**
+   * When the kitchen handed the food over, or empty. Separate from the status
+   * on purpose: a kitchen knows when food left its counter, but only the
+   * associate knows they are carrying it.
+   */
+  handedOverAt: string;
   /** The delivery associate this was dispatched to, empty until the food is ready. */
   driverPhone: string;
   /** 'grocery' | 'restaurant' | 'parcel'. A parcel carries no items. */
@@ -1066,6 +1072,7 @@ function hydrateOrder(row: {
   pickup_lng: number | null;
   prep_minutes: number | null;
   driver_phone: string | null;
+  handed_over_at: string | null;
   kind: string | null;
   /** Written on every status change; empty on rows that predate the column. */
   updated_at: string | null;
@@ -1113,6 +1120,7 @@ function hydrateOrder(row: {
         : row.pickup_address
           ? { address: row.pickup_address, latitude: null, longitude: null }
           : null,
+    handedOverAt: row.handed_over_at ?? '',
     driverPhone: row.driver_phone ?? '',
     kind: row.kind ?? 'grocery',
     recipientName: row.recipient_name ?? '',
@@ -1632,6 +1640,25 @@ export function setCancelReason(
     by,
     orderNo,
   );
+}
+
+/**
+ * Notes that the food left the kitchen, and when.
+ *
+ * Written once and never overwritten: the first handover is the one that
+ * answers how long the food waited, and a second tap on an old message must
+ * not move it later. Returns the time that stands, whether it was just set or
+ * was already there.
+ */
+export function markHandedOver(orderNo: string): string {
+  const existing = db
+    .prepare(`SELECT handed_over_at AS at FROM orders WHERE order_no = ?`)
+    .get(orderNo) as { at: string } | undefined;
+  if (existing?.at) return existing.at;
+
+  const now = nowIso();
+  db.prepare(`UPDATE orders SET handed_over_at = ? WHERE order_no = ?`).run(now, orderNo);
+  return now;
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {
