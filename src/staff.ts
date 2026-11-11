@@ -7,8 +7,6 @@
  */
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { parseShortage, describeShortage } from './shortages.ts';
-import { backWhen } from './availability.ts';
 import { notifyCustomerOfStatus } from './notifications.ts';
 import { sendText } from './channels/whatsapp-send.ts';
 import {
@@ -347,12 +345,7 @@ const OUTLET_HELP = [
   '',
   '`pause` — stop new orders coming',
   '`open` — start taking them again',
-  '`sold out dhal puri` — off until you say otherwise',
-  '`sold out dhal puri until 4pm` — back on by itself',
-  '`sold out duck curry for 2 hours` — same, by the clock',
-  '`no fish and bread today` — off for the rest of the day',
-  '`back dhal puri` — on again now',
-  '`menu` — what you sell, and what is currently off',
+  '`sold out <SKU>` / `back <SKU>` — one dish off and on the menu',
 ].join('\n');
 
 /**
@@ -386,72 +379,21 @@ export async function handleOutletMessage(
     return reply(`${outlet.name} is taking orders again.`);
   }
 
-  // A temporary shortage: the dish by name, and optionally how long for.
-  //
-  //   sold out dhal puri             — off until they say otherwise
-  //   sold out dhal puri for 2 hours — back on by itself at the hour
-  //   out of duck curry until 4pm
-  //   no fish and bread today
-  //
-  // The name is matched against this kitchen's own menu, because a cook knows
-  // what they sell and does not know a SKU. Scoped to the outlet, so naming
-  // another restaurant's dish finds nothing rather than taking it off sale.
-  const soldOut = trimmed.match(/^(?:sold\s*out|out\s*of|no|finished|done)\s+(.+)$/i);
+  const soldOut = trimmed.match(/^(sold\s*out|out|finished|done)\s+([A-Za-z0-9-]+)$/i);
   if (soldOut) {
-    const { until, item: named } = parseShortage(soldOut[1] ?? '');
-    const matches = repo.findMenuMatches(outlet.id, named);
-    // Asked, never guessed: taking the wrong dish off sale is silent, and
-    // surfaces later as a customer refused something that was on the shelf.
-    if (matches.length > 1) {
-      return reply(
-        [`Which one?`, '', ...matches.map((m) => `• ${m.name}`), '', 'Send the full name.'].join(
-          String.fromCharCode(10),
-        ),
-      );
-    }
-    const item = matches[0];
-    if (!item) {
-      return reply(
-        `Nothing matching "${named}" on your menu. Send \`menu\` to see what you have listed.`,
-      );
-    }
-
-    repo.setItemSoldOut(item.sku, true, until);
-    const how = describeShortage(until);
-    return reply(
-      until
-        ? `${item.name} is off ${how}. It comes back on by itself — no need to message again.`
-        : `${item.name} is off ${how}. Send \`back ${item.name}\` when it returns.`,
-    );
+    const sku = soldOut[2] ?? '';
+    const item = repo.getProductBySku(sku);
+    if (!item || item.outletId !== outlet.id) return reply(`No item ${sku} on your menu.`);
+    repo.setItemSoldOut(sku, true);
+    return reply(`${item.name} marked sold out. Send \`back ${sku}\` when it returns.`);
   }
-
-  const backOn = trimmed.match(/^(?:back|available|on|have)\s+(.+)$/i);
+  const backOn = trimmed.match(/^(back|available|on)\s+([A-Za-z0-9-]+)$/i);
   if (backOn) {
-    const named = (backOn[1] ?? '').replace(/^again\s+/i, '').trim();
-    const candidates = repo.findMenuMatches(outlet.id, named);
-    if (candidates.length > 1) {
-      return reply(
-        [`Which one?`, '', ...candidates.map((m) => `• ${m.name}`), '', 'Send the full name.'].join(
-          String.fromCharCode(10),
-        ),
-      );
-    }
-    const item = candidates[0];
-    if (!item) return reply(`Nothing matching "${named}" on your menu.`);
-    repo.setItemSoldOut(item.sku, false);
+    const sku = backOn[2] ?? '';
+    const item = repo.getProductBySku(sku);
+    if (!item || item.outletId !== outlet.id) return reply(`No item ${sku} on your menu.`);
+    repo.setItemSoldOut(sku, false);
     return reply(`${item.name} is back on the menu.`);
-  }
-
-  // What is currently off, and until when. Asked for far more often than it is
-  // obvious: a kitchen that cannot see its own shortages leaves dishes off.
-  if (/^(menu|items|dishes|shortages|off)$/i.test(trimmed)) {
-    const menu = repo.outletMenu(outlet.id);
-    if (menu.length === 0) return reply('Nothing is listed on your menu yet.');
-    const lines = menu.map((p) => {
-      const off = backWhen(p);
-      return `${off ? '🚫' : '✅'} ${p.name}${off ? ` — off ${off}` : ''}`;
-    });
-    return reply([`*${outlet.name}*`, '', ...lines].join(String.fromCharCode(10)));
   }
 
   if (/^(orders|open|queue|list)$/i.test(trimmed)) {

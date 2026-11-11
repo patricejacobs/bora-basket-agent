@@ -7,8 +7,6 @@ import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCoun
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
 import { startStallWatch } from './stalls.ts';
-import { sendText } from './channels/whatsapp-send.ts';
-import { outletById, restoreExpiredShortages } from './db/repo.ts';
 import {
   ordersCsv,
   ordersJson,
@@ -124,34 +122,6 @@ loadCatalogue();
 loadMenus();
 startStallWatch();
 startBackupSchedule();
-
-/**
- * Puts dishes back on when their shortage runs out, and says so.
- *
- * Availability does not depend on this — a dish is judged on its end time, so
- * it is back the moment its hour arrives whether or not a sweep has run. This
- * exists to keep the stored state honest and to tell the kitchen, who set a
- * two-hour shortage and should not have to remember whether it lapsed.
- *
- * Every two minutes, unreferenced so it never holds the process open.
- */
-const shortageWatch = setInterval(() => {
-  void (async () => {
-    try {
-      for (const item of restoreExpiredShortages()) {
-        const outlet = item.outletId === null ? null : outletById(item.outletId);
-        if (!outlet?.whatsapp) continue;
-        await sendText(
-          outlet.whatsapp,
-          `✅ *${item.name}* is back on your menu — the shortage you set has run out.`,
-        );
-      }
-    } catch (err) {
-      console.error('[shortages] sweep failed:', err);
-    }
-  })();
-}, 120_000);
-shortageWatch.unref?.();
 
 const app = express();
 app.disable('x-powered-by');

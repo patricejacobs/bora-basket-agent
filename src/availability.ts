@@ -12,7 +12,6 @@
  * repo without a cycle.
  */
 import type { Product } from './db/repo.ts';
-import { describeShortage, shortageExpired } from './shortages.ts';
 
 /** Null means no limit — a kitchen will cook as many as you order. */
 export function availableQty(product: Product): number | null {
@@ -20,51 +19,16 @@ export function availableQty(product: Product): number | null {
   return product.stock;
 }
 
-/**
- * Whether a shortage is still running.
- *
- * Judged on the end time rather than the flag, so a dish is back on the moment
- * its hour arrives — not whenever a sweep next happens to run. Without this
- * there is a window where a customer is told something is off while the shop
- * believes it is back, and the length of that window is an implementation
- * detail nobody should be able to feel.
- */
-export function soldOutNow(product: Product, now = new Date()): boolean {
-  if (!product.soldOut) return false;
-  return !shortageExpired(product.soldOutUntil ?? '', now);
-}
-
-/** The end of a shortage, or null when none was set or it is unreadable. */
-function timedUntil(product: Product, now = new Date()): Date | null {
-  if (!soldOutNow(product, now) || !product.soldOutUntil) return null;
-  const until = new Date(product.soldOutUntil);
-  return Number.isFinite(until.getTime()) ? until : null;
-}
-
-/** When it comes back, in words, or empty when it is on the menu. */
-export function backWhen(product: Product, now = new Date()): string {
-  if (!soldOutNow(product, now)) return '';
-  return describeShortage(timedUntil(product, now), now);
-}
-
-export function available(product: Product, now = new Date()): boolean {
-  if (soldOutNow(product, now)) return false;
+export function available(product: Product): boolean {
+  if (product.soldOut) return false;
   const qty = availableQty(product);
   return qty === null || qty > 0;
 }
 
 /** Can this many be ordered? Returns the reason it cannot, or null. */
-export function refuseQty(product: Product, qty: number, now = new Date()): string | null {
-  if (soldOutNow(product, now)) {
-    // The return time is the useful half, when there is one. "We don't have
-    // it" ends the conversation; "that one is back at four" often keeps the
-    // order. With no end set there is nothing to promise, and "sold out" is
-    // plainer than a phrase built to sound like a time.
-    const until = timedUntil(product, now);
-    return until
-      ? `${product.name} is unavailable ${describeShortage(until, now)}. ` +
-        `Tell the customer when it is back, offer something else, and do not add it.`
-      : `${product.name} is sold out for today. Say so and offer something else — do not add it.`;
+export function refuseQty(product: Product, qty: number): string | null {
+  if (product.soldOut) {
+    return `${product.name} is sold out for today. Say so and offer something else — do not add it.`;
   }
   const limit = availableQty(product);
   if (limit === null) return null;
@@ -76,11 +40,8 @@ export function refuseQty(product: Product, qty: number, now = new Date()): stri
 }
 
 /** How availability should be described to the agent. */
-export function availabilityLabel(product: Product, now = new Date()): string {
-  if (soldOutNow(product, now)) {
-    const until = timedUntil(product, now);
-    return until ? `unavailable ${describeShortage(until, now)}` : 'sold out today';
-  }
+export function availabilityLabel(product: Product): string {
+  if (product.soldOut) return 'sold out today';
   const limit = availableQty(product);
   if (limit === null) return 'available';
   if (limit <= 0) return 'out of stock';
