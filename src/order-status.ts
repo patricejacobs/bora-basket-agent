@@ -168,6 +168,36 @@ export function cancelButtons(
     .map((r) => ({ id: `cancel_${r.key}_${n}`, title: r.label, command: r.title(n) }));
 }
 
+/**
+ * How far along an order is. Cancelled sits outside the run: it is reachable
+ * from anywhere and leads nowhere, so it has no place on the line.
+ */
+const PROGRESS: OrderStatus[] = ['pending', 'confirmed', 'ready', 'on_the_way', 'delivered'];
+
+/**
+ * Whether a move is allowed to happen at all.
+ *
+ * An order goes forward or it is cancelled. It never goes back.
+ *
+ * This is not theoretical tidiness. A tapped WhatsApp button does not
+ * disappear once it has been used, so every message ever sent about an order
+ * keeps working forever. Tapping Confirm on an order already cooked used to
+ * drag it back to confirmed and answer "-> confirmed" as though that were
+ * progress; tapping Ready after that dispatched a second associate for one
+ * order, and two people rode out for one meal.
+ *
+ * Staying put is not a backward move - it is somebody tapping twice, which
+ * deserves "already ready" rather than a refusal.
+ */
+export function isBackwards(from: OrderStatus, to: OrderStatus): boolean {
+  if (to === 'cancelled') return false;
+  const was = PROGRESS.indexOf(from);
+  const now = PROGRESS.indexOf(to);
+  // A status off the line (cancelled) is terminal and handled before this.
+  if (was === -1 || now === -1) return false;
+  return now < was;
+}
+
 /** Words a dispatcher might actually type, mapped to a status. */
 export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   // "collected" and "picked up" mean a delivery associate has the food and is moving, which
@@ -262,10 +292,13 @@ export function nextActions(
   // dispatches or closes an order — that is the delivery associate's end of the job.
   if (audience === 'outlet') {
     switch (status) {
+      // One group of buttons for the whole cooking stage, so a kitchen keeps
+      // working from a single message per order instead of hunting for the
+      // newest one. Safe only because an order cannot move backwards: these
+      // same three sit in the chat forever.
       case 'pending':
-        return [confirm, cancel];
       case 'confirmed':
-        return [ready, cancel];
+        return [confirm, ready, cancel];
       // Food on the counter: the kitchen can see it leave, and often sees it
       // before anyone else does. The associate has the same button on their
       // own job card — whichever of them taps first moves the order, and the

@@ -12,9 +12,10 @@ import { sendText } from './channels/whatsapp-send.ts';
 import {
   STATUS_LABEL,
   STATUS_WORDS,
-  nextActions,
   cancelButtons,
   findCancelReason,
+  isBackwards,
+  nextActions,
   type Audience,
 } from './order-status.ts';
 import {
@@ -62,6 +63,20 @@ async function applyStatus(
       body: `${order.orderNo} is already *${STATUS_LABEL[order.status]}* and cannot be changed.${
         order.status === 'cancelled' ? ' Do not cook it.' : ''
       }`,
+      status: order.status,
+    };
+  }
+
+  // Forward, or cancelled. Never back.
+  //
+  // Checked here rather than in each handler because every actor reaches
+  // this function, and the buttons that make it reachable never expire: the
+  // first message about an order still offers Confirm a week later.
+  if (isBackwards(order.status, status)) {
+    return {
+      body:
+        `${order.orderNo} is already *${STATUS_LABEL[order.status]}* - it cannot go back to ` +
+        `*${STATUS_LABEL[status]}*. Cancel it if something is wrong.`,
       status: order.status,
     };
   }

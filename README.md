@@ -942,6 +942,39 @@ Parameters are `{{1}}` first name, `{{2}}` order number, `{{3}}` total.
 With no template configured, an out-of-window update is skipped and logged rather than
 failing silently.
 
+### An order only goes forward
+
+An order moves forward or it is cancelled. It never goes back.
+
+This is not tidiness. **A tapped WhatsApp button does not disappear**, so every message
+ever sent about an order keeps working forever. Tapping `Confirm` on an order already
+cooked used to drag it back to confirmed and answer "-> confirmed" as though that were
+progress - and tapping `Ready` after that dispatched a **second associate for one order**,
+so two people rode out for one meal.
+
+A move that would wind an order back is refused with what it actually is:
+
+```
+ORD-00031 is already *cooked, waiting for a delivery associate* - it cannot go
+back to *confirmed*. Cancel it if something is wrong.
+```
+
+Tapping the stage an order is already at is not a backward move - it is somebody tapping
+twice, and gets "already ready" rather than a refusal. Cancelling is allowed from any
+stage, and is the one way out when something is genuinely wrong.
+
+Because of that rule, the kitchen can keep one group of buttons for the whole cooking
+stage instead of hunting for the newest message:
+
+| Stage | Buttons |
+|---|---|
+| `pending` | `Confirm` · `Ready` · `Cancel` |
+| `confirmed` | `Confirm` · `Ready` · `Cancel` |
+| `ready` | `Uplifted` · `Cancel` |
+
+Three is WhatsApp's hard limit, which is why `Uplifted` arrives on the message that
+follows `Ready` rather than joining the group.
+
 ### Who says the food has left
 
 After the kitchen marks an order ready, its message carries an **Uplifted** button. The

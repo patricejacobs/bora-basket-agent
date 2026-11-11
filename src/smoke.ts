@@ -1907,7 +1907,11 @@ section('Kitchen and delivery associate commands');
 
   // Role-appropriate buttons. A cook must not be able to close an order.
   const kitchenPending = nextActions('ORD-00009', 'pending', 'outlet');
-  check('a kitchen is offered confirm and cancel', kitchenPending.length === 2, JSON.stringify(kitchenPending));
+  check(
+    'a kitchen is offered confirm, ready and cancel',
+    kitchenPending.map((b) => b.title).join('|') === 'Confirm|Ready|Cancel',
+    JSON.stringify(kitchenPending.map((b) => b.title)),
+  );
   check(
     'a kitchen is never offered delivered',
     !nextActions('ORD-00009', 'ready', 'outlet').some((a) => a.id.startsWith('delivered')),
@@ -2085,7 +2089,9 @@ section('Kitchen and delivery associate commands');
 
     if (fresh && itsOutlet) {
       repo.setOrderStatus(fresh.orderNo, 'confirmed');
-      const button = nextActions(fresh.orderNo, 'confirmed', 'outlet')[0];
+      const button = nextActions(fresh.orderNo, 'confirmed', 'outlet').find((b) =>
+        b.id.startsWith('ready_'),
+      );
       check('the button reads as one word', button?.title === 'Ready', JSON.stringify(button));
       // What a tap actually delivers: the id, translated.
       const tapped = commandFromButtonId(button?.id ?? '') ?? '';
@@ -2330,7 +2336,8 @@ section('Why an order was cancelled');
   // One word on the button; the order travels in the id.
   {
     const { nextActions: acts } = await import('./order-status.ts');
-    const kitchenReady = acts('ORD-00007', 'confirmed', 'outlet')[0];
+    // By id, not position: the cooking-stage group is Confirm, Ready, Cancel.
+    const kitchenReady = acts('ORD-00007', 'confirmed', 'outlet').find((b) => b.id === 'ready_7');
     check('the kitchen button is one word', kitchenReady?.title === 'Ready', JSON.stringify(kitchenReady));
     check('and means the order it came with', kitchenReady?.command === '7 ready');
     check('with the order in its id', kitchenReady?.id === 'ready_7');
@@ -2928,6 +2935,54 @@ section('The kitchen can say it was collected');
     const closed = await say(tap);
     check('a tap after delivery changes nothing', /cannot be changed|already/i.test(closed), closed);
     check('and the order stays delivered', repo.findOrder(no)?.status === 'delivered');
+  }
+}
+
+section('An order only goes forward');
+{
+  const { isBackwards, nextActions } = await import('./order-status.ts');
+  const { handleOutletMessage } = await import('./staff.ts');
+
+  check('pending to confirmed is forward', !isBackwards('pending', 'confirmed'));
+  check('confirmed to ready is forward', !isBackwards('confirmed', 'ready'));
+  check('ready to on the way is forward', !isBackwards('ready', 'on_the_way'));
+  check('ready back to confirmed is not', isBackwards('ready', 'confirmed'));
+  check('on the way back to ready is not', isBackwards('on_the_way', 'ready'));
+  check('delivered back to anything is not', isBackwards('delivered', 'on_the_way'));
+  check('staying put is not backwards', !isBackwards('ready', 'ready'));
+  check('cancelling is never backwards', !isBackwards('on_the_way', 'cancelled'));
+  check('nor from the very start', !isBackwards('pending', 'cancelled'));
+
+  // The kitchen now works from one group of buttons while it cooks.
+  for (const st of ['pending', 'confirmed'] as const) {
+    const b = nextActions('ORD-00031', st, 'outlet');
+    check(`${st}: the same three buttons`, b.map((x) => x.title).join('|') === 'Confirm|Ready|Cancel', JSON.stringify(b.map((x) => x.title)));
+    check(`${st}: within WhatsApp's three`, b.length <= 3);
+  }
+
+  // Which is only safe because the old ones cannot wind an order back.
+  const ssc4 = repo.getOutlet('SSC');
+  const victim = repo.allOrders().find((o) => o.outlet?.id === ssc4?.id);
+  check('there is an order to wind back', Boolean(ssc4 && victim));
+
+  if (ssc4 && victim) {
+    const no = victim.orderNo;
+    repo.setOrderStatus(no, 'ready');
+
+    const stale = (await handleOutletMessage(ssc4, `${no} confirm`))[0]?.text ?? '';
+    check('a stale Confirm is refused', /cannot go back/i.test(stale), stale);
+    check('and the order holds at ready', repo.findOrder(no)?.status === 'ready');
+
+    // Tapping the current stage again is not a refusal, just a no-op: this is
+    // the path that would otherwise dispatch a second associate for one order.
+    const twice = (await handleOutletMessage(ssc4, `${no} ready`))[0]?.text ?? '';
+    check('tapping Ready twice says already', /already/i.test(twice), twice);
+    check('and does not reopen the dispatch', repo.findOrder(no)?.status === 'ready');
+
+    // Cancelling still works from anywhere, which is the one way out.
+    repo.setOrderStatus(no, 'on_the_way');
+    const killed = (await handleOutletMessage(ssc4, `${no} cancel sold out`))[0]?.text ?? '';
+    check('cancelling is still allowed late', repo.findOrder(no)?.status === 'cancelled', killed);
   }
 }
 
