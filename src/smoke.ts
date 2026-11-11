@@ -2971,8 +2971,8 @@ section('A kitchen hands over; an associate carries');
 
     // The kitchen's tap is a clock and nothing else.
     const handed = (await handleOutletMessage(ssc8, `${no} uplifted`))[0]?.text ?? '';
-    check('the kitchen is told the time was noted', /handed over at/i.test(handed), handed);
-    check('and that there is nothing else to do', /nothing else/i.test(handed), handed);
+    check('the kitchen is told when it was uplifted', /uplifted at \d/i.test(handed), handed);
+    check('and nothing more than that', handed.split(String.fromCharCode(10)).length === 1, handed);
     check('the order has NOT moved', repo.findOrder(no)?.status === 'ready', String(repo.findOrder(no)?.status));
     check('but the time is recorded', Boolean(repo.findOrder(no)?.handedOverAt));
 

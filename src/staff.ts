@@ -563,7 +563,7 @@ export async function handleOutletMessage(
       hour: 'numeric',
       minute: '2-digit',
     });
-    return reply(`*${order.orderNo}* handed over at ${clock}. Nothing else to do.`);
+    return reply(`*${order.orderNo}* uplifted at ${clock}`);
   }
 
 

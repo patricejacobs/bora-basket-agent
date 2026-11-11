@@ -1036,7 +1036,7 @@ Two moments are stamped on every order as they happen, and never moved afterward
 |---|---|
 | `ready_at` | the kitchen marks the food ready |
 | `uplifted_at` | a delivery associate says they have it |
-| `handed_over_at` | the kitchen reports the food left its counter |
+| `handed_over_at` | the kitchen reports the food was uplifted from its counter |
 
 `updated_at` cannot answer this - every later move overwrites it, so by the time an order
 is delivered it has forgotten when it was ready. Each stamp is written once, because a tap
