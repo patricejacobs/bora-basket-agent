@@ -340,7 +340,7 @@ const OUTLET_HELP = [
   '',
   '`orders` — orders waiting on you',
   '`7 confirm` — accept order 7',
-  '`7 ready` — food is up, a delivery associate is sent',
+  '`ORD-00007 ready` — food is up, a delivery associate is sent',
   '`7 cancel` — you cannot make it',
   '',
   '`pause` — stop new orders coming',

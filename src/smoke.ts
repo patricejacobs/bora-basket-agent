@@ -2061,6 +2061,28 @@ section('Kitchen and delivery associate commands');
   const notRiders = (await handleDriverMessage(`${ref} cancel`))[0]?.text ?? '';
   check('a delivery associate cannot cancel', notRiders.includes('for the shop'), notRiders);
 
+  // End to end: tapping the kitchen's button has to drive the order to ready,
+  // because the title IS the command — a title that does not parse is a button
+  // that silently does nothing.
+  {
+    // Any order belonging to a kitchen, put back on the pass. Which orders are
+    // open by this point depends on every test above it, and a button test
+    // should not be hostage to that.
+    const fresh = repo.allOrders().find((o) => o.outlet !== null);
+    const itsOutlet = fresh?.outlet ? repo.getOutlet(repo.outletById(fresh.outlet.id)?.code ?? '') : null;
+    check('there is an order on the pass', Boolean(fresh && itsOutlet), JSON.stringify(fresh?.orderNo));
+
+    if (fresh && itsOutlet) {
+      repo.setOrderStatus(fresh.orderNo, 'confirmed');
+      const tapped = nextActions(fresh.orderNo, 'confirmed', 'outlet')[0]?.title ?? '';
+      check('the button names this order', tapped === `${fresh.orderNo} ready`, tapped);
+
+      await handleOutletMessage(itsOutlet, tapped);
+      const after = repo.findOrder(fresh.orderNo)?.status;
+      check('tapping it marks the order ready', after === 'ready', String(after));
+    }
+  }
+
   // A kitchen's own switches.
   const paused = (await handleOutletMessage(ssc, 'pause'))[0]?.text ?? '';
   check('a kitchen can pause itself', paused.includes('Paused') && repo.getOutlet('SSC')?.accepting === 0, paused);
@@ -2289,6 +2311,28 @@ section('Why an order was cancelled');
 {
   const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');
   const { CANCEL_REASONS, findCancelReason, cancelButtons } = await import('./order-status.ts');
+
+  // The kitchen's own button names the order it belongs to.
+  {
+    const { nextActions } = await import('./order-status.ts');
+    const kitchenReady = nextActions('ORD-00007', 'confirmed', 'outlet')[0];
+    check(
+      'a kitchen button quotes the order number',
+      kitchenReady?.title === 'ORD-00007 ready',
+      JSON.stringify(kitchenReady),
+    );
+    check(
+      'and fits the 20-character limit',
+      (kitchenReady?.title.length ?? 99) <= 20,
+      String(kitchenReady?.title.length),
+    );
+    check('while still carrying the ready action', kitchenReady?.id === 'ready_7');
+
+    // Staff keep the short form: a dispatcher works down a list where "7" is
+    // unambiguous, and their buttons are not what was being changed.
+    const staffReady = nextActions('ORD-00007', 'confirmed', 'staff').find((b) => b.id === 'ready_7');
+    check('staff still see the short form', staffReady?.title === 'Food ready 7', JSON.stringify(staffReady));
+  }
 
   check('reads a tapped reason', findCancelReason('7 sold out')?.key === 'sold_out');
   check('reads it typed differently', findCancelReason('7 cancel we ran out')?.key === 'sold_out');

@@ -166,7 +166,7 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
       minute: '2-digit',
     })}`,
     '',
-    'Tap *Confirm* to accept, then *Food ready* when it is up and a delivery associate will come.',
+    `Tap *Confirm* to accept, then *${order.orderNo} ready* when the food is up and a delivery associate will come.`,
   ].join('\n');
 
   const ok = await sendButtons(
