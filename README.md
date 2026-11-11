@@ -1012,19 +1012,25 @@ ORD-00031 has not been accepted yet - press *Confirm* first, then *Ready*
 when the food is up.
 ```
 
-### One map card, not two
+### One map card at a time
 
-When a job arrives the associate gets two messages: the job card, and a map card for the
-**uplift** only. The destination is on the card as an address and a tappable link, so the
-trip can be judged before accepting it - but not as a second map card.
+An associate gets one map card when the job arrives - the **uplift** - and the second when
+they say they have the food:
 
-Two map cards arriving together is how somebody glancing at a phone on a bike navigates to
-the customer instead of the restaurant. For the next fifteen minutes the destination is
-not where they are going, and a card they do not need yet sits directly under the one they
-do. It is also a third billable message on every food order.
+```
+job arrives     job card              +  map card: Uplift - A Taste of Guyana
+taps Uplifted   delivery card + [Delivered]  +  map card: Deliver - Anita Persaud
+```
 
-After they tap **Uplifted**, the delivery card carries the address, the phone, the link and
-the cash - one message, and the only one they then need.
+Both pins used to arrive together with the job. Two map cards side by side is how somebody
+glancing at a phone on a bike navigates to the customer instead of the restaurant, and for
+the next fifteen minutes the destination is not where they are going.
+
+**The card and its map cannot be one message.** A WhatsApp location message carries a
+latitude, a longitude, a name and an address, and nothing else - no body, no buttons - so
+anything to read or tap travels separately. The nearest thing available is what is done
+here: the map card is labelled with the customer's name and street, so it is legible on its
+own rather than being a bare pin.
 
 ### Who says the food has left
 

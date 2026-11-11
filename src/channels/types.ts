@@ -32,7 +32,12 @@ export type OutboundMessage =
    * opens straight in their maps app. `text` is what a channel without map
    * support falls back to showing.
    */
-  | { kind: 'location'; text: string; pin: LocationPin };
+  /**
+   * A map card. WhatsApp allows it a name and an address and nothing else -
+   * no body, no buttons - so anything that must be read or tapped travels in
+   * its own message. `name` and `address` are what the card itself shows.
+   */
+  | { kind: 'location'; text: string; pin: LocationPin; name?: string; address?: string };
 
 /** A photo the customer sent, already fetched and base64-encoded. */
 export type IncomingImage = { base64: string; mediaType: string };

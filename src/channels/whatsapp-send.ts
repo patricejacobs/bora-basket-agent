@@ -240,7 +240,8 @@ export async function deliver(to: string, messages: OutboundMessage[]): Promise<
       await sendLocation(to, {
         latitude: msg.pin.latitude,
         longitude: msg.pin.longitude,
-        ...(msg.pin.label ? { name: msg.pin.label } : {}),
+        ...(msg.name || msg.pin.label ? { name: msg.name || msg.pin.label } : {}),
+        ...(msg.address ? { address: msg.address } : {}),
       });
     } else await sendText(to, msg.text);
   }

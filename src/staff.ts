@@ -749,9 +749,26 @@ export async function handleDriverMessage(
   const out: OutboundMessage[] =
     actions.length > 0 ? [{ kind: 'buttons', text: shown, buttons: actions }] : reply(shown);
 
-  // No map card for the doorstep. The delivery card carries a tappable link,
-  // which is one message instead of two and leaves nothing to mistake for the
-  // uplift pin further up the chat.
+  // The map card for the doorstep, right behind the card that names it.
+  // WhatsApp will not carry both in one message - a location message has no
+  // body and no buttons - so the best available is the two together, with the
+  // customer's name and street printed on the card itself.
+  //
+  // It is sent here rather than with the job card because there it sat under
+  // the uplift pin, and two map cards side by side is how somebody glancing at
+  // a phone navigates to the customer instead of the restaurant.
+  if (landed === 'on_the_way' && fresh.location) {
+    const isParcel = fresh.kind === 'parcel';
+    out.push({
+      kind: 'location',
+      text: '',
+      pin: fresh.location,
+      name: `Deliver - ${isParcel ? fresh.recipientName : fresh.customerName}`,
+      ...(fresh.address || fresh.location.label
+        ? { address: fresh.address || fresh.location.label }
+        : {}),
+    });
+  }
 
   return out;
 }
