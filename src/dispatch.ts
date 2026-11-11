@@ -91,6 +91,44 @@ ${what}`);
 }
 
 /**
+ * Calls off a job that associates have already been sent.
+ *
+ * Only matters once the food was cooked, because that is when a job card goes
+ * out. Before then nobody has been asked to go anywhere.
+ *
+ * Sent to whoever is carrying it if that is known, and to everyone otherwise,
+ * because the card went to several and there is no record of who read it. An
+ * associate who gets a cancellation for a job they never took is mildly
+ * confused; one who rides to a cancelled order has wasted a trip and arrives
+ * at a kitchen with nothing for them.
+ */
+export async function tellAssociatesCancelled(orderNo: string): Promise<number> {
+  const order = repo.findOrder(orderNo);
+  if (!order) return 0;
+
+  const told = order.driverPhone ? [order.driverPhone] : config.driverNumbers;
+  if (told.length === 0) return 0;
+
+  const where = order.outlet?.name ?? 'the shop';
+  const reason = order.cancelReason ? ` - ${order.cancelReason}` : '';
+  const body = [
+    `🚫 *${order.orderNo} cancelled*${reason}.`,
+    '',
+    `Do not uplift it from ${where}. If you are already there, leave it with them.`,
+  ].join(String.fromCharCode(10));
+
+  let sent = 0;
+  for (const associate of told) {
+    try {
+      if (await sendText(associate, body)) sent++;
+    } catch (err) {
+      console.error('[dispatch] could not call off an associate:', err);
+    }
+  }
+  return sent;
+}
+
+/**
  * Everyone who needs to know a new order exists.
  *
  * The shop always, and the kitchen too when the food is someone else's to cook.

@@ -20,6 +20,7 @@ import {
 import {
   dispatchToDrivers,
   flushOutletTickets,
+  tellAssociatesCancelled,
   tellKitchenCancelled,
 } from './dispatch.ts';
 import { summariseStored } from './menu-options.ts';
@@ -97,6 +98,24 @@ async function applyStatus(
   if (status === 'cancelled' && order.outlet) {
     const told = await tellKitchenCancelled(order.orderNo, order.status !== 'pending');
     if (told) notes.push(told);
+  }
+
+  // Anyone already sent to fetch it. A job card only goes out once the food is
+  // cooked, so before 'ready' there is nobody on the road to call back - and
+  // after it, an associate who is not told rides to a kitchen with nothing for
+  // them.
+  if (status === 'cancelled' && ['ready', 'on_the_way'].includes(order.status)) {
+    try {
+      const reached = await tellAssociatesCancelled(order.orderNo);
+      notes.push(
+        reached > 0
+          ? `Delivery associate called off (${reached}).`
+          : '⚠️ Nobody was called off - no delivery associate could be reached.',
+      );
+    } catch (err) {
+      console.error('[staff] failed to call off an associate:', err);
+      notes.push('⚠️ Status saved, but calling off the delivery associate failed.');
+    }
   }
 
   if (status === 'ready') {

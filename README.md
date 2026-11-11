@@ -962,6 +962,15 @@ A collection reported by the kitchen leaves the delivery associate unrecorded, a
 message to staff says so. The association is normally made when the associate taps
 **Uplifted** on their own card; if the kitchen gets there first there is nobody to record.
 
+Cancel stays on that message too. Cancelling cooked food is rare and wasteful, but it
+happens - nobody comes, or the kitchen is closing - and the alternative was a cook typing
+`31 cancel` from memory.
+
+Because a job card has already gone out by then, **a cancellation at or after `ready` calls
+the associates back**: whoever is carrying it if that is known, everyone otherwise, since
+the card went to several and there is no record of who read it. Before `ready` nobody has
+been asked to go anywhere, so nothing is sent.
+
 What the kitchen still cannot do is close an order. Delivered is the doorstep, and only
 whoever stood on it can say so.
 

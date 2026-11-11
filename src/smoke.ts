@@ -2886,7 +2886,7 @@ section('The kitchen can say it was collected');
 
   // The button exists on the message the kitchen gets after marking it ready.
   const afterReady = nextActions('ORD-00031', 'ready', 'outlet');
-  check('a ready order offers the kitchen a button', afterReady.length === 1, JSON.stringify(afterReady));
+  check('a ready order offers the kitchen two buttons', afterReady.length === 2, JSON.stringify(afterReady));
   check('which reads as one word', afterReady[0]?.title === 'Uplifted', JSON.stringify(afterReady[0]));
   check('and means the order moved on', afterReady[0]?.command === '31 on the way');
   check(
@@ -2928,6 +2928,54 @@ section('The kitchen can say it was collected');
     const closed = await say(tap);
     check('a tap after delivery changes nothing', /cannot be changed|already/i.test(closed), closed);
     check('and the order stays delivered', repo.findOrder(no)?.status === 'delivered');
+  }
+}
+
+section('Cancelling after the food is cooked');
+{
+  const { handleOutletMessage } = await import('./staff.ts');
+  const { nextActions } = await import('./order-status.ts');
+  const { tellAssociatesCancelled } = await import('./dispatch.ts');
+
+  // The kitchen keeps a way out after the food is up.
+  const atReady = nextActions('ORD-00031', 'ready', 'outlet');
+  check('a cooked order still offers cancel', atReady.length === 2, JSON.stringify(atReady.map((b) => b.title)));
+  check('alongside uplifted', atReady[0]?.title === 'Uplifted' && atReady[1]?.title === 'Cancel');
+  check(
+    'and both stay inside the three WhatsApp allows',
+    atReady.length <= 3,
+  );
+  // The associate's own card never offers cancel: refusing a job is not the
+  // same as cancelling a customer's order.
+  check(
+    'but an associate is not offered it',
+    !nextActions('ORD-00031', 'ready', 'driver').some((b) => b.title === 'Cancel'),
+  );
+
+  const ssc3 = repo.getOutlet('SSC');
+  const order = repo.allOrders().find((o) => o.outlet?.id === ssc3?.id);
+  check('there is an order to cancel', Boolean(ssc3 && order));
+
+  if (ssc3 && order) {
+    const no = order.orderNo;
+
+    // Nobody is sent anywhere until the food is cooked, so cancelling before
+    // that must not claim to have called anyone back.
+    repo.setOrderStatus(no, 'confirmed');
+    const early = (await handleOutletMessage(ssc3, `${no} cancel too busy`))[0]?.text ?? '';
+    check('cancelling before it is cooked calls nobody off', !/called off/i.test(early), early);
+    check('though it still cancels', repo.findOrder(no)?.status === 'cancelled');
+
+    // And with somebody on the road, the call-off reaches them.
+    repo.setOrderStatus(no, 'ready');
+    check('a dispatched job can be called off', (await tellAssociatesCancelled(no)) >= 0);
+
+    repo.setOrderStatus(no, 'ready');
+    repo.setCancelReason(no, '', 'outlet');
+    const body = (await handleOutletMessage(ssc3, `${no} cancel sold out`))[0]?.text ?? '';
+    check('the kitchen can cancel a cooked order', repo.findOrder(no)?.status === 'cancelled', body);
+    check('and is told the associate was called off', /called off/i.test(body), body);
+    check('with the reason recorded', repo.findOrder(no)?.cancelReason !== '', String(repo.findOrder(no)?.cancelReason));
   }
 }
 

@@ -270,8 +270,11 @@ export function nextActions(
       // before anyone else does. The associate has the same button on their
       // own job card — whichever of them taps first moves the order, and the
       // second is told it has already moved rather than being refused.
+      // Cancel stays on the message after the food is cooked. It is rare and
+      // wasteful, but it happens - nobody comes, or the kitchen is closing -
+      // and the alternative was a cook typing `31 cancel` from memory.
       case 'ready':
-        return [uplifted];
+        return [uplifted, cancel];
       default:
         return [];
     }
