@@ -346,6 +346,10 @@ addColumnIfMissing('orders', 'handed_over_at', "TEXT NOT NULL DEFAULT ''");
 // The language this customer writes in, remembered so a notification sent
 // hours later matches the conversation they had. Empty until something they
 // wrote gave it away.
+// When an associate clocked on. Empty means off duty. A time rather than a
+// flag, so going off can happen by itself after a long enough silence - a
+// flag would leave somebody on duty overnight and getting job cards at 3am.
+addColumnIfMissing('associates', 'on_duty_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");

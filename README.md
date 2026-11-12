@@ -1070,6 +1070,69 @@ order - because this message can be sent twice, through a retry or a template fa
 a dispatcher re-closing an order, and a customer who gets two goodbyes in different words
 is talking to something unwell.
 
+### Clocking on and off
+
+An associate sends **`on`** to start a shift and gets a button to end it:
+
+```
+🛵 You are on duty, Rider. Jobs will come to you.
+
+You will be clocked off automatically after 12 hours, so send *on* again tomorrow.
+[ Clock off ]
+```
+
+Two letters to start, one tap to stop. The end of a shift is when somebody is tired and
+least likely to type, so that is the half that gets the button. `in`, `start`, `working`,
+`out`, `stop` and `finished` all work too.
+
+**Sharing a pin also clocks them on.** It is somebody telling you they are out working,
+and doing both in one action is the difference between a rule people follow and one they
+forget.
+
+**A shift lapses by itself** after `ASSOCIATE_DUTY_HOURS`, 12 by default. Somebody will
+forget, the shop trades around the clock, and a forgotten shift means job cards at three
+in the morning - after two of those an associate mutes the chat and is lost for the shifts
+that matter. They are told about the limit as they clock on, so it is never a mystery,
+and nothing sweeps for it: the age is worked out when the question is asked.
+
+Clocking off does not abandon what is already in the bag - somebody carrying two orders is
+told so plainly.
+
+**If nobody is clocked on, the job goes to everyone anyway** and staff are warned. An
+associate who gets a card off duty is mildly annoyed; an order nobody hears about is a
+customer with no dinner.
+
+### Where the associates are
+
+Staff send `where`:
+
+```
+*Delivery associates*
+
+🟢 *Rider One · GSS 1234*
+   +5926001111
+   📍 6 min ago (pin they sent)
+   https://www.google.com/maps?q=6.806500,-58.148900
+   Carrying ORD-00043
+
+⚪ *Rider Two · CVC 5678*  (off duty)
+   📍 3 hours ago (last drop-off) ⚠️
+   ...
+```
+
+`where <name>` sends that associate a location request they answer with one tap, rather
+than asking somebody on a bike to type an address.
+
+**There is no live tracking, and there cannot be.** WhatsApp's live location is a consumer
+feature; a business number receives pins, not a track. What exists is the last position
+each associate gave, from one of two places: a pin they sent, or the doorstep of their
+last delivery - the one position nobody has to ask for, because they were demonstrably
+standing on it when they tapped **Delivered**.
+
+Which is why every line says how old it is, and anything over an hour is flagged. Six
+minutes old is where somebody is; three hours old is where they were, and a dispatcher
+who cannot tell the two apart is worse off than one with no position at all.
+
 ### Who carried an order
 
 Associates are CSV lines in the **`ASSOCIATES`** environment variable, set in the host's

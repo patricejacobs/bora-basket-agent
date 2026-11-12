@@ -241,7 +241,10 @@ async function describeAssociates(): Promise<string> {
     const carrying = repo.activeJobsFor(phone);
 
     const title = [who?.name || `+${phone}`, who?.vehicle].filter(Boolean).join(' · ');
-    const out = [`🛵 *${title}*`];
+    const since = repo.onDutySince(phone);
+    // On or off first, because it decides whether the rest matters: a
+    // position for somebody who went home is history, not a dispatch.
+    const out = [`${since ? '🟢' : '⚪'} *${title}*` + (since ? '' : '  (off duty)')];
     if (who?.name) out.push(`   +${phone}`);
 
     if (at) {
@@ -764,6 +767,9 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
 const DRIVER_HELP = [
   '*Delivery associate commands*',
   '',
+  '`on` — clock on for your shift',
+  '`off` — clock off',
+  '',
   '`jobs` — uplifts waiting',
   '`7 uplifted` — you have the food',
   '`7 delivered` — dropped off, cash taken',
@@ -793,14 +799,55 @@ export async function handleDriverMessage(
   // near enough to be worth offering them.
   if (location) {
     repo.saveAssociateLocation(phone, location, 'shared');
+    // Sending a pin is somebody telling you they are out working. Doing both
+    // in one action is the difference between a rule people follow and one
+    // they forget.
+    const wasOff = !repo.isOnDuty(phone);
+    repo.setDuty(phone, true);
     const radius = config.associateRadiusMiles;
     return reply(
       [
         `📍 Got it${location.label ? ` — ${location.label}` : ''}.`,
+        ...(wasOff ? ['You are on duty.'] : []),
         radius > 0
           ? `You will be offered uplifts within ${radius} miles of here. Send another pin when you move.`
           : 'Noted. Send another pin when you move.',
       ].join(chr10),
+    );
+  }
+
+  // Two letters to start, one tap to stop.
+  //
+  // The way out is a button rather than another word on purpose: the end of a
+  // shift is when somebody is tired and least likely to type anything.
+  if (/^(on|in|start|working|on\s*duty|clock\s*in)$/i.test(trimmed)) {
+    repo.setDuty(phone, true);
+    const who = repo.getAssociate(phone);
+    return [
+      {
+        kind: 'buttons',
+        text: [
+          `🛵 You are on duty${who?.name ? `, ${who.name.split(' ')[0]}` : ''}. Jobs will come to you.`,
+          '',
+          `You will be clocked off automatically after ${config.dutyHours} hours, so send *on* again tomorrow.`,
+        ].join(String.fromCharCode(10)),
+        buttons: [{ id: 'duty_off', title: 'Clock off', command: 'clock off' }],
+      },
+    ];
+  }
+
+  if (/^(off|out|stop|done|finished|off\s*duty|clock\s*off)$/i.test(trimmed)) {
+    const carrying = repo.activeJobsFor(phone);
+    repo.setDuty(phone, false);
+    return reply(
+      [
+        `👋 You are off duty. No more jobs will come to you.`,
+        // Clocking off does not finish what is already in the bag, and
+        // somebody with two orders on a bike should be told so plainly.
+        ...(carrying.length > 0
+          ? ['', `You still have ${carrying.map((o) => o.orderNo).join(', ')} with you — please finish those.`]
+          : []),
+      ].join(String.fromCharCode(10)),
     );
   }
 

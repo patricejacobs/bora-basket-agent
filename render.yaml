@@ -139,6 +139,11 @@ services:
       # while several orders from one kitchen are collected in a single trip.
       - key: MAX_JOBS_PER_ASSOCIATE
         value: "0"
+      # How long a clock-in lasts before it lapses on its own. Somebody will
+      # forget to clock off, and the shop trades around the clock - a forgotten
+      # shift means job cards at three in the morning.
+      - key: ASSOCIATE_DUTY_HOURS
+        value: "12"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

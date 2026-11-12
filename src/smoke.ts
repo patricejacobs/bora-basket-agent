@@ -2995,6 +2995,69 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('Clocking on and off');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const me = config.driverNumbers[0]!;
+
+  repo.setDuty(me, false);
+  check('off duty to begin with', !repo.isOnDuty(me));
+
+  const on = await handleDriverMessage('on', me);
+  check('two letters clock them on', repo.isOnDuty(me));
+  check('and they are told so', /on duty/i.test(on[0]?.text ?? ''), on[0]?.text ?? '');
+  check(
+    'with a button to clock off',
+    on[0]?.kind === 'buttons' && on[0].buttons.some((b) => b.title === 'Clock off'),
+    JSON.stringify(on[0]),
+  );
+  check('told when it lapses', /automatically/i.test(on[0]?.text ?? ''), on[0]?.text ?? '');
+
+  // The button's own words have to work as a command, because that is what a
+  // tap sends back.
+  const tapped = on[0]?.kind === 'buttons' ? (on[0].buttons[0]?.command ?? '') : '';
+  await handleDriverMessage(tapped, me);
+  check('tapping it clocks them off', !repo.isOnDuty(me), tapped);
+
+  for (const word of ['in', 'start', 'working', 'clock in']) {
+    repo.setDuty(me, false);
+    await handleDriverMessage(word, me);
+    check(`"${word}" also clocks on`, repo.isOnDuty(me));
+  }
+  for (const word of ['out', 'stop', 'finished', 'clock off']) {
+    repo.setDuty(me, true);
+    await handleDriverMessage(word, me);
+    check(`"${word}" also clocks off`, !repo.isOnDuty(me));
+  }
+
+  // A pin is somebody telling you they are out working.
+  repo.setDuty(me, false);
+  const pinned = await handleDriverMessage('', me, { latitude: 6.8065, longitude: -58.1489, label: '' });
+  check('sharing a pin clocks them on', repo.isOnDuty(me));
+  check('and says so', /on duty/i.test(pinned[0]?.text ?? ''), pinned[0]?.text ?? '');
+
+  // A forgotten shift lapses on its own. Nothing sweeps for it - the age is
+  // worked out when the question is asked.
+  db.prepare(`UPDATE associates SET on_duty_at = ? WHERE phone = ?`).run(
+    new Date(Date.now() - (config.dutyHours + 1) * 3600_000).toISOString(),
+    me,
+  );
+  check('a shift older than the limit reads as off', !repo.isOnDuty(me));
+  db.prepare(`UPDATE associates SET on_duty_at = ? WHERE phone = ?`).run(
+    new Date(Date.now() - 60_000).toISOString(),
+    me,
+  );
+  check('a recent one still reads as on', repo.isOnDuty(me));
+
+  // Clocking off does not abandon what is already in the bag.
+  const mine = repo.allOrders().find((o) => o.driverPhone === me);
+  if (mine) {
+    repo.setOrderStatus(mine.orderNo, 'on_the_way');
+    const bye = (await handleDriverMessage('off', me))[0]?.text ?? '';
+    check('they are reminded what they still hold', /still have/i.test(bye), bye);
+  }
+}
+
 section('Where the associates are');
 {
   const { handleStaffMessage } = await import('./staff.ts');

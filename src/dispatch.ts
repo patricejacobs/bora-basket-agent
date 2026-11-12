@@ -33,6 +33,28 @@ import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
  * And if the filter leaves nobody at all, everybody is told. A long trip is a
  * complaint; an order nobody hears about is a customer who never gets dinner.
  */
+/**
+ * The associates who have clocked on.
+ *
+ * If nobody has, everybody is told instead. An associate who gets a job card
+ * while off duty is mildly annoyed; an order nobody hears about is a customer
+ * with no dinner and a kitchen with cooling food. Staff are warned, because a
+ * shop running with nobody clocked on is something somebody should know.
+ *
+ * The same rule the distance filter follows: a filter that leaves nobody is a
+ * filter that should not have run.
+ */
+function onDuty(associates: string[]): string[] {
+  const working = associates.filter((phone) => repo.isOnDuty(phone));
+  if (working.length > 0) return working;
+
+  console.warn('[dispatch] nobody is clocked on - offering the job to everyone');
+  void warnStaff(
+    'No delivery associate is clocked on. The job has gone to everyone - check somebody is working.',
+  ).catch(() => {});
+  return associates;
+}
+
 function withinReach(
   associates: string[],
   pickup: { latitude: number; longitude: number } | null,
@@ -383,7 +405,7 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
       ? config.driverNumbers.filter((phone) => repo.activeJobsFor(phone).length < limit)
       : config.driverNumbers;
 
-  const nearby = withinReach(free, pickupPin);
+  const nearby = withinReach(onDuty(free), pickupPin);
   if (nearby.length === 0) {
     console.warn(
       `[dispatch] ${orderNo} is ready but every delivery associate is already carrying one`,

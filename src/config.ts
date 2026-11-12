@@ -231,6 +231,14 @@ export const config = {
    * bag off the same counter.
    */
   maxJobsPerAssociate: Math.max(0, num('MAX_JOBS_PER_ASSOCIATE', 0)),
+  /**
+   * How long a clock-in lasts before it lapses on its own.
+   *
+   * Somebody will forget to clock off, and the shop trades around the clock,
+   * so a forgotten shift means job cards at three in the morning. After two of
+   * those an associate mutes the chat and is lost for the shifts that matter.
+   */
+  dutyHours: Math.max(1, num('ASSOCIATE_DUTY_HOURS', 12)),
 
   /**
    * Watching for orders that have stopped moving.

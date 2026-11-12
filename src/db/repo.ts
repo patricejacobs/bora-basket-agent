@@ -1577,6 +1577,46 @@ export type Associate = {
   active: number;
 };
 
+/**
+ * Clocks an associate on or off.
+ *
+ * Upserts, because duty has to work for somebody who is in DRIVER_NUMBERS but
+ * not yet in the directory - which is every associate until ASSOCIATES is
+ * set. A row with no name is still a row that can hold a shift.
+ */
+export function setDuty(phone: string, on: boolean): void {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return;
+  db.prepare(
+    `INSERT INTO associates (phone, name, vehicle, active, on_duty_at, updated_at)
+     VALUES (?, '', '', 1, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET on_duty_at = excluded.on_duty_at, updated_at = excluded.updated_at`,
+  ).run(digits, on ? nowIso() : '', nowIso());
+}
+
+/**
+ * When they clocked on, or empty for off duty.
+ *
+ * A shift older than the limit reads as off without anything having to sweep
+ * for it. The expiry is worked out here, once, so no caller can forget it and
+ * send a job to somebody who went home last night.
+ */
+export function onDutySince(phone: string, now = new Date()): string {
+  const row = db
+    .prepare(`SELECT on_duty_at AS at FROM associates WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as { at: string } | undefined;
+  if (!row?.at) return '';
+
+  const since = new Date(row.at).getTime();
+  if (!Number.isFinite(since)) return '';
+  const lapsed = now.getTime() - since > config.dutyHours * 3600_000;
+  return lapsed ? '' : row.at;
+}
+
+export function isOnDuty(phone: string, now = new Date()): boolean {
+  return onDutySince(phone, now) !== '';
+}
+
 export function getAssociate(phone: string): Associate | null {
   const row = db
     .prepare(`SELECT phone, name, vehicle, active FROM associates WHERE phone = ?`)
