@@ -1070,6 +1070,42 @@ order - because this message can be sent twice, through a retry or a template fa
 a dispatcher re-closing an order, and a customer who gets two goodbyes in different words
 is talking to something unwell.
 
+### Who carried an order
+
+Associates are CSV lines in the **`ASSOCIATES`** environment variable, set in the host's
+dashboard:
+
+```
+phone,name,vehicle,active
+5926001111,Rider One,GSS 1234,1
+```
+
+Only `phone` and `name` are required - a shop running unplated motorbikes has nothing to
+put in `vehicle`.
+
+**Not in the repository, unlike the menu.** A menu is catalogue data; a list of your
+employees' names and mobile numbers is not, and this repository is public. `data/sample-associates.csv`
+holds invented people so the format is visible, and `SEED_ASSOCIATES_PATH` still reads a
+file for anyone who wants one - but `ASSOCIATES` takes precedence, so a sample can never be
+mistaken for the real thing.
+
+When an associate takes an order, their name and vehicle are **copied onto it** alongside
+the number. Not looked up later: someone who changes van next month must not rewrite which
+van carried an order last week, and someone who leaves must not erase themselves from the
+orders they delivered.
+
+It shows wherever the question is asked - the staff view of an order, the alert when a
+kitchen reports an uplift, and three columns in the backup export:
+
+```
+🛵 Rider One · +5926001111 · GSS 1234
+```
+
+A number with no directory entry still records the number. Knowing a little beats losing
+the one fact there was.
+
+`DRIVER_NUMBERS` still decides who is offered a job. This answers who they are.
+
 ### Timing an order
 
 Two moments are stamped on every order as they happen, and never moved afterwards:

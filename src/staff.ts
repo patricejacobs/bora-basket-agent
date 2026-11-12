@@ -176,7 +176,9 @@ async function applyStatus(
   // did is the noise that makes people stop reading alerts.
   if (status === 'on_the_way' && reportedBy === 'outlet') {
     const who = order.outlet?.name ?? 'The kitchen';
-    const associate = order.driverPhone ? `+${order.driverPhone}` : 'not recorded yet';
+    const associate = order.driverPhone
+      ? [order.driverName, `+${order.driverPhone}`, order.driverVehicle].filter(Boolean).join(' · ')
+      : 'not recorded yet';
     await warnStaff(
       [
         `*${order.orderNo}* uplifted from *${who}*.`,
@@ -282,6 +284,7 @@ const describe = (o: repo.OrderRecord): string =>
     // Durations, not clock times: nobody reads "ready 13:41, uplifted 13:58"
     // and subtracts. The gap is the thing - one says how fast the kitchen is,
     // the other how long the food sat waiting for somebody to come.
+    ...carriedBy(o),
     ...timings(o),
   ].join('\n');
 
@@ -292,6 +295,18 @@ const describe = (o: repo.OrderRecord): string =>
  * to say about how long it waited, and a line reading "waited 0 min" invites
  * somebody to believe it.
  */
+/**
+ * Who took it: name, number and vehicle, in that order.
+ *
+ * Read from the order rather than the directory, so it answers who carried
+ * THIS one - not who is driving that van today.
+ */
+function carriedBy(o: repo.OrderRecord): string[] {
+  if (!o.driverPhone) return [];
+  const who = [o.driverName, `+${o.driverPhone}`, o.driverVehicle].filter(Boolean).join(' · ');
+  return [`🛵 ${who}`];
+}
+
 function timings(o: repo.OrderRecord): string[] {
   const mins = (from: string, to: string): number | null => {
     if (!from || !to) return null;

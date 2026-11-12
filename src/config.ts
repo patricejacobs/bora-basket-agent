@@ -75,6 +75,23 @@ export const config = {
    * item off a menu.
    */
   seedOutletsPath: str('SEED_OUTLETS_PATH', ''),
+  /**
+   * The delivery associates by name and vehicle, on the same principle as the
+   * outlets above. DRIVER_NUMBERS still decides who is sent a job; this says
+   * who they are once one is taken.
+   */
+  seedAssociatesPath: str('SEED_ASSOCIATES_PATH', ''),
+  /**
+   * The same CSV, inline, for the real list.
+   *
+   * Names and mobile numbers of people who work for you are not catalogue
+   * data, and this repository is public. A menu can be committed; a list of
+   * employees cannot. Set in the host's dashboard, where the secrets live.
+   *
+   * Takes precedence over the file, so a sample can ship in the repository
+   * without ever being mistaken for the real thing.
+   */
+  associates: str('ASSOCIATES', ''),
   seedMenuPath: str('SEED_MENU_PATH', ''),
   /**
    * Folder of product photos named by SKU (RIC-001.jpg). Served at /images and

@@ -183,6 +183,17 @@ CREATE INDEX IF NOT EXISTS idx_parked_phone ON parked_cart_items(phone);
 -- delivery, which is where they demonstrably were when they tapped Delivered.
 -- Both go stale, which is why nothing here is ever used to exclude somebody
 -- whose location we are guessing at.
+-- Who carries the orders. A phone number alone answers "which one of them"
+-- with a number somebody has to look up, and answers "whose van is that"
+-- not at all.
+CREATE TABLE IF NOT EXISTS associates (
+  phone      TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  vehicle    TEXT NOT NULL DEFAULT '',
+  active     INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS associate_locations (
   phone      TEXT PRIMARY KEY,
   latitude   REAL NOT NULL,
@@ -329,6 +340,11 @@ addColumnIfMissing('orders', 'handed_over_at', "TEXT NOT NULL DEFAULT ''");
 // when somebody actually took it. updated_at cannot answer this - it is
 // overwritten by every later move, so by the time an order is delivered it
 // has forgotten when it was ready.
+// Copied onto the order when an associate takes it, not looked up later. An
+// associate who changes vehicle next month must not rewrite which van carried
+// an order last week, and one who leaves must not erase themselves from it.
+addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'uplifted_at', "TEXT NOT NULL DEFAULT ''");
 

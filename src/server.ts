@@ -6,6 +6,7 @@ import { config, assertWhatsAppConfigured, money } from './config.ts';
 import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
+import { importAssociatesText } from './catalog/import-associates.ts';
 import { startStallWatch } from './stalls.ts';
 import {
   ordersCsv,
@@ -78,6 +79,43 @@ function loadMenus(): void {
   }
 }
 
+/**
+ * Who the delivery associates are. Re-read on every boot, because a committed
+ * file is the only way to correct a name or a vehicle on a host with no shell.
+ */
+function loadAssociates(): void {
+  // The dashboard first. A real list is names and mobile numbers of people
+  // who work for you, and this repository is public.
+  if (config.associates.trim()) {
+    try {
+      const result = importAssociatesText(config.associates);
+      console.log(`[associates] ${result.imported} delivery associate(s) from ASSOCIATES`);
+      for (const bad of result.skipped.slice(0, 5)) {
+        console.warn(`[associates] line ${bad.line}: ${bad.reason}`);
+      }
+    } catch (err) {
+      console.error('[associates] ASSOCIATES could not be read:', err);
+    }
+    return;
+  }
+
+  if (!config.seedAssociatesPath) return;
+  const file = path.resolve(config.seedAssociatesPath);
+  if (!fs.existsSync(file)) {
+    console.warn(`[associates] SEED_ASSOCIATES_PATH points at a missing file: ${file}`);
+    return;
+  }
+  try {
+    const result = importAssociatesText(fs.readFileSync(file, 'utf8'));
+    console.log(`[associates] ${result.imported} delivery associate(s)`);
+    for (const bad of result.skipped.slice(0, 5)) {
+      console.warn(`[associates] line ${bad.line}: ${bad.reason}`);
+    }
+  } catch (err) {
+    console.error('[associates] import failed; the directory is unchanged:', err);
+  }
+}
+
 function loadCatalogue(): void {
   if (!config.seedCatalogPath) return;
 
@@ -120,6 +158,7 @@ function loadCatalogue(): void {
 
 loadCatalogue();
 loadMenus();
+loadAssociates();
 startStallWatch();
 startBackupSchedule();
 

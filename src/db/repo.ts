@@ -1038,6 +1038,9 @@ export type OrderRecord = {
   /** When the food was marked ready, and when an associate took it. */
   readyAt: string;
   upliftedAt: string;
+  /** Who carried it, as they were when they took it. Empty until uplifted. */
+  driverName: string;
+  driverVehicle: string;
   /** The delivery associate this was dispatched to, empty until the food is ready. */
   driverPhone: string;
   /** 'grocery' | 'restaurant' | 'parcel'. A parcel carries no items. */
@@ -1076,6 +1079,8 @@ function hydrateOrder(row: {
   prep_minutes: number | null;
   driver_phone: string | null;
   handed_over_at: string | null;
+  driver_name: string | null;
+  driver_vehicle: string | null;
   ready_at: string | null;
   uplifted_at: string | null;
   kind: string | null;
@@ -1129,6 +1134,8 @@ function hydrateOrder(row: {
     readyAt: row.ready_at ?? '',
     upliftedAt: row.uplifted_at ?? '',
     driverPhone: row.driver_phone ?? '',
+    driverName: row.driver_name ?? '',
+    driverVehicle: row.driver_vehicle ?? '',
     kind: row.kind ?? 'grocery',
     recipientName: row.recipient_name ?? '',
     recipientPhone: row.recipient_phone ?? '',
@@ -1538,12 +1545,67 @@ export function clearParcelDraft(phone: string): void {
 }
 
 /** Records which delivery associate an order went to, so a second alert cannot send two. */
-export function assignDriver(orderNo: string, driverPhone: string): void {
-  db.prepare(`UPDATE orders SET driver_phone = ?, updated_at = ? WHERE order_no = ?`).run(
-    driverPhone.replace(/[^0-9]/g, ''),
+export type Associate = {
+  phone: string;
+  name: string;
+  vehicle: string;
+  active: number;
+};
+
+export function getAssociate(phone: string): Associate | null {
+  const row = db
+    .prepare(`SELECT phone, name, vehicle, active FROM associates WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as Associate | undefined;
+  return row ?? null;
+}
+
+export function listAssociates(): Associate[] {
+  return db
+    .prepare(`SELECT phone, name, vehicle, active FROM associates ORDER BY name ASC`)
+    .all() as unknown as Associate[];
+}
+
+export function upsertAssociate(a: {
+  phone: string;
+  name: string;
+  vehicle?: string;
+  active?: boolean;
+}): void {
+  db.prepare(
+    `INSERT INTO associates (phone, name, vehicle, active, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       name = excluded.name,
+       vehicle = excluded.vehicle,
+       active = excluded.active,
+       updated_at = excluded.updated_at`,
+  ).run(
+    a.phone.replace(/[^0-9]/g, ''),
+    a.name.trim(),
+    (a.vehicle ?? '').trim(),
+    a.active === false ? 0 : 1,
     nowIso(),
-    orderNo,
   );
+}
+
+/**
+ * Records who took an order, by name and vehicle as well as number.
+ *
+ * Copied onto the order rather than looked up when somebody reads it later.
+ * An associate who changes vehicle next month must not rewrite which van
+ * carried an order last week, and one who leaves must not erase themselves
+ * from the orders they delivered.
+ *
+ * A number with no directory entry still records the number. Knowing a little
+ * is better than losing the one fact there was.
+ */
+export function assignDriver(orderNo: string, driverPhone: string): void {
+  const phone = driverPhone.replace(/[^0-9]/g, '');
+  const who = getAssociate(phone);
+  db.prepare(
+    `UPDATE orders SET driver_phone = ?, driver_name = ?, driver_vehicle = ?, updated_at = ?
+      WHERE order_no = ?`,
+  ).run(phone, who?.name ?? '', who?.vehicle ?? '', nowIso(), orderNo);
 }
 
 /**

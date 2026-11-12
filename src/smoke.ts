@@ -2985,6 +2985,55 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('Who carried it');
+{
+  const { importAssociatesText } = await import('./catalog/import-associates.ts');
+  const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
+
+  const csv = [
+    'phone,name,vehicle,active',
+    '5926001111,Rider One,GSS 1234,1',
+    '5926002222,Marcia Khan,,1',
+    '5926003333,Old Hand,GHH 9999,0',
+    ',Nameless Number,,1',
+    '5926004444,,XXX 1,1',
+  ].join(String.fromCharCode(10));
+  const result = importAssociatesText(csv);
+  check('the directory imports', result.imported === 3, JSON.stringify(result));
+  check('a row with no phone is skipped', result.skipped.some((x) => /no phone/.test(x.reason)));
+  check('and one with no name', result.skipped.some((x) => /no name/.test(x.reason)));
+
+  const wayne = repo.getAssociate('5926001111');
+  check('a name is recorded', wayne?.name === 'Rider One');
+  check('and a vehicle', wayne?.vehicle === 'GSS 1234');
+  check('an associate with no vehicle is still fine', repo.getAssociate('5926002222')?.name === 'Marcia Khan');
+  check('and inactive is kept but marked', repo.getAssociate('5926003333')?.active === 0);
+  check('a formatted number is matched on digits', repo.getAssociate('+592 600 1111')?.name === 'Rider One');
+
+  // Taking an order stamps who took it.
+  const order = repo.allOrders().find((o) => o.outlet !== null);
+  if (order) {
+    const no = order.orderNo;
+    repo.setOrderStatus(no, 'ready');
+    db.prepare(`UPDATE orders SET driver_phone = '', driver_name = '', driver_vehicle = '' WHERE order_no = ?`).run(no);
+    await handleDriverMessage(`${no} on the way`, '5926001111');
+
+    const taken = repo.findOrder(no);
+    check('the order records the name', taken?.driverName === 'Rider One', JSON.stringify(taken?.driverName));
+    check('the number', taken?.driverPhone === '5926001111');
+    check('and the vehicle', taken?.driverVehicle === 'GSS 1234');
+
+    // Stamped, not looked up: changing the directory must not rewrite history.
+    repo.upsertAssociate({ phone: '5926001111', name: 'Rider One', vehicle: 'NEW 5678' });
+    check('a later vehicle change does not rewrite it', repo.findOrder(no)?.driverVehicle === 'GSS 1234');
+
+    const view = (await handleStaffMessage(no, '5926497570'))[0]?.text ?? '';
+    check('staff see the name', view.includes('Rider One'), view);
+    check('the number', view.includes('5926001111'), view);
+    check('and the vehicle', view.includes('GSS 1234'), view);
+  }
+}
+
 section('Timing an order');
 {
   const { handleOutletMessage, handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
@@ -3490,9 +3539,12 @@ section('Backing up the trading record');
   const carried = archived.find((o) => o.driverPhone !== '');
   if (carried) {
     const carriedRow = body.find((r) => r[col('Order')] === carried.orderNo);
+    // The name column may be blank for a number with no directory entry;
+    // the phone is the column that must always hold.
     check(
       'and a delivered order names who carried it',
-      (carriedRow?.[col('Delivery associate')] ?? '') === carried.driverPhone,
+      (carriedRow?.[col('Associate phone')] ?? '') === carried.driverPhone,
+      JSON.stringify([carriedRow?.[col('Delivery associate')], carriedRow?.[col('Associate phone')]]),
     );
   }
   const parcel = archived.find((o) => o.kind === 'parcel');

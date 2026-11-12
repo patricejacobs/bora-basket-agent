@@ -78,6 +78,12 @@ services:
         value: ./data/outlets.csv
       - key: SEED_MENU_PATH
         value: ./data/menu.csv
+      # Who the delivery associates are: name, number, vehicle. DRIVER_NUMBERS
+      # still decides who is offered a job; this says who they are once one is
+      # taken, so an order records a person and a van rather than a number
+      # somebody has to look up.
+      - key: SEED_ASSOCIATES_PATH
+        value: ./data/sample-associates.csv
 
       # --- secrets: set these in the Render dashboard, never in this file ---
       - key: ANTHROPIC_API_KEY
@@ -96,6 +102,14 @@ services:
       # at all, which is the safe default but leaves you with no copy off the
       # disk. Treat the resulting link as the password itself: it appears in the
       # host's request log, so rotate this if it goes anywhere it should not.
+      # Your delivery associates, as CSV lines:
+      #   phone,name,vehicle,active
+      #   5926001111,Rider One,GSS 1234,1
+      # Set here and not in the repository: a menu can be committed, a list of
+      # your employees' names and mobile numbers cannot.
+      - key: ASSOCIATES
+        sync: false
+
       - key: BACKUP_TOKEN
         sync: false
       # Voice-note transcription. Claude cannot hear audio, so this is the
