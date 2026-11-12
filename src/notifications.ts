@@ -264,10 +264,17 @@ function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
  */
 export function deliveredMessage(order: repo.OrderRecord, lang: Language): string {
   const unconfirmed = repo.deliveryCodeUnconfirmed(order.orderNo);
-  const head = t(unconfirmed ? 'delivered_unverified' : 'delivered', lang, {
-    order: order.orderNo,
-    store: config.store.name,
-  });
+  const confirmed = repo.deliveryCodeConfirmed(order.orderNo);
+
+  // Three shapes, not two. An order that never had a code is told neither
+  // thing - it is not a confirmed delivery and it is not a failed one, and
+  // saying either would be inventing a fact about it.
+  const key = unconfirmed ? 'delivered_unverified' : confirmed ? 'delivered_confirmed' : 'delivered';
+  const head = t(key, lang, { order: order.orderNo, store: config.store.name });
+
+  // Only the unconfirmed one invites a reply. On a delivery the customer
+  // proved themselves, "anything wrong?" would be the shop asking a question
+  // it already has the answer to.
   return head + signOffFor(order, lang) + (unconfirmed ? t('delivered_check', lang) : '');
 }
 

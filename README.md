@@ -1165,9 +1165,19 @@ Ask Marcia to read it from our message. 2 tries left.
                                    [ No code ]
 ```
 
-When an order closes without its code confirmed, the customer is told - as a
-receipt line, before the thanks rather than in place of them, because the order
-did arrive and the only thing in question is how that was proved:
+The close tells the customer how it went, as a receipt line before the thanks
+rather than in place of them - the order did arrive, and the only thing in
+question is how that was proved:
+
+```
+Order ORD-00048 delivered.
+Delivery code: confirmed.
+
+Thank you for choosing Next Minute Delivery!
+Bon appétit! 🥘
+```
+
+And when it could not be confirmed:
 
 ```
 Order ORD-00047 delivered.

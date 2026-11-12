@@ -1343,6 +1343,19 @@ export function verifyDeliveryCode(orderNo: string, typed: string): CodeCheck {
 }
 
 /**
+ * Whether this order's code was read back at the door.
+ *
+ * The other half of `deliveryCodeUnconfirmed`, and not its negation: an order
+ * that never had a code is neither confirmed nor unconfirmed, and must be told
+ * neither thing.
+ */
+export function deliveryCodeConfirmed(orderNo: string): boolean {
+  if (!config.deliveryCode) return false;
+  const st = deliveryCodeState(orderNo);
+  return st.exists && Boolean(st.verifiedAt);
+}
+
+/**
  * Whether a code reached this customer and was never read back.
  *
  * Not the same question as `deliveryCodeExpected`, and the difference is the

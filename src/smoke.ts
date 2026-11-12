@@ -3765,7 +3765,7 @@ section('A code the customer reads out at the door');
   };
 
   const first = makeOrder();
-  const code = repo.deliveryCodeFor(first.orderNo);
+  let code = repo.deliveryCodeFor(first.orderNo);
   check('every order gets a code', /^\d{4}$/.test(code), code);
   check('which is not the order number', !first.orderNo.includes(code), `${first.orderNo} / ${code}`);
 
@@ -3788,11 +3788,37 @@ section('A code the customer reads out at the door');
 
   // The code must never reach an operator's screen. The whole point is that
   // only the person at the door can produce it.
+  //
+  // Four random digits turn up in a job card for innocent reasons - inside a
+  // total, a phone number, an order number - so comparing against a random
+  // code lets a coincidence decide the result. Instead: render every operator
+  // surface, pick four digits that appear in none of them, make that the code,
+  // and render again. A match then means the code was printed, and nothing
+  // else.
   repo.assignDriver(first.orderNo, rider);
+  const surface =
+    ((await handleDriverMessage('jobs', rider))[0]?.text ?? '') +
+    JSON.stringify(repo.allOrders().find((o) => o.orderNo === first.orderNo)) +
+    JSON.stringify(await handleDriverMessage(`${first.orderNo} delivered`, rider));
+  let probe = '';
+  for (let n = 1000; n < 10000 && !probe; n += 1) if (!surface.includes(String(n))) probe = String(n);
+  check('a code that cannot collide was found', probe !== '');
+  db.prepare(`UPDATE orders SET delivery_code = ? WHERE order_no = ?`).run(probe, first.orderNo);
+  code = repo.deliveryCodeFor(first.orderNo);
+  check('and it took', code === probe, `${code} / ${probe}`);
+
   const jobs = (await handleDriverMessage('jobs', rider))[0]?.text ?? '';
   check('the associate job list never shows the code', !jobs.includes(code), jobs.slice(0, 200));
   const archived = repo.allOrders().find((o) => o.orderNo === first.orderNo);
   check('and the export does not carry it either', !JSON.stringify(archived).includes(code));
+  // The structural guarantee behind all of the above: the code is not a field
+  // on the object every operator message is built from, so there is nothing
+  // there for a later edit to print by accident.
+  check(
+    'the order object operators see has no code on it',
+    !JSON.stringify(repo.findOrder(first.orderNo)).includes(code),
+    JSON.stringify(repo.findOrder(first.orderNo)),
+  );
   check('though it records that it was sent', Boolean(archived?.codeSentAt));
   check('and not yet verified', archived?.codeVerifiedAt === '');
 
@@ -3877,10 +3903,18 @@ section('A code the customer reads out at the door');
   check('and the way back is the last line', /message us\.?$/.test(told.trim()), told);
   check('but never the digits', !told.includes(repo.deliveryCodeFor(second.orderNo)), told);
 
-  // A verified delivery closes exactly as it always did.
+  // A verified delivery says so, in the same receipt position.
   const clean = deliveredMessage(repo.findOrder(first.orderNo)!, 'en');
-  check('a verified order says nothing about codes', !/code/i.test(clean), clean);
+  check('a verified order says the code was confirmed', clean.includes('Delivery code: confirmed'), clean);
+  check('and is not read as a failure', !clean.includes('not confirmed'), clean);
   check('and keeps its sign-off', clean.includes('Thank you for choosing'), clean);
+  // Nothing to ask: the customer proved themselves at the door.
+  check('and does not invite a reply', !/message us/i.test(clean), clean);
+  check('nor shows the digits', !clean.includes(code), clean);
+
+  // An order that never had a code is told neither thing.
+  const silent = deliveredMessage(repo.findOrder(second.orderNo)!, 'en');
+  check('the unconfirmed one is still distinct from it', silent !== clean);
 
   // All four languages, because a customer who ordered in Spanish is not told
   // this one thing in English.
