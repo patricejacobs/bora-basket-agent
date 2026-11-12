@@ -1359,6 +1359,15 @@ export async function handleDriverMessage(
   // template cannot carry digits - must not be held up for digits nobody was
   // given, or every such delivery reads as a failed verification by somebody
   // who did nothing wrong.
+  // A settled order, reached by a path the code branch above does not cover:
+  // `7 delivered` is neither a code nor a No-code, so it arrives here. Without
+  // this an associate carrying an order cancelled while they drove was asked
+  // for the delivery code - a question about an order that no longer exists,
+  // and no answer to it could ever be right.
+  if (order.status === 'cancelled' || order.status === 'delivered') {
+    return reply(terminalMessage(order, 'driver'));
+  }
+
   // Reachable by typing `7 delivered`, which still works and still has to be
   // answered - the button is gone from the card, the word is not gone from the
   // language.

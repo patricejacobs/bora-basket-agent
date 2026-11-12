@@ -4248,6 +4248,16 @@ section('What a settled order says, to whom');
   const parcel = (await handleDriverMessage('90104 delivered', rider))[0]?.text ?? '';
   check('a cancelled parcel goes back to the sender', /Take it back to Marcia Persaud/.test(parcel), parcel);
 
+  // Reached by `delivered` rather than by a code, which is a different path
+  // through the handler: an order cancelled while an associate drove to it was
+  // being asked for its delivery code, a question with no right answer.
+  db.prepare(`UPDATE orders SET driver_phone = ? WHERE order_no = 'ORD-90102'`).run(rider);
+  db.prepare(`UPDATE orders SET code_verified_at = '' WHERE order_no = 'ORD-90102'`).run();
+  const typedDelivered = (await handleDriverMessage('90102 delivered', rider))[0]?.text ?? '';
+  check('`delivered` on a cancelled order says it is cancelled', /was cancelled/i.test(typedDelivered), typedDelivered);
+  check('and never asks for the code', !/delivery code/i.test(typedDelivered), typedDelivered);
+  db.prepare(`UPDATE orders SET driver_phone = '' WHERE order_no = 'ORD-90102'`).run();
+
   const done = (await handleDriverMessage('90103 delivered', rider))[0]?.text ?? '';
   check('an order already delivered says so', /already .*delivered/i.test(done), done);
   check('and does not tell them to take it anywhere', !/Take it back/i.test(done), done);

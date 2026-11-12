@@ -22,3 +22,7 @@ orders-*.json
 store-*.db
 *.db.partial
 .DS_Store
+
+# Scratch artefacts from the delivery walkthrough
+walkthrough.txt
+data/walk.db
