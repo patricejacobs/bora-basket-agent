@@ -3967,6 +3967,155 @@ section('A code the customer reads out at the door');
   );
 }
 
+section('Counting the cash');
+{
+  const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
+  const rider = config.driverNumbers[0]!;
+  const other = '5926008888';
+  const staff = config.staffNumbers[0]!;
+
+  // A clean slate for this section only: earlier sections delivered orders of
+  // their own, and a total that silently includes them proves nothing.
+  db.prepare(`UPDATE orders SET delivered_at = '' WHERE 1`).run();
+
+  const money4 = (no: string, phone: string, status: string, pay: string, total: number) =>
+    db
+      .prepare(
+        `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+           delivery_note, latitude, longitude, location_label, kind, driver_phone,
+           subtotal, delivery_fee, total, payment_method, status, delivered_at, created_at)
+         VALUES (?, '5926005555', 'Cash Buyer', 'Lot 1', '5926005555', '',
+           6.8, -58.1, '', 'grocery', ?, ?, 0, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        no,
+        phone,
+        total,
+        total,
+        pay,
+        status,
+        status === 'delivered' ? new Date().toISOString() : '',
+        new Date().toISOString(),
+      );
+
+  const from = repo.startOfStoreDay();
+
+  // Midnight on the shop's own clock, not the server's.
+  const atMidnight = from.toLocaleTimeString('en-GB', {
+    timeZone: config.store.timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  check('the day starts at midnight in the store timezone', atMidnight === '00:00', atMidnight);
+  check('and is in the past', from.getTime() <= Date.now());
+  check('and no more than a day ago', Date.now() - from.getTime() <= 24 * 3600_000);
+
+  money4('ORD-90001', rider, 'delivered', 'cash_on_delivery', 150000);
+  money4('ORD-90002', rider, 'delivered', 'cash_on_delivery', 100000);
+  // None of these is money anybody is holding.
+  money4('ORD-90003', rider, 'on_the_way', 'cash_on_delivery', 999900);
+  money4('ORD-90004', rider, 'cancelled', 'cash_on_delivery', 999900);
+  money4('ORD-90005', rider, 'delivered', 'card_on_delivery', 999900);
+  money4('ORD-90006', other, 'delivered', 'cash_on_delivery', 50000);
+  // Closed by a dispatcher, so nobody's name is on it.
+  money4('ORD-90007', '', 'delivered', 'cash_on_delivery', 25000);
+
+  const mine = repo.cashCollected(rider, from);
+  check('two cash deliveries counted', mine.orders === 2, JSON.stringify(mine));
+  check('and summed', mine.total === 250000, String(mine.total));
+  check('an order still on its way is not counted', !JSON.stringify(mine).includes('999900'));
+
+  const all = repo.cashByAssociate(from);
+  check('one row per associate who carried something', all.length === 2, JSON.stringify(all));
+  check('biggest holder first', (all[0]?.total ?? 0) >= (all[1]?.total ?? 0));
+  check('named from the directory', typeof all[0]?.name === 'string');
+
+  const loose = repo.unassignedCash(from);
+  check('cash with no name on it is reported, not dropped', loose.total === 25000, JSON.stringify(loose));
+
+  // The figures have to add up to the till, which is the only reason to
+  // report the unassigned row at all.
+  const reconciled = all.reduce((sum, r) => sum + r.total, 0) + loose.total;
+  check('and the parts add up', reconciled === 325000, String(reconciled));
+
+  /* --- what people are told ------------------------------------------- */
+
+  const report = (await handleStaffMessage('cash', staff))[0]?.text ?? '';
+  check('staff can ask for the day', report.includes('Cash today'), report.slice(0, 120));
+  check('the total is in it', report.includes('325,000') || report.includes('3,250'), report);
+  check('and the unnamed cash is shown', /nobody named/i.test(report), report);
+  check('card money is excluded, and said to be', /card/i.test(report), report);
+
+  const held = (await handleDriverMessage('cash', rider))[0]?.text ?? '';
+  check('an associate can check what they hold', /hand in/i.test(held), held);
+  check('with their own figure, not the shop total', !held.includes('325,000'), held);
+
+  // The one moment they are certain to read it. Clocked on an hour ago, so
+  // the deliveries above fall inside the shift - an associate who clocks on
+  // AFTER delivering is carrying money from a shift that has already been
+  // reconciled, and must not be billed for it twice.
+  repo.setDuty(rider, true);
+  db.prepare(`UPDATE associates SET on_duty_at = ? WHERE phone = ?`).run(
+    new Date(Date.now() - 3600_000).toISOString(),
+    rider,
+  );
+  const off = (await handleDriverMessage('off', rider))[0]?.text ?? '';
+  check('clocking off states the cash to hand in', /to hand in/i.test(off), off);
+  check('and the number of deliveries', /2 deliveries/i.test(off), off);
+
+  repo.setDuty(rider, true);
+  const fresh = (await handleDriverMessage('off', rider))[0]?.text ?? '';
+  check(
+    'but a shift that started after the deliveries is not charged for them',
+    !/to hand in/i.test(fresh),
+    fresh,
+  );
+  check('though the day is still mentioned', /Across today/i.test(fresh), fresh);
+
+  /* --- the stamp the money is counted from ---------------------------- */
+
+  repo.setOrderStatus('ORD-90003', 'delivered');
+  const first = (db.prepare(`SELECT delivered_at AS at FROM orders WHERE order_no = 'ORD-90003'`)
+    .get() as { at: string }).at;
+  check('delivering stamps the time', Boolean(first), first);
+  repo.setOrderStatus('ORD-90003', 'delivered');
+  const again = (db.prepare(`SELECT delivered_at AS at FROM orders WHERE order_no = 'ORD-90003'`)
+    .get() as { at: string }).at;
+  check('and the stamp never moves', again === first, `${first} / ${again}`);
+
+  // Tidy up, so later sections count their own orders and not these.
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-9%'`).run();
+  repo.setDuty(rider, false);
+}
+
+section('A copy that is not on the server');
+{
+  const backup = await import('./backup.ts');
+
+  // WhatsApp is not configured in this suite, so the upload cannot succeed.
+  // What is worth checking is that it reports that honestly rather than
+  // claiming a backup left the machine.
+  const result = await backup.sendOffsiteCopy('5926497570');
+  check('an impossible send is reported as failed', result === 'failed', String(result));
+
+  // Both files are real and openable before anything is sent anywhere.
+  const csv = backup.ordersCsv();
+  const json = backup.ordersJson();
+  check('the spreadsheet has a header row', csv.split('\r\n')[0]?.includes('Order') === true);
+  check('and the json parses', (() => {
+    try {
+      const parsed = JSON.parse(json) as { orders?: unknown[] };
+      return Array.isArray(parsed.orders);
+    } catch {
+      return false;
+    }
+  })());
+  check(
+    'the json is the one that can rebuild the table',
+    JSON.stringify(JSON.parse(json)).includes('"items"'),
+  );
+}
+
 section('Backing up the trading record');
 {
   const backup = await import('./backup.ts');

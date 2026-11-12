@@ -301,6 +301,9 @@ const HELP = [
   '`where` — where the delivery associates are',
   '`where <name>` — ask one of them for a fresh pin',
   '',
+  '`cash` — what each associate collected today',
+  '`backup` — the trading record, sent to you here',
+  '',
   '`outlets` — the restaurants on the system',
   'Send a photo of a menu to add one (`new outlet` for how)',
   '',
@@ -466,6 +469,24 @@ export async function handleStaffMessage(
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(HELP);
 
   if (isOnboardingCommand(trimmed)) return handleOnboardingCommand(phone, trimmed);
+
+  // What the associates are holding in cash.
+  if (/^(cash|takings|money)$/i.test(trimmed)) return reply(cashReport());
+
+  // A copy of the trading record, to this phone, now.
+  //
+  // Pull as well as push: the daily push can only reach somebody who has
+  // written to this number in the last 24 hours, and the one person who is
+  // certainly inside that window is whoever just typed this.
+  if (/^(backup|back\s*up|export)$/i.test(trimmed)) {
+    const { sendOffsiteCopy } = await import('./backup.ts');
+    const result = await sendOffsiteCopy(phone);
+    return reply(
+      result === 'sent'
+        ? 'Sending it now — two files. Save them somewhere off your phone as well.'
+        : 'Could not send the files. Check the logs on Render.',
+    );
+  }
 
   // Where everyone is, and a way to ask one of them for a fresh pin.
   if (/^(where|associates|drivers|riders)$/i.test(trimmed)) {
@@ -775,6 +796,8 @@ const DRIVER_HELP = [
   '`7 uplifted` — you have the food',
   '`7 delivered` — dropped off, cash taken',
   '',
+  '`cash` — what you are holding this shift',
+  '',
   'At the door, ask for the four-digit delivery code and type it in.',
   'No code? Tap *No code* — the order still goes through.',
   '',
@@ -782,6 +805,51 @@ const DRIVER_HELP = [
   '',
   'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
 ].join('\n');
+
+/**
+ * The day's cash, by whoever is holding it.
+ *
+ * Counted from midnight on the store's own clock. The shop trades around the
+ * clock so there is no natural gap to count from, but money is reconciled
+ * against the day on the till, not UTC's.
+ */
+function cashReport(): string {
+  const from = repo.startOfStoreDay();
+  const rows = repo.cashByAssociate(from);
+  const loose = repo.unassignedCash(from);
+  const day = from.toLocaleDateString('en-GB', {
+    timeZone: config.store.timezone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  if (rows.length === 0 && loose.orders === 0) {
+    return [`💰 *Cash today* — ${day}`, '', 'Nothing delivered for cash yet.'].join(chr10);
+  }
+
+  const line = (label: string, t: { orders: number; total: number }): string =>
+    `${label} — ${t.orders} ${t.orders === 1 ? 'order' : 'orders'}, *${money(t.total)}*`;
+
+  const total = rows.reduce((sum, r) => sum + r.total, 0) + loose.total;
+  const count = rows.reduce((sum, r) => sum + r.orders, 0) + loose.orders;
+
+  return [
+    `💰 *Cash today* — ${day}`,
+    '',
+    ...rows.map((r) =>
+      line(`${r.name || `+${r.phone}`}${r.vehicle ? ` (${r.vehicle})` : ''}`, r),
+    ),
+    // Delivered cash with no associate on it: closed by a dispatcher rather
+    // than by whoever carried it. Shown rather than dropped, because a total
+    // that does not reconcile to the till is worse than an awkward row.
+    ...(loose.orders > 0 ? [line('Closed by the shop, nobody named', loose)] : []),
+    '',
+    `*${count} ${count === 1 ? 'order' : 'orders'}, ${money(total)} in all*`,
+    '',
+    'Delivered and paid in cash. Card orders are not counted — nothing changes hands.',
+  ].join(chr10);
+}
 
 /**
  * What dispatch is told when an order is delivered without its code.
@@ -888,10 +956,34 @@ export async function handleDriverMessage(
 
   if (/^(off|out|stop|done|finished|off\s*duty|clock\s*off)$/i.test(trimmed)) {
     const carrying = repo.activeJobsFor(phone);
+    // Read before clocking off, or the shift it refers to no longer exists.
+    const since = repo.onDutySince(phone);
+    const dayStart = repo.startOfStoreDay();
+    const shift = repo.cashCollected(phone, since ? new Date(since) : dayStart);
+    // The day as well as the shift, when they differ. Somebody who worked a
+    // stretch this morning may still be carrying that money - a figure for
+    // this shift alone would understate what they owe, and a figure for the
+    // day would double-count anything already handed in. Both, and let the
+    // person holding it say which.
+    const today = repo.cashCollected(phone, dayStart);
     repo.setDuty(phone, false);
     return reply(
       [
         `👋 You are off duty. No more jobs will come to you.`,
+        // The figure they are holding, said once, plainly, at the only moment
+        // they are certain to read it. Nobody can hand over money they were
+        // never told the amount of.
+        ...(shift.orders > 0
+          ? [
+              '',
+              `💰 ${shift.orders} ${shift.orders === 1 ? 'delivery' : 'deliveries'} for cash — *${money(shift.total)}* to hand in.`,
+            ]
+          : []),
+        ...(today.orders > shift.orders
+          ? [
+              `Across today: ${today.orders} deliveries, ${money(today.total)}. Say if an earlier shift is already handed in.`,
+            ]
+          : []),
         // Clocking off does not finish what is already in the bag, and
         // somebody with two orders on a bike should be told so plainly.
         ...(carrying.length > 0
@@ -902,6 +994,22 @@ export async function handleDriverMessage(
   }
 
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(DRIVER_HELP);
+
+  // What they are holding. Asked for by the person holding it, which is the
+  // one party who can check the figure against their own pocket.
+  if (/^(cash|money|takings)$/i.test(trimmed)) {
+    const since = repo.onDutySince(phone);
+    const from = since ? new Date(since) : repo.startOfStoreDay();
+    const tally = repo.cashCollected(phone, from);
+    return reply(
+      tally.orders === 0
+        ? 'No cash deliveries yet' + (since ? ' this shift.' : ' today.')
+        : [
+            `💰 *${money(tally.total)}* to hand in`,
+            `${tally.orders} cash ${tally.orders === 1 ? 'delivery' : 'deliveries'}${since ? ' this shift' : ' today'}.`,
+          ].join(chr10),
+    );
+  }
 
   if (/^(jobs|job|queue|pickups?|collections?|uplifts?)$/i.test(trimmed)) {
     const waiting = repo.ordersAwaitingPickup(10);

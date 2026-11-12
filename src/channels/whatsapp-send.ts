@@ -188,6 +188,87 @@ export async function sendLocation(
   });
 }
 
+const mediaUrl = (): string =>
+  `https://graph.facebook.com/${config.whatsapp.graphVersion}/${config.whatsapp.phoneNumberId}/media`;
+
+/**
+ * Uploads a file and returns Meta's media id, or null.
+ *
+ * Two steps are unavoidable: a document message carries an id or a public URL,
+ * and a public URL for a file holding every customer's address is not something
+ * this shop should be creating. So the bytes go up to Meta first and the message
+ * references them.
+ */
+async function uploadMedia(
+  bytes: Uint8Array,
+  filename: string,
+  mime: string,
+): Promise<string | null> {
+  if (!config.whatsapp.accessToken || !config.whatsapp.phoneNumberId) return null;
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mime);
+  form.append('file', new Blob([bytes], { type: mime }), filename);
+
+  const res = await fetch(mediaUrl(), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${config.whatsapp.accessToken}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    console.error(`[whatsapp] media upload failed ${res.status}: ${detail}`);
+    return null;
+  }
+  const body = (await res.json().catch(() => null)) as { id?: string } | null;
+  return body?.id ?? null;
+}
+
+/**
+ * Sends a file as a WhatsApp document.
+ *
+ * Meta publishes a list of document types it accepts and a CSV is not reliably
+ * on it, so a rejected upload is retried once as plain text under a `.txt`
+ * name. A backup that arrives needing to be renamed is still a backup; one that
+ * silently never arrives is not. Which route was taken is logged, because the
+ * difference matters to whoever opens it.
+ */
+export async function sendDocument(
+  to: string,
+  file: { bytes: Uint8Array; filename: string; mime: string; caption?: string },
+): Promise<boolean> {
+  let id = await uploadMedia(file.bytes, file.filename, file.mime);
+  let filename = file.filename;
+
+  if (!id && file.mime !== 'text/plain') {
+    const fallback = `${file.filename.replace(/\.[^.]+$/, '')}.txt`;
+    console.warn(`[whatsapp] ${file.mime} refused — retrying as text/plain (${fallback})`);
+    id = await uploadMedia(file.bytes, fallback, 'text/plain');
+    if (id) filename = fallback;
+  }
+
+  if (!id) {
+    sendStats.failed++;
+    sendStats.lastError = 'media upload failed';
+    sendStats.lastErrorAt = new Date().toISOString();
+    return false;
+  }
+
+  return callGraph({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'document',
+    document: {
+      id,
+      filename,
+      ...(file.caption ? { caption: file.caption.slice(0, 1024) } : {}),
+    },
+  });
+}
+
 /**
  * Sends a pre-approved template. This is the only way to reach a customer more
  * than 24 hours after their last message — plain text is rejected by Meta there.

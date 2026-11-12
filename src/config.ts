@@ -58,6 +58,20 @@ export const config = {
     dir: str('BACKUP_DIR', ''),
     keep: num('BACKUP_KEEP', 14),
     everyHours: num('BACKUP_EVERY_HOURS', 24),
+    /**
+     * How often to push a copy off the machine, in hours. 0 switches it off.
+     *
+     * The snapshots above live on the same disk as the database they protect.
+     * That survives a bad write or a mistaken delete; it does not survive
+     * losing the disk, which is the failure that ends a business rather than
+     * inconveniencing it. This is the only copy that is somewhere else.
+     */
+    sendHours: num('BACKUP_SEND_HOURS', 24),
+    /**
+     * Who receives it. Defaults to the first staff number, since that is
+     * whoever set the shop up.
+     */
+    to: str('BACKUP_TO', ''),
   },
   enableSimulator: bool('ENABLE_SIMULATOR', true),
   /**

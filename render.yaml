@@ -157,6 +157,12 @@ services:
       # is told. "false" switches it off.
       - key: DELIVERY_CODE
         value: "true"
+      # A copy of the trading record, pushed off the machine over WhatsApp.
+      # The snapshots live on the same disk as the database they protect, which
+      # survives a bad migration but not losing the disk. 0 switches it off;
+      # BACKUP_TO defaults to the first STAFF_NUMBERS entry.
+      - key: BACKUP_SEND_HOURS
+        value: "24"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

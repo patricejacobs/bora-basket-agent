@@ -389,6 +389,14 @@ addColumnIfMissing('orders', 'code_verified_at', "TEXT NOT NULL DEFAULT ''");
 // only never as verified.
 addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
 
+// When the money changed hands.
+//
+// `updated_at` would nearly do, since delivered is terminal and nothing moves
+// it afterwards - but "nearly" is not a basis for counting cash. Its own
+// column, written once, inside the same statement that sets the status, so no
+// future code path can set one without the other.
+addColumnIfMissing('orders', 'delivered_at', "TEXT NOT NULL DEFAULT ''");
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *

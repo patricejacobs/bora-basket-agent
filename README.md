@@ -1242,6 +1242,82 @@ carry digits; the associate is then never asked for a code they were never given
 
 Set `DELIVERY_CODE` to `false` to switch it off.
 
+### Counting the cash
+
+The shop trades cash on delivery, so at the end of a shift somebody is carrying
+money. Every order already records its total and who carried it — this adds the
+arithmetic, which is the part that was missing.
+
+Staff send `cash`:
+
+```
+💰 Cash today — Thursday 12 November
+
+Rider One (NEW 5678) — 6 orders, $1,625,000
+Rider Two (PLL 1234) — 2 orders, $470,000
+Closed by the shop, nobody named — 1 order, $235,000
+
+9 orders, $2,330,000 in all
+
+Delivered and paid in cash. Card orders are not counted —
+nothing changes hands.
+```
+
+An associate sends `cash` to check their own figure against their own pocket,
+and clocking off states it unprompted — the one moment they are certain to read
+it, since nobody can hand over money they were never told the amount of:
+
+```
+👋 You are off duty. No more jobs will come to you.
+
+💰 6 deliveries for cash — $1,625,000 to hand in.
+```
+
+Three deliberate choices. **Delivered cash only**: an order on its way is money
+nobody is holding yet, a cancelled one is money that never existed, and a card
+payment leaves nothing to hand over. **Orders closed by a dispatcher are shown
+as a row of their own** rather than dropped or attributed to a guess — they have
+no associate's name on them, and a total that does not reconcile to the till is
+worse than an awkward row. **Both the shift and the day** are reported when they
+differ: a figure for the shift alone understates what somebody who worked this
+morning is carrying, and a figure for the day double-counts anything already
+handed in.
+
+Counted from midnight on the store's own clock, via `STORE_TIMEZONE`'s
+offset read out of the zone's own formatted parts. The tempting one-liner for
+this — reparsing a formatted date string — silently uses the *server's*
+timezone, so it gives the right answer only when the server happens to be
+somewhere else. On a server already set to Guyana time the day started at 20:00
+the previous evening. The suite runs under four server timezones for that
+reason.
+
+### A copy that is not on the server
+
+Snapshots are written beside the database. That survives a bad write, a bad
+migration or a mistaken delete — it does not survive losing the disk, which is
+the failure that ends a business rather than inconveniencing it.
+
+So a copy goes off the machine over WhatsApp, every `BACKUP_SEND_HOURS`, to
+`BACKUP_TO` (or the first staff number). WhatsApp rather than email because the
+credentials already exist: no new account, no SMTP host, no third service to go
+wrong, and it lands on the phone the shop is already run from. A backup that
+needs somebody to remember a password is a backup that stops happening.
+
+Two files, because they fail differently — the CSV is what a person opens six
+months later to find out what an address was, and the JSON is what rebuilds the
+table, since flattening an order into a row loses the item lines.
+
+Staff can also pull one at any time with `backup`. That matters: a
+business-initiated WhatsApp message is refused more than 24 hours after the
+recipient last wrote in, and the one person certainly inside that window is
+whoever just typed the command. The scheduled push is not run on boot, so a
+host that restarts the process a few times does not send the owner a backup each
+time.
+
+**The file holds every customer's name, address and map pin.** That is the point
+of keeping it and the reason it goes to one number rather than to all staff. The
+caption says not to forward it.
+
 ### Where the associates are
 
 Staff send `where`:

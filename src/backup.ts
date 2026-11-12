@@ -27,6 +27,7 @@ import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { mapsLink } from './location.ts';
 import { summariseStored } from './menu-options.ts';
+import { sendDocument } from './channels/whatsapp-send.ts';
 
 /* ------------------------------------------------------------------- CSV */
 
@@ -338,6 +339,119 @@ export function startBackupSchedule(): void {
   void run();
   const timer = setInterval(() => void run(), config.backup.everyHours * 3_600_000);
   timer.unref();
+
+  startOffsiteSchedule();
+}
+
+/**
+ * The off-site push, on its own clock.
+ *
+ * Separate from the snapshot schedule because the two protect against different
+ * failures and want different frequencies - and because this one can fail for a
+ * reason the local snapshot never can: WhatsApp refuses a business-initiated
+ * message more than 24 hours after the recipient last wrote in. Staff send
+ * commands to this number all day, so in practice the window is open; when it
+ * is not, this says so plainly rather than appearing to have worked.
+ *
+ * Deliberately NOT run on boot, unlike the snapshot. A host that restarts the
+ * process a few times would otherwise send the owner a backup each time.
+ */
+function startOffsiteSchedule(): void {
+  if (config.backup.sendHours <= 0) {
+    console.log('[backup] BACKUP_SEND_HOURS=0 — nothing is copied off the machine');
+    return;
+  }
+  if (!config.backup.to && config.staffNumbers.length === 0) {
+    console.warn(
+      '[backup] off-site copies are on but there is nobody to send them to — set BACKUP_TO',
+    );
+  }
+
+  const push = async (): Promise<void> => {
+    try {
+      const result = await sendOffsiteCopy();
+      if (result === 'failed') {
+        console.error(
+          '[backup] the off-site copy did not go. If this is a 24-hour window error, send any message to the shop number and it will go on the next run.',
+        );
+      }
+    } catch (err) {
+      console.error('[backup] off-site copy threw:', err);
+    }
+  };
+
+  const timer = setInterval(() => void push(), config.backup.sendHours * 3_600_000);
+  timer.unref();
+  console.log(`[backup] off-site copy every ${config.backup.sendHours}h`);
+}
+
+/* --------------------------------------------------------------- off-site */
+
+/** `orders-2026-11-12` — dated in the store's own timezone. */
+function exportStem(now = new Date()): string {
+  return `orders-${now.toLocaleDateString('en-CA', { timeZone: config.store.timezone })}`;
+}
+
+export type OffsiteResult = 'sent' | 'no_recipient' | 'failed';
+
+/**
+ * Pushes a copy of the trading record off the machine, over WhatsApp.
+ *
+ * WhatsApp rather than email on purpose: the credentials already exist, so this
+ * needs no new account, no SMTP host and no third service to go wrong - and it
+ * lands on the phone the shop is already run from. A backup that requires
+ * somebody to remember a password is a backup that stops happening.
+ *
+ * Two files, because they fail differently. The CSV is what a person opens six
+ * months later to find out what an address was; the JSON is what rebuilds the
+ * table, since flattening an order into a row loses the item lines.
+ *
+ * The file holds every customer's name, address and GPS pin. That is the point
+ * of keeping it and the reason to be careful where it goes - which is why it is
+ * sent to one number, not broadcast to staff.
+ */
+export async function sendOffsiteCopy(to = ''): Promise<OffsiteResult> {
+  const recipient = (to || config.backup.to || config.staffNumbers[0] || '').replace(
+    /[^0-9]/g,
+    '',
+  );
+  if (!recipient) {
+    console.warn('[backup] no off-site recipient — set BACKUP_TO or STAFF_NUMBERS');
+    return 'no_recipient';
+  }
+
+  const count = repo.allOrders().length;
+  const stem = exportStem();
+  const encoder = new TextEncoder();
+
+  const csvOk = await sendDocument(recipient, {
+    bytes: encoder.encode(ordersCsv()),
+    filename: `${stem}.csv`,
+    mime: 'text/csv',
+    caption: [
+      `🗄️ *${config.store.name}* — ${count} ${count === 1 ? 'order' : 'orders'}`,
+      '',
+      'Keep this. It is the only copy that is not on the server.',
+      'It holds customer names, addresses and map pins — do not forward it.',
+    ].join(String.fromCharCode(10)),
+  });
+
+  // The restorable one. Sent second so the readable file is the one they see
+  // first, and attempted even if the CSV failed - either arriving is better
+  // than neither.
+  const jsonOk = await sendDocument(recipient, {
+    bytes: encoder.encode(ordersJson()),
+    filename: `${stem}.json`,
+    mime: 'application/json',
+    caption: 'The same orders, complete. This is the file that can rebuild the database.',
+  });
+
+  if (!csvOk && !jsonOk) {
+    console.error('[backup] off-site copy failed — nothing left the machine');
+    return 'failed';
+  }
+  console.log(`[backup] off-site copy sent to +${recipient} (${count} orders)`);
+  return 'sent';
 }
 
 /* ------------------------------------------------------------------- CLI */

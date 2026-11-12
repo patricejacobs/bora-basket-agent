@@ -2229,15 +2229,178 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   // row that reads as both delivered and cancelled, which is unreadable in an
   // archive six months later.
   const keepReason = status === 'cancelled';
+  const now = nowIso();
+  // The delivery stamp is written here rather than by a caller, unlike the
+  // ready and uplift stamps. Cash is counted from it, and a stamp a handler
+  // has to remember to write is a stamp some future handler will not - which
+  // would not break anything visible, it would just quietly leave money out
+  // of the day's total.
+  const delivering = status === 'delivered';
   db.prepare(
     `UPDATE orders
         SET status = ?,
             updated_at = ?,
             stall_alerted_at = NULL,
+            delivered_at = CASE WHEN ? AND delivered_at = '' THEN ? ELSE delivered_at END,
             cancel_reason = CASE WHEN ? THEN cancel_reason ELSE '' END,
             cancelled_by = CASE WHEN ? THEN cancelled_by ELSE '' END
       WHERE order_no = ?`,
-  ).run(status, nowIso(), keepReason ? 1 : 0, keepReason ? 1 : 0, orderNo);
+  ).run(
+    status,
+    now,
+    delivering ? 1 : 0,
+    now,
+    keepReason ? 1 : 0,
+    keepReason ? 1 : 0,
+    orderNo,
+  );
+}
+
+/* ------------------------------------------------------------------- cash */
+
+/**
+ * How far ahead of UTC a zone is at a given instant, in milliseconds.
+ *
+ * Read out of the zone's own formatted parts. The tempting one-liner -
+ * `new Date(d.toLocaleString('en-US', { timeZone }))` - reparses a formatted
+ * string in the *server's* timezone, so it only gives the right answer when the
+ * server happens to be somewhere else. On a server already set to Guyana time
+ * it returns a zero offset and the day starts at 20:00 the evening before.
+ */
+function zoneOffsetMs(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+
+  const at: Record<string, number> = {};
+  for (const part of parts) if (part.type !== 'literal') at[part.type] = Number(part.value);
+
+  const asIfUtc = Date.UTC(
+    at.year ?? 1970,
+    (at.month ?? 1) - 1,
+    at.day ?? 1,
+    at.hour ?? 0,
+    at.minute ?? 0,
+    at.second ?? 0,
+  );
+  return asIfUtc - instant.getTime();
+}
+
+/**
+ * Midnight in the store's own timezone, as an instant.
+ *
+ * The shop trades around the clock, so there is no natural gap to count a day
+ * from - but money still has to be reconciled against something, and the day
+ * staff recognise is the day on their own clock, not UTC's.
+ */
+export function startOfStoreDay(now = new Date()): Date {
+  const tz = config.store.timezone;
+  // en-CA gives YYYY-MM-DD, the one locale format that parses back predictably.
+  const day = now.toLocaleDateString('en-CA', { timeZone: tz });
+  const naive = new Date(`${day}T00:00:00Z`).getTime();
+
+  // One correction, then a second against the corrected instant. The second
+  // matters only on a daylight-saving boundary, where the offset at midnight
+  // differs from the offset now - Guyana has none, but the next shop might,
+  // and a day that starts an hour out is a day of cash counted into the wrong
+  // one.
+  let guess = naive - zoneOffsetMs(new Date(naive), tz);
+  guess = naive - zoneOffsetMs(new Date(guess), tz);
+  return new Date(guess);
+}
+
+export type CashTally = { orders: number; total: number };
+
+/**
+ * What one associate took in cash over a window.
+ *
+ * Delivered orders only: an order on its way is money nobody is holding yet,
+ * and a cancelled one is money that never existed. Cash only, because a card
+ * payment leaves nothing for anybody to hand over at the end of a shift -
+ * counting it would overstate what the associate owes and the first
+ * reconciliation would be a row about nothing.
+ */
+export function cashCollected(phone: string, from: Date, to = new Date()): CashTally {
+  const digits = phone.replace(/[^0-9]/g, '');
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
+         FROM orders
+        WHERE driver_phone = ?
+          AND status = 'delivered'
+          AND payment_method LIKE 'cash%'
+          AND delivered_at >= ? AND delivered_at <= ?`,
+    )
+    .get(digits, from.toISOString(), to.toISOString()) as { orders: number; total: number };
+  return { orders: row.orders, total: row.total };
+}
+
+export type AssociateCash = CashTally & { phone: string; name: string; vehicle: string };
+
+/**
+ * The same, for everybody who carried anything, most money first.
+ *
+ * Driven off the orders rather than off the associate directory: somebody who
+ * has been removed from the directory may still owe for a delivery they made
+ * this morning, and a reconciliation that forgets them is worse than useless.
+ */
+export function cashByAssociate(from: Date, to = new Date()): AssociateCash[] {
+  const rows = db
+    .prepare(
+      `SELECT driver_phone AS phone, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
+         FROM orders
+        WHERE status = 'delivered'
+          AND payment_method LIKE 'cash%'
+          AND driver_phone != ''
+          AND delivered_at >= ? AND delivered_at <= ?
+        GROUP BY driver_phone
+        ORDER BY total DESC`,
+    )
+    .all(from.toISOString(), to.toISOString()) as unknown as {
+    phone: string;
+    orders: number;
+    total: number;
+  }[];
+
+  return rows.map((r) => {
+    const who = getAssociate(r.phone);
+    return {
+      phone: r.phone,
+      name: who?.name ?? '',
+      vehicle: who?.vehicle ?? '',
+      orders: r.orders,
+      total: r.total,
+    };
+  });
+}
+
+/**
+ * Delivered cash with nobody's name on it.
+ *
+ * An order closed by a dispatcher rather than by the associate carrying it
+ * never gets a driver_phone, so it would vanish from every per-person total
+ * and the day's figures would not add up to the till. Reported separately
+ * rather than hidden or attributed to a guess.
+ */
+export function unassignedCash(from: Date, to = new Date()): CashTally {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
+         FROM orders
+        WHERE status = 'delivered'
+          AND payment_method LIKE 'cash%'
+          AND driver_phone = ''
+          AND delivered_at >= ? AND delivered_at <= ?`,
+    )
+    .get(from.toISOString(), to.toISOString()) as { orders: number; total: number };
+  return { orders: row.orders, total: row.total };
 }
 
 /* ----------------------------------------------------------------- stalls */
