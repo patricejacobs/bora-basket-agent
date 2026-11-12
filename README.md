@@ -1141,15 +1141,33 @@ Your delivery code is *2149* — read it to the delivery associate
 at the door, so we know your order reached the right hands.
 ```
 
-Tapping **Delivered** asks for it instead of closing the order:
+Typing those four digits **is** the delivery, so the associate's card carries no
+Delivered button at all:
 
 ```
-🔐 ORD-00017 — ask Code for their delivery code.
+🛵 ORD-00047 on the way
 
-Type the four digits to close the order.
+🔐 Type the four-digit code from Marcia to close it.
+No code? Reply *no code*.
+```
+
+One action at the door instead of three, and no button marked Delivered that
+does not deliver. There is deliberately no **No code** button on that card
+either: the only button on the message an associate works from becomes the path
+of least resistance, tapped out of habit, every drop unverified. It appears on
+the wrong-code reply, which is when somebody actually needs it:
+
+```
+❌ That is not the code for ORD-00047.
+
+Ask Marcia to read it from our message. 2 tries left.
 
                                    [ No code ]
 ```
+
+An order with **no** code keeps its Delivered button — there is nothing to type,
+so taking it away would strand them. Typing `47 delivered` still works as well:
+the button is gone from the card, the word is not gone from the language.
 
 **No operator message carries the digits** — not the job card, not `jobs`, not
 the dispatch alert, not the CSV export. The code is not on the order object the
