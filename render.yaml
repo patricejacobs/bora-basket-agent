@@ -144,6 +144,12 @@ services:
       # shift means job cards at three in the morning.
       - key: ASSOCIATE_DUTY_HOURS
         value: "12"
+      # The most an associate may work in any rolling 24 hours, counted across
+      # every stretch - so stopping and starting cannot reset it. Rolling
+      # rather than per calendar day, or somebody works 11pm to 11pm and never
+      # breaks it. 0 switches the cap off.
+      - key: ASSOCIATE_MAX_HOURS_PER_DAY
+        value: "12"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

@@ -1587,11 +1587,105 @@ export type Associate = {
 export function setDuty(phone: string, on: boolean): void {
   const digits = phone.replace(/[^0-9]/g, '');
   if (!digits) return;
+  const now = nowIso();
+
   db.prepare(
     `INSERT INTO associates (phone, name, vehicle, active, on_duty_at, updated_at)
      VALUES (?, '', '', 1, ?, ?)
      ON CONFLICT(phone) DO UPDATE SET on_duty_at = excluded.on_duty_at, updated_at = excluded.updated_at`,
-  ).run(digits, on ? nowIso() : '', nowIso());
+  ).run(digits, on ? now : '', now);
+
+  // The log of stretches worked, kept alongside the current state. One
+  // answers "are they working"; only the other can answer "for how long
+  // today", which is the question a limit actually needs.
+  if (on) {
+    const open = db
+      .prepare(`SELECT id FROM associate_shifts WHERE phone = ? AND ended_at = '' LIMIT 1`)
+      .get(digits);
+    // Clocking on twice does not start a second shift on top of the first.
+    if (!open) {
+      db.prepare(`INSERT INTO associate_shifts (phone, started_at) VALUES (?, ?)`).run(digits, now);
+    }
+  } else {
+    db.prepare(`UPDATE associate_shifts SET ended_at = ? WHERE phone = ? AND ended_at = ''`).run(
+      now,
+      digits,
+    );
+  }
+}
+
+/**
+ * Hours worked in the last 24, counting every stretch rather than the current
+ * one.
+ *
+ * A shift still running counts up to now. A shift nobody closed counts only as
+ * far as it would have lapsed - somebody who forgot to clock off last night
+ * did not thereby work all night, and banking those hours would lock them out
+ * of a shift they are entitled to.
+ */
+export function hoursWorkedToday(phone: string, now = new Date()): number {
+  const digits = phone.replace(/[^0-9]/g, '');
+  const windowStart = now.getTime() - 24 * 3600_000;
+  const lapseMs = config.dutyHours * 3600_000;
+
+  const rows = db
+    .prepare(
+      `SELECT started_at AS startedAt, ended_at AS endedAt FROM associate_shifts
+        WHERE phone = ? AND (ended_at = '' OR ended_at >= ?)
+        ORDER BY started_at ASC`,
+    )
+    .all(digits, new Date(windowStart).toISOString()) as unknown as {
+    startedAt: string;
+    endedAt: string;
+  }[];
+
+  let worked = 0;
+  for (const row of rows) {
+    const from = new Date(row.startedAt).getTime();
+    if (!Number.isFinite(from)) continue;
+    const to = row.endedAt
+      ? new Date(row.endedAt).getTime()
+      : Math.min(now.getTime(), from + lapseMs);
+    if (!Number.isFinite(to)) continue;
+
+    const overlap = Math.min(to, now.getTime()) - Math.max(from, windowStart);
+    if (overlap > 0) worked += overlap;
+  }
+  return worked / 3600_000;
+}
+
+/**
+ * When somebody who has hit the cap may work again.
+ *
+ * Worked out by stepping to the moment each past shift falls out of the
+ * rolling window, rather than guessing at an interval. Null when they are not
+ * capped.
+ */
+export function canWorkAgainAt(phone: string, now = new Date()): Date | null {
+  const limit = config.dutyHoursPerDay;
+  if (limit <= 0 || hoursWorkedToday(phone, now) < limit) return null;
+
+  const digits = phone.replace(/[^0-9]/g, '');
+  const rows = db
+    .prepare(
+      `SELECT started_at AS startedAt, ended_at AS endedAt FROM associate_shifts
+        WHERE phone = ? ORDER BY started_at ASC`,
+    )
+    .all(digits) as unknown as { startedAt: string; endedAt: string }[];
+
+  const lapseMs = config.dutyHours * 3600_000;
+  for (const row of rows) {
+    const from = new Date(row.startedAt).getTime();
+    const to = row.endedAt
+      ? new Date(row.endedAt).getTime()
+      : Math.min(now.getTime(), from + lapseMs);
+    if (!Number.isFinite(to)) continue;
+
+    // The moment this stretch has fully left the 24-hour window.
+    const candidate = new Date(to + 24 * 3600_000);
+    if (candidate > now && hoursWorkedToday(phone, candidate) < limit) return candidate;
+  }
+  return null;
 }
 
 /**
@@ -1614,7 +1708,11 @@ export function onDutySince(phone: string, now = new Date()): string {
 }
 
 export function isOnDuty(phone: string, now = new Date()): boolean {
-  return onDutySince(phone, now) !== '';
+  if (onDutySince(phone, now) === '') return false;
+  // Over the day's limit is off duty, whatever the clock-in says. Checked
+  // here so no caller can send a job to somebody who has worked enough.
+  const limit = config.dutyHoursPerDay;
+  return limit <= 0 || hoursWorkedToday(phone, now) < limit;
 }
 
 export function getAssociate(phone: string): Associate | null {

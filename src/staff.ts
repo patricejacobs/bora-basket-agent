@@ -802,13 +802,20 @@ export async function handleDriverMessage(
     // Sending a pin is somebody telling you they are out working. Doing both
     // in one action is the difference between a rule people follow and one
     // they forget.
+    // A pin clocks somebody on, but not past the day's limit - otherwise
+    // the easy way in is also the way round the rule.
+    const capped = repo.canWorkAgainAt(phone) !== null;
     const wasOff = !repo.isOnDuty(phone);
-    repo.setDuty(phone, true);
+    if (!capped) repo.setDuty(phone, true);
     const radius = config.associateRadiusMiles;
     return reply(
       [
         `📍 Got it${location.label ? ` — ${location.label}` : ''}.`,
-        ...(wasOff ? ['You are on duty.'] : []),
+        ...(capped
+          ? [`🛑 You have reached ${config.dutyHoursPerDay} hours in the last 24 and are off duty.`]
+          : wasOff
+            ? ['You are on duty.']
+            : []),
         radius > 0
           ? `You will be offered uplifts within ${radius} miles of here. Send another pin when you move.`
           : 'Noted. Send another pin when you move.',
@@ -821,6 +828,24 @@ export async function handleDriverMessage(
   // The way out is a button rather than another word on purpose: the end of a
   // shift is when somebody is tired and least likely to type anything.
   if (/^(on|in|start|working|on\s*duty|clock\s*in)$/i.test(trimmed)) {
+    // The day's limit, before anything is recorded. Counted across every
+    // stretch in the last 24 hours, so stopping and starting cannot reset it.
+    const again = repo.canWorkAgainAt(phone);
+    if (again) {
+      const when = again.toLocaleTimeString('en-GB', {
+        timeZone: config.store.timezone,
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      return reply(
+        [
+          `🛑 You have worked ${Math.floor(repo.hoursWorkedToday(phone))} hours in the last 24.`,
+          '',
+          `The limit is ${config.dutyHoursPerDay}. You can clock on again from ${when}.`,
+        ].join(String.fromCharCode(10)),
+      );
+    }
+
     repo.setDuty(phone, true);
     const who = repo.getAssociate(phone);
     return [

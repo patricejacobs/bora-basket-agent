@@ -186,6 +186,21 @@ CREATE INDEX IF NOT EXISTS idx_parked_phone ON parked_cart_items(phone);
 -- Who carries the orders. A phone number alone answers "which one of them"
 -- with a number somebody has to look up, and answers "whose van is that"
 -- not at all.
+-- Every stretch an associate was clocked on. The current state alone cannot
+-- answer how long somebody has worked today, and a limit that resets each
+-- time they clock off is not a limit: four hours on, off, then twelve more.
+--
+-- ended_at empty means the shift is still running. A shift nobody closed is
+-- treated as ending when it would have lapsed, so a forgotten clock-off
+-- cannot bank hours that were never worked.
+CREATE TABLE IF NOT EXISTS associate_shifts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone      TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  ended_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_shifts_phone ON associate_shifts(phone, started_at);
+
 CREATE TABLE IF NOT EXISTS associates (
   phone      TEXT PRIMARY KEY,
   name       TEXT NOT NULL,

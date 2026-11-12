@@ -2995,6 +2995,64 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('Twelve hours in a day, however it is split');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const him = config.driverNumbers[0]!;
+  const H = 3600_000;
+  const ago = (h: number): string => new Date(Date.now() - h * H).toISOString();
+  const reset = (): void => {
+    db.prepare(`DELETE FROM associate_shifts WHERE phone = ?`).run(him);
+    repo.setDuty(him, false);
+  };
+
+  reset();
+  check('nothing worked to begin with', repo.hoursWorkedToday(him) === 0);
+
+  // Four hours this morning, finished.
+  repo.setDuty(him, true);
+  repo.setDuty(him, false);
+  db.prepare(`UPDATE associate_shifts SET started_at = ?, ended_at = ? WHERE phone = ?`).run(ago(14), ago(10), him);
+  check('a finished shift is counted', Math.round(repo.hoursWorkedToday(him)) === 4, String(repo.hoursWorkedToday(him)));
+
+  // They clock on again - allowed, they have hours left.
+  const back = (await handleDriverMessage('on', him))[0]?.text ?? '';
+  check('they may come back for more', /on duty/i.test(back), back);
+
+  // Eight more hours on that second shift makes twelve.
+  db.prepare(`UPDATE associate_shifts SET started_at = ? WHERE phone = ? AND ended_at = ''`).run(ago(8), him);
+  check('the two stretches add up', Math.round(repo.hoursWorkedToday(him)) === 12, String(repo.hoursWorkedToday(him)));
+  check('and twelve is off duty', !repo.isOnDuty(him));
+
+  // This is the hole: stopping and starting must not grant twelve more.
+  const refused = (await handleDriverMessage('on', him))[0]?.text ?? '';
+  check('clocking on again is refused', /limit is/i.test(refused), refused);
+  check('and says when they may return', /clock on again from/i.test(refused), refused);
+  check('they are still off duty', !repo.isOnDuty(him));
+
+  // Nor may a pin be the way round it.
+  await handleDriverMessage('', him, { latitude: 6.8, longitude: -58.1, label: '' });
+  check('a pin does not get round the limit', !repo.isOnDuty(him));
+
+  // Once the old hours fall out of the window, they may work again.
+  db.prepare(`DELETE FROM associate_shifts WHERE phone = ?`).run(him);
+  db.prepare(`INSERT INTO associate_shifts (phone, started_at, ended_at) VALUES (?, ?, ?)`).run(him, ago(40), ago(28));
+  check('work older than a day does not count', repo.hoursWorkedToday(him) === 0, String(repo.hoursWorkedToday(him)));
+  check('and they may clock on', repo.canWorkAgainAt(him) === null);
+
+  // A shift nobody closed counts only as far as it would have lapsed, not
+  // all night - otherwise forgetting to clock off costs them tomorrow.
+  reset();
+  db.prepare(`INSERT INTO associate_shifts (phone, started_at, ended_at) VALUES (?, ?, '')`).run(him, ago(20));
+  const counted = repo.hoursWorkedToday(him);
+  check(
+    'a forgotten clock-off counts only to the lapse',
+    counted <= config.dutyHours + 0.1,
+    String(counted),
+  );
+  reset();
+}
+
 section('Clocking on and off');
 {
   const { handleDriverMessage } = await import('./staff.ts');

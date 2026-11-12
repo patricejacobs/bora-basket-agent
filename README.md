@@ -1102,6 +1102,32 @@ told so plainly.
 associate who gets a card off duty is mildly annoyed; an order nobody hears about is a
 customer with no dinner.
 
+### Twelve hours in a day, however it is split
+
+A shift lapsing after twelve hours is not a limit on its own: four hours on, clock off,
+clock back on, and there are twelve more. So hours are counted across **every stretch in
+the last 24**, and clocking on is refused once the total reaches
+`ASSOCIATE_MAX_HOURS_PER_DAY`:
+
+```
+🛑 You have worked 12 hours in the last 24.
+
+The limit is 12. You can clock on again from 23:20.
+```
+
+Rolling 24 hours rather than a calendar day, because a limit that resets at midnight lets
+somebody work eleven at night through to eleven the next evening and never break it.
+
+Sharing a pin does not get round it either - the easy way in must not also be the way
+round the rule. And the time they can return is worked out from when past shifts actually
+fall out of the window, not guessed at.
+
+**A shift nobody closed counts only as far as it would have lapsed.** Somebody who forgot
+to clock off last night did not thereby work all night, and banking those hours would lock
+them out of a shift they are entitled to.
+
+Set `ASSOCIATE_MAX_HOURS_PER_DAY` to `0` to switch the cap off.
+
 ### Where the associates are
 
 Staff send `where`:

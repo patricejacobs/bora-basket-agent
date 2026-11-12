@@ -239,6 +239,16 @@ export const config = {
    * those an associate mutes the chat and is lost for the shifts that matter.
    */
   dutyHours: Math.max(1, num('ASSOCIATE_DUTY_HOURS', 12)),
+  /**
+   * The most an associate may work in any rolling 24 hours.
+   *
+   * Rolling rather than per calendar day, because a limit that resets at
+   * midnight lets somebody work eleven at night through to eleven the next
+   * evening and never break it. Rolling closes that; a calendar day does not.
+   *
+   * 0 switches the cap off.
+   */
+  dutyHoursPerDay: Math.max(0, num('ASSOCIATE_MAX_HOURS_PER_DAY', 12)),
 
   /**
    * Watching for orders that have stopped moving.
