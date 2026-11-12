@@ -350,9 +350,13 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // and not to the person standing outside, which is the wrong way round.
     ...(order.deliveryNote ? [order.deliveryNote] : []),
     atTheDoor,
+    // Nothing at all when there is no pin. There are no coordinates to put in
+    // a link, so the written address above is already doing the whole job -
+    // and a sentence saying so only repeats the banner three lines up. A card
+    // read at a gate earns every line on it.
     ...(order.location
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
-      : ['The customer could not send a pin. The address above is all there is.']),
+      : []),
     '',
     // What it is made of, so the cash can be checked against the bag rather
     // than taken on trust at the door - and WHO hands it over, because

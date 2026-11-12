@@ -4048,6 +4048,18 @@ section('An address instead of a pin');
   check('the address is there to read out', card.includes('Mocha'), card);
   check('and the number to ring', card.includes(buyer), card);
   check('with no pretence of a map link', !/maps\.google|\?q=/.test(card), card);
+  // There are no coordinates to link to, so the written address is the whole
+  // answer - and a sentence explaining that only repeats the banner above it.
+  check('and no sentence repeating the banner', !/could not send a pin/i.test(card), card);
+  check('and no orphan pin label', !/^\s*📍/m.test(card), card);
+  // Five lines here, each of which somebody at a gate acts on: the warning,
+  // the name, the address, the number, the cash. A doorstep note would make
+  // six; this fixture has none.
+  check(
+    'the card stays tight',
+    card.split(String.fromCharCode(10)).filter((l) => l.trim() !== '').length === 5,
+    JSON.stringify(card.split(String.fromCharCode(10))),
+  );
 
   const way = onTheWayCard(order);
   check('the on-the-way line repeats it', /No pin/i.test(way), way);

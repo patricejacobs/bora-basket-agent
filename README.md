@@ -1277,7 +1277,9 @@ an address; an order with neither is still refused, because the associate would
 have nowhere to go and nothing to read out.
 
 The job card then leads with the problem rather than burying it under the phone
-number, since it decides whether they navigate or telephone:
+number, since it decides whether they navigate or telephone — and carries no map
+link, because there are no coordinates to put in one. The written address is the
+whole answer, and a sentence saying so would only repeat the banner:
 
 ```
 ⚠️ NO PIN — ring before you set off
@@ -1286,7 +1288,6 @@ Deliver to: Marcia Persaud
 Lot 77 Mocha, East Bank
 Call at the junction, white fence
 📞 +5926123456
-The customer could not send a pin. The address above is all there is.
 
 Collect $235,000 cash
 ```
