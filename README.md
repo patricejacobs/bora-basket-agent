@@ -1534,6 +1534,49 @@ rather than falling through to the order-number parser — otherwise `2149` coul
 be read as order 2149, which is how a code attempt could reach an order it has
 nothing to do with.
 
+## Parcel delivery
+
+A parcel is a different journey from a meal, and the flow is shaped to it.
+
+| Step | Status | Who moves it |
+|---|---|---|
+| Booked | `pending` | the agent, on the sender's yes |
+| Acknowledged | `confirmed` | **the delivery associate**, tapping Accept |
+| Uplifted, cash taken | `on_the_way` | the associate |
+| Code read out, delivered | `delivered` | the recipient's code |
+| Nobody there, or the code fails | `returned` | the associate |
+
+**The associate acknowledges, not a kitchen.** This replaces a dead end: a
+parcel used to sit at `pending` waiting for a confirmation only a staff member
+could give, so no associate was ever told and the job simply stopped. A parcel
+has nothing to cook — the contents were screened, the distance checked, the fee
+set — so it is ready the moment it exists. Booking offers it to every free
+associate on duty; the first to tap **Accept** takes it, and the rest are told
+it has gone.
+
+**The money moves at the uplift, from the sender.** A meal is paid at the door
+by whoever receives it; a parcel is paid at the pickup by whoever sent it. So
+the recipient is never asked to pay — the drop card says *"Nothing to collect —
+the sender paid at the uplift"* — and the cash report counts a parcel from the
+moment it was uplifted rather than from delivery, or the day's takings run short
+until nightfall.
+
+**`returned` is a status of its own, not a cancellation.** A cancelled job never
+happened. A returned one was accepted, collected, paid for and driven across
+town. Filed as cancelled it would disappear from the takings while the associate
+was still holding the cash. The sender is told, in their own language, that it
+is coming back and that the fee is not refunded — the trip was made.
+
+**A wrong code returns a parcel; it does not deliver it.** The opposite of food,
+deliberately. Food is perishable and the customer is standing there, so an
+unverified delivery beats a wasted meal. A parcel is somebody's property: a code
+that will not verify may mean the wrong door, and handing it over on a guess is
+how it is never seen again.
+
+**The recipient can never be messaged** — WhatsApp refuses a business message to
+a number that has never written in — so the sender holds the code and passes it
+on, and is told at booking that only they can warn the recipient it is coming.
+
 ### Counting the cash
 
 The shop trades cash on delivery, so at the end of a shift somebody is carrying

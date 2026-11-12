@@ -13,6 +13,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   on_the_way: 'on the way',
   delivered: 'delivered',
   cancelled: 'cancelled',
+  returned: 'returned to sender',
 };
 
 /**
@@ -29,6 +30,7 @@ export const CUSTOMER_STATUS: Record<OrderStatus, string> = {
   on_the_way: 'out with the delivery associate',
   delivered: 'delivered',
   cancelled: 'cancelled',
+  returned: 'brought back to you',
 };
 
 /**
@@ -190,7 +192,9 @@ const PROGRESS: OrderStatus[] = ['pending', 'confirmed', 'ready', 'on_the_way', 
  * deserves "already ready" rather than a refusal.
  */
 export function isBackwards(from: OrderStatus, to: OrderStatus): boolean {
-  if (to === 'cancelled') return false;
+  // Both ends of the line. Neither sits on the progress ladder, and both are
+  // reachable from wherever the order has got to.
+  if (to === 'cancelled' || to === 'returned') return false;
   const was = PROGRESS.indexOf(from);
   const now = PROGRESS.indexOf(to);
   // A status off the line (cancelled) is terminal and handled before this.
@@ -200,6 +204,13 @@ export function isBackwards(from: OrderStatus, to: OrderStatus): boolean {
 
 /** Words a dispatcher might actually type, mapped to a status. */
 export const STATUS_WORDS: [RegExp, OrderStatus][] = [
+  // First, because a parcel coming back is the one move that must not be read
+  // as anything else. "No answer at the door" contains neither a delivery word
+  // nor a cancellation word, but somebody typing it means exactly one thing.
+  [
+    /\b(nobody\s*home|no(body)?\s*(one\s*)?(there|in|answer)|return(ed|ing)?(\s*to\s*sender)?|bring\s*it\s*back|took\s*it\s*back)\b/i,
+    'returned',
+  ],
   // "collected" and "picked up" mean a delivery associate has the food and is moving, which
   // is the same state as on the way for everyone downstream.
   [
@@ -241,10 +252,16 @@ export type Audience = 'staff' | 'outlet' | 'driver';
  * taps as ids would feed it "option_1" instead of "Grocery shopping".
  */
 export function commandFromButtonId(id: string): string | null {
-  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode)_(\d+)$/.exec(id);
+  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody)_(\d+)$/.exec(id);
   if (simple) {
     const verb =
-      simple[1] === 'otw' ? 'on the way' : simple[1] === 'nocode' ? 'no code' : simple[1];
+      simple[1] === 'otw'
+        ? 'on the way'
+        : simple[1] === 'nocode'
+          ? 'no code'
+          : simple[1] === 'nobody'
+            ? 'nobody home'
+            : simple[1];
     return `${simple[2]} ${verb}`;
   }
 
@@ -266,6 +283,25 @@ export function commandFromButtonId(id: string): string | null {
  * is standing at a door holding food. It does not make skipping hard - it makes
  * skipping recorded, which is the part that changes behaviour.
  */
+/**
+ * The button on a parcel offer.
+ *
+ * A parcel has no kitchen to accept it, so the associate does. The job is
+ * offered to everyone free and the first to tap this takes it - which is the
+ * step that used to be missing entirely, leaving every parcel sitting at
+ * `pending` waiting for a confirmation only a staff member could give.
+ */
+export function acceptButton(orderNo: string): { id: string; title: string; command: string } {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  return { id: `confirm_${n}`, title: 'Accept', command: `${n} confirm` };
+}
+
+/** Tapped at the recipient's door when there is nobody to take the parcel. */
+export function nobodyHomeButton(orderNo: string): { id: string; title: string; command: string } {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  return { id: `nobody_${n}`, title: 'Nobody home', command: `${n} nobody home` };
+}
+
 export function noCodeButton(orderNo: string): { id: string; title: string; command: string } {
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
   return { id: `nocode_${n}`, title: 'No code', command: `${n} no code` };
@@ -280,7 +316,7 @@ export function nextActions(
    * looked up, so this module stays free of the database and can be reasoned
    * about from its arguments alone.
    */
-  opts: { codeExpected?: boolean } = {},
+  opts: { codeExpected?: boolean; parcel?: boolean } = {},
 ): { id: string; title: string; command: string }[] {
   // "ORD-00007" -> "7": dispatchers read the short form, and it keeps titles
   // inside the 20-character limit.
@@ -343,6 +379,12 @@ export function nextActions(
   // A delivery associate collects and delivers. Nothing else is theirs to decide.
   if (audience === 'driver') {
     switch (status) {
+      // A parcel is accepted by the associate rather than cooked by a kitchen,
+      // so acceptance is the moment it becomes theirs to fetch. Food at the
+      // same stage is still raw, and offering Uplifted there would send
+      // somebody to stand over a fryer.
+      case 'confirmed':
+        return opts.parcel ? [uplifted] : [];
       case 'ready':
         return [uplifted];
       // No Delivered button once a code is expected: typing the customer's four

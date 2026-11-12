@@ -15,7 +15,7 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
-import { nextActions } from './order-status.ts';
+import { acceptButton, nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin, mapsLink, distanceKm, formatDistance } from './location.ts';
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
@@ -158,6 +158,60 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
  * — which would read, from the customer's side, as a restaurant that never
  * started cooking.
  */
+/**
+ * A parcel offered to everyone who could take it.
+ *
+ * Short on purpose. This is a job somebody is deciding whether to accept, not
+ * one they are driving to - the addresses, the numbers and the cash all arrive
+ * on the uplift card once it is theirs. Everything shown here is something
+ * that bears on the decision: how far, how much, and what it is.
+ */
+export async function offerParcel(orderNo: string): Promise<Dispatch> {
+  const order = repo.findOrder(orderNo);
+  if (!order || order.kind !== 'parcel') return 'no_drivers';
+
+  if (config.driverNumbers.length === 0) {
+    console.warn(`[dispatch] ${orderNo} booked but DRIVER_NUMBERS is empty — nobody was offered it`);
+    return 'no_drivers';
+  }
+
+  const limit = config.maxJobsPerAssociate;
+  const free =
+    limit > 0
+      ? config.driverNumbers.filter((phone) => repo.activeJobsFor(phone).length < limit)
+      : config.driverNumbers;
+  if (free.length === 0) return 'all_busy';
+
+  const pickup = order.pickup;
+  const pickupPin =
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
+      : null;
+  const nearby = withinReach(onDuty(free), pickupPin);
+  if (nearby.length === 0) return 'all_busy';
+
+  const trip =
+    pickupPin && order.location
+      ? `${formatDistance(distanceKm(pickupPin, order.location))} across town`
+      : '';
+
+  const body = [
+    `📦 *New parcel job ${order.orderNo}*`,
+    ...(order.total > 0 ? [`*${money(order.total)}*, collected from the sender`] : ['*Fee not set* — the shop will confirm it']),
+    '',
+    `📦 ${order.parcelDetails || 'Contents not described'}`,
+    '',
+    `*Uplift from:* ${order.customerName}${pickup?.address ? `, ${pickup.address}` : ''}`,
+    `*Take to:* ${order.recipientName}${order.address ? `, ${order.address}` : ''}`,
+    ...(trip ? ['', trip] : []),
+  ].join(String.fromCharCode(10));
+
+  for (const associate of nearby) {
+    await sendButtons(associate, body, [acceptButton(order.orderNo)]);
+  }
+  return 'sent';
+}
+
 export async function announceNewOrder(orderNo: string): Promise<void> {
   await notifyStaffOfNewOrder(orderNo);
   const outcome = await notifyOutletOfOrder(orderNo);
@@ -308,6 +362,16 @@ export async function flushOutletTickets(outletId: number): Promise<number> {
  * Repeating it there is the point - WhatsApp cannot retire the old card, so
  * the newest message has to be worth more than scrolling back to it.
  */
+/**
+ * A number with no country code is a local one.
+ *
+ * Printing it with a `+` says it is international, which it is not, and an
+ * associate copying that into a dialler gets nowhere.
+ */
+function dial(n: string): string {
+  return n.replace(/[^0-9]/g, '').length >= 10 ? `+${n}` : n;
+}
+
 export function dropLines(order: repo.OrderRecord): string[] {
   const isParcel = order.kind === 'parcel';
 
@@ -343,11 +407,6 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // gave is the buyer's own, say so once rather than printing it as though it
   // were two different people.
   const sameNumber = receiverPhone === ordererPhone;
-  // A number with no country code is a local one. Printing it with a `+` says
-  // it is international, which it is not, and an associate copying it into a
-  // dialler gets nowhere.
-  const dial = (n: string): string => (n.replace(/[^0-9]/g, '').length >= 10 ? `+${n}` : n);
-
   const atTheDoor = toSomebodyElse
     ? sameNumber
       ? `📞 no number for ${receiverName.split(/\s+/)[0] || 'them'} — ring ${order.customerName} above`
@@ -413,12 +472,15 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // than taken on trust at the door - and WHO hands it over, because
     // "collect $235,000" with two names on the screen is the same confusion
     // in a more expensive form.
-    order.total > 0
-      ? `*Collect ${money(order.total)} cash* from ${toSomebodyElse || isParcel ? receiverName : 'the customer'}` +
-        (isParcel
-          ? ''
-          : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`)
-      : '*Fee not set* - the shop will confirm it, do not quote one',
+    // A parcel was paid for at the pickup, by the person who sent it. Asking
+    // the recipient for the same money again is how somebody pays twice for
+    // one journey - and the person at the door never agreed to pay at all.
+    isParcel
+      ? 'Nothing to collect — the sender paid at the uplift.'
+      : order.total > 0
+        ? `*Collect ${money(order.total)} cash* from ${toSomebodyElse ? receiverName : 'the customer'}` +
+          ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`
+        : '*Fee not set* - the shop will confirm it, do not quote one',
   ];
 }
 
@@ -429,6 +491,37 @@ export function dropLines(order: repo.OrderRecord): string[] {
  * link, the door description, the phone, the cash - is on the job card they
  * accepted, and repeating it here only buries that card further up the chat.
  */
+/**
+ * What an associate gets the moment a parcel becomes theirs.
+ *
+ * Where to go, who to find, and - the line that matters - how much to take
+ * from the sender. A parcel is paid at the pickup, by the person sending it,
+ * which is the opposite end of the journey from a food order and the one fact
+ * an associate used to a restaurant round will not assume.
+ */
+export function parcelUpliftCard(order: repo.OrderRecord): string {
+  const pickup = order.pickup;
+  const pin =
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
+      : null;
+
+  return [
+    `📦 *${order.orderNo}* is yours.`,
+    '',
+    `*Uplift from:* ${order.customerName}`,
+    ...(pickup?.address ? [pickup.address] : []),
+    `📞 ${dial(order.contactPhone || order.phone)}`,
+    ...(pin ? ['Click the link below for the uplift address:', mapsLink(pin)] : ['⚠️ No pin for the pickup — ring them']),
+    '',
+    `📦 ${order.parcelDetails || 'Contents not described'}`,
+    '',
+    order.total > 0
+      ? `*Collect ${money(order.total)} cash from ${order.customerName} when you take it.*`
+      : '*Fee not set* — do not quote one. The shop will confirm it.',
+  ].join(String.fromCharCode(10));
+}
+
 export function onTheWayCard(order: repo.OrderRecord): string {
   const head = `🛵 *${order.orderNo}* on the way`;
   // No pin: the one fact worth repeating here, because it is the difference
@@ -444,8 +537,10 @@ export function onTheWayCard(order: repo.OrderRecord): string {
   return [
     head + noPin,
     '',
-    `🔐 Type the four-digit code from ${order.customerName.split(/\s+/)[0] || 'the customer'} to close it.`,
-    'No code? Reply *no code*.',
+    `🔐 Type the four-digit code from ${(order.recipientName || order.customerName).split(/\s+/)[0] || 'the customer'} to close it.`,
+    order.kind === 'parcel'
+      ? 'Wrong code, or nobody there? Reply *nobody home* and bring it back.'
+      : 'No code? Reply *no code*.',
   ].join(String.fromCharCode(10));
 }
 

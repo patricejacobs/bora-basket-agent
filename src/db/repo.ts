@@ -1062,6 +1062,14 @@ export const ORDER_STATUSES = [
   'on_the_way',
   'delivered',
   'cancelled',
+  // A parcel carried to its destination and brought back: nobody there, or a
+  // code that would not verify.
+  //
+  // Not a cancellation, and the difference is money. A cancelled job never
+  // happened; a returned one was accepted, collected, paid for and driven
+  // across town. Filed as cancelled it would vanish from the day's takings
+  // while the associate was still holding the cash.
+  'returned',
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
@@ -2352,6 +2360,25 @@ export function startOfStoreDay(now = new Date()): Date {
 export type CashTally = { orders: number; total: number };
 
 /**
+ * When the money actually changed hands.
+ *
+ * A food order is paid at the door, so it counts from the delivery. A parcel
+ * is paid at the pickup, by the person sending it - so the fee is in the
+ * associate's pocket from the moment they uplift it, and stays there whatever
+ * happens next. A parcel that was carried across town and brought back was
+ * still paid for; dropping it out of the day's takings would leave the figures
+ * short while somebody was holding the cash.
+ */
+const CASH_WINDOW = `
+  payment_method LIKE 'cash%'
+  AND (
+    (kind != 'parcel' AND status = 'delivered' AND delivered_at >= ? AND delivered_at <= ?)
+    OR
+    (kind = 'parcel' AND status IN ('on_the_way', 'delivered', 'returned')
+       AND uplifted_at != '' AND uplifted_at >= ? AND uplifted_at <= ?)
+  )`;
+
+/**
  * What one associate took in cash over a window.
  *
  * Delivered orders only: an order on its way is money nobody is holding yet,
@@ -2366,12 +2393,15 @@ export function cashCollected(phone: string, from: Date, to = new Date()): CashT
     .prepare(
       `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
          FROM orders
-        WHERE driver_phone = ?
-          AND status = 'delivered'
-          AND payment_method LIKE 'cash%'
-          AND delivered_at >= ? AND delivered_at <= ?`,
+        WHERE driver_phone = ? AND ${CASH_WINDOW}`,
     )
-    .get(digits, from.toISOString(), to.toISOString()) as { orders: number; total: number };
+    .get(
+      digits,
+      from.toISOString(),
+      to.toISOString(),
+      from.toISOString(),
+      to.toISOString(),
+    ) as { orders: number; total: number };
   return { orders: row.orders, total: row.total };
 }
 
@@ -2389,14 +2419,16 @@ export function cashByAssociate(from: Date, to = new Date()): AssociateCash[] {
     .prepare(
       `SELECT driver_phone AS phone, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
          FROM orders
-        WHERE status = 'delivered'
-          AND payment_method LIKE 'cash%'
-          AND driver_phone != ''
-          AND delivered_at >= ? AND delivered_at <= ?
+        WHERE driver_phone != '' AND ${CASH_WINDOW}
         GROUP BY driver_phone
         ORDER BY total DESC`,
     )
-    .all(from.toISOString(), to.toISOString()) as unknown as {
+    .all(
+      from.toISOString(),
+      to.toISOString(),
+      from.toISOString(),
+      to.toISOString(),
+    ) as unknown as {
     phone: string;
     orders: number;
     total: number;
@@ -2427,12 +2459,14 @@ export function unassignedCash(from: Date, to = new Date()): CashTally {
     .prepare(
       `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
          FROM orders
-        WHERE status = 'delivered'
-          AND payment_method LIKE 'cash%'
-          AND driver_phone = ''
-          AND delivered_at >= ? AND delivered_at <= ?`,
+        WHERE driver_phone = '' AND ${CASH_WINDOW}`,
     )
-    .get(from.toISOString(), to.toISOString()) as { orders: number; total: number };
+    .get(
+      from.toISOString(),
+      to.toISOString(),
+      from.toISOString(),
+      to.toISOString(),
+    ) as { orders: number; total: number };
   return { orders: row.orders, total: row.total };
 }
 

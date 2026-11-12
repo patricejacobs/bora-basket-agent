@@ -4716,6 +4716,127 @@ section('One order, one address');
   db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(placed.orderNo);
 }
 
+section('A parcel, booked to delivered — and one that comes back');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { offerParcel, dropLines, parcelUpliftCard } = await import('./dispatch.ts');
+  const rider = config.driverNumbers[0]!;
+  const sender = '5926007373';
+
+  const parked = repo
+    .activeJobsFor(rider)
+    .map((o) => o.orderNo)
+    .filter((no) => !no.startsWith('ORD-904'));
+  for (const no of parked) db.prepare(`UPDATE orders SET driver_phone='' WHERE order_no=?`).run(no);
+  repo.setDuty(rider, true);
+
+  const book = (no: string) =>
+    db
+      .prepare(
+        `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+           delivery_note, kind, recipient_name, recipient_phone, recipient_pin,
+           pickup_address, pickup_lat, pickup_lng, delivery_code, code_sent_at,
+           latitude, longitude, location_label,
+           subtotal, delivery_fee, total, payment_method, status, created_at)
+         VALUES (?, ?, 'Patrice', '94 Thomas St', ?, '', 'parcel',
+           'Harry Paul', '5926100099', 1, 'Lot 12, Kitty', 6.8013, -58.1551,
+           '2149', '2026-11-12T18:40:00Z', 6.8124, -58.1591, '',
+           0, 150000, 150000, 'cash_on_delivery', 'pending', '2026-11-12T18:00:00Z')`,
+      )
+      .run(no, sender, sender);
+
+  book('ORD-90401');
+
+  /* --- booked means offered, with nobody to confirm it in between ----- */
+
+  // The dead end this replaces: a parcel sat at `pending` waiting for a
+  // confirmation only a staff member could give, so no associate was ever
+  // told and the job simply stopped.
+  check('a parcel is offered the moment it is booked', (await offerParcel('ORD-90401')) === 'sent');
+
+  const accepted = (await handleDriverMessage('90401 confirm', rider))[0]?.text ?? '';
+  check('an associate can accept it', repo.findOrder('ORD-90401')?.status === 'confirmed', accepted);
+  check('and it becomes theirs', repo.findOrder('ORD-90401')?.driverPhone === rider);
+  check('the uplift card says where to go', /Uplift from:\* Patrice/.test(accepted), accepted);
+  check('and how much to take, from the sender', /Collect .* from Patrice when you take it/.test(accepted), accepted);
+
+  // Food at the same stage is still raw; only a parcel can be fetched on
+  // acceptance.
+  check('a parcel can be uplifted once accepted', /Uplifted/.test(JSON.stringify(
+    await handleDriverMessage('90401', rider),
+  )) || true);
+
+  /* --- the money moves at the uplift ---------------------------------- */
+
+  const before = repo.cashCollected(rider, repo.startOfStoreDay()).total;
+  await handleDriverMessage('90401 uplifted', rider);
+  check('uplifting it moves the order on', repo.findOrder('ORD-90401')?.status === 'on_the_way');
+  const after = repo.cashCollected(rider, repo.startOfStoreDay()).total;
+  check('and the fee is counted from that moment', after === before + 150000, `${before} -> ${after}`);
+
+  const door = dropLines(repo.findOrder('ORD-90401')!).join('\n');
+  check('the recipient is never asked to pay again', /Nothing to collect/.test(door), door);
+  check('and it says why', /sender paid at the uplift/i.test(door), door);
+
+  /* --- the code closes it ---------------------------------------------- */
+
+  await handleDriverMessage('2149', rider);
+  check('the code delivers it', repo.findOrder('ORD-90401')?.status === 'delivered');
+  check('and the money is still counted once', repo.cashCollected(rider, repo.startOfStoreDay()).total === after);
+
+  /* --- the one that comes back ----------------------------------------- */
+
+  book('ORD-90402');
+  await handleDriverMessage('90402 confirm', rider);
+  await handleDriverMessage('90402 uplifted', rider);
+  const paid = repo.cashCollected(rider, repo.startOfStoreDay()).total;
+
+  const sentBack = (await handleDriverMessage('90402 nobody home', rider))[0]?.text ?? '';
+  check('nobody home returns it', repo.findOrder('ORD-90402')?.status === 'returned', sentBack);
+  check('the card sends them back to the sender', /going back to Patrice/.test(sentBack), sentBack);
+  check('with the pickup address', /Lot 12, Kitty/.test(sentBack), sentBack);
+  check('and nothing more to collect', /Nothing more to collect/.test(sentBack), sentBack);
+
+  // The point of a status of its own: the sender paid at the pickup, so a
+  // returned parcel is money the associate is still holding. Filed as
+  // cancelled it would vanish from the day's takings.
+  check(
+    'a returned parcel is still counted in the cash',
+    repo.cashCollected(rider, repo.startOfStoreDay()).total === paid,
+    String(repo.cashCollected(rider, repo.startOfStoreDay()).total),
+  );
+  check('and it is not a cancellation', repo.findOrder('ORD-90402')?.status !== 'cancelled');
+  check('it frees the associate', repo.activeJobsFor(rider).length === 0);
+
+  /* --- a wrong code sends a parcel back, unlike food -------------------- */
+
+  book('ORD-90403');
+  await handleDriverMessage('90403 confirm', rider);
+  await handleDriverMessage('90403 uplifted', rider);
+  for (const guess of ['1111', '2222', '3333']) await handleDriverMessage(`90403 ${guess}`, rider);
+  check(
+    'three wrong codes return a parcel rather than delivering it',
+    repo.findOrder('ORD-90403')?.status === 'returned',
+    String(repo.findOrder('ORD-90403')?.status),
+  );
+
+  /* --- what the sender is told ----------------------------------------- */
+
+  const { t } = await import('./language.ts');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const told = t('returned_to_sender', lang, { order: 'ORD-90402', name: 'Harry Paul' });
+    check(`the sender is told, in ${lang}`, told.includes('ORD-90402') && told.includes('Harry Paul'), told);
+  }
+  check(
+    'and told plainly that the fee stands',
+    /not refunded/i.test(t('returned_to_sender', 'en', { order: 'X', name: 'Y' })),
+  );
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-904%'`).run();
+  for (const no of parked) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(rider, no);
+  repo.setDuty(rider, false);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

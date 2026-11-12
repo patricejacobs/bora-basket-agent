@@ -26,3 +26,5 @@ store-*.db
 # Scratch artefacts from the delivery walkthrough
 walkthrough.txt
 data/walk.db
+walkthrough-parcel.txt
+data/walkp.db

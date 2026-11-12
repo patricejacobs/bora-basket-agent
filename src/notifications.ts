@@ -318,6 +318,12 @@ export async function notifyCustomerOfStatus(
     // customer told the kitchen ran out knows to try something else; one told
     // only "cancelled" assumes they did something wrong.
     cancelled: cancelledMessage(order),
+    // The one message that goes to the sender rather than to whoever was
+    // receiving: it is their parcel, coming back to them.
+    returned: t('returned_to_sender', lang, {
+      order: order.orderNo,
+      name: order.recipientName || 'the recipient',
+    }),
   };
 
   const message = freeForm[status];

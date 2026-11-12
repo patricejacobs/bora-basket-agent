@@ -17,11 +17,14 @@ import {
   isBackwards,
   nextActions,
   noCodeButton,
+  nobodyHomeButton,
   type Audience,
 } from './order-status.ts';
 import {
   dispatchToDrivers,
+  dropLines,
   offerWaitingWork,
+  parcelUpliftCard,
   flushOutletTickets,
   onTheWayCard,
   tellAssociatesCancelled,
@@ -64,6 +67,9 @@ function terminalMessage(order: repo.OrderRecord, who: 'staff' | 'outlet' | 'dri
   if (order.status === 'delivered') {
     return `${order.orderNo} is already *delivered* — nothing more to do.`;
   }
+  if (order.status === 'returned') {
+    return `${order.orderNo} has already been returned to ${order.customerName} — nothing more to do.`;
+  }
 
   // The reason, because an associate at a door may be facing the customer and
   // "it was cancelled" with no explanation makes them look like the problem.
@@ -103,7 +109,7 @@ async function applyStatus(
   // disappear when an order moves on, so a cook tapping "Confirm" twenty
   // minutes after a cancellation would otherwise revive it and start cooking
   // something nobody wants.
-  if (order.status === 'cancelled' || order.status === 'delivered') {
+  if (order.status === 'cancelled' || order.status === 'delivered' || order.status === 'returned') {
     return { body: terminalMessage(order, reportedBy), status: order.status };
   }
 
@@ -919,7 +925,9 @@ function cashReport(): string {
     '',
     `*${count} ${count === 1 ? 'order' : 'orders'}, ${money(total)} in all*`,
     '',
-    'Delivered and paid in cash. Card orders are not counted — nothing changes hands.',
+    // Said plainly, because the two halves are counted from different moments
+    // and a figure nobody can reconcile is a figure nobody trusts.
+    'Deliveries paid at the door, and parcels from the moment they were uplifted — a parcel is paid by the sender at the pickup, so it counts even if it came back. Card orders are not counted; nothing changes hands.',
   ].join(chr10);
 }
 
@@ -1221,7 +1229,11 @@ export async function handleDriverMessage(
               '',
               `Ask ${target.customerName.split(/\s+/)[0] || 'the customer'} to read it from our message. ${left} ${left === 1 ? 'try' : 'tries'} left.`,
             ].join(chr10),
-            buttons: [noCodeButton(target.orderNo)],
+            buttons: [
+              target.kind === 'parcel'
+                ? nobodyHomeButton(target.orderNo)
+                : noCodeButton(target.orderNo),
+            ],
           },
         ];
       }
@@ -1243,6 +1255,17 @@ export async function handleDriverMessage(
             `Send \`${n} delivered\` to close it.`,
           ].join(chr10),
         );
+      }
+
+      // A parcel whose code will not verify goes back to the sender.
+      //
+      // The opposite of what food does, deliberately. Food is perishable and
+      // the person is standing there, so an unverified delivery is better than
+      // a wasted meal. A parcel is somebody's property: a code that will not
+      // verify may mean the wrong door, and handing it over on a guess is how
+      // it is never seen again.
+      if (target.kind === 'parcel') {
+        return handleDriverMessage(`${target.orderNo} nobody home`, phone);
       }
 
       // Spent: there was a code, and it is now exhausted. Nothing left to
@@ -1303,9 +1326,43 @@ export async function handleDriverMessage(
   if (!matched) return reply(describeForDriver(order));
 
   const status = matched[1];
-  if (status !== 'on_the_way' && status !== 'delivered') {
-    return reply('A delivery associate can mark an order uplifted or delivered. Anything else is for the shop.');
+
+  // What an associate may do, which is more for a parcel than for food.
+  //
+  // A parcel has no kitchen to accept it, so the associate accepts it - that
+  // is the step that was missing, and without it every parcel waited at
+  // `pending` for a confirmation only a staff member could give. And a parcel
+  // can come back: nobody at the door, or a code that will not verify. Food
+  // never comes back, because food is eaten.
+  const isParcel = order.kind === 'parcel';
+  const mayAccept = isParcel && status === 'confirmed' && order.status === 'pending';
+  const mayReturn = isParcel && status === 'returned';
+
+  if (status !== 'on_the_way' && status !== 'delivered' && !mayAccept && !mayReturn) {
+    return reply(
+      isParcel
+        ? 'A delivery associate can accept a parcel, mark it uplifted, delivered, or returned. Anything else is for the shop.'
+        : 'A delivery associate can mark an order uplifted or delivered. Anything else is for the shop.',
+    );
   }
+
+  // Returning is for the parcel in their hands, not for one somebody else is
+  // carrying and not for one still sitting at a pickup point.
+  if (mayReturn && order.status !== 'on_the_way') {
+    return reply(
+      `${order.orderNo} is not out with you — there is nothing to bring back. Send \`jobs\` to see what you have.`,
+    );
+  }
+
+  // First to accept takes it. The rest find it gone, which is the right
+  // answer and not an error: somebody is already on their way to it.
+  if (mayAccept && order.driverPhone && order.driverPhone !== phone.replace(/[^0-9]/g, '')) {
+    const who = repo.getAssociate(order.driverPhone);
+    return reply(
+      `${order.orderNo} has already been taken${who?.name ? ` by ${who.name}` : ''}. Send \`jobs\` to see what else is waiting.`,
+    );
+  }
+  if (mayAccept && phone) repo.assignDriver(order.orderNo, phone);
   // One delivery at a time, and the refusal doubles as the reminder.
   //
   // Somebody already carrying food across town cannot also be collecting from
@@ -1414,7 +1471,7 @@ export async function handleDriverMessage(
   // while they were out. Fired and forgotten: the next job is a different
   // message to a different purpose, and this associate should not wait on a
   // Graph round trip to see their own delivery confirmed.
-  if (status === 'delivered' && phone) {
+  if ((status === 'delivered' || status === 'returned') && phone) {
     void offerWaitingWork(phone).catch((err) =>
       console.error('[staff] could not offer the next job:', err),
     );
@@ -1432,6 +1489,7 @@ export async function handleDriverMessage(
   // always say no and the card would carry a Delivered button it should not.
   const actions = nextActions(order.orderNo, landed, 'driver', {
     codeExpected: repo.deliveryCodeExpected(order.orderNo),
+    parcel: isParcel,
   });
 
   // The food is in the bag and only the drop is left, so this message is the
@@ -1439,7 +1497,26 @@ export async function handleDriverMessage(
   // the newest message has to be worth more than scrolling back - the address,
   // the phone, the pin and the cash, repeated where they are now needed.
   const fresh = repo.findOrder(order.orderNo) ?? order;
-  const shown = landed === 'on_the_way' ? onTheWayCard(fresh) : body;
+  // A parcel reads differently at every stage, because the journey is not the
+  // same shape: it is accepted before it is fetched, paid for at the pickup,
+  // and can come back.
+  const shown =
+    isParcel && landed === 'confirmed'
+      ? parcelUpliftCard(fresh)
+      : isParcel && landed === 'on_the_way'
+        ? [onTheWayCard(fresh), '', ...dropLines(fresh)].join(chr10)
+        : isParcel && landed === 'returned'
+          ? [
+              `📦 *${fresh.orderNo}* is going back to ${fresh.customerName}.`,
+              '',
+              ...(fresh.pickup?.address ? [fresh.pickup.address] : []),
+              `📞 ${(fresh.contactPhone || fresh.phone).replace(/[^0-9]/g, '').length >= 10 ? '+' : ''}${fresh.contactPhone || fresh.phone}`,
+              '',
+              'They have been told it is coming. Nothing more to collect.',
+            ].join(chr10)
+          : landed === 'on_the_way'
+            ? onTheWayCard(fresh)
+            : body;
 
   // No map card. The card itself opens with a link to the pin, announced as
   // such, which is one message instead of two and puts the thing they act on
