@@ -275,6 +275,12 @@ export function nextActions(
   orderNo: string,
   status: OrderStatus,
   audience: Audience = 'staff',
+  /**
+   * Whether this order is waiting on a delivery code. Passed in rather than
+   * looked up, so this module stays free of the database and can be reasoned
+   * about from its arguments alone.
+   */
+  opts: { codeExpected?: boolean } = {},
 ): { id: string; title: string; command: string }[] {
   // "ORD-00007" -> "7": dispatchers read the short form, and it keeps titles
   // inside the 20-character limit.
@@ -339,8 +345,18 @@ export function nextActions(
     switch (status) {
       case 'ready':
         return [uplifted];
+      // No Delivered button once a code is expected: typing the customer's four
+      // digits IS the delivery, so a button beside it would either be a second
+      // way to do the same thing or - worse - a button marked Delivered that
+      // does not deliver.
+      //
+      // And deliberately no No-code button here either. It is the exception,
+      // and the only button on the card an associate works from becomes the
+      // path of least resistance - tapped out of habit, every drop unverified.
+      // It appears on the wrong-code reply instead, which is when somebody
+      // actually needs it.
       case 'on_the_way':
-        return [delivered];
+        return opts.codeExpected ? [] : [delivered];
       default:
         return [];
     }

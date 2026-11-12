@@ -343,7 +343,18 @@ export function dropLines(order: repo.OrderRecord): string[] {
  * accepted, and repeating it here only buries that card further up the chat.
  */
 export function onTheWayCard(order: repo.OrderRecord): string {
-  return `🛵 *${order.orderNo}* on the way`;
+  const head = `🛵 *${order.orderNo}* on the way`;
+  if (!repo.deliveryCodeExpected(order.orderNo)) return head;
+
+  // The instruction replaces the button, so it has to carry its own weight:
+  // what to do, and what to do when the customer cannot do it. This is the
+  // last message in their chat and the one they come back to at the door.
+  return [
+    head,
+    '',
+    `🔐 Type the four-digit code from ${order.customerName.split(/\s+/)[0] || 'the customer'} to close it.`,
+    'No code? Reply *no code*.',
+  ].join(String.fromCharCode(10));
 }
 
 /**

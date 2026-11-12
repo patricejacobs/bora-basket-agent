@@ -1343,6 +1343,20 @@ export function verifyDeliveryCode(orderNo: string, typed: string): CodeCheck {
 }
 
 /**
+ * Whether this order is waiting on a code right now.
+ *
+ * The one predicate, in one place. Three callers need it - the card that tells
+ * an associate what to do, the gate that will not close an order without it,
+ * and the parser that reads four bare digits as an answer - and three copies of
+ * it would eventually disagree about which orders are exempt.
+ */
+export function deliveryCodeExpected(orderNo: string): boolean {
+  if (!config.deliveryCode) return false;
+  const st = deliveryCodeState(orderNo);
+  return st.exists && st.sent && !st.verifiedAt && !st.burnt;
+}
+
+/**
  * Gives up on a code: the associate is at the door and the customer has none.
  *
  * Spends it rather than deleting it. The order can then be delivered, and the

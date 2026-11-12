@@ -3796,6 +3796,27 @@ section('A code the customer reads out at the door');
   check('though it records that it was sent', Boolean(archived?.codeSentAt));
   check('and not yet verified', archived?.codeVerifiedAt === '');
 
+  /* --- the code closes it, so there is no Delivered button ------------ */
+
+  const { onTheWayCard } = await import('./dispatch.ts');
+  const { nextActions } = await import('./order-status.ts');
+
+  check('an order waiting on a code says so', repo.deliveryCodeExpected(first.orderNo));
+  const card = onTheWayCard(repo.findOrder(first.orderNo)!);
+  check('the card tells them to type it', card.includes('four-digit code'), card);
+  check('and names the person to ask', card.includes('Code'), card);
+  check('and the way out, as words not a button', /no code/i.test(card), card);
+  check('but never the digits', !card.includes(code), card);
+
+  const coded = nextActions(first.orderNo, 'on_the_way', 'driver', { codeExpected: true });
+  check('no button at all once a code is expected', coded.length === 0, JSON.stringify(coded));
+  const uncoded = nextActions(first.orderNo, 'on_the_way', 'driver', { codeExpected: false });
+  check(
+    'but an order with no code keeps Delivered',
+    uncoded.length === 1 && uncoded[0]?.title === 'Delivered',
+    JSON.stringify(uncoded),
+  );
+
   /* --- the gate ------------------------------------------------------- */
 
   const asked = await handleDriverMessage(`${first.orderNo} delivered`, rider);

@@ -942,10 +942,7 @@ export async function handleDriverMessage(
   // means an associate who types `1234` meaning order 1234 still gets order
   // 1234 every other time.
   if (config.deliveryCode) {
-    const awaiting = holding.filter((o) => {
-      const st = repo.deliveryCodeState(o.orderNo);
-      return st.exists && st.sent && !st.verifiedAt && !st.burnt;
-    });
+    const awaiting = holding.filter((o) => repo.deliveryCodeExpected(o.orderNo));
 
     const noCode = /\bno\s*code\b/i.test(trimmed);
     const paired = /^(?:ord[-\s]?)?0*(\d{1,6})\s+(\d{4})$/.exec(trimmed);
@@ -1067,7 +1064,9 @@ export async function handleDriverMessage(
   // details, since both of those ride on the message their own tap produces.
   // So they get that message anyway.
   if (order.status === status) {
-    const already = nextActions(order.orderNo, status, 'driver');
+    const already = nextActions(order.orderNo, status, 'driver', {
+      codeExpected: repo.deliveryCodeExpected(order.orderNo),
+    });
     const text =
       status === 'on_the_way'
         ? onTheWayCard(order)
@@ -1086,22 +1085,22 @@ export async function handleDriverMessage(
   // template cannot carry digits - must not be held up for digits nobody was
   // given, or every such delivery reads as a failed verification by somebody
   // who did nothing wrong.
-  if (status === 'delivered' && config.deliveryCode) {
-    const st = repo.deliveryCodeState(order.orderNo);
-    if (st.exists && st.sent && !st.verifiedAt && !st.burnt) {
-      const who = order.customerName.split(/\s+/)[0] || 'the customer';
-      return [
-        {
-          kind: 'buttons',
-          text: [
-            `🔐 *${order.orderNo}* — ask ${who} for their delivery code.`,
-            '',
-            'Type the four digits to close the order.',
-          ].join(chr10),
-          buttons: [noCodeButton(order.orderNo)],
-        },
-      ];
-    }
+  // Reachable by typing `7 delivered`, which still works and still has to be
+  // answered - the button is gone from the card, the word is not gone from the
+  // language.
+  if (status === 'delivered' && repo.deliveryCodeExpected(order.orderNo)) {
+    const who = order.customerName.split(/\s+/)[0] || 'the customer';
+    return [
+      {
+        kind: 'buttons',
+        text: [
+          `🔐 *${order.orderNo}* — ask ${who} for their delivery code.`,
+          '',
+          'Type the four digits to close the order.',
+        ].join(chr10),
+        buttons: [noCodeButton(order.orderNo)],
+      },
+    ];
   }
 
   // A completed delivery is the one position we never have to ask for: they
@@ -1111,7 +1110,12 @@ export async function handleDriverMessage(
   }
 
   const { body, status: landed } = await applyStatus(order, status, 'driver');
-  const actions = nextActions(order.orderNo, landed, 'driver');
+  // Read after the move, not before: the code is sent to the customer by the
+  // very notification that `applyStatus` fires, so asked before it this would
+  // always say no and the card would carry a Delivered button it should not.
+  const actions = nextActions(order.orderNo, landed, 'driver', {
+    codeExpected: repo.deliveryCodeExpected(order.orderNo),
+  });
 
   // The food is in the bag and only the drop is left, so this message is the
   // one they will work from. WhatsApp cannot retire the job card above it, so
