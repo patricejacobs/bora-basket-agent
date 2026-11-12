@@ -1343,6 +1343,50 @@ to the delivery associate at the door, so we know the order reached
 the right hands.
 ```
 
+### One order in hand, start to end
+
+An associate carries one order at a time. Nothing new can be uplifted until the
+one they have is delivered, so the shop always knows exactly what each of them
+is holding. The refusal doubles as the reminder, and repeats everything the job
+card said — that card is buried up the chat by now:
+
+```
+🛑 Finish ORD-00023 first.
+
+*ORD-00023* — Marcia Persaud
+Lot 4 Section C, Diamond
+📞 +5926100001
+https://www.google.com/maps?q=6.642000,-58.218000
+Collect $235,000 cash
+
+ORD-00030 stays where it is — someone else can take it, or
+come back for it.
+```
+
+`jobs` leads with the same thing, since an undelivered order is the only item
+on that list they cannot put off.
+
+The price, plainly: two orders from one kitchen are a single trip, and this
+refuses the second even though the associate is standing at that counter.
+`MAX_JOBS_PER_ASSOCIATE` raises the limit; 0 switches it off.
+
+**A mistyped order number is named as such.** A code typed against an order they
+are not carrying used to be compared against that order and answered "not the
+code — 2 tries left", which burned a stranger's code three times over and left
+that delivery unverifiable by the customer actually holding the digits. The
+other order is now left completely untouched:
+
+```
+ORD-00024 is not with you.
+
+You have ORD-00023.
+
+Check the order number and send it again, like `23 1234`.
+```
+
+The same answer whether the digits were right or wrong — it is the number that
+is wrong, not the code.
+
 ### What a settled order says, and to whom
 
 An order that is cancelled or delivered cannot move, and the message saying so

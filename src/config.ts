@@ -244,7 +244,7 @@ export const config = {
    * only sensible once it can tell a second pickup across town from a second
    * bag off the same counter.
    */
-  maxJobsPerAssociate: Math.max(0, num('MAX_JOBS_PER_ASSOCIATE', 0)),
+  maxJobsPerAssociate: Math.max(0, num('MAX_JOBS_PER_ASSOCIATE', 1)),
   /**
    * How long a clock-in lasts before it lapses on its own.
    *

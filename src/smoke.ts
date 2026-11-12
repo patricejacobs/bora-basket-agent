@@ -2049,29 +2049,42 @@ section('Kitchen and delivery associate commands');
   const jobB = mk('SSC-001', 2, ['Small', 'Chicken', 'Mild']);
 
   check('an associate with nothing is free', repo.activeJobsFor(busyPhone).length === 0);
-  check('no limit is set by default', config.maxJobsPerAssociate === 0, String(config.maxJobsPerAssociate));
+  // One at a time, by decision. The limit used to be off by default, on the
+  // argument that two orders from one kitchen are a single trip - which is
+  // true, and is the price being paid here for always knowing exactly what
+  // each associate is holding.
+  check('one delivery at a time by default', config.maxJobsPerAssociate === 1, String(config.maxJobsPerAssociate));
 
   await handleDriverMessage(`${jobA} collected`, busyPhone);
   check('collecting makes it theirs', repo.findOrder(jobA)?.driverPhone === busyPhone, repo.findOrder(jobA)?.driverPhone);
   check('and they are counted as carrying it', repo.activeJobsFor(busyPhone).length === 1);
 
-  // The case that made the limit wrong: a second order from the same kitchen.
-  await handleDriverMessage(`${jobB} collected`, busyPhone);
-  check('a second from the same kitchen is allowed', repo.findOrder(jobB)?.status === 'on_the_way', repo.findOrder(jobB)?.status);
-  check('and both are theirs', repo.activeJobsFor(busyPhone).length === 2);
+  // The price of the limit: a second order from the same kitchen, which is one
+  // trip, is refused too. Refused as a reminder rather than a rejection - it
+  // says what is still out and where it goes, because the card that said so is
+  // buried up the chat by now.
+  const blocked = (await handleDriverMessage(`${jobB} collected`, busyPhone))[0]?.text ?? '';
+  check('a second order is refused', repo.findOrder(jobB)?.status === 'ready', repo.findOrder(jobB)?.status);
+  check('and only the first is theirs', repo.activeJobsFor(busyPhone).length === 1);
+  check('the refusal names what to finish', blocked.includes(jobA), blocked);
+  check('and repeats where it goes', /Collect /.test(blocked), blocked);
+  check('and says the other one is not lost', blocked.includes(jobB), blocked);
 
   // jobs shows what they hold and flags anything at a kitchen they are already
   // visiting, because uplifting both costs one trip.
   const jobC = mk('SSC-002', 2, ['Small', 'Mild']);
   const view = (await handleDriverMessage('jobs', busyPhone))[0]?.text ?? '';
-  check('jobs lists what they are carrying', /With you now \(2\)/.test(view), view.slice(0, 60));
-  check('and still offers more', /ready to uplift/i.test(view), view.slice(0, 200));
-  check('flagging one at the same stop', /same stop as yours/i.test(view), view.slice(-200));
+  check('jobs leads with what must be delivered', /Deliver first \(1\)/.test(view), view.slice(0, 60));
+  check('and says nothing else can be taken', /until this one is delivered/i.test(view), view);
+  check('while still showing what is waiting', /ready to uplift/i.test(view), view.slice(0, 300));
 
-  // Delivering releases them.
+  // Delivering releases them - and only then can the next one be taken.
   await handleDriverMessage(`${jobA} delivered`, busyPhone);
+  check('delivering releases the first', repo.activeJobsFor(busyPhone).length === 0);
+  await handleDriverMessage(`${jobB} collected`, busyPhone);
+  check('and the next can now be uplifted', repo.findOrder(jobB)?.status === 'on_the_way', repo.findOrder(jobB)?.status);
   await handleDriverMessage(`${jobB} delivered`, busyPhone);
-  check('delivering releases each one', repo.activeJobsFor(busyPhone).length === 0);
+  check('delivering releases that one too', repo.activeJobsFor(busyPhone).length === 0);
 
   // An order belongs to whoever collected it, not to whoever was offered it.
   await handleDriverMessage(`${jobC} collected`, otherPhone);
@@ -4280,6 +4293,95 @@ section('What a settled order says, to whom');
   check('and shows no map link to drive to', !/http/.test(looking), looking);
 
   db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-901%'`).run();
+}
+
+section('One order in hand, start to end');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const rider = config.driverNumbers[0]!;
+
+  const make = (no: string, status: string, driver: string) =>
+    db
+      .prepare(
+        `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+           delivery_note, kind, outlet_id, outlet_name, delivery_code, code_sent_at,
+           driver_phone, latitude, longitude, location_label,
+           subtotal, delivery_fee, total, payment_method, status, created_at)
+         VALUES (?, '5926100001','Marcia Persaud','Lot 4 Diamond','5926100001','',
+           'restaurant', 1, 'A Taste of Guyana', ?, '2026-11-12T18:40:00Z',
+           ?, 6.64, -58.21, 'Diamond', 185000, 50000, 235000, 'cash', ?, '2026-11-12T18:00:00Z')`,
+      )
+      .run(no, no === 'ORD-90201' ? '2149' : '7731', driver, status);
+
+  make('ORD-90201', 'on_the_way', rider);  // theirs, in hand
+  make('ORD-90202', 'on_the_way', '5926009999');  // somebody else's
+  make('ORD-90203', 'ready', '');  // waiting to be uplifted
+
+  // Earlier sections left this associate holding orders of their own. Parked
+  // for the duration and handed back at the end, so this section measures its
+  // own fixtures rather than whatever ran before it.
+  const parked = repo
+    .activeJobsFor(rider)
+    .map((o) => o.orderNo)
+    .filter((no) => !no.startsWith('ORD-902'));
+  for (const no of parked) {
+    db.prepare(`UPDATE orders SET driver_phone = '' WHERE order_no = ?`).run(no);
+  }
+
+  check('they are carrying exactly one', repo.activeJobsFor(rider).length === 1, JSON.stringify(repo.activeJobsFor(rider).map((o) => o.orderNo)));
+
+  /* --- a mistyped order number -------------------------------------- */
+
+  const before = repo.deliveryCodeState('ORD-90202').attempts;
+  const wrongNo = (await handleDriverMessage('90202 1234', rider))[0]?.text ?? '';
+  check('a code for an order they do not have is refused', /is not with you/i.test(wrongNo), wrongNo);
+  check('and says which one they do have', wrongNo.includes('ORD-90201'), wrongNo);
+  check('offering the same digits against it', /90201 1234/.test(wrongNo), wrongNo);
+  check('never calling the code wrong', !/not the code/i.test(wrongNo), wrongNo);
+  // The important half: the other order is untouched. Otherwise an associate
+  // fumbling a number burns somebody else's code three times over, and that
+  // delivery can never be verified by the customer holding the digits.
+  check(
+    'and the other order loses no attempts',
+    repo.deliveryCodeState('ORD-90202').attempts === before,
+    `${before} -> ${repo.deliveryCodeState('ORD-90202').attempts}`,
+  );
+  check('nor is it moved', repo.findOrder('ORD-90202')?.status === 'on_the_way');
+
+  // The right code against the wrong order number is refused the same way -
+  // it is the number that is wrong, not the digits.
+  const rightCodeWrongOrder = (await handleDriverMessage('90202 7731', rider))[0]?.text ?? '';
+  check('even with that order\'s real code', /is not with you/i.test(rightCodeWrongOrder), rightCodeWrongOrder);
+  check('and it is still not delivered', repo.findOrder('ORD-90202')?.status === 'on_the_way');
+  check('nor verified', repo.deliveryCodeState('ORD-90202').verifiedAt === '');
+
+  /* --- no second delivery until the first is done -------------------- */
+
+  const second = (await handleDriverMessage('90203 collected', rider))[0]?.text ?? '';
+  check('a second uplift is refused', repo.findOrder('ORD-90203')?.status === 'ready', second);
+  check('and names what to finish', second.includes('ORD-90201'), second);
+  check('with the address again', /Diamond/.test(second), second);
+  check('the phone again', /5926100001/.test(second), second);
+  check('and the cash again', /Collect /.test(second), second);
+  check('saying the other is not lost', second.includes('ORD-90203'), second);
+
+  const queue = (await handleDriverMessage('jobs', rider))[0]?.text ?? '';
+  check('the queue leads with the undelivered one', /Deliver first/i.test(queue), queue.slice(0, 80));
+  check('and spells out the block', /until this one is delivered/i.test(queue), queue);
+
+  /* --- finishing it releases them ------------------------------------ */
+
+  await handleDriverMessage('2149', rider);
+  check('the right code closes it', repo.findOrder('ORD-90201')?.status === 'delivered');
+  check('and they are free', repo.activeJobsFor(rider).length === 0);
+
+  const now = (await handleDriverMessage('90203 collected', rider))[0]?.text ?? '';
+  check('the next one can now be uplifted', repo.findOrder('ORD-90203')?.status === 'on_the_way', now);
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-902%'`).run();
+  for (const no of parked) {
+    db.prepare(`UPDATE orders SET driver_phone = ? WHERE order_no = ?`).run(rider, no);
+  }
 }
 
 section('Counting the cash');

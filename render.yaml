@@ -163,6 +163,13 @@ services:
       # BACKUP_TO defaults to the first STAFF_NUMBERS entry.
       - key: BACKUP_SEND_HOURS
         value: "24"
+      # One delivery at a time. An associate cannot uplift anything new while
+      # an order is still undelivered, so the shop always knows exactly what
+      # each of them is holding. The price: two orders from one kitchen are a
+      # single trip and the second is refused. Raise to 2 if that is worth
+      # more; 0 switches the limit off.
+      - key: MAX_JOBS_PER_ASSOCIATE
+        value: "1"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

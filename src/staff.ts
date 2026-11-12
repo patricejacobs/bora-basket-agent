@@ -1070,8 +1070,16 @@ export async function handleDriverMessage(
     // What they are already carrying is shown, never used to refuse more. Two
     // orders from the same kitchen are one trip, and an associate standing at
     // that counter is exactly the right person for the second.
+    // What they are holding leads, because an undelivered order is the only
+    // thing on this list they are not allowed to put off.
     const mine = holding.length > 0
-      ? [`*With you now (${holding.length})*`, ...holding.map(describeForDriver)]
+      ? [
+          `🛑 *Deliver first (${holding.length})*`,
+          ...holding.map(describeForDriver),
+          holding.length === 1
+            ? 'Nothing else can be uplifted until this one is delivered.'
+            : 'Nothing else can be uplifted until these are delivered.',
+        ]
       : [];
 
     if (waiting.length === 0 && mine.length === 0) return reply('Nothing to uplift right now.');
@@ -1139,6 +1147,32 @@ export async function handleDriverMessage(
           ...awaiting.map((o) => `${o.orderNo} - ${o.customerName}`),
           '',
           `Send the order and the code together, like \`${first} ${bare[1]}\`.`,
+        ].join(chr10),
+      );
+    }
+
+    // A code typed against an order they are not carrying.
+    //
+    // Checked before the code is compared, and that order is left completely
+    // alone - no attempt counted against it. Otherwise an associate fumbling
+    // the order number burns somebody else's code, three times over, and that
+    // delivery can never be verified by the customer who actually holds the
+    // digits. The likeliest explanation by far is a mistyped order number, so
+    // say which one they are carrying rather than which code was wrong.
+    if (paired && target && !holding.some((o) => o.orderNo === target.orderNo)) {
+      return reply(
+        [
+          `${target.orderNo} is not with you.`,
+          '',
+          ...(holding.length === 0
+            ? ['You are not carrying anything right now.', 'Send `jobs` to see what there is to uplift.']
+            : [
+                `You have ${holding.map((o) => o.orderNo).join(', ')}.`,
+                '',
+                `Check the order number and send it again, like \`${String(
+                  Number((holding[0]?.orderNo ?? '').replace(/[^0-9]/g, '')),
+                )} ${paired[2]}\`.`,
+              ]),
         ].join(chr10),
       );
     }
@@ -1248,9 +1282,16 @@ export async function handleDriverMessage(
   if (status !== 'on_the_way' && status !== 'delivered') {
     return reply('A delivery associate can mark an order uplifted or delivered. Anything else is for the shop.');
   }
-  // One delivery at a time. Somebody already carrying hot food across town
-  // cannot also be collecting from another kitchen, and a second job is how
-  // both arrive cold.
+  // One delivery at a time, and the refusal doubles as the reminder.
+  //
+  // Somebody already carrying food across town cannot also be collecting from
+  // another kitchen, and a second job is how both arrive cold. The default is
+  // one; MAX_JOBS_PER_ASSOCIATE raises it, and 0 switches the limit off.
+  //
+  // The cost, stated plainly: two orders from the same kitchen are one trip,
+  // and this refuses the second. An associate standing at that counter is the
+  // right person for it. Raise the limit to 2 if that trade is worth more than
+  // the certainty of knowing exactly what each associate is holding.
   if (
     status === 'on_the_way' &&
     config.maxJobsPerAssociate > 0 &&
@@ -1259,10 +1300,21 @@ export async function handleDriverMessage(
   ) {
     return reply(
       [
-        `You already have ${holding.map((o) => o.orderNo).join(', ')} with you.`,
+        `🛑 Finish ${holding.map((o) => o.orderNo).join(', ')} first.`,
         '',
-        'Deliver that first, then come back for this one. Someone else can take it in the meantime.',
-      ].join('\n'),
+        // What is still out, in full, because the reminder is only useful if
+        // it says where to go - and the card that said so is now buried up
+        // the chat under everything that has happened since.
+        ...holding.flatMap((o) => [
+          `*${o.orderNo}* — ${o.recipientName || o.customerName}`,
+          ...(o.address ? [o.address] : []),
+          `📞 +${o.recipientPhone || o.contactPhone || o.phone}`,
+          ...(o.location ? [mapsLink(o.location)] : ['⚠️ No pin — ring them']),
+          `Collect ${money(o.total)} cash`,
+          '',
+        ]),
+        `${order.orderNo} stays where it is — someone else can take it, or come back for it.`,
+      ].join(chr10),
     );
   }
 
