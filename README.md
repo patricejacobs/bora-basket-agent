@@ -1573,6 +1573,38 @@ unverified delivery beats a wasted meal. A parcel is somebody's property: a code
 that will not verify may mean the wrong door, and handing it over on a guess is
 how it is never seen again.
 
+**Either end can be a pin, an address in words, or both.** A pin is better and
+is asked for first, but somebody booking a parcel is usually standing at neither
+end of it and cannot drop a pin on a door they are not at. Refusing those
+bookings loses them; the associate reads the address and rings. Where both
+exist, both are printed — the words get somebody to the street and the pin gets
+them to the gate:
+
+```
+*Uplift from:* Patrice
+Lot 12, Kitty — blue gate
+📞 +5926100001
+Click the link below for the uplift address:
+https://www.google.com/maps?q=6.801300,-58.155100
+```
+
+With no pin at that end, the card says so rather than implying a map exists:
+
+```
+*Uplift from:* Patrice
+Lot 12, Kitty — blue gate, ask for Patrice
+📞 +5926100001
+⚠️ No pin for the pickup — ring them
+```
+
+Each end stands alone: a parcel with a written pickup and a pinned destination
+gets the warning on one half and the link on the other.
+
+Two addresses give no distance, so an unmeasurable trip is charged the **flat
+base fee** and described as flat — a per-km rate nobody can compute is a guess
+dressed as a price. With no base fee configured the job goes through unpriced,
+exactly as before, and never on an invented number.
+
 **The recipient can never be messaged** — WhatsApp refuses a business message to
 a number that has never written in — so the sender holds the code and passes it
 on, and is told at booking that only they can warn the recipient it is coming.

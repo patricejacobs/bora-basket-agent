@@ -24,6 +24,36 @@ export type ParcelQuote =
   | { priced: false; distanceKm: number; reason: string }
   | { tooFar: true; distanceKm: number; limitKm: number };
 
+/**
+ * The fee when the trip cannot be measured.
+ *
+ * Either end of a parcel may be an address in words rather than a pin, and
+ * two addresses give no distance to charge by. The base fee is a configured
+ * number, not an invented one, so quoting it is honest - but it is said to be
+ * flat, because a per-km rate nobody can compute is not a price, it is a
+ * guess dressed as one.
+ *
+ * With no base fee configured there is nothing honest to say, and the job
+ * goes through unpriced exactly as it always did.
+ */
+export function flatParcelQuote(): ParcelQuote {
+  const { baseFee } = config.parcel;
+  if (baseFee <= 0) {
+    return {
+      priced: false,
+      distanceKm: 0,
+      reason:
+        'No parcel pricing is configured and the distance cannot be measured without both pins, so you cannot quote a fee. Take the job and say the shop will confirm the cost before uplifting — never guess a price.',
+    };
+  }
+  return {
+    priced: true,
+    fee: baseFee,
+    distanceKm: 0,
+    explanation: `${money(baseFee)} flat — the distance cannot be measured without a pin at both ends`,
+  };
+}
+
 export function quoteParcel(from: Coordinates, to: Coordinates): ParcelQuote {
   const km = distanceKm(from, to);
 

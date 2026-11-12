@@ -4837,6 +4837,96 @@ section('A parcel, booked to delivered — and one that comes back');
   repo.setDuty(rider, false);
 }
 
+section('A parcel end can be a pin, words, or both');
+{
+  const { dropLines, parcelUpliftCard } = await import('./dispatch.ts');
+
+  const job = (
+    label: string,
+    pickup: { latitude: number; longitude: number } | null,
+    pickupAddress: string,
+    destination: { latitude: number; longitude: number } | null,
+    destinationAddress: string,
+  ) => {
+    const phone = `59260073${label}`;
+    repo.saveCustomer(phone, { name: 'Patrice', contactPhone: phone });
+    return repo.createParcelJob({
+      phone,
+      senderName: 'Patrice',
+      pickup,
+      pickupAddress,
+      destination,
+      destinationAddress,
+      recipientName: 'Harry Paul',
+      recipientPhone: '5926100099',
+      contents: 'A box of books',
+      fee: 150000,
+      contactPhone: phone,
+    });
+  };
+
+  const KITTY = { latitude: 6.8013, longitude: -58.1551 };
+  const THOMAS = { latitude: 6.8124, longitude: -58.1591 };
+
+  /* --- both ends pinned and written ----------------------------------- */
+
+  const full = repo.findOrder(job('01', KITTY, 'Lot 12, Kitty — blue gate', THOMAS, '94 Thomas St — white fence').orderNo)!;
+  const upliftFull = parcelUpliftCard(full);
+  check('the uplift shows the written address', upliftFull.includes('Lot 12, Kitty'), upliftFull);
+  check('and the pin, together', /maps\?q=6\.801300/.test(upliftFull), upliftFull);
+
+  const dropFull = dropLines(full).join('\n');
+  check('the drop shows its written address', dropFull.includes('94 Thomas St'), dropFull);
+  // The bug this caught: a parcel's destination pin IS the recipient's, but
+  // the flag that says so was never set by the booking path, so a properly
+  // pinned parcel showed NO PIN and no link.
+  check('and its pin, together', /maps\?q=6\.812400/.test(dropFull), dropFull);
+  check('with no false NO PIN warning', !/NO PIN/.test(dropFull), dropFull);
+
+  /* --- pickup in words only -------------------------------------------- */
+
+  const typedPickup = repo.findOrder(job('02', null, 'Lot 12, Kitty — blue gate', THOMAS, '94 Thomas St').orderNo)!;
+  const upliftTyped = parcelUpliftCard(typedPickup);
+  check('an uplift with no pin is still bookable', typedPickup.pickup?.address.includes('Kitty') === true);
+  check('the card gives the address', upliftTyped.includes('Lot 12, Kitty'), upliftTyped);
+  check('and says to ring rather than pretending there is a map', /No pin for the pickup/.test(upliftTyped), upliftTyped);
+  check('with no uplift link', !/Click the link below for the uplift/.test(upliftTyped), upliftTyped);
+  // The other end is unaffected.
+  check('while the drop keeps its pin', /maps\?q=6\.812400/.test(dropLines(typedPickup).join('\n')));
+
+  /* --- destination in words only --------------------------------------- */
+
+  const typedDrop = repo.findOrder(job('03', KITTY, 'Lot 12, Kitty', null, '94 Thomas St — white fence').orderNo)!;
+  const dropTyped = dropLines(typedDrop).join('\n');
+  check('a destination with no pin is still bookable', typedDrop.location === null);
+  check('the card gives the address', dropTyped.includes('94 Thomas St'), dropTyped);
+  check('and flags it so they ring first', /NO PIN/.test(dropTyped), dropTyped);
+  check('with no delivery link', !/http/.test(dropTyped), dropTyped);
+  check('while the uplift keeps its pin', /maps\?q=6\.801300/.test(parcelUpliftCard(typedDrop)));
+
+  /* --- neither end pinned ---------------------------------------------- */
+
+  const words = repo.findOrder(job('04', null, 'Lot 12, Kitty', null, '94 Thomas St').orderNo)!;
+  check('a parcel can run on two written addresses', words.location === null && words.pickup?.latitude === null);
+  check('both are still on the cards', parcelUpliftCard(words).includes('Kitty') && dropLines(words).join('\n').includes('Thomas'));
+
+  /* --- what it costs when there is no distance to measure --------------- */
+
+  const { flatParcelQuote } = await import('./parcels.ts');
+  const flat = flatParcelQuote();
+  if (config.parcel.baseFee > 0) {
+    check('an unmeasurable trip is charged flat', 'priced' in flat && flat.priced === true, JSON.stringify(flat));
+    check('and says so rather than implying a distance', 'explanation' in flat && /flat/.test(String(flat.explanation)), JSON.stringify(flat));
+  } else {
+    // Nothing honest to say without a base fee, so it stays unpriced exactly
+    // as it did before - never a guessed number.
+    check('with no base fee it stays unpriced', 'priced' in flat && flat.priced === false, JSON.stringify(flat));
+    check('and says why', 'reason' in flat && /cannot be measured/.test(String(flat.reason)), JSON.stringify(flat));
+  }
+
+  db.prepare(`DELETE FROM orders WHERE phone LIKE '59260073%'`).run();
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

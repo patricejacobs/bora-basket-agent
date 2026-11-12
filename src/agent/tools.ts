@@ -4,7 +4,7 @@ import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import { announceNewOrder, offerParcel, tellKitchenCancelled } from '../dispatch.ts';
 import { notifyStaffOfRequest } from '../notifications.ts';
-import { quoteParcel, checkContents } from '../parcels.ts';
+import { quoteParcel, flatParcelQuote, checkContents } from '../parcels.ts';
 import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
@@ -351,7 +351,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'create_parcel_job',
     description:
-      "Book the parcel once you have both pins, the recipient's name and number, and what is being sent. Creates the job and dispatches it. Call it once, only after reading the whole thing back and getting a clear yes.",
+      "Book the parcel once you know where it is uplifted from, where it is going, the recipient's name and number, and what is being sent. Each end can be a location pin, an address in words, or both — a pin is better, so ask for one first, but take the address when they cannot share one. Creates the job and dispatches it. Call it once, only after reading the whole thing back and getting a clear yes.",
     input_schema: {
       type: 'object',
       properties: {
@@ -367,11 +367,13 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
         pickup_note: {
           type: 'string',
-          description: 'Doorstep detail for the uplift — which gate, which floor, who to ask for.',
+          description:
+            'The uplift address in words, with the doorstep detail: street, lot or house number, which gate or floor, who to ask for. Required when no pin has been shared for the uplift, and worth taking alongside a pin — the two together are what gets somebody to a door.',
         },
         destination_note: {
           type: 'string',
-          description: 'The same for the drop-off.',
+          description:
+            'The same for the drop-off. Required when no pin has been shared for the destination.',
         },
       },
       required: ['contents', 'recipient_name', 'recipient_phone'],
@@ -1323,10 +1325,31 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!allowed.allowed) return fail(allowed.reason);
 
       const draft = repo.getParcelDraft(ctx.phone);
-      if (!draft.pickup) return fail('No uplift pin yet. Ask for it with request_location.');
-      if (!draft.destination) return fail('No destination pin yet. Ask for it with request_location.');
+      const pickupNote = asString(input.pickup_note);
+      const destinationNote = asString(input.destination_note);
 
-      const quote = quoteParcel(draft.pickup, draft.destination);
+      // Each end needs a pin or an address in words. A pin is better and is
+      // asked for first, but somebody booking a parcel is often standing at
+      // neither end of it and cannot drop a pin on a door they are not at.
+      // Refusing those bookings loses them; the associate reads the address
+      // and rings.
+      if (!draft.pickup && !pickupNote) {
+        return fail(
+          'Nothing says where to uplift it. Ask for a pin with request_location, or take the address in words and pass it as pickup_note.',
+        );
+      }
+      if (!draft.destination && !destinationNote) {
+        return fail(
+          'Nothing says where it is going. Ask for a pin with request_location, or take the address in words and pass it as destination_note.',
+        );
+      }
+
+      // Two pins give a distance to charge by. Anything less does not, so the
+      // fee is the flat base rate and is described as such.
+      const quote =
+        draft.pickup && draft.destination
+          ? quoteParcel(draft.pickup, draft.destination)
+          : flatParcelQuote();
       if ('tooFar' in quote) {
         return fail(
           `${formatDistance(quote.distanceKm)} is beyond the ${quote.limitKm} km we cover. Do not book it — offer to pass it to staff instead.`,

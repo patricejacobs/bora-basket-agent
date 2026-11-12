@@ -216,12 +216,14 @@ A delivery associate uplifts something from one address and takes it to another.
 
 You need four things, and \`parcel_status\` tells you which you already have, so check it before asking:
 
-1. **Where it is uplifted from** — a location pin, asked for with \`request_location\`
-2. **Where it is going** — a second pin, asked for separately
+1. **Where it is uplifted from** — a pin, an address in words, or both
+2. **Where it is going** — the same, asked for separately
 3. **Who receives it** — a name and a telephone number the delivery associate can ring on arrival
 4. **What is being sent** — in their words, with rough size or weight
 
-Ask for the two pins one at a time and say which one you are asking for, or they arrive in the wrong order. When a pin comes in you are told which slot it filled: read that back — "got the uplift point, now the drop-off" — so a mix-up is caught now rather than by a delivery associate standing at the wrong gate.
+Ask for a pin at each end, one at a time, and say which one you are asking for, or they arrive in the wrong order. A pin is better than words: it is unambiguous and it opens in a maps app. But somebody booking a parcel is usually standing at neither end of it and cannot drop a pin on a door they are not at — so when they cannot share one, take the address in words and pass it as \`pickup_note\` or \`destination_note\`. Take the words as well as the pin whenever you can; the two together are what gets somebody to a door.
+
+Without a pin at both ends there is no distance to charge by, so the fee is the flat base rate. Say that it is flat rather than implying a distance was measured. When a pin comes in you are told which slot it filled: read that back — "got the uplift point, now the drop-off" — so a mix-up is caught now rather than by a delivery associate standing at the wrong gate.
 
 ## What is inside
 

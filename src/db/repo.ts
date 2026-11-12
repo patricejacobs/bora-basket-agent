@@ -1516,9 +1516,17 @@ export function allOrders(): ArchivedOrder[] {
 export function createParcelJob(args: {
   phone: string;
   senderName: string;
-  pickup: { latitude: number; longitude: number; label?: string };
+  /**
+   * Either end may be a pin, an address in words, or both.
+   *
+   * A pin is better - it is unambiguous and it is what a maps app opens - but
+   * plenty of people booking a parcel are nowhere near either end of it, and
+   * cannot drop a pin on a door they are not standing at. Refusing those
+   * bookings loses them; the associate reads the address and rings instead.
+   */
+  pickup: { latitude: number; longitude: number; label?: string } | null;
   pickupAddress: string;
-  destination: { latitude: number; longitude: number; label?: string };
+  destination: { latitude: number; longitude: number; label?: string } | null;
   destinationAddress: string;
   recipientName: string;
   recipientPhone: string;
@@ -1538,21 +1546,21 @@ export function createParcelJob(args: {
          (order_no, kind, phone, customer_name, address, contact_phone, delivery_note,
           latitude, longitude, location_label,
           pickup_address, pickup_lat, pickup_lng,
-          recipient_name, recipient_phone, parcel_details, delivery_code,
+          recipient_name, recipient_phone, parcel_details, delivery_code, recipient_pin,
           subtotal, delivery_fee, total, payment_method, status, created_at)
-       VALUES (?, 'parcel', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'cash_on_delivery', 'pending', ?)`,
+       VALUES (?, 'parcel', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'cash_on_delivery', 'pending', ?)`,
     ).run(
       orderNo,
       args.phone,
       args.senderName,
       args.destinationAddress,
       args.contactPhone,
-      args.destination.latitude,
-      args.destination.longitude,
-      args.destination.label ?? '',
+      args.destination?.latitude ?? null,
+      args.destination?.longitude ?? null,
+      args.destination?.label ?? '',
       args.pickupAddress,
-      args.pickup.latitude,
-      args.pickup.longitude,
+      args.pickup?.latitude ?? null,
+      args.pickup?.longitude ?? null,
       args.recipientName,
       args.recipientPhone,
       args.contents,
@@ -1561,6 +1569,12 @@ export function createParcelJob(args: {
       // passes them to whoever is receiving - which is the only way the shop
       // can show the parcel reached the right hands rather than a doorstep.
       newDeliveryCode(),
+      // A parcel's destination pin was shared FOR this destination, which is
+      // precisely what this flag means. On a food order it guards against the
+      // buyer's own saved pin being mistaken for the recipient's door; here
+      // there is no saved pin involved, so without this a properly pinned
+      // parcel would have shown NO PIN and no link at all.
+      args.destination ? 1 : 0,
       args.fee,
       args.fee,
       nowIso(),
