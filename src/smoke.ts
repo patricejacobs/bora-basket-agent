@@ -2139,6 +2139,7 @@ section('Kitchen and delivery associate commands');
 
 section('Service menu');
 {
+  const { t } = await import('./language.ts');
   const { parseServiceChoice, welcomeMessage, wantsServiceMenu, SERVICE_MENU } = await import(
     './services.ts'
   );
@@ -2147,7 +2148,11 @@ section('Service menu');
   check('welcomes before anything else', /welcome/i.test(menu), menu.split('\n')[0]);
   check('asks what service is wanted', /what can we help/i.test(menu));
   for (const [service, def] of Object.entries(SERVICE_MENU)) {
-    check(`offers ${service} as number ${def.number}`, menu.includes(`*${def.number}.* ${def.label}`), menu);
+    check(
+      `offers ${service} as number ${def.number}`,
+      menu.includes(`*${def.number}.* ${t(def.labelKey, 'en')}`),
+      menu,
+    );
   }
   check('tells them to reply with a number', /reply with the number/i.test(menu));
 
@@ -2955,7 +2960,8 @@ section('How a food order says goodbye');
   const { MEAL_SIGN_OFFS, signOffFor } = await import('./notifications.ts');
 
   check('there are several sign-offs', MEAL_SIGN_OFFS.length > 1, String(MEAL_SIGN_OFFS.length));
-  check('including the French one', MEAL_SIGN_OFFS.some((l) => /Bon app/.test(l)));
+  const { t: tr } = await import('./language.ts');
+  check('including the French one', MEAL_SIGN_OFFS.some((k) => /Bon app/.test(tr(k, 'en'))));
 
   const food = repo.allOrders().find((o) => o.outlet !== null);
   const other = repo.allOrders().find((o) => o.outlet === null);
@@ -2965,7 +2971,11 @@ section('How a food order says goodbye');
   if (food) {
     const line = signOffFor(food);
     check('a food order gets one', line !== '', JSON.stringify(line));
-    check('it is one of the listed ones', MEAL_SIGN_OFFS.some((l) => line.includes(l)), line);
+    check(
+      'it is one of the listed ones',
+      MEAL_SIGN_OFFS.some((k) => line.includes(tr(k, 'en'))),
+      line,
+    );
     // Fixed per order: this message can be sent twice - a retry, a template
     // fallback, a dispatcher re-closing an order - and two goodbyes in
     // different words read as something unwell.
@@ -3032,6 +3042,58 @@ section('Who carried it');
     check('the number', view.includes('5926001111'), view);
     check('and the vehicle', view.includes('GSS 1234'), view);
   }
+}
+
+section('Speaking the language a customer writes in');
+{
+  const { detectLanguage, LANGUAGES, keysFor, t: tx } = await import('./language.ts');
+  const { welcomeMessage, languageFor } = await import('./services.ts');
+
+  // Every language says everything. A key missing from one of them would fall
+  // back to English mid-message, which reads worse than English throughout.
+  const english = keysFor('en');
+  for (const lang of LANGUAGES) {
+    const mine = keysFor(lang);
+    check(
+      `${lang} says everything English does`,
+      english.every((k) => mine.includes(k)),
+      JSON.stringify(english.filter((k) => !mine.includes(k))),
+    );
+    check(`${lang} has nothing English lacks`, mine.every((k) => english.includes(k)));
+  }
+
+  check('Chinese is read from its characters', detectLanguage('我要点餐') === 'zh');
+  check('Spanish from its words', detectLanguage('hola, quiero arroz') === 'es');
+  check('and its punctuation', detectLanguage('¿cuánto cuesta?') === 'es');
+  check('Portuguese from its words', detectLanguage('bom dia, quero arroz') === 'pt');
+  check('and its accents', detectLanguage('nao tenho pao') === null || detectLanguage('não tenho pão') === 'pt');
+  check('English gives nothing away', detectLanguage('hello, I want rice') === null);
+  check('and neither does a shrug', detectLanguage('ok') === null);
+  check('nor an empty message', detectLanguage('   ') === null);
+
+  // The two that share a vocabulary must not be confused.
+  check('"quiero" is Spanish', detectLanguage('quiero dos') === 'es');
+  check('"quero" is Portuguese', detectLanguage('quero dois') === 'pt');
+  check('"gracias" is Spanish', detectLanguage('gracias') === 'es');
+  check('"obrigado" is Portuguese', detectLanguage('obrigado') === 'pt');
+
+  // Stored, and used by the fixed messages.
+  const esPhone = '5926007001';
+  repo.getCustomer(esPhone);
+  repo.setCustomerLanguage(esPhone, 'es');
+  check('the language is remembered', languageFor(esPhone) === 'es');
+  const hola = welcomeMessage(esPhone);
+  check('the welcome is in Spanish', /Bienvenido/.test(hola), hola);
+  check('and so is the menu', hola.includes(tx('service_grocery', 'es')), hola);
+  check('and the instruction', hola.includes(tx('reply_with_number', 'es')), hola);
+
+  const zhPhone = '5926007002';
+  repo.getCustomer(zhPhone);
+  repo.setCustomerLanguage(zhPhone, 'zh');
+  check('Chinese gets a Chinese welcome', /欢迎/.test(welcomeMessage(zhPhone)), welcomeMessage(zhPhone));
+
+  // An unknown customer is English, not a guess.
+  check('an unknown customer is English', languageFor('5926009000') === 'en');
 }
 
 section('Timing an order');

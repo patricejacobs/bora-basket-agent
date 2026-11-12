@@ -14,6 +14,10 @@ data/catalog.csv
 data/backups/
 backups/
 orders-*.csv
+# Your real associates: names and mobile numbers of people who work for you.
+# A menu can be committed; this cannot - the repository is public.
+my-associates.csv
+associates.csv
 orders-*.json
 store-*.db
 *.db.partial

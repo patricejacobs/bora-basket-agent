@@ -343,6 +343,10 @@ addColumnIfMissing('orders', 'handed_over_at', "TEXT NOT NULL DEFAULT ''");
 // Copied onto the order when an associate takes it, not looked up later. An
 // associate who changes vehicle next month must not rewrite which van carried
 // an order last week, and one who leaves must not erase themselves from it.
+// The language this customer writes in, remembered so a notification sent
+// hours later matches the conversation they had. Empty until something they
+// wrote gave it away.
+addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");

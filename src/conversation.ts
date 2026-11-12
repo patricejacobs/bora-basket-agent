@@ -1,4 +1,5 @@
 import { runAgent, friendlyErrorMessage, SESSION_TTL_MS as CONVERSATION_TTL_MS } from './agent/run.ts';
+import { detectLanguage } from './language.ts';
 import {
   isStaff,
   isDriver,
@@ -109,6 +110,18 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       ? `[photo] ${msg.text}`
       : msg.text;
   repo.logMessage(msg.phone, 'in', msg.channel, logBody);
+
+  // What language this customer writes in, noticed from what they wrote.
+  //
+  // Only ever set, never cleared: "ok" and a thumbs up give nothing away,
+  // and a one-word reply must not reset somebody who has been writing
+  // Portuguese all along. Done before anything replies, so even the welcome
+  // comes back in their language.
+  const spoken = detectLanguage(msg.text);
+  if (spoken && repo.customerLanguage(msg.phone) !== spoken) {
+    repo.getCustomer(msg.phone);
+    repo.setCustomerLanguage(msg.phone, spoken);
+  }
 
   // Staff, delivery associates and kitchens all share the shop number, and none of them get
   // the shopping agent — a dispatcher clearing twenty orders wants the same

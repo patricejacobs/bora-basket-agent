@@ -1,4 +1,6 @@
 import { config, money } from '../config.ts';
+import { LANGUAGE_NAME } from '../language.ts';
+import { languageFor } from '../services.ts';
 import * as repo from '../db/repo.ts';
 import { serviceContextLine, SERVICES, type Service } from '../services.ts';
 import { shopStatus } from '../hours.ts';
@@ -57,8 +59,26 @@ export function buildTimeContext(): string {
 }
 
 /** The clock, the chosen service and anything parked — every turn after the first. */
+/**
+ * The language this customer has been writing in, when it is not English.
+ *
+ * The agent already matches a customer's language on its own. This exists so
+ * it keeps doing so after a short reply - somebody who has been writing
+ * Portuguese and then sends "ok" should not be answered in English - and so
+ * the model agrees with the fixed messages, which come from the same stored
+ * language.
+ */
+function languageLine(phone: string): string | null {
+  const lang = languageFor(phone);
+  if (lang === 'en') return null;
+  const name = LANGUAGE_NAME[lang];
+  return `This customer writes in ${name}. Reply in ${name} unless they switch.`;
+}
+
 export function buildTurnContext(phone: string): string {
-  return [buildTimeContext(), serviceLine(phone), parkedLine(phone)].filter(Boolean).join('\n');
+  return [buildTimeContext(), languageLine(phone), serviceLine(phone), parkedLine(phone)]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**

@@ -439,6 +439,31 @@ export function getCustomer(phone: string): Customer {
  * model to copy nine significant figures into a tool call is a transcription
  * error waiting to put a delivery in the wrong street.
  */
+/**
+ * Remembers what language a customer writes in.
+ *
+ * Only ever set from something they actually wrote, never guessed, and never
+ * cleared by a message that gives nothing away - "ok" is not evidence that
+ * somebody has switched to English.
+ */
+export function setCustomerLanguage(phone: string, language: string): void {
+  // Upsert, because a language is usually learned from somebody's very first
+  // message - before they have given a name or an address, and so before
+  // there is a row to update.
+  db.prepare(
+    `INSERT INTO customers (phone, name, address, language, created_at, updated_at)
+     VALUES (?, '', '', ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET language = excluded.language, updated_at = excluded.updated_at`,
+  ).run(phone, language, nowIso(), nowIso());
+}
+
+export function customerLanguage(phone: string): string {
+  const row = db.prepare(`SELECT language FROM customers WHERE phone = ?`).get(phone) as
+    | { language: string }
+    | undefined;
+  return row?.language ?? '';
+}
+
 export function saveLocationPin(phone: string, pin: LocationPin): SavedPin {
   const pinnedAt = nowIso();
   db.prepare(

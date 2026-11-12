@@ -1106,6 +1106,37 @@ the one fact there was.
 
 `DRIVER_NUMBERS` still decides who is offered a job. This answers who they are.
 
+### Four languages
+
+English, Spanish, Portuguese and Chinese. A customer who writes in one is answered in it,
+from the welcome to the last line after delivery.
+
+**The conversation was never the hard part.** The agent is told to match the customer's
+language and does, in any language, including from a photographed shopping list. What
+stayed English was everything the model does not write - the welcome, the four services,
+every status notification, the cancellation messages. Those are deliberately fixed so they
+read identically every time, which meant a customer could order entirely in Spanish and be
+thanked in English.
+
+Those fixed messages are now written out once per language rather than translated at send
+time. Translating on the fly would cost a call per notification, add latency, and put text
+in front of a customer that nobody at the shop can read - a wrong price or a garbled
+cancellation reason going out unreviewed.
+
+**How the language is known.** From what the customer wrote, on the first message, before
+anything replies - so even the welcome comes back in their language. Chinese is read from
+its characters; Spanish and Portuguese from words that differ between them (`quiero`
+against `quero`, `gracias` against `obrigado`), never from the ones they share. Nothing is
+guessed from a phone's country code: a Guyanese number is no evidence of a language in a
+country that speaks nine.
+
+It is only ever set, never cleared. `ok` and a thumbs up give nothing away, and a
+one-word reply must not reset somebody who has been writing Portuguese all along.
+
+A reason a dispatcher typed by hand is passed on in the words they typed, untranslated -
+inventing a translation of somebody's sentence would be guessing at what they meant, in
+front of the customer.
+
 ### Timing an order
 
 Two moments are stamped on every order as they happen, and never moved afterwards:

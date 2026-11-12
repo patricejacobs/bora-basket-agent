@@ -12,6 +12,7 @@
  * quoted reply, and for the customer who would rather type.
  */
 import { config, money } from './config.ts';
+import { t, isLanguage, type Language } from './language.ts';
 import * as repo from './db/repo.ts';
 import type { Outlet } from './db/repo.ts';
 import { hoursStatus } from './hours.ts';
@@ -22,7 +23,8 @@ export type Service = (typeof SERVICES)[number];
 
 type Definition = {
   number: number;
-  label: string;
+  /** A key, not the words: the words depend on who is reading. */
+  labelKey: string;
   /** Words a customer might type instead of the number. */
   spoken: RegExp;
   /** The line that opens that service, once chosen. */
@@ -32,27 +34,27 @@ type Definition = {
 export const SERVICE_MENU: Record<Service, Definition> = {
   grocery: {
     number: 1,
-    label: 'Grocery shopping',
+    labelKey: 'service_grocery',
     spoken: /\b(grocer(y|ies)|shopping|shop|market|food\s*shop|supermarket|provisions?)\b/i,
     opening: 'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
   },
   restaurant: {
     number: 2,
-    label: 'Restaurant ordering',
+    labelKey: 'service_restaurant',
     spoken: /\b(restaurant|takeaway|take\s*out|fast\s*food|cooked|hot\s*food|lunch|dinner|meal|eat)\b/i,
     // Unused: serviceOpening renders the live kitchen list for this one.
     opening: "Let's get you fed.",
   },
   parcel: {
     number: 3,
-    label: 'Parcel delivery',
+    labelKey: 'service_parcel',
     spoken: /\b(parcel|package|courier|delivery\s*only|send\s*(something|a\s*thing)|drop\s*off|pick\s*up\s*something)\b/i,
     opening:
       "Parcel delivery. I'll need to know where it's coming from, where it's going, and who's receiving it.",
   },
   other: {
     number: 4,
-    label: 'Other',
+    labelKey: 'service_other',
     spoken: /\b(other|something\s*else|help|complain|complaint|speak\s*to|talk\s*to|manager|staff|problem)\b/i,
     opening:
       "No problem — tell me what you need and I'll pass it straight to the team with your number.",
@@ -70,22 +72,39 @@ const ORDERED = SERVICES.map((key) => ({ key, ...SERVICE_MENU[key] })).sort(
  * a shop knowing your number — but they still get the menu, since the service
  * they want today is not the one they wanted last week.
  */
+/**
+ * The language to write to this customer in.
+ *
+ * English unless they have shown us otherwise. Never inferred from a phone's
+ * country code: a Guyanese number is no evidence of a language in a country
+ * that speaks nine.
+ */
+export function languageFor(phone: string): Language {
+  const stored = repo.customerLanguage(phone);
+  return isLanguage(stored) ? stored : 'en';
+}
+
 export function welcomeMessage(phone: string): string {
   const customer = repo.getCustomer(phone);
   const firstName = customer.name?.trim().split(/\s+/)[0] ?? '';
 
+  // The first thing a customer reads, in the language they wrote in. Known
+  // only if something they sent gave it away; English otherwise, which is the
+  // right default here and an honest one anywhere.
+  const lang = languageFor(phone);
+
   const greeting = firstName
-    ? `Welcome back to ${config.store.name}, ${firstName}! 👋`
-    : `Welcome to ${config.store.name}! 👋`;
+    ? t('welcome_back', lang, { store: config.store.name, name: firstName })
+    : t('welcome', lang, { store: config.store.name });
 
   return [
     greeting,
     '',
-    'What can we help you with today?',
+    t('how_can_we_help', lang),
     '',
-    ...ORDERED.map((s) => `*${s.number}.* ${s.label}`),
+    ...ORDERED.map((s) => `*${s.number}.* ${t(s.labelKey, lang)}`),
     '',
-    'Just reply with the number.',
+    t('reply_with_number', lang),
   ].join('\n');
 }
 

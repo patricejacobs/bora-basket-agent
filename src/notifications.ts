@@ -1,4 +1,6 @@
 import { config, money } from './config.ts';
+import { t, type Language } from './language.ts';
+import { languageFor } from './services.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
 import { nextActions, CANCEL_REASONS } from './order-status.ts';
@@ -121,27 +123,34 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
 function cancelledMessage(order: repo.OrderRecord): string {
   const known = CANCEL_REASONS.find((r) => r.internal === order.cancelReason);
   const firstName = order.customerName.split(/\s+/)[0] ?? '';
+  const lang = languageFor(order.phone);
 
   const byOutlet = order.cancelledBy === 'outlet' && Boolean(order.outlet?.name);
   const subject = byOutlet
-    ? `*${order.outlet!.name}* has cancelled your order`
-    : `Order ${order.orderNo} has been cancelled`;
+    ? t('cancel_by_outlet', lang, { outlet: order.outlet?.name ?? '' })
+    : t('cancel_plain', lang, { order: order.orderNo });
 
-  // An order the customer asked us to cancel is not something to apologise for.
-  // Anything else is, and the regret goes first, before the explanation.
-  const opening = known && !known.apologise ? `Done ${firstName} —` : `Sorry about this ${firstName} —`;
+  // An order the customer asked us to cancel is not something to apologise
+  // for. Anything else is, and the regret goes first, before the explanation.
+  const opening = known && !known.apologise ? t('cancel_done', lang, { name: firstName }) : t('cancel_sorry', lang, { name: firstName });
 
   // The reason is passed on as given, and the message ends there. Inviting
   // somebody to write back if it is "not right" implies the cancellation might
-  // be a mistake and puts the work of chasing it on them — when what they
-  // actually need is to know why, so they can decide what to do next.
+  // be a mistake and puts the work of chasing it on them.
   if (known) {
-    return `${opening} ${subject}: ${known.customer}. Nothing has been charged.`;
+    return t('cancel_with_reason', lang, {
+      opening,
+      subject,
+      reason: t(`reason_${known.key}`, lang),
+    });
   }
+  // A reason somebody typed, in whatever words they typed it. Not translated:
+  // inventing a translation of a sentence a dispatcher wrote by hand would be
+  // guessing at what they meant, in front of the customer.
   if (order.cancelReason && order.cancelReason !== 'No reason given') {
-    return `${opening} ${subject}. Reason given: ${order.cancelReason}. Nothing has been charged.`;
+    return t('cancel_with_reason', lang, { opening, subject, reason: order.cancelReason });
   }
-  return `${opening} ${subject}. Nothing has been charged.`;
+  return t('cancel_no_reason', lang, { opening, subject });
 }
 
 /**
@@ -196,13 +205,13 @@ export async function notifyStaffOfRequest(
  * as a machine that does not know what it delivered.
  */
 export const MEAL_SIGN_OFFS = [
-  'Enjoy your meal! Message us any time to order again. 💬',
-  'Enjoy your meal, see you next time! 👋',
-  'Enjoy your meal! 🍽️',
-  'Enjoy your food! 😋',
-  'Enjoy! 😊',
-  'Enjoy every bite! 😋',
-  'Bon appétit! 🥘',
+  'signoff_order_again',
+  'signoff_next_time',
+  'signoff_meal',
+  'signoff_food',
+  'signoff_enjoy',
+  'signoff_every_bite',
+  'signoff_appetit',
 ];
 
 /**
@@ -214,14 +223,14 @@ export const MEAL_SIGN_OFFS = [
  * different words is talking to something unwell. It also means a complaint
  * about a particular message can be traced to the order that sent it.
  */
-export function signOffFor(order: repo.OrderRecord): string {
+export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): string {
   // Food is food because a kitchen cooked it, which is the one fact that
   // cannot be wrong - a grocery order has no outlet and neither does a parcel.
   if (!order.outlet) return '';
 
   const n = Number(order.orderNo.replace(/[^0-9]/g, ''));
   const pick = Number.isFinite(n) ? n % MEAL_SIGN_OFFS.length : 0;
-  return String.fromCharCode(10) + MEAL_SIGN_OFFS[pick];
+  return String.fromCharCode(10) + t(MEAL_SIGN_OFFS[pick] ?? 'signoff_meal', lang);
 }
 
 export async function notifyCustomerOfStatus(
@@ -230,14 +239,23 @@ export async function notifyCustomerOfStatus(
 ): Promise<'text' | 'template' | 'skipped'> {
   const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
 
+  // Everything below is fixed text rather than something the model wrote, so
+  // it is the one part of the conversation that would otherwise stay English
+  // however the customer has been writing.
+  const lang = languageFor(order.phone);
+
   const freeForm: Partial<Record<repo.OrderStatus, string>> = {
-    confirmed: `Thanks ${firstName} — order ${order.orderNo} is confirmed. We'll let you know when it's on the way.`,
-    on_the_way: `${firstName}, your order ${order.orderNo} is on its way 🛵\nTotal ${money(order.total)}, payable to the delivery associate.`,
+    confirmed: t('confirmed', lang, { name: firstName, order: order.orderNo }),
+    on_the_way: t('on_the_way', lang, {
+      name: firstName,
+      order: order.orderNo,
+      total: money(order.total),
+    }),
     // The store name rather than the words, so a rename carries through here
     // too — this is the last thing a customer reads from every order.
     delivered:
-      `Order ${order.orderNo} delivered. Thank you for choosing ${config.store.name}!` +
-      signOffFor(order),
+      t('delivered', lang, { order: order.orderNo, store: config.store.name }) +
+      signOffFor(order, lang),
     // The reason is the difference between an apology and an explanation. A
     // customer told the kitchen ran out knows to try something else; one told
     // only "cancelled" assumes they did something wrong.
