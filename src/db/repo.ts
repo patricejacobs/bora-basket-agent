@@ -661,17 +661,8 @@ export function placeOrder(args: {
   contactPhone: string;
   deliveryNote: string;
   paymentMethod: string;
-  /**
-   * Where to deliver, or null when the customer could not send a pin and gave
-   * a written address instead.
-   *
-   * Null is allowed reluctantly. A pin is the only unambiguous way to describe
-   * a door and the checkout still asks for one twice - but refusing the order
-   * outright, which is what this used to do, loses it entirely. There is no
-   * administrator in this shop to take it by hand, so the choice is a flagged
-   * order with a phone call attached or no order at all.
-   */
-  location: SavedPin | null;
+  /** Where to deliver. Required: the caller checks for it before getting here. */
+  location: SavedPin;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
@@ -720,9 +711,9 @@ export function placeOrder(args: {
         args.address,
         args.contactPhone,
         args.deliveryNote,
-        args.location?.latitude ?? null,
-        args.location?.longitude ?? null,
-        args.location?.label ?? '',
+        args.location.latitude,
+        args.location.longitude,
+        args.location.label,
         // Where the food is cooked, copied onto the row rather than read back
         // off the outlet later. An outlet that moves premises next month must
         // not relocate a collection that already happened.
@@ -749,10 +740,6 @@ export function placeOrder(args: {
         args.paymentMethod,
         nowIso(),
       );
-
-    // Somewhere this customer has actually had something delivered, which is
-  // what makes it worth offering back to them next time.
-    if (args.location) rememberPlace(args.phone, args.location, args.address);
 
     const orderId = Number(info.lastInsertRowid);
     const insertItem = db.prepare(
@@ -2269,189 +2256,6 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   );
 }
 
-/* ----------------------------------------------------------------- places */
-
-/**
- * Coordinates rounded to about ten metres, as a key.
- *
- * Four decimal places. Two pins dropped on the same gate a week apart differ
- * in the fifth decimal and are the same place; a neighbour's gate differs in
- * the fourth. Rounding here is what stops a customer being offered a list of
- * six lines that all read "Lot 12, Kitty".
- */
-function placeKey(pin: { latitude: number; longitude: number }): string {
-  return `${pin.latitude.toFixed(4)},${pin.longitude.toFixed(4)}`;
-}
-
-export type DeliveryPlace = {
-  label: string;
-  address: string;
-  pinLabel: string;
-  latitude: number;
-  longitude: number;
-  usedAt: string;
-};
-
-/**
- * Files a place the customer has actually had something delivered to.
- *
- * Called when an order is placed rather than when a pin arrives: a pin someone
- * sent and then abandoned mid-conversation is not an address they use, and
- * offering it back to them later is the shop remembering a mistake.
- */
-export function rememberPlace(
-  phone: string,
-  pin: SavedPin,
-  address: string,
-): void {
-  const now = nowIso();
-  db.prepare(
-    `INSERT INTO customer_places
-       (phone, place_key, address, pin_label, latitude, longitude, first_at, used_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(phone, place_key) DO UPDATE SET
-       used_at = excluded.used_at,
-       -- A better description of the same place is worth keeping; an empty one
-       -- is not, or a later order with no doorstep note would erase the note
-       -- that got the last delivery to the right door.
-       address = CASE WHEN excluded.address != '' THEN excluded.address ELSE customer_places.address END,
-       pin_label = CASE WHEN excluded.pin_label != '' THEN excluded.pin_label ELSE customer_places.pin_label END`,
-  ).run(
-    phone.replace(/[^0-9]/g, ''),
-    placeKey(pin),
-    address,
-    pin.label ?? '',
-    pin.latitude,
-    pin.longitude,
-    now,
-    now,
-  );
-}
-
-/** Where this customer has had things delivered, most recent first. */
-export function deliveryPlaces(phone: string, limit = 5): DeliveryPlace[] {
-  return db
-    .prepare(
-      `SELECT label, address, pin_label AS pinLabel, latitude, longitude, used_at AS usedAt
-         FROM customer_places
-        WHERE phone = ?
-        ORDER BY used_at DESC
-        LIMIT ?`,
-    )
-    .all(phone.replace(/[^0-9]/g, ''), limit) as unknown as DeliveryPlace[];
-}
-
-/**
- * Picks one of them as where this order goes, by name or by description.
- *
- * Matching is deliberately narrow: a label exactly, or a distinctive run of
- * the address. Nothing fuzzy, because the cost of a near miss here is a
- * delivery to the wrong house - and the customer is right there to be asked
- * which they meant.
- */
-export function usePlace(
-  phone: string,
-  wanted: string,
-  label = '',
-): DeliveryPlace | 'ambiguous' | null {
-  const digits = phone.replace(/[^0-9]/g, '');
-  const needle = wanted.trim().toLowerCase();
-  if (!needle) return null;
-
-  const all = deliveryPlaces(digits, 20);
-  const hits = all.filter(
-    (p) =>
-      p.label.toLowerCase() === needle ||
-      (needle.length >= 3 &&
-        (p.label.toLowerCase().includes(needle) ||
-          p.address.toLowerCase().includes(needle) ||
-          p.pinLabel.toLowerCase().includes(needle))),
-  );
-  if (hits.length === 0) return null;
-  if (hits.length > 1) return 'ambiguous';
-
-  const place = hits[0]!;
-  const now = nowIso();
-  if (label.trim()) {
-    db.prepare(`UPDATE customer_places SET label = ? WHERE phone = ? AND place_key = ?`).run(
-      label.trim().slice(0, 40),
-      digits,
-      placeKey(place),
-    );
-    place.label = label.trim().slice(0, 40);
-  }
-  db.prepare(`UPDATE customer_places SET used_at = ? WHERE phone = ? AND place_key = ?`).run(
-    now,
-    digits,
-    placeKey(place),
-  );
-
-  // This is what makes it the delivery address: the customer row is what
-  // checkout reads, so picking a place writes it there rather than carrying a
-  // second notion of "where this order goes" that could disagree.
-  //
-  // Through the existing setters rather than its own UPDATE. They already
-  // handle a customer row that does not exist yet, and hand-written SQL here
-  // is SQL the compiler cannot check - the first draft of this named a column
-  // `pinned_at` that has never existed, which would have failed only at the
-  // moment a real customer picked a saved address.
-  saveLocationPin(digits, {
-    latitude: place.latitude,
-    longitude: place.longitude,
-    label: place.pinLabel,
-  });
-  if (place.address) saveCustomer(digits, { address: place.address });
-
-  // The confirmation is of a person AND a place together - "Marcia, Kitty" -
-  // so moving the place invalidates it. Withdrawn here rather than by the
-  // caller: this is an invariant of changing the address, and a caller that
-  // forgets it would let a customer who agreed to Kitty an hour ago have
-  // silently agreed to an order going to Diamond.
-  unconfirmIdentity(digits);
-  return place;
-}
-
-/* --------------------------------------------------- orders with no pin */
-
-/**
- * Live orders of this customer's that have no pin on them.
- *
- * The ones a late-arriving pin should be attached to. Terminal states are
- * excluded: a pin for an order already delivered is a pin for next time, and
- * writing it onto a closed order would change where the archive says it went.
- */
-export function ordersAwaitingPin(phone: string): OrderRecord[] {
-  const rows = db
-    .prepare(
-      `SELECT * FROM orders
-        WHERE phone = ?
-          AND status IN ('pending','confirmed','ready','on_the_way')
-          AND (latitude IS NULL OR longitude IS NULL)
-        ORDER BY id ASC`,
-    )
-    .all(phone.replace(/[^0-9]/g, '')) as unknown as Parameters<typeof hydrateOrder>[0][];
-  return rows.map(hydrateOrder);
-}
-
-/** Writes a pin onto an order that went out without one. Never overwrites. */
-export function attachPinToOrder(orderNo: string, pin: SavedPin): boolean {
-  const info = db
-    .prepare(
-      `UPDATE orders SET latitude = ?, longitude = ?, location_label = ?
-        WHERE order_no = ? AND (latitude IS NULL OR longitude IS NULL)`,
-    )
-    .run(pin.latitude, pin.longitude, pin.label ?? '', orderNo);
-  return info.changes > 0;
-}
-
-/** Write-once: whether this order has already had a pin chased. */
-export function markPinAsked(orderNo: string): boolean {
-  const info = db
-    .prepare(`UPDATE orders SET pin_asked_at = ? WHERE order_no = ? AND pin_asked_at = ''`)
-    .run(nowIso(), orderNo);
-  return info.changes > 0;
-}
-
 /* ------------------------------------------------------------------- cash */
 
 /**
@@ -2766,20 +2570,6 @@ export function setProfileName(phone: string, profileName: string): void {
 export function confirmIdentity(phone: string): void {
   db.prepare(`UPDATE customers SET identity_confirmed_at = ?, updated_at = ? WHERE phone = ?`).run(
     nowIso(),
-    nowIso(),
-    phone,
-  );
-}
-
-/**
- * Withdraws a confirmation, because the thing confirmed has changed.
- *
- * The confirmation is of a person and a place together - "Marcia, Kitty" - so
- * moving the place invalidates it. Without this, a customer who agreed to that
- * an hour ago would have silently agreed to an order going to Diamond.
- */
-export function unconfirmIdentity(phone: string): void {
-  db.prepare(`UPDATE customers SET identity_confirmed_at = NULL, updated_at = ? WHERE phone = ?`).run(
     nowIso(),
     phone,
   );

@@ -17,7 +17,6 @@ import {
   locationNote,
   type LocationPin,
 } from './location.ts';
-import { tellAssociatePinArrived } from './dispatch.ts';
 import {
   parseServiceChoice,
   serviceMenuReply,
@@ -46,31 +45,7 @@ export function recordLocationPin(phone: string, pin: LocationPin): string {
   console.log(
     `[location] ${phone} pinned ${formatCoordinates(saved)}${saved.label ? ` (${saved.label})` : ''}${how}`,
   );
-
-  // A pin that answers an order already out on the road.
-  //
-  // Written onto the order, not just onto the customer: the order carries its
-  // own copy of where it is going so that a later change of address cannot
-  // move a delivery that already happened - which means a pin saved only on
-  // the customer would never reach the associate holding the bag.
-  //
-  // Oldest first, and only one. Two pin-less orders at once is rare and the
-  // customer has just sent one pin, not two; guessing that it answers both
-  // would silently send a second delivery to an address nobody confirmed.
-  const waiting = repo.ordersAwaitingPin(phone);
-  const answered = waiting[0];
-  let attached = '';
-  if (answered && repo.attachPinToOrder(answered.orderNo, saved)) {
-    void tellAssociatePinArrived(answered.orderNo).catch((err) =>
-      console.error('[location] could not pass the pin on:', err),
-    );
-    attached =
-      waiting.length > 1
-        ? ` Put on ${answered.orderNo}, the oldest of ${waiting.length} orders of theirs with no pin — say which one you have taken it as, and ask about the others.`
-        : ` Put on ${answered.orderNo}, which went out without one. The delivery associate has been sent it.`;
-  }
-
-  return locationNote(saved, range) + attached;
+  return locationNote(saved, range);
 }
 
 /**
