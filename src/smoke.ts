@@ -4927,6 +4927,77 @@ section('A parcel end can be a pin, words, or both');
   db.prepare(`DELETE FROM orders WHERE phone LIKE '59260073%'`).run();
 }
 
+section('One card per step, and one warning per card');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { offerParcel } = await import('./dispatch.ts');
+  const rider = config.driverNumbers[0]!;
+  const sender = '5926007474';
+
+  const parked = repo.activeJobsFor(rider).map((o) => o.orderNo);
+  for (const no of parked) db.prepare(`UPDATE orders SET driver_phone='' WHERE order_no=?`).run(no);
+  repo.setDuty(rider, true);
+
+  repo.saveCustomer(sender, { name: 'Patrice', contactPhone: sender });
+  const job = repo.createParcelJob({
+    phone: sender,
+    senderName: 'Patrice',
+    pickup: null,
+    pickupAddress: '123 Test Drive, Georgetown',
+    destination: null,
+    destinationAddress: '32 Jomt Rd, Georgetown',
+    recipientName: 'Kyle Hil',
+    recipientPhone: '5926324543',
+    contents: 'Paper, about 10 lbs',
+    fee: 150000,
+    contactPhone: sender,
+  });
+  const n = String(Number(job.orderNo.replace(/\D/g, '')));
+  await offerParcel(job.orderNo);
+
+  // Accepting used to send two cards for one parcel: the uplift card, and the
+  // whole food-shaped job card behind it, each with its own Uplifted button.
+  // The old dispatch mechanism was left running beside the new one.
+  const onAccept = await handleDriverMessage(`${n} confirm`, rider);
+  check('accepting sends one card', onAccept.length === 1, JSON.stringify(onAccept.map((m) => m.kind)));
+  check('and it is the uplift card', /is yours/.test(onAccept[0]?.text ?? ''), onAccept[0]?.text);
+  check('with no second Deliver-to block', (onAccept[0]?.text?.match(/Deliver to/g) ?? []).length === 0, onAccept[0]?.text);
+
+  const onUplift = await handleDriverMessage(`${n} uplifted`, rider);
+  check('uplifting sends one card', onUplift.length === 1, JSON.stringify(onUplift.map((m) => m.kind)));
+  const card = onUplift[0]?.text ?? '';
+  check('which is the drop', /Deliver to:\* Kyle Hil/.test(card), card);
+  // Two warnings about one missing pin reads as two problems.
+  check('and warns about the missing pin once', (card.match(/NO PIN|No pin/gi) ?? []).length === 1, card);
+  check('with one Deliver-to block', (card.match(/Deliver to/g) ?? []).length === 1, card);
+
+  /* --- a parcel nobody was free for is still re-offered ----------------- */
+
+  // Food waits at `ready`; a parcel waits at `pending` and never passes
+  // through `ready`, so the queue could not see it.
+  const second = repo.createParcelJob({
+    phone: sender,
+    senderName: 'Patrice',
+    pickup: null,
+    pickupAddress: '123 Test Drive',
+    destination: null,
+    destinationAddress: '32 Jomt Rd',
+    recipientName: 'Kyle Hil',
+    recipientPhone: '5926324543',
+    contents: 'More paper',
+    fee: 150000,
+    contactPhone: sender,
+  });
+  check(
+    'a pending parcel is in the pickup queue',
+    repo.ordersAwaitingPickup(20).some((o) => o.orderNo === second.orderNo),
+  );
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(sender);
+  for (const no of parked) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(rider, no);
+  repo.setDuty(rider, false);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

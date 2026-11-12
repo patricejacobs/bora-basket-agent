@@ -166,7 +166,7 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
  * on the uplift card once it is theirs. Everything shown here is something
  * that bears on the decision: how far, how much, and what it is.
  */
-export async function offerParcel(orderNo: string): Promise<Dispatch> {
+export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch> {
   const order = repo.findOrder(orderNo);
   if (!order || order.kind !== 'parcel') return 'no_drivers';
 
@@ -176,10 +176,11 @@ export async function offerParcel(orderNo: string): Promise<Dispatch> {
   }
 
   const limit = config.maxJobsPerAssociate;
+  const pool = only
+    ? config.driverNumbers.filter((phone) => phone === only.replace(/[^0-9]/g, ''))
+    : config.driverNumbers;
   const free =
-    limit > 0
-      ? config.driverNumbers.filter((phone) => repo.activeJobsFor(phone).length < limit)
-      : config.driverNumbers;
+    limit > 0 ? pool.filter((phone) => repo.activeJobsFor(phone).length < limit) : pool;
   if (free.length === 0) return 'all_busy';
 
   const pickup = order.pickup;
@@ -522,13 +523,22 @@ export function parcelUpliftCard(order: repo.OrderRecord): string {
   ].join(String.fromCharCode(10));
 }
 
-export function onTheWayCard(order: repo.OrderRecord): string {
+export function onTheWayCard(
+  order: repo.OrderRecord,
+  /**
+   * False when the drop block follows in the same message, since that block
+   * carries its own NO PIN banner - and the same warning twice in one message
+   * is read as two problems.
+   */
+  warnAboutPin = true,
+): string {
   const head = `🛵 *${order.orderNo}* on the way`;
   // No pin: the one fact worth repeating here, because it is the difference
   // between navigating and telephoning.
-  const noPin = order.location
-    ? ''
-    : `${String.fromCharCode(10)}⚠️ No pin — ring +${order.contactPhone || order.phone}`;
+  const noPin =
+    order.location || !warnAboutPin
+      ? ''
+      : `${String.fromCharCode(10)}⚠️ No pin — ring ${dial(order.contactPhone || order.phone)}`;
   if (!repo.deliveryCodeExpected(order.orderNo)) return head + noPin;
 
   // The instruction replaces the button, so it has to carry its own weight:
@@ -568,7 +578,13 @@ export async function offerWaitingWork(phone: string): Promise<string> {
   const waiting = repo.ordersAwaitingPickup(1)[0];
   if (!waiting) return '';
 
-  const how = await dispatchToDrivers(waiting.orderNo, digits);
+  // A parcel is offered, not dispatched: it has its own short card with an
+  // Accept button, because the associate is deciding whether to take it
+  // rather than driving to something already theirs.
+  const how =
+    waiting.kind === 'parcel'
+      ? await offerParcel(waiting.orderNo, digits)
+      : await dispatchToDrivers(waiting.orderNo, digits);
   return how === 'sent' ? waiting.orderNo : '';
 }
 

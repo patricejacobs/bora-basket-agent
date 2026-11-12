@@ -2194,7 +2194,17 @@ export function activeJobsFor(associatePhone: string): OrderRecord[] {
 /** Orders cooked and waiting for a delivery associate, oldest first — food goes cold. */
 export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   const rows = db
-    .prepare(`SELECT * FROM orders WHERE status = 'ready' ORDER BY id ASC LIMIT ?`)
+    .prepare(
+      // Food waits at `ready`; a parcel waits at `pending`, because a parcel
+      // is accepted by an associate rather than cooked by a kitchen and never
+      // passes through `ready` at all. Left out, a parcel booked while
+      // everybody was carrying something was never re-offered and simply sat
+      // there - the same way food did before anything re-offered it.
+      `SELECT * FROM orders
+        WHERE status = 'ready'
+           OR (kind = 'parcel' AND status = 'pending' AND driver_phone = '')
+        ORDER BY id ASC LIMIT ?`,
+    )
     .all(limit) as unknown as Parameters<typeof hydrateOrder>[0][];
   return rows.map(hydrateOrder);
 }

@@ -159,9 +159,15 @@ async function applyStatus(
   const kitchenNotes: string[] = [];
 
   // The moment the food exists, a delivery associate is sent — and only now, or they stand
-  // in the restaurant watching a fryer. A parcel has nothing to cook, so
-  // accepting the job is itself the moment it is ready to collect.
-  const dispatchNow = status === 'ready' || (status === 'confirmed' && order.kind === 'parcel');
+  // in the restaurant watching a fryer.
+  //
+  // Parcels are not dispatched from here at all. They are offered at booking,
+  // and accepting one assigns it; this used to fire on a parcel reaching
+  // `confirmed`, which after the change meant tapping Accept sent the whole
+  // job card out again - so the associate got the uplift card and a second
+  // card for the same parcel, each with its own Uplifted button. The old
+  // mechanism, left running beside the new one.
+  const dispatchNow = status === 'ready';
   if (dispatchNow) {
     try {
       const how = await dispatchToDrivers(order.orderNo);
@@ -1504,7 +1510,7 @@ export async function handleDriverMessage(
     isParcel && landed === 'confirmed'
       ? parcelUpliftCard(fresh)
       : isParcel && landed === 'on_the_way'
-        ? [onTheWayCard(fresh), '', ...dropLines(fresh)].join(chr10)
+        ? [onTheWayCard(fresh, false), '', ...dropLines(fresh)].join(chr10)
         : isParcel && landed === 'returned'
           ? [
               `📦 *${fresh.orderNo}* is going back to ${fresh.customerName}.`,
