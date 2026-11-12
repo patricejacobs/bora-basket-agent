@@ -1296,6 +1296,67 @@ radius, so such an order skips the service-area check. The associate reading it
 before setting off is the only check left. The human who resolves it is the one
 going there anyway — not an administrator.
 
+### Delivering to somebody other than the buyer
+
+A customer often orders for someone else. The card used to name the buyer and
+carry the buyer's number, so at the door the associate had the wrong name and a
+phone that rang across town. Now the two are separated, and only when they
+differ:
+
+```
+*Ordered by:* Marcia Persaud
+📞 +5926100001 — ring about the order
+
+*Deliver to:* Dave Singh
+Lot 4 Section C, Diamond
+White fence, upstairs
+📞 +5926100099 — ring at the door
+📍 https://www.google.com/maps?q=6.642000,-58.218000
+
+*Collect $235,000 cash* from Dave Singh (3 items + delivery)
+```
+
+Each number says what it is for: two bare numbers on one card is where a wrong
+call comes from. The cash line names who hands it over, because *Collect
+$235,000* with two names on screen is the same confusion in a more expensive
+form. On a self-delivery none of this appears — it would repeat a name and
+number already on screen and push the address down a card read on a bike. On a
+parcel the sender is already the *Uplift from:* block, so they are not named
+twice.
+
+When the recipient's number is unknown the card admits it rather than printing
+an empty field:
+
+```
+📞 no number for Dave — ring Marcia Persaud on +5926100001
+```
+
+**The delivery code follows the recipient.** They are the one at the door, so
+the buyer is told to pass it on — WhatsApp refuses a business-initiated message
+to a number that has never written in, so the code cannot be sent to Dave
+directly. Without this, every third-party delivery would end with the associate
+tapping *No code* and the unverified count would stop meaning anything.
+
+```
+The delivery code is *2149* — give it to Dave Singh, who reads it
+to the delivery associate at the door, so we know the order reached
+the right hands.
+```
+
+### An associate can never cancel
+
+Their own handler allows only uplifted and delivered. A second guard sits inside
+the one function every actor passes through, so no future caller can open the
+door either. An associate is at a doorstep with the food in their hand: whatever
+has gone wrong there, voiding the order is not the answer, and a cancellation is
+the one move with no way back. A code that will not verify delivers unverified;
+nobody home is a conversation for the shop.
+
+A four-digit message with nothing waiting on a code is also answered directly
+rather than falling through to the order-number parser — otherwise `2149` could
+be read as order 2149, which is how a code attempt could reach an order it has
+nothing to do with.
+
 ### Counting the cash
 
 The shop trades cash on delivery, so at the end of a shift somebody is carrying

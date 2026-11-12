@@ -310,8 +310,30 @@ export async function flushOutletTickets(outletId: number): Promise<number> {
  */
 export function dropLines(order: repo.OrderRecord): string[] {
   const isParcel = order.kind === 'parcel';
-  const receiverName = isParcel ? order.recipientName : order.customerName;
-  const receiverPhone = isParcel ? order.recipientPhone : order.contactPhone || order.phone;
+  const ordererPhone = order.contactPhone || order.phone;
+
+  // Who is actually at the door. A recipient on the order means somebody else
+  // is receiving it, whatever kind of order it is - parcels have always worked
+  // this way and a food order sent to a friend is the same journey.
+  const receiverName = order.recipientName || order.customerName;
+  const receiverPhone = order.recipientPhone || ordererPhone;
+  const toSomebodyElse = Boolean(order.recipientName) && order.recipientName !== order.customerName;
+
+  // Named only when it is a third name on the card. On a parcel the sender is
+  // already the *Uplift from:* block above, so repeating them here would be
+  // the same person twice; on a self-delivery it would be the same name and
+  // number already on screen, pushing the address further down a card that is
+  // read on a bike.
+  const orderedBy = toSomebodyElse && !isParcel;
+
+  // Two numbers on one card is exactly where a wrong call comes from, so each
+  // says what it is for rather than leaving the associate to work it out at a
+  // gate.
+  const atTheDoor = order.recipientPhone
+    ? `📞 +${receiverPhone} — ring at the door`
+    : toSomebodyElse
+      ? `📞 no number for ${receiverName.split(/\s+/)[0] || 'them'} — ring ${order.customerName} on +${ordererPhone}`
+      : `📞 +${receiverPhone}`;
 
   return [
     // A missing pin goes first, not last. It changes how the trip is planned -
@@ -319,22 +341,27 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // cannot find - and a warning printed under the phone number is a warning
     // read too late.
     ...(order.location ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
+    ...(orderedBy
+      ? [`*Ordered by:* ${order.customerName}`, `📞 +${ordererPhone} — ring about the order`, '']
+      : []),
     `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),
     // What the customer said about finding the door. It was going to staff
     // and not to the person standing outside, which is the wrong way round.
     ...(order.deliveryNote ? [order.deliveryNote] : []),
-    `📞 +${receiverPhone}`,
+    atTheDoor,
     ...(order.location
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
       : ['The customer could not send a pin. The address above is all there is.']),
     '',
     // What it is made of, so the cash can be checked against the bag rather
-      // than taken on trust at the door.
+    // than taken on trust at the door - and WHO hands it over, because
+    // "collect $235,000" with two names on the screen is the same confusion
+    // in a more expensive form.
     order.total > 0
-      ? `*Collect ${money(order.total)} cash*` +
+      ? `*Collect ${money(order.total)} cash* from ${toSomebodyElse || isParcel ? receiverName : 'the customer'}` +
         (isParcel
-          ? ' from the recipient'
+          ? ''
           : ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`)
       : '*Fee not set* - the shop will confirm it, do not quote one',
   ];

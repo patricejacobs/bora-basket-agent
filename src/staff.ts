@@ -69,6 +69,22 @@ async function applyStatus(
     };
   }
 
+  // A delivery associate cannot cancel, ever.
+  //
+  // Their own handler already refuses anything but uplifted and delivered, so
+  // this is defence in depth - put here because every actor passes through
+  // this function and nothing else is a single choke point. An associate is at
+  // a door with the food in their hand; whatever has gone wrong there, voiding
+  // the order is not the answer, and a cancellation is the one move with no
+  // way back. If a code will not verify they deliver it unverified; if nobody
+  // is home that is a conversation for the shop, not a button on a bike.
+  if (reportedBy === 'driver' && status === 'cancelled') {
+    return {
+      body: `${order.orderNo} cannot be cancelled from here. Deliver it, or ring the shop.`,
+      status: order.status,
+    };
+  }
+
   // Forward, or cancelled. Never back.
   //
   // Checked here rather than in each handler because every actor reaches
@@ -1110,8 +1126,29 @@ export async function handleDriverMessage(
       return handleDriverMessage(`${target.orderNo} delivered`, phone);
     }
 
+    // Four digits and nothing waiting on a code. Answered here rather than
+    // left to fall through to the order-number parser below, which would read
+    // `2149` as order 2149 - a different order, or none. A code attempt must
+    // never be capable of moving some other order, whatever the digits are.
+    if (bare && !paired && awaiting.length === 0) {
+      const mine = holding.map((o) => o.orderNo);
+      return reply(
+        mine.length === 0
+          ? [
+              `Nothing of yours is waiting on a code.`,
+              '',
+              'Send `jobs` to see what there is to uplift.',
+            ].join(chr10)
+          : [
+              `No code is needed on ${mine.join(', ')}.`,
+              '',
+              `Send \`${String(Number((mine[0] ?? '').replace(/[^0-9]/g, '')))} delivered\` to close it.`,
+            ].join(chr10),
+      );
+    }
+
     if (noCode) {
-      const named = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
+      const named = trimmed.match(/(?:ord[-\\s]?)?0*(\\d{1,6})/i);
       const which = named ? repo.findOrder(named[1] ?? '') : (awaiting[0] ?? null);
       if (which) {
         repo.giveUpOnCode(which.orderNo);

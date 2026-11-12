@@ -4056,6 +4056,134 @@ section('An address instead of a pin');
   check('and still gets its map link', /http/.test(normal), normal);
 }
 
+section('Delivering to somebody other than the buyer');
+{
+  const { dropLines } = await import('./dispatch.ts');
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { deliveredMessage } = await import('./notifications.ts');
+  const buyer = '5926007171';
+  const rider = config.driverNumbers[0]!;
+
+  const sellable = () =>
+    (db
+      .prepare(
+        `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+           AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+      )
+      .get() as unknown as { id: number }).id;
+
+  const order = (rname: string, rphone: string) => {
+    repo.setCartQty(buyer, sellable(), 1, '');
+    return repo.placeOrder({
+      phone: buyer,
+      customerName: 'Marcia Persaud',
+      address: 'Lot 4 Section C, Diamond',
+      contactPhone: buyer,
+      deliveryNote: 'White fence',
+      paymentMethod: 'cash',
+      location: { latitude: 6.642, longitude: -58.218, label: 'Diamond', pinnedAt: '' },
+      recipientName: rname,
+      recipientPhone: rphone,
+    });
+  };
+
+  /* --- for themselves: nothing changes -------------------------------- */
+
+  const self = repo.findOrder(order('', '').orderNo)!;
+  const selfCard = dropLines(self).join('\n');
+  check('a self-delivery names one person', !selfCard.includes('Ordered by'), selfCard);
+  check('and one number', (selfCard.match(/📞/g) ?? []).length === 1, selfCard);
+  check('with no label to disambiguate', !/ring at the door/.test(selfCard), selfCard);
+
+  /* --- for somebody else ---------------------------------------------- */
+
+  const gift = repo.findOrder(order('Dave Singh', '592-610-0099').orderNo)!;
+  check('the recipient is kept', gift.recipientName === 'Dave Singh');
+  check('and their number, digits only', gift.recipientPhone === '5926100099', gift.recipientPhone);
+
+  const card = dropLines(gift).join('\n');
+  check('the buyer is named', card.includes('Ordered by'), card);
+  check('above the recipient', card.indexOf('Ordered by') < card.indexOf('Deliver to'), card);
+  check('the door says the recipient', /Deliver to:\* Dave Singh/.test(card), card);
+  check('each number says what it is for', /ring about the order/.test(card) && /ring at the door/.test(card), card);
+  check('the door number is the recipient', card.includes('5926100099'), card);
+  check('and the order number is the buyer', card.includes(buyer), card);
+  check('the cash line names who pays', /Collect .* from Dave Singh/.test(card), card);
+
+  /* --- for somebody else, number unknown ------------------------------ */
+
+  const noNum = repo.findOrder(order('Dave Singh', '').orderNo)!;
+  const blindCard = dropLines(noNum).join('\n');
+  check('the missing number is admitted', /no number for Dave/.test(blindCard), blindCard);
+  check('and the buyer offered instead', /ring Marcia Persaud/.test(blindCard), blindCard);
+  check('never a bare empty number', !/\+ —/.test(blindCard) && !/\+$/m.test(blindCard), blindCard);
+
+  /* --- the code goes to whoever is at the door ------------------------ */
+
+  repo.logMessage(buyer, 'in', 'whatsapp', 'hello');
+  repo.setOrderStatus(gift.orderNo, 'on_the_way');
+  const { notifyCustomerOfStatus, doorCodeLine } = await import('./notifications.ts');
+  await notifyCustomerOfStatus(repo.findOrder(gift.orderNo)!, 'on_the_way');
+  const sentCode = repo.deliveryCodeFor(gift.orderNo);
+  const codeLine = doorCodeLine(repo.findOrder(gift.orderNo)!, 'en');
+  check('the buyer is told the code is for the recipient', /give it to Dave Singh/i.test(codeLine), codeLine);
+  check('and not told to read it out themselves', !/read it to the delivery associate/i.test(codeLine), codeLine);
+  check('the digits are still there', codeLine.includes(sentCode), codeLine);
+  // A self-delivery is unchanged: they read it out themselves.
+  check(
+    'a self-delivery still addresses the customer',
+    /read it to the delivery associate/i.test(doorCodeLine(self, 'en')),
+    doorCodeLine(self, 'en'),
+  );
+  check('and in their language, not only English', /déselo a Dave Singh/i.test(doorCodeLine(repo.findOrder(gift.orderNo)!, 'es')), doorCodeLine(repo.findOrder(gift.orderNo)!, 'es'));
+
+  // It still verifies normally: the recipient reads it out, the associate types
+  // it. Who holds the digits changed; the mechanism did not.
+  repo.assignDriver(gift.orderNo, rider);
+  await handleDriverMessage(sentCode, rider);
+  check('the code still closes the order', repo.findOrder(gift.orderNo)?.status === 'delivered');
+  check('verified', Boolean(repo.deliveryCodeState(gift.orderNo).verifiedAt));
+  check(
+    'and the buyer gets the confirmed close',
+    deliveredMessage(repo.findOrder(gift.orderNo)!, 'en').includes('confirmed'),
+  );
+
+  /* --- an associate can never cancel ---------------------------------- */
+
+  repo.setCartQty(buyer, sellable(), 1, '');
+  const safe = repo.placeOrder({
+    phone: buyer,
+    customerName: 'Marcia Persaud',
+    address: 'Lot 4, Diamond',
+    contactPhone: buyer,
+    deliveryNote: '',
+    paymentMethod: 'cash',
+    location: { latitude: 6.642, longitude: -58.218, label: 'Diamond', pinnedAt: '' },
+  });
+  repo.setOrderStatus(safe.orderNo, 'on_the_way');
+  repo.assignDriver(safe.orderNo, rider);
+  const refused = (await handleDriverMessage(`${safe.orderNo} cancel`, rider))[0]?.text ?? '';
+  check('an associate cannot cancel an order', repo.findOrder(safe.orderNo)?.status === 'on_the_way', refused);
+  // Refused by their own handler, before applyStatus is ever reached. The
+  // guard inside applyStatus is a second line of defence for a future caller
+  // and is deliberately unreachable from here - which is why this asserts the
+  // handler's own words rather than that one's.
+  check('and told it is not theirs to decide', /Anything else is for the shop/i.test(refused), refused);
+
+  // A wrong code must never move the order, and never touch another one.
+  const wrong = repo.deliveryCodeFor(safe.orderNo) === '1111' ? '2222' : '1111';
+  await handleDriverMessage(wrong, rider);
+  await handleDriverMessage(wrong, rider);
+  check('two wrong codes leave it on the way', repo.findOrder(safe.orderNo)?.status === 'on_the_way');
+  check('and never cancelled', repo.findOrder(safe.orderNo)?.cancelReason === '');
+
+  // Four digits with nothing waiting on a code must not be read as an order
+  // number - that is how a code attempt could reach some other order.
+  repo.setDuty(rider, false);
+  const stray = (await handleDriverMessage('2149', '5926009090'))[0]?.text ?? '';
+  check('a stray code is not taken for an order number', !/No order 2149/i.test(stray), stray);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

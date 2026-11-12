@@ -296,10 +296,20 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'place_order',
     description:
-      'Place the order for everything currently in the cart. Only call this after the customer has seen the full itemised total and explicitly confirmed. Requires a saved name and a shared location pin.',
+      'Place the order for everything currently in the cart. Only call this after the customer has seen the full itemised total and explicitly confirmed. Requires a saved name and a shared location pin. If the delivery is going to somebody other than the customer, pass recipient_name and recipient_phone so the delivery associate has the right name and number at the door.',
     input_schema: {
       type: 'object',
       properties: {
+        recipient_name: {
+          type: 'string',
+          description:
+            'Who will receive it, when the customer is ordering for somebody else. Leave it out when the customer is receiving it themselves. The delivery associate needs this: at the door the buyer\'s name is the wrong name.',
+        },
+        recipient_phone: {
+          type: 'string',
+          description:
+            "The recipient's own number, digits only. Ask for it whenever recipient_name is set — it is the number the associate rings at the door. Leave it out if the customer does not know it; the card then falls back to ringing the customer.",
+        },
         without_pin: {
           type: 'boolean',
           description:
@@ -1216,6 +1226,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           deliveryNote: asString(input.delivery_note),
           paymentMethod,
           location: customer.location,
+          recipientName: asString(input.recipient_name),
+          recipientPhone: asString(input.recipient_phone),
         });
         // Fire-and-forget: the shop needs to know immediately, but the customer
         // should not wait on a Graph API round trip to see their confirmation.

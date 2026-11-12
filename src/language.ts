@@ -110,6 +110,7 @@ const STRINGS: Record<Language, Dictionary> = {
     delivered_confirmed: 'Order {order} delivered.' + chr10 + 'Delivery code: confirmed.' + chr10 + chr10 + 'Thank you for choosing {store}!',
     delivered_unverified: 'Order {order} delivered.' + chr10 + 'Delivery code: not confirmed.' + chr10 + chr10 + 'Thank you for choosing {store}!',
     delivered_check: chr10 + chr10 + 'Anything wrong with this order? Just message us.',
+    door_code_for: chr10 + chr10 + 'The delivery code is *{code}* \u2014 give it to {name}, who reads it to the delivery associate at the door, so we know the order reached the right hands.',
     door_code: chr10 + chr10 + 'Your delivery code is *{code}* — read it to the delivery associate at the door, so we know your order reached the right hands.',
 
     cancel_sorry: 'Sorry about this {name} —',
@@ -173,6 +174,7 @@ const STRINGS: Record<Language, Dictionary> = {
     delivered_confirmed: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: confirmado.' + chr10 + chr10 + '¡Gracias por elegir {store}!',
     delivered_unverified: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: no confirmado.' + chr10 + chr10 + '¡Gracias por elegir {store}!',
     delivered_check: chr10 + chr10 + '¿Algo va mal con este pedido? Escríbanos.',
+    door_code_for: chr10 + chr10 + 'El código de entrega es *{code}* \u2014 déselo a {name}, quien se lo dirá al repartidor en la puerta, para que sepamos que el pedido llegó a las manos correctas.',
     door_code: chr10 + chr10 + 'Su código de entrega es *{code}* — dígaselo al repartidor en la puerta, para que sepamos que su pedido llegó a las manos correctas.',
 
     cancel_sorry: 'Lo sentimos {name} —',
@@ -236,6 +238,7 @@ const STRINGS: Record<Language, Dictionary> = {
     delivered_confirmed: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: confirmado.' + chr10 + chr10 + 'Obrigado por escolher {store}!',
     delivered_unverified: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: não confirmado.' + chr10 + chr10 + 'Obrigado por escolher {store}!',
     delivered_check: chr10 + chr10 + 'Algo errado com este pedido? Envie-nos uma mensagem.',
+    door_code_for: chr10 + chr10 + 'O código de entrega é *{code}* \u2014 dê-o a {name}, que o informará ao entregador à porta, para sabermos que o pedido chegou às mãos certas.',
     door_code: chr10 + chr10 + 'O seu código de entrega é *{code}* — informe-o ao entregador à porta, para sabermos que o seu pedido chegou às mãos certas.',
 
     cancel_sorry: 'Lamentamos {name} —',
@@ -297,6 +300,7 @@ const STRINGS: Record<Language, Dictionary> = {
     delivered_confirmed: '订单 {order} 已送达。' + chr10 + '收货码：已确认。' + chr10 + chr10 + '感谢您选择 {store}！',
     delivered_unverified: '订单 {order} 已送达。' + chr10 + '收货码：未确认。' + chr10 + chr10 + '感谢您选择 {store}！',
     delivered_check: chr10 + chr10 + '这笔订单有任何问题吗？请给我们发消息。',
+    door_code_for: chr10 + chr10 + '收货码是 *{code}* — 请转告 {name}，由他在门口告知配送员，以确认订单送到正确的人手中。',
     door_code: chr10 + chr10 + '您的收货码是 *{code}* — 配送员到达时请告知他，以确认订单送到正确的人手中。',
 
     cancel_sorry: '很抱歉{name}，',

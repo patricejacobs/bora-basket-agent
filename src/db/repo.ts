@@ -672,6 +672,16 @@ export function placeOrder(args: {
    * choice is a flagged order with a phone call attached, or no order.
    */
   location: SavedPin | null;
+  /**
+   * Who receives it, when that is not the person who ordered.
+   *
+   * Parcels have always had this. A food or grocery order sent to somebody
+   * else did not, so the associate's card named the buyer and carried the
+   * buyer's number - and at the door that is the wrong name and a phone that
+   * rings somewhere across town.
+   */
+  recipientName?: string;
+  recipientPhone?: string;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
@@ -709,9 +719,9 @@ export function placeOrder(args: {
            (order_no, phone, customer_name, address, contact_phone, delivery_note,
             latitude, longitude, location_label,
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
-            kind, delivery_code,
+            kind, delivery_code, recipient_name, recipient_phone,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -743,6 +753,8 @@ export function placeOrder(args: {
         // as the first one - a customer holding two different codes has no
         // code at all.
         newDeliveryCode(),
+        (args.recipientName ?? '').trim(),
+        (args.recipientPhone ?? '').replace(/[^0-9]/g, ''),
         cart.subtotal,
         cart.deliveryFee,
         cart.total,

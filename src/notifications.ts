@@ -241,12 +241,26 @@ export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): stri
  * out digits that no longer open anything, and makes the shop look confused
  * about its own delivery.
  */
-function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
+export function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
   if (!config.deliveryCode) return '';
   const state = repo.deliveryCodeState(order.orderNo);
   if (!state.exists || state.verifiedAt) return '';
   const code = repo.deliveryCodeFor(order.orderNo);
-  return code ? t('door_code', lang, { code }) : '';
+  if (!code) return '';
+
+  // Somebody else is at the door, so somebody else needs the digits.
+  //
+  // The recipient cannot be messaged directly: WhatsApp refuses a
+  // business-initiated message to a number that has never written in, and no
+  // template can carry a code generated seconds ago. So the buyer is told the
+  // code is for them to pass on - which is how a parcel has always worked.
+  // Without this every third-party delivery ends with the associate tapping
+  // "No code", and the unverified count stops meaning anything.
+  const to = order.recipientName?.trim();
+  if (to && to !== order.customerName) {
+    return t('door_code_for', lang, { code, name: to });
+  }
+  return t('door_code', lang, { code });
 }
 
 /**
