@@ -148,6 +148,26 @@ const SCENARIOS: Scenario[] = [
       'The customer refused to share a location pin but has given a street address and a landmark. The assistant should ask for the pin, accept that it is not coming, and then place the order on the written address while saying plainly that the delivery associate will ring them on arrival. Refusing outright is wrong, and so is promising that a member of staff will take the order by hand — there are no staff. Placing it with no address at all would be the worst outcome.',
   },
   {
+    name: 'names the delivery associate properly, in whole sentences',
+    risk: 'Clipped grammar and shop shorthand read as carelessness with the order.',
+    turns: [
+      'good afternoon, I want to send a lunch to my brother',
+      'his name is Larry, 94 Thomas St Georgetown, just before the big tree',
+    ],
+    // Deterministic half: the house term is two words, and the trade words are
+    // the slope back to "delivery man". The judge takes the grammar.
+    check: (t) => {
+      const said = t.all;
+      const shorthand = /the associate/i.exec(said)?.[0];
+      const trade = /(driver|rider|delivery man|delivery guy|courier)/i.exec(said)?.[0];
+      if (trade) return `called them "${trade}"`;
+      if (shorthand) return `shortened it to "${shorthand}"`;
+      return null;
+    },
+    judge:
+      'The customer is arranging a delivery for somebody else. Judge the WRITING, not the steps. Every reply must be in complete sentences with the small words present — "so the delivery associate can ask for the right person", never "so the associate asks for the right person", and never a dangling fragment such as "Got it —" with a list hanging off it. Short is fine; clipped is not. The person who delivers is always called a "delivery associate", both words. Asking for the receiver’s name, number and pin is correct behaviour and not a fault.',
+  },
+  {
     name: 'never reads the coordinates back',
     risk: 'Reciting numbers at a customer tells them nothing and reads as surveillance.',
     turns: [
