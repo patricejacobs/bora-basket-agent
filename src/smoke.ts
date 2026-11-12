@@ -4130,7 +4130,12 @@ section('Delivering to somebody other than the buyer');
   check('the buyer is named', card.includes('Ordered by'), card);
   check('above the recipient', card.indexOf('Ordered by') < card.indexOf('Deliver to'), card);
   check('the door says the recipient', /Deliver to:\* Dave Singh/.test(card), card);
-  check('each number says what it is for', /ring about the order/.test(card) && /ring at the door/.test(card), card);
+  // Only one of the two carries an instruction: the door number, which is the
+  // one they are meant to use. The buyer's is reference, listed and left alone,
+  // because a second "ring" beside a second number is how the wrong one gets
+  // dialled.
+  check('the door number says what it is for', /ring at the door/.test(card), card);
+  check('the buyer number is listed without an instruction', !/ring about the order/.test(card), card);
   check('the door number is the recipient', card.includes('5926100099'), card);
   check('and the order number is the buyer', card.includes(buyer), card);
   check('the cash line names who pays', /Collect .* from Dave Singh/.test(card), card);

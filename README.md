@@ -1329,7 +1329,7 @@ differ:
 
 ```
 *Ordered by:* Marcia Persaud
-📞 +5926100001 — ring about the order
+📞 +5926100001
 
 *Deliver to:* Dave Singh
 Lot 4 Section C, Diamond
@@ -1340,8 +1340,10 @@ White fence, upstairs
 *Collect $235,000 cash* from Dave Singh (3 items + delivery)
 ```
 
-Each number says what it is for: two bare numbers on one card is where a wrong
-call comes from. The cash line names who hands it over, because *Collect
+Only one of the two carries an instruction — the door number, which is the one
+they are meant to use. The buyer is who the order came from, not somebody to
+call, so their number is listed and left alone: a second "ring" beside a second
+number is how the wrong one gets dialled. The cash line names who hands it over, because *Collect
 $235,000* with two names on screen is the same confusion in a more expensive
 form. On a self-delivery none of this appears — it would repeat a name and
 number already on screen and push the address down a card read on a bike. On a

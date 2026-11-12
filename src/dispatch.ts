@@ -383,7 +383,11 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // read too late.
     ...(pinIsForThisDoor ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
     ...(orderedBy
-      ? [`*Ordered by:* ${order.customerName}`, `📞 ${dial(ordererPhone)} — ring about the order`, '']
+      // The number, and nothing telling them to use it. The buyer is who the
+      // order came from, not somebody to call: the only instruction on this
+      // card should be the one the associate is meant to act on, and a second
+      // "ring" beside a second number is how the wrong one gets dialled.
+      ? [`*Ordered by:* ${order.customerName}`, `📞 ${dial(ordererPhone)}`, '']
       : []),
     `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),
