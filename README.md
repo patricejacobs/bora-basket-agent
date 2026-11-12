@@ -1165,6 +1165,29 @@ Ask Marcia to read it from our message. 2 tries left.
                                    [ No code ]
 ```
 
+When an order closes without its code confirmed, the customer is told - as a
+receipt line, before the thanks rather than in place of them, because the order
+did arrive and the only thing in question is how that was proved:
+
+```
+Order ORD-00047 delivered.
+Delivery code: not confirmed.
+
+Thank you for choosing Next Minute Delivery!
+Enjoy every bite! 😋
+
+Anything wrong with this order? Just message us.
+```
+
+The invitation to write back comes last, so the actionable line is the one left
+on the screen - and a warning never lands immediately before "enjoy your meal".
+Translated into all four languages, since a customer who ordered in Spanish is
+not told this one thing in English.
+
+A customer whose order **never had** a code hears nothing about codes: an old
+order, or one dispatched outside the 24-hour window. They had nothing to
+confirm, and a note about a missing code would be nonsense.
+
 An order with **no** code keeps its Delivered button — there is nothing to type,
 so taking it away would strand them. Typing `47 delivered` still works as well:
 the button is gone from the card, the word is not gone from the language.

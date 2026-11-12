@@ -3865,6 +3865,35 @@ section('A code the customer reads out at the door');
     JSON.stringify({ sent: row?.codeSentAt, verified: row?.codeVerifiedAt }),
   );
 
+  /* --- and the customer is told how it closed ------------------------- */
+
+  const { deliveredMessage } = await import('./notifications.ts');
+
+  check('the unconfirmed order is marked so, permanently', repo.deliveryCodeUnconfirmed(second.orderNo));
+  const told = deliveredMessage(repo.findOrder(second.orderNo)!, 'en');
+  check('the customer is told the code was not confirmed', told.includes('not confirmed'), told);
+  check('as a receipt line, after the order number', told.indexOf('delivered') < told.indexOf('not confirmed'), told);
+  check('the thanks still comes', told.includes('Thank you for choosing'), told);
+  check('and the way back is the last line', /message us\.?$/.test(told.trim()), told);
+  check('but never the digits', !told.includes(repo.deliveryCodeFor(second.orderNo)), told);
+
+  // A verified delivery closes exactly as it always did.
+  const clean = deliveredMessage(repo.findOrder(first.orderNo)!, 'en');
+  check('a verified order says nothing about codes', !/code/i.test(clean), clean);
+  check('and keeps its sign-off', clean.includes('Thank you for choosing'), clean);
+
+  // All four languages, because a customer who ordered in Spanish is not told
+  // this one thing in English.
+  for (const lang of ['es', 'pt', 'zh'] as const) {
+    const other = deliveredMessage(repo.findOrder(second.orderNo)!, lang);
+    check(
+      `the note is translated into ${lang}`,
+      other !== told && other.includes(second.orderNo) && other.length > 40,
+      other,
+    );
+    check(`and ${lang} is not left half-English`, !/not confirmed/.test(other), other);
+  }
+
   /* --- guessing ------------------------------------------------------- */
 
   const third = makeOrder();

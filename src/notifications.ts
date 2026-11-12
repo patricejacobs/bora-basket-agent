@@ -249,6 +249,28 @@ function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
   return code ? t('door_code', lang, { code }) : '';
 }
 
+/**
+ * How a delivered order closes.
+ *
+ * Two shapes, differing in one receipt line. The unverified one states the fact
+ * where a receipt would put it - before the thanks, not in place of them -
+ * because the order did arrive and the only thing in question is how that was
+ * proved. Leading with the qualification would make every flat phone battery
+ * read as a failed delivery.
+ *
+ * The invitation to write back comes last, after the sign-off, so the actionable
+ * line is the one left on the screen. It also keeps a warning from landing
+ * immediately before "enjoy your meal".
+ */
+export function deliveredMessage(order: repo.OrderRecord, lang: Language): string {
+  const unconfirmed = repo.deliveryCodeUnconfirmed(order.orderNo);
+  const head = t(unconfirmed ? 'delivered_unverified' : 'delivered', lang, {
+    order: order.orderNo,
+    store: config.store.name,
+  });
+  return head + signOffFor(order, lang) + (unconfirmed ? t('delivered_check', lang) : '');
+}
+
 export async function notifyCustomerOfStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
@@ -270,9 +292,7 @@ export async function notifyCustomerOfStatus(
       }) + doorCodeLine(order, lang),
     // The store name rather than the words, so a rename carries through here
     // too — this is the last thing a customer reads from every order.
-    delivered:
-      t('delivered', lang, { order: order.orderNo, store: config.store.name }) +
-      signOffFor(order, lang),
+    delivered: deliveredMessage(order, lang),
     // The reason is the difference between an apology and an explanation. A
     // customer told the kitchen ran out knows to try something else; one told
     // only "cancelled" assumes they did something wrong.

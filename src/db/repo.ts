@@ -1343,6 +1343,26 @@ export function verifyDeliveryCode(orderNo: string, typed: string): CodeCheck {
 }
 
 /**
+ * Whether a code reached this customer and was never read back.
+ *
+ * Not the same question as `deliveryCodeExpected`, and the difference is the
+ * whole point. By the time such an order is delivered its code has been spent,
+ * so "expected" is already false - what remains true, permanently, is that
+ * digits were issued and never confirmed. That is what the customer is told
+ * and what the export records.
+ *
+ * False when no code was ever issued: an old order, or one dispatched outside
+ * WhatsApp's 24-hour window where the fixed template could not carry digits.
+ * Those customers had nothing to confirm, and telling them a code went
+ * unconfirmed would be nonsense.
+ */
+export function deliveryCodeUnconfirmed(orderNo: string): boolean {
+  if (!config.deliveryCode) return false;
+  const st = deliveryCodeState(orderNo);
+  return st.exists && st.sent && !st.verifiedAt;
+}
+
+/**
  * Whether this order is waiting on a code right now.
  *
  * The one predicate, in one place. Three callers need it - the card that tells
