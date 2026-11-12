@@ -300,6 +300,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
+        delivery_address: {
+          type: 'string',
+          description:
+            "Where THIS order goes, in words, when that is not the address saved against the customer — somebody else's house, their office, a friend's. The address only: no instructions, no explanation, nothing about pins or ringing, all of which the delivery associate's card prints for itself. Leave it out when the delivery goes to the customer's usual address.",
+        },
         recipient_name: {
           type: 'string',
           description:
@@ -329,7 +334,8 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
         delivery_note: {
           type: 'string',
-          description: 'Optional instructions for the delivery associate, e.g. "call on arrival".',
+          description:
+            'One short line of doorstep detail, and only that: "white fence, upstairs", "blue gate, ring twice". Under 80 characters. It is NOT a place to repeat the address, the names, the phone numbers, or whether there is a pin — the delivery associate\'s card prints all of those itself, and anything repeated here is read twice and trusted less. Leave it out when there is nothing to add.',
         },
       },
       required: ['payment_method'],
@@ -1226,9 +1232,21 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         const order = repo.placeOrder({
           phone: ctx.phone,
           customerName: customer.name,
-          address: customer.address ?? '',
+          // This order's own address. Saved per order rather than on the
+          // customer, because an order for somebody else goes somewhere else -
+          // and writing it to the customer would overwrite the buyer's own
+          // address with a friend's.
+          //
+          // Without this the model had one slot for two different addresses
+          // and did the only thing it could: it put one of them in the field
+          // and the other in the free-text note, so the card carried two
+          // delivery addresses that disagreed.
+          address: asString(input.delivery_address) || customer.address || '',
           contactPhone: customer.contactPhone ?? ctx.phone,
-          deliveryNote: asString(input.delivery_note),
+          // Capped rather than trusted. A note is a line read at a gate; left
+          // open it collected whole briefings, including a second address that
+          // contradicted the first.
+          deliveryNote: asString(input.delivery_note).slice(0, 120),
           paymentMethod,
           location: customer.location,
           recipientName: asString(input.recipient_name),

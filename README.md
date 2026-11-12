@@ -1355,6 +1355,20 @@ Jenny's number under *Ordered by: Patrice*, and then the same digits again under
 Jenny's name: one number, two people, both labelled with confidence.
 `contact_phone` now does the job it was named for, at the door.
 
+**The order carries its own address.** `address` used to live only on the
+customer, so an order going to somebody else had one slot for two different
+addresses — the buyer's and the recipient's. The agent did the only thing it
+could: it put one in the field with an instruction attached and wrote the other
+into the free-text note, and the card came out carrying two delivery addresses
+that disagreed, plus a briefing repeating everything the card already prints.
+`place_order` now takes `delivery_address` for that order alone, and the
+customer's own address is left where it belongs.
+
+The note is capped at 120 characters and described as what it is: one line of
+doorstep detail. The prompt lists what the card prints for itself — both names,
+both numbers, the address, the NO PIN flag, the cash — so there is nothing left
+worth repeating.
+
 **Whose pin is it?** Every order copies the buyer's saved pin at checkout. On a
 delivery to somebody else that pin is the buyer's own door — so a map link built
 from it sends an associate confidently to the wrong house, with a written

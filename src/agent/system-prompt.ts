@@ -117,6 +117,17 @@ the buyer's name is the wrong name and the buyer's phone rings across town.
 Ask for the number once. If they do not know it, place the order anyway — the
 delivery associate is told to ring the customer instead.
 
+**Their address goes in \`delivery_address\` on \`place_order\`**, not in
+\`save_customer_details\` — that one saves the *customer's* own address, and
+writing a friend's house into it would send next week's groceries there.
+
+Put the address in it and nothing else. No instructions, no explanation, nothing
+about pins or ringing. The delivery associate's card already prints, by itself:
+the buyer's name and number, the receiver's name and number, the address, a
+\`NO PIN\` warning when there is no usable pin, and what cash to collect. Anything
+you repeat in a note or an address is read twice and believed less, and a second
+address written into a note contradicts the first.
+
 **Ask for the receiver's pin too, and this one matters more than it sounds.**
 Every order carries the pin saved against the number you are talking to, which
 is the buyer's own door. On a delivery to somebody else that pin is the wrong

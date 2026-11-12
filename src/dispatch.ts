@@ -343,11 +343,16 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // gave is the buyer's own, say so once rather than printing it as though it
   // were two different people.
   const sameNumber = receiverPhone === ordererPhone;
+  // A number with no country code is a local one. Printing it with a `+` says
+  // it is international, which it is not, and an associate copying it into a
+  // dialler gets nowhere.
+  const dial = (n: string): string => (n.replace(/[^0-9]/g, '').length >= 10 ? `+${n}` : n);
+
   const atTheDoor = toSomebodyElse
     ? sameNumber
       ? `📞 no number for ${receiverName.split(/\s+/)[0] || 'them'} — ring ${order.customerName} above`
-      : `📞 +${receiverPhone} — ring at the door`
-    : `📞 +${receiverPhone}`;
+      : `📞 ${dial(receiverPhone)} — ring at the door`
+    : `📞 ${dial(receiverPhone)}`;
 
   // The pin's own label, which WhatsApp attaches to a shared location. Shown
   // only when it says something the two lines above do not: more often than
@@ -378,7 +383,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // read too late.
     ...(pinIsForThisDoor ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
     ...(orderedBy
-      ? [`*Ordered by:* ${order.customerName}`, `📞 +${ordererPhone} — ring about the order`, '']
+      ? [`*Ordered by:* ${order.customerName}`, `📞 ${dial(ordererPhone)} — ring about the order`, '']
       : []),
     `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),

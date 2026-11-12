@@ -4634,6 +4634,83 @@ section('Whose number, whose address, whose pin');
   db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-910%'`).run();
 }
 
+section('One order, one address');
+{
+  const { dropLines } = await import('./dispatch.ts');
+  const { TOOL_DEFS, executeTool } = await import('./agent/tools.ts');
+  const buyer = '5926007272';
+
+  const sellable = () =>
+    (db
+      .prepare(
+        `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+           AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+      )
+      .get() as unknown as { id: number }).id;
+
+  // The buyer, at their own address, with a pin of their own.
+  repo.saveLocationPin(buyer, { latitude: 6.8013, longitude: -58.1551, label: 'Kitty' });
+  repo.saveCustomer(buyer, { name: 'Patrice', address: '12 Kitty, Georgetown', contactPhone: buyer });
+  repo.confirmIdentity(buyer);
+  repo.setCartQty(buyer, sellable(), 1, '');
+
+  const ctx = { phone: buyer, outbound: [] as never[] };
+  const out = JSON.parse(
+    executeTool(
+      'place_order',
+      {
+        payment_method: 'cash_on_delivery',
+        recipient_name: 'Larry King',
+        recipient_phone: '5926335645',
+        delivery_address: '127 Limper Dr, South Ruimveldt, Georgetown',
+        // Left open, this collected whole briefings - including a second
+        // address that contradicted the first.
+        delivery_note: 'White gate, upstairs. ' + 'x'.repeat(400),
+      },
+      ctx as never,
+    ),
+  ) as { order_number?: string; error?: string };
+
+  check('the order is placed', typeof out.order_number === 'string', JSON.stringify(out).slice(0, 120));
+  const placed = repo.findOrder(out.order_number ?? '')!;
+
+  /* --- the address belongs to the order, not the buyer ---------------- */
+
+  check('the order goes to the address given for it', placed.address.startsWith('127 Limper Dr'), placed.address);
+  // The reason this field exists: writing a friend's house into the customer
+  // record would send next week's groceries there.
+  check(
+    "and the buyer's own address is untouched",
+    repo.getCustomer(buyer).address === '12 Kitty, Georgetown',
+    String(repo.getCustomer(buyer).address),
+  );
+
+  const card = dropLines(placed).join('\n');
+  check('the card carries one delivery address', (card.match(/Limper Dr/g) ?? []).length === 1, card);
+  check('and not the buyer\'s', !card.includes('12 Kitty'), card);
+
+  /* --- the note is a line, not a briefing ----------------------------- */
+
+  check('a long note is cut short', placed.deliveryNote.length <= 120, String(placed.deliveryNote.length));
+  check('keeping the useful part', placed.deliveryNote.startsWith('White gate, upstairs'), placed.deliveryNote);
+
+  const noteTool = TOOL_DEFS.find((t) => t.name === 'place_order');
+  const noteProps = (noteTool?.input_schema ?? {}) as {
+    properties?: Record<string, { description?: string }>;
+  };
+  const noteDesc = String(noteProps.properties?.delivery_note?.description ?? '');
+  check('and the model is told what the card prints for itself', /card prints all of those/i.test(noteDesc), noteDesc);
+
+  /* --- a local number is not an international one ---------------------- */
+
+  check('a full number is dialled with a plus', /\+5926335645/.test(card), card);
+  db.prepare(`UPDATE orders SET recipient_phone = '6335645' WHERE order_no = ?`).run(placed.orderNo);
+  const local = dropLines(repo.findOrder(placed.orderNo)!).join('\n');
+  check('a local one is not', /📞 6335645/.test(local) && !/\+6335645/.test(local), local);
+
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(placed.orderNo);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
