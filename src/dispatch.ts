@@ -399,13 +399,47 @@ export function onTheWayCard(order: repo.OrderRecord): string {
 }
 
 /**
+ * Offers an associate the oldest job still waiting, if they can take it.
+ *
+ * The other half of the one-at-a-time rule. Holding somebody to one delivery
+ * means a job can be cooked with nobody free to fetch it - and nothing used to
+ * re-offer it, so the order sat at `ready` until an associate happened to send
+ * `jobs`. Food on a counter does not keep.
+ *
+ * Called at the only two moments capacity appears: when an associate finishes a
+ * delivery, and when one clocks on.
+ */
+export async function offerWaitingWork(phone: string): Promise<string> {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits || !config.driverNumbers.includes(digits)) return '';
+
+  const limit = config.maxJobsPerAssociate;
+  if (limit > 0 && repo.activeJobsFor(digits).length >= limit) return '';
+  // Somebody who has clocked off, or been stopped by the day's hours cap, is
+  // not offered more work however much is waiting.
+  if (!repo.isOnDuty(digits)) return '';
+
+  const waiting = repo.ordersAwaitingPickup(1)[0];
+  if (!waiting) return '';
+
+  const how = await dispatchToDrivers(waiting.orderNo, digits);
+  return how === 'sent' ? waiting.orderNo : '';
+}
+
+/**
  * The delivery associate's job card: where to collect, where to go, who to ring, what to collect.
  *
  * This is the message that has to be complete, because a delivery associate reading it is
  * on a bike and will not scroll back through a conversation. Both ends get a
  * tappable maps link, and both pins follow as map cards.
  */
-export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_drivers'> {
+export type Dispatch = 'sent' | 'no_drivers' | 'all_busy';
+
+export async function dispatchToDrivers(
+  orderNo: string,
+  /** One associate to offer it to, rather than everybody who is free. */
+  only = '',
+): Promise<Dispatch> {
   const order = repo.findOrder(orderNo);
   if (!order) return 'no_drivers';
 
@@ -452,18 +486,31 @@ export async function dispatchToDrivers(orderNo: string): Promise<'sent' | 'no_d
   // Somebody already carrying a delivery is not offered another. Sending it
   // anyway means a card they cannot act on, and a tap that gets refused.
   const limit = config.maxJobsPerAssociate;
-  const free =
-    limit > 0
-      ? config.driverNumbers.filter((phone) => repo.activeJobsFor(phone).length < limit)
-      : config.driverNumbers;
+  const pool = only
+    ? config.driverNumbers.filter((phone) => phone === only.replace(/[^0-9]/g, ''))
+    : config.driverNumbers;
+  const free = limit > 0 ? pool.filter((phone) => repo.activeJobsFor(phone).length < limit) : pool;
 
-  const nearby = withinReach(onDuty(free), pickupPin);
-  if (nearby.length === 0) {
+  // Everybody is out. Its own outcome rather than folded into 'no_drivers',
+  // because the two are nothing alike: an empty DRIVER_NUMBERS is a shop that
+  // cannot deliver at all and somebody must fix it, while everyone being busy
+  // is an ordinary queue. Told they are the same thing, a kitchen rings a shop
+  // that can do nothing about it, at the busiest moment of their day.
+  //
+  // Unlike the two filters below, this one does NOT fall back to everybody -
+  // the point of it is to avoid offering a job that would be refused. Which is
+  // exactly why the order has to be re-offered when somebody finishes, and
+  // `offerWaitingWork` above is that half of the rule. Without it this filter
+  // silently strands the order.
+  if (free.length === 0) {
     console.warn(
       `[dispatch] ${orderNo} is ready but every delivery associate is already carrying one`,
     );
-    return 'no_drivers';
+    return 'all_busy';
   }
+
+  const nearby = withinReach(onDuty(free), pickupPin);
+  if (nearby.length === 0) return 'all_busy';
 
   for (const associate of nearby) {
     await sendButtons(associate, body, actions);

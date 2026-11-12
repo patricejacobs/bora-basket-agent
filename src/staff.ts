@@ -21,6 +21,7 @@ import {
 } from './order-status.ts';
 import {
   dispatchToDrivers,
+  offerWaitingWork,
   flushOutletTickets,
   onTheWayCard,
   tellAssociatesCancelled,
@@ -161,9 +162,18 @@ async function applyStatus(
       notes.push(
         how === 'sent'
           ? '🛵 Delivery associate dispatched to uplift.'
-          : '⚠️ No delivery associate was told — DRIVER_NUMBERS is empty.',
+          : how === 'all_busy'
+            ? '⏳ Every delivery associate is carrying one — queued, and it goes out as soon as somebody finishes.'
+            : '⚠️ No delivery associate was told — DRIVER_NUMBERS is empty.',
       );
-      if (how !== 'sent') {
+      // A queue is not a fault and must not read like one. Sending a kitchen
+      // to ring the shop because every associate happens to be out points them
+      // at somebody who can do nothing about it.
+      if (how === 'all_busy') {
+        kitchenNotes.push(
+          '⏳ Every delivery associate is out. This will be collected as soon as one is free.',
+        );
+      } else if (how !== 'sent') {
         kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the shop.');
       }
     } catch (err) {
@@ -196,6 +206,15 @@ async function applyStatus(
           ? `Delivery associate called off (${reached}).`
           : '⚠️ Nobody was called off - no delivery associate could be reached.',
       );
+      // Cancelled out from under them, so they are free again - and whatever
+      // was cooked while they were carrying this is still waiting. The
+      // associate is read off the order, because the person who cancelled it
+      // is not the person who was carrying it.
+      if (order.driverPhone) {
+        void offerWaitingWork(order.driverPhone).catch((err) =>
+          console.error('[staff] could not offer the next job after a cancellation:', err),
+        );
+      }
       if (reached === 0) {
         kitchenNotes.push('⚠️ A delivery associate may still turn up for this — turn them away.');
       }
@@ -993,6 +1012,11 @@ export async function handleDriverMessage(
     }
 
     repo.setDuty(phone, true);
+    // Work may have been waiting since before they clocked on. Offered now,
+    // rather than left for them to go looking for with `jobs`.
+    void offerWaitingWork(phone).catch((err) =>
+      console.error('[staff] could not offer waiting work on clock-on:', err),
+    );
     const who = repo.getAssociate(phone);
     return [
       {
@@ -1384,6 +1408,16 @@ export async function handleDriverMessage(
         buttons: [noCodeButton(order.orderNo)],
       },
     ];
+  }
+
+  // Finishing one frees them for the next, and something may have been cooked
+  // while they were out. Fired and forgotten: the next job is a different
+  // message to a different purpose, and this associate should not wait on a
+  // Graph round trip to see their own delivery confirmed.
+  if (status === 'delivered' && phone) {
+    void offerWaitingWork(phone).catch((err) =>
+      console.error('[staff] could not offer the next job:', err),
+    );
   }
 
   // A completed delivery is the one position we never have to ask for: they

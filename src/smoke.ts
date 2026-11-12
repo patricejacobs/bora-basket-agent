@@ -4406,6 +4406,102 @@ section('One order in hand, start to end');
   }
 }
 
+section('A queue, not a fault');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { dispatchToDrivers, offerWaitingWork } = await import('./dispatch.ts');
+  const rider = config.driverNumbers[0]!;
+
+  const make = (no: string, status: string, driver: string) =>
+    db
+      .prepare(
+        `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+           delivery_note, kind, outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng,
+           delivery_code, code_sent_at, driver_phone, latitude, longitude, location_label,
+           subtotal, delivery_fee, total, payment_method, status, created_at)
+         VALUES (?, '5926100001','Marcia Persaud','Lot 4 Diamond','5926100001','',
+           'restaurant', 1, 'A Taste of Guyana', 'Sheriff Street', 6.8042, -58.1409,
+           '2149', '2026-11-12T18:40:00Z', ?, 6.64, -58.21, 'Diamond',
+           185000, 50000, 235000, 'cash', ?, '2026-11-12T18:00:00Z')`,
+      )
+      .run(no, driver, status);
+
+  // Park whatever earlier sections left them holding.
+  const parked = repo
+    .activeJobsFor(rider)
+    .map((o) => o.orderNo)
+    .filter((no) => !no.startsWith('ORD-903'));
+  for (const no of parked) {
+    db.prepare(`UPDATE orders SET driver_phone = '' WHERE order_no = ?`).run(no);
+  }
+  repo.setDuty(rider, true);
+
+  make('ORD-90301', 'on_the_way', rider);  // in their hands
+  make('ORD-90302', 'ready', '');          // cooked, waiting
+
+  /* --- the kitchen is told a queue, not a fault ----------------------- */
+
+  check('one order each is the rule here', config.maxJobsPerAssociate === 1);
+  const busy = await dispatchToDrivers('ORD-90302');
+  check(
+    'dispatch reports everybody busy',
+    busy === 'all_busy',
+    String(busy),
+  );
+  // The distinction that matters: this is NOT the same as having no
+  // associates configured, which is a shop that cannot deliver at all.
+  check('which is not the same as having nobody', busy !== 'no_drivers');
+
+  /* --- and the order is not stranded ---------------------------------- */
+
+  check('nothing is offered while they are full', (await offerWaitingWork(rider)) === '');
+
+  // Delivering frees them, and the waiting job goes out without anybody
+  // asking for it. This is the half that was missing: the filter above has no
+  // fall-back, so without this the order sat at `ready` for ever.
+  await handleDriverMessage('2149', rider);
+  check('the first one is delivered', repo.findOrder('ORD-90301')?.status === 'delivered');
+  check('and they are free', repo.activeJobsFor(rider).length === 0);
+
+  // The oldest thing waiting, whatever it is. Asserted against the queue
+  // rather than against this section's fixtures: earlier sections leave their
+  // own orders at `ready`, and oldest-first is the contract that matters.
+  const oldest = repo.ordersAwaitingPickup(1)[0]?.orderNo ?? '';
+  const offered = await offerWaitingWork(rider);
+  check('the oldest waiting job is then offered', offered === oldest && offered !== '', `${offered} / ${oldest}`);
+  check('and can be taken', (await dispatchToDrivers(offered, rider)) === 'sent');
+
+  /* --- never to somebody who cannot take it --------------------------- */
+
+  repo.setDuty(rider, false);
+  check('nothing is offered to somebody off duty', (await offerWaitingWork(rider)) === '');
+  repo.setDuty(rider, true);
+
+  check('nor to a number that is not an associate', (await offerWaitingWork('5920009999')) === '');
+  check('nor to nothing at all', (await offerWaitingWork('')) === '');
+
+  // Targeted dispatch goes to that associate only.
+  check(
+    'a targeted offer to a stranger reaches nobody',
+    (await dispatchToDrivers('ORD-90302', '5920009999')) === 'all_busy',
+  );
+
+  /* --- nothing waiting is not a failure ------------------------------- */
+
+  // Nothing waiting is not a failure, and the two cases are the same
+  // expression: whatever is at the head of the queue, or nothing.
+  check(
+    'the offer is always exactly the head of the queue',
+    (await offerWaitingWork(rider)) === (repo.ordersAwaitingPickup(1)[0]?.orderNo ?? ''),
+  );
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-903%'`).run();
+  for (const no of parked) {
+    db.prepare(`UPDATE orders SET driver_phone = ? WHERE order_no = ?`).run(rider, no);
+  }
+  repo.setDuty(rider, false);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

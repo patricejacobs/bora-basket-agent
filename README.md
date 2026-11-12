@@ -1371,6 +1371,35 @@ The price, plainly: two orders from one kitchen are a single trip, and this
 refuses the second even though the associate is standing at that counter.
 `MAX_JOBS_PER_ASSOCIATE` raises the limit; 0 switches it off.
 
+#### The other half: the order must not be stranded
+
+Holding somebody to one delivery means food can be cooked with nobody free to
+fetch it. The two filters that pick who to dispatch to — on duty, within reach —
+both fall back to telling *everybody* rather than nobody, on the principle that
+a filter which leaves nobody is a filter that should not have run. The busy
+filter cannot do that, because the point of it is to avoid offering a job that
+would be refused. So it needs the opposite remedy: the job is re-offered the
+moment capacity appears.
+
+An associate is offered the oldest waiting job when they finish a delivery, when
+an order they were carrying is cancelled out from under them, and when they
+clock on. Nobody has to send `jobs` to find work that was already cooked.
+
+And the kitchen is told the truth. Every associate being out is a queue, not a
+fault, and must not read like one — sending a kitchen to ring the shop at the
+busiest moment of their day points them at somebody who can do nothing about it:
+
+```
+ORD-00202 prepared, waiting for a delivery associate.
+⏳ Every delivery associate is out. This will be collected as soon
+   as one is free.
+```
+
+An empty `DRIVER_NUMBERS` is a different thing entirely — a shop that cannot
+deliver at all, which somebody must fix — and still reads as a warning. Folding
+the two into one outcome is what produced "nobody has been sent — ring the
+shop" while an associate was out working normally.
+
 **A mistyped order number is named as such.** A code typed against an order they
 are not carrying used to be compared against that order and answered "not the
 code — 2 tries left", which burned a stranger's code three times over and left
