@@ -4545,6 +4545,95 @@ section('One name for the person who delivers');
   );
 }
 
+section('Whose number, whose address, whose pin');
+{
+  const { dropLines } = await import('./dispatch.ts');
+
+  const make = (
+    no: string,
+    opts: { recipient?: string; recipientPhone?: string; contact?: string; label?: string; recipientPin?: number },
+  ) =>
+    db
+      .prepare(
+        `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+           delivery_note, kind, outlet_id, outlet_name, recipient_name, recipient_phone,
+           recipient_pin, delivery_code, code_sent_at, latitude, longitude, location_label,
+           subtotal, delivery_fee, total, payment_method, status, created_at)
+         VALUES (?, '5926108888', 'Patrice', 'Lot 4 Section C, Diamond', ?, 'White fence',
+           'restaurant', 1, 'A Taste of Guyana', ?, ?, ?, '4417', '2026-11-12T18:40:00Z',
+           6.642, -58.218, ?, 185000, 50000, 235000, 'cash', 'ready', '2026-11-12T18:00:00Z')`,
+      )
+      .run(
+        no,
+        opts.contact ?? '',
+        opts.recipient ?? '',
+        opts.recipientPhone ?? '',
+        opts.recipientPin ?? 0,
+        opts.label ?? '',
+      );
+
+  /* --- the buyer's number is the one they message from ---------------- */
+
+  // Patrice orders for Jenny and gives Jenny's number as the best one, which
+  // the agent saves as contact_phone. The card used to print it under
+  // "Ordered by: Patrice" - one number, two people, both labelled with
+  // confidence - and then print it again under Jenny's name.
+  make('ORD-91001', { recipient: 'Jenny', contact: '5926109999', label: 'Lot 4 Section C, Diamond' });
+  const mixed = dropLines(repo.findOrder('ORD-91001')!).join('\n');
+  check('the buyer is shown their own number', /Ordered by:\* Patrice\n📞 \+5926108888/.test(mixed), mixed);
+  check('not the one given for the door', !/Ordered by:\* Patrice\n📞 \+5926109999/.test(mixed), mixed);
+  check('which is shown at the door instead', /\+5926109999 — ring at the door/.test(mixed), mixed);
+  check(
+    'so no number appears twice',
+    (mixed.match(/5926109999/g) ?? []).length === 1 && (mixed.match(/5926108888/g) ?? []).length === 1,
+    mixed,
+  );
+
+  /* --- the pin label does not repeat the address ---------------------- */
+
+  check(
+    'the address is printed once',
+    (mixed.match(/Lot 4 Section C, Diamond/g) ?? []).length === 1,
+    mixed,
+  );
+  // A label that says something new still earns its place.
+  make('ORD-91002', { label: 'Beside the mosque', contact: '5926108888' });
+  const useful = dropLines(repo.findOrder('ORD-91002')!).join('\n');
+  check('a label that adds something is kept', useful.includes('Beside the mosque'), useful);
+
+  /* --- whose pin is it ------------------------------------------------ */
+
+  // The buyer's saved pin is their own door. On a delivery to somebody else it
+  // is the wrong house, and a link built from it is a confident wrong answer -
+  // worse than none, because the associate trusts it and drives there.
+  check('a third-party order with the buyer\'s pin shows no link', !/http/.test(mixed), mixed);
+  check('and is flagged as having no pin', /NO PIN/.test(mixed), mixed);
+  check('leaving the written address to do the work', mixed.includes('Lot 4 Section C, Diamond'), mixed);
+
+  make('ORD-91003', {
+    recipient: 'Jenny',
+    recipientPhone: '5926100099',
+    contact: '5926109999',
+    label: 'Lot 4 Section C, Diamond',
+    recipientPin: 1,
+  });
+  const shared = dropLines(repo.findOrder('ORD-91003')!).join('\n');
+  check('a pin shared for the recipient does show', /http/.test(shared), shared);
+  check('announced, not bare', /Click the link below for the delivery address/.test(shared), shared);
+  check('and the NO PIN flag is gone', !/NO PIN/.test(shared), shared);
+  check('with the recipient\'s own number at the door', /\+5926100099 — ring at the door/.test(shared), shared);
+
+  /* --- an ordinary order is untouched --------------------------------- */
+
+  make('ORD-91004', { contact: '5926108888', label: 'Diamond' });
+  const plain = dropLines(repo.findOrder('ORD-91004')!).join('\n');
+  check('a self-delivery names nobody else', !/Ordered by/.test(plain), plain);
+  check('keeps its link', /http/.test(plain), plain);
+  check('and is not flagged', !/NO PIN/.test(plain), plain);
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-910%'`).run();
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

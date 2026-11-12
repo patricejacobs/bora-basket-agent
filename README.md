@@ -1348,6 +1348,28 @@ number already on screen and push the address down a card read on a bike. On a
 parcel the sender is already the *Uplift from:* block, so they are not named
 twice.
 
+**Ordered by shows the number they are messaging from.** It used to show
+`contact_phone`, which means "the best number for this delivery" — and on an
+order for somebody else that is naturally the recipient's. So the card printed
+Jenny's number under *Ordered by: Patrice*, and then the same digits again under
+Jenny's name: one number, two people, both labelled with confidence.
+`contact_phone` now does the job it was named for, at the door.
+
+**Whose pin is it?** Every order copies the buyer's saved pin at checkout. On a
+delivery to somebody else that pin is the buyer's own door — so a map link built
+from it sends an associate confidently to the wrong house, with a written
+address directly above saying somewhere different. A confident wrong answer is
+worse than none, because the associate trusts it and drives there.
+
+So a third-party order shows a link only when the buyer shared a pin **for the
+recipient** during that order. The agent asks for one — *"can you drop the pin
+on where Jenny is?"* — and when none comes, the card is flagged NO PIN and the
+associate rings. That is the right answer, not a failure.
+
+**The pin label is dropped when it repeats the address.** WhatsApp attaches a
+place name to a shared location, and more often than not it is the same text as
+the saved address, printed twice. It is kept only when it says something new.
+
 When the recipient's number is unknown the card admits it rather than printing
 an empty field:
 

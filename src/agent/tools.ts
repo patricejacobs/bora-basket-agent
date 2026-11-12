@@ -310,6 +310,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           description:
             "The recipient's own number, digits only. Ask for it whenever recipient_name is set — it is the number the associate rings at the door. Leave it out if the customer does not know it; the card then falls back to ringing the customer.",
         },
+        recipient_pin_shared: {
+          type: 'boolean',
+          description:
+            "True only when the customer has shared a location pin for the RECIPIENT during this order. Leave it out if the pin on file is the customer's own from a previous delivery — the delivery associate is then told there is no pin and rings instead, which is right, because the saved pin is the buyer's door and not where this one goes.",
+        },
         without_pin: {
           type: 'boolean',
           description:
@@ -1228,6 +1233,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           location: customer.location,
           recipientName: asString(input.recipient_name),
           recipientPhone: asString(input.recipient_phone),
+          recipientPinShared: input.recipient_pin_shared === true,
         });
         // Fire-and-forget: the shop needs to know immediately, but the customer
         // should not wait on a Graph API round trip to see their confirmation.

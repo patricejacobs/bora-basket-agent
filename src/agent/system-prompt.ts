@@ -117,6 +117,18 @@ the buyer's name is the wrong name and the buyer's phone rings across town.
 Ask for the number once. If they do not know it, place the order anyway — the
 delivery associate is told to ring the customer instead.
 
+**Ask for the receiver's pin too, and this one matters more than it sounds.**
+Every order carries the pin saved against the number you are talking to, which
+is the buyer's own door. On a delivery to somebody else that pin is the wrong
+house, and a delivery associate handed a map link trusts it and drives there.
+
+So when the order is for somebody else, call \`request_location\` again and say
+plainly whose pin you want — "can you drop the pin on where Jenny is?". If they
+share one, pass \`recipient_pin_shared\` true to \`place_order\`. If they cannot,
+leave it out: the associate is then told there is no pin and rings on arrival,
+which is the right answer and not a failure. Never pass it on the strength of a
+pin that was already on file.
+
 Tell them the delivery code is for the receiver to read out, not for them. They
 are the one who has to pass it on.
 

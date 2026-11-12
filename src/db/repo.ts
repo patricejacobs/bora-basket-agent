@@ -682,6 +682,8 @@ export function placeOrder(args: {
    */
   recipientName?: string;
   recipientPhone?: string;
+  /** True only when the buyer shared a pin for the RECIPIENT during this order. */
+  recipientPinShared?: boolean;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
@@ -719,9 +721,9 @@ export function placeOrder(args: {
            (order_no, phone, customer_name, address, contact_phone, delivery_note,
             latitude, longitude, location_label,
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
-            kind, delivery_code, recipient_name, recipient_phone,
+            kind, delivery_code, recipient_name, recipient_phone, recipient_pin,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -755,6 +757,7 @@ export function placeOrder(args: {
         newDeliveryCode(),
         (args.recipientName ?? '').trim(),
         (args.recipientPhone ?? '').replace(/[^0-9]/g, ''),
+        args.recipientPinShared ? 1 : 0,
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -1120,6 +1123,13 @@ export type OrderRecord = {
   recipientPhone: string;
   /** What is being sent, in the sender's words. */
   parcelDetails: string;
+  /**
+   * Whether the pin belongs to the recipient rather than to the buyer.
+   *
+   * Only meaningful when `recipientName` is set. False means the pin on this
+   * order is the buyer's own saved one, which is not where this delivery goes.
+   */
+  recipientPin: boolean;
   /** Why it was cancelled, empty unless it was. */
   cancelReason: string;
   /** Who cancelled it: 'outlet', 'staff', 'customer', or empty. */
@@ -1156,6 +1166,7 @@ function hydrateOrder(row: {
   recipient_name: string | null;
   recipient_phone: string | null;
   parcel_details: string | null;
+  recipient_pin: number | null;
   cancel_reason: string | null;
   cancelled_by: string | null;
   total: number;
@@ -1207,6 +1218,7 @@ function hydrateOrder(row: {
     recipientName: row.recipient_name ?? '',
     recipientPhone: row.recipient_phone ?? '',
     parcelDetails: row.parcel_details ?? '',
+    recipientPin: Boolean(row.recipient_pin),
     cancelReason: row.cancel_reason ?? '',
     cancelledBy: row.cancelled_by ?? '',
     items: (

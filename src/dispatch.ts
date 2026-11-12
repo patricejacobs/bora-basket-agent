@@ -17,7 +17,7 @@ import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
 import { nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
-import { checkRange, describePin, mapsLink, distanceKm } from './location.ts';
+import { checkRange, describePin, mapsLink, distanceKm, formatDistance } from './location.ts';
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 
 /**
@@ -310,13 +310,23 @@ export async function flushOutletTickets(outletId: number): Promise<number> {
  */
 export function dropLines(order: repo.OrderRecord): string[] {
   const isParcel = order.kind === 'parcel';
-  const ordererPhone = order.contactPhone || order.phone;
+
+  // The number they are messaging from, which is the one fact about the buyer
+  // that cannot be wrong.
+  //
+  // This used to read `contact_phone`, which means "the best number for this
+  // delivery" - and on an order for somebody else that is naturally the
+  // RECIPIENT's. So the card printed Jenny's number under "Ordered by:
+  // Patrice", and then printed the same digits again lower down under Jenny's
+  // name. One number, two people, both labelled with confidence.
+  const ordererPhone = order.phone;
 
   // Who is actually at the door. A recipient on the order means somebody else
   // is receiving it, whatever kind of order it is - parcels have always worked
   // this way and a food order sent to a friend is the same journey.
   const receiverName = order.recipientName || order.customerName;
-  const receiverPhone = order.recipientPhone || ordererPhone;
+  // `contact_phone` belongs here, at the door, which is what it was named for.
+  const receiverPhone = order.recipientPhone || order.contactPhone || order.phone;
   const toSomebodyElse = Boolean(order.recipientName) && order.recipientName !== order.customerName;
 
   // Named only when it is a third name on the card. On a parcel the sender is
@@ -329,18 +339,44 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // Two numbers on one card is exactly where a wrong call comes from, so each
   // says what it is for rather than leaving the associate to work it out at a
   // gate.
-  const atTheDoor = order.recipientPhone
-    ? `📞 +${receiverPhone} — ring at the door`
-    : toSomebodyElse
-      ? `📞 no number for ${receiverName.split(/\s+/)[0] || 'them'} — ring ${order.customerName} on +${ordererPhone}`
-      : `📞 +${receiverPhone}`;
+  // Never the same digits twice under two names. When the only number anybody
+  // gave is the buyer's own, say so once rather than printing it as though it
+  // were two different people.
+  const sameNumber = receiverPhone === ordererPhone;
+  const atTheDoor = toSomebodyElse
+    ? sameNumber
+      ? `📞 no number for ${receiverName.split(/\s+/)[0] || 'them'} — ring ${order.customerName} above`
+      : `📞 +${receiverPhone} — ring at the door`
+    : `📞 +${receiverPhone}`;
+
+  // The pin's own label, which WhatsApp attaches to a shared location. Shown
+  // only when it says something the two lines above do not: more often than
+  // not it is the same text as the address, printed twice.
+  const sameText = (a: string, b: string): boolean =>
+    a.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ') ===
+    b.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const pinLabel = order.location?.label ?? '';
+  const labelAdds =
+    pinLabel !== '' && !sameText(pinLabel, order.address) && !sameText(pinLabel, order.deliveryNote);
+
+  // Whose pin is it?
+  //
+  // Every order copies the buyer's saved pin at checkout. On a delivery to
+  // somebody else that pin is the buyer's own door - so a link built from it
+  // sends an associate confidently to the wrong house, with a written address
+  // directly above it saying somewhere different. A confident wrong answer is
+  // worse than no answer: the associate trusts it and drives there.
+  //
+  // So a third-party order shows a link only when the buyer actually shared a
+  // pin for the recipient during that order.
+  const pinIsForThisDoor = order.location !== null && (!toSomebodyElse || order.recipientPin);
 
   return [
     // A missing pin goes first, not last. It changes how the trip is planned -
     // ring before setting off, rather than after arriving at a street you
     // cannot find - and a warning printed under the phone number is a warning
     // read too late.
-    ...(order.location ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
+    ...(pinIsForThisDoor ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
     ...(orderedBy
       ? [`*Ordered by:* ${order.customerName}`, `📞 +${ordererPhone} — ring about the order`, '']
       : []),
@@ -350,12 +386,18 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // and not to the person standing outside, which is the wrong way round.
     ...(order.deliveryNote ? [order.deliveryNote] : []),
     atTheDoor,
-    // Nothing at all when there is no pin. There are no coordinates to put in
-    // a link, so the written address above is already doing the whole job -
-    // and a sentence saying so only repeats the banner three lines up. A card
-    // read at a gate earns every line on it.
-    ...(order.location
-      ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
+    ...(pinIsForThisDoor && order.location
+      ? [
+          ...(labelAdds ? [pinLabel] : []),
+          'Click the link below for the delivery address:',
+          mapsLink(order.location),
+          ...(() => {
+            const range = checkRange(order.location, config.store.serviceArea);
+            return range.state === 'outside'
+              ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area`]
+              : [];
+          })(),
+        ]
       : []),
     '',
     // What it is made of, so the cash can be checked against the bag rather

@@ -397,6 +397,16 @@ addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
 // future code path can set one without the other.
 addColumnIfMissing('orders', 'delivered_at', "TEXT NOT NULL DEFAULT ''");
 
+// Whether the pin on this order is the RECIPIENT's, when the order is going to
+// somebody other than the buyer.
+//
+// Every order copies the buyer's saved pin at checkout. On a third-party
+// delivery that pin is the buyer's own door, so a map link built from it sends
+// an associate confidently to the wrong house while the written address above
+// it says somewhere else. Absent, this is 0, and no link is shown - the safe
+// answer, because the associate then rings.
+addColumnIfMissing('orders', 'recipient_pin', 'INTEGER NOT NULL DEFAULT 0');
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *
