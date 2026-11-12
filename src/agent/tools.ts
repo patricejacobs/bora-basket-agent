@@ -10,9 +10,12 @@ import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
 import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../services.ts';
+import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance } from '../location.ts';
+
+const chr10 = String.fromCharCode(10);
 
 export type ToolContext = {
   phone: string;
@@ -242,7 +245,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'request_location',
     description:
-      "Send the customer a 'Send location' button so they can share their exact delivery pin from WhatsApp. Every order needs a pin, so call this as soon as you know they intend to order and none is on file. Keep the body to the request for the pin alone — one short line — and say everything else about their order in your normal reply, which is sent with it. Their pin arrives on its own and is saved automatically; you never record coordinates yourself.",
+      "Send the customer a 'Send location' button so they can share the delivery pin from WhatsApp. Every order needs a pin, so call this as soon as you know they intend to order and none is on file. Keep the body to the request for the pin alone — one short line — and say everything else about their order in your normal reply, which is sent with it. A sentence is appended for you telling them they can move the pin to the destination rather than sending where they are standing, so do not say that yourself and do not paraphrase it. Their pin arrives on its own and is saved automatically; you never record coordinates yourself.",
     input_schema: {
       type: 'object',
       properties: {
@@ -1042,7 +1045,18 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!body) return fail('body is required — say why you need the pin.');
 
       const existing = repo.getIdentity(ctx.phone).location;
-      ctx.outbound.push({ kind: 'location_request', text: body.slice(0, 1024) });
+
+      // One sentence, appended here rather than left to the model.
+      //
+      // It is the whole answer to a customer who is not at the address they
+      // want delivered to. WhatsApp's location screen is not only "send where
+      // I am": the map can be dragged and the pin follows it, and a place can
+      // be searched for. Almost nobody knows that unless they are told, and a
+      // model that paraphrases it four times out of five loses the fifth
+      // order. So it is fixed text, in every language, on every ask.
+      const hint = t('pin_elsewhere', languageFor(ctx.phone));
+      const asked = body.includes(hint) ? body : `${body}${chr10}${chr10}${hint}`;
+      ctx.outbound.push({ kind: 'location_request', text: asked.slice(0, 1024) });
       return ok({
         sent: true,
         ...(existing ? { note_already_on_file: locationView(existing) } : {}),

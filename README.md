@@ -1242,6 +1242,35 @@ carry digits; the associate is then never asked for a code they were never given
 
 Set `DELIVERY_CODE` to `false` to switch it off.
 
+### Delivering somewhere the customer is not
+
+WhatsApp's location screen is not only *send where I am*: the map can be
+dragged and the pin follows it, and a place can be searched for. Almost nobody
+knows that unless they are told, so one sentence is appended to every pin
+request, in the customer's own language:
+
+```
+Send me the delivery pin and I will get this moving.
+
+Not where you are now? Drag the map, or search for the place,
+before you send it.
+
+                                   [ Send location ]
+```
+
+Fixed text, added by the code rather than left to the model. It is the one
+sentence that decides whether a customer away from the address can order at
+all, and a model that paraphrases it four times out of five loses the fifth
+order. It is also not repeated if the model happens to have said it already.
+
+Nothing downstream changes: the customer sends a real pin, so the order gets a
+map card, a service-area check and a navigable link exactly as any other does.
+
+The limit, honestly: dragging the map is confirmed on Android, which is most of
+Guyana, and iOS guidance is less consistent. A customer who still cannot send a
+pin is told a staff member will take the order by hand — which needs
+`STAFF_NUMBERS` to be set.
+
 ### Counting the cash
 
 The shop trades cash on delivery, so at the end of a shift somebody is carrying

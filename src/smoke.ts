@@ -1039,6 +1039,36 @@ section('Location pins');
   check('request_location reports it sent', asked.sent === true, JSON.stringify(asked));
   check('queues a location request', pinCtx.outbound[0]?.kind === 'location_request', JSON.stringify(pinCtx.outbound[0]));
   check('the button carries the body text', pinCtx.outbound[0]?.text.includes('Pop me your location') === true);
+
+  // The sentence that answers a customer who is not at the address. Appended
+  // by the code, so a model that paraphrases it cannot drop it - and in their
+  // own language, since the whole point is that they understand it.
+  const whatTheySee = pinCtx.outbound[0]?.text ?? '';
+  check('and tells them the pin need not be where they are', /drag the map/i.test(whatTheySee), whatTheySee);
+  check('and how to move it', /search for the place/i.test(whatTheySee), whatTheySee);
+
+  repo.setCustomerLanguage(pinPhone, 'es');
+  const inSpanish: ToolContext = { phone: pinPhone, outbound: [] };
+  JSON.parse(executeTool('request_location', { body: 'Envíeme su ubicación.' }, inSpanish));
+  const spanish = inSpanish.outbound[0]?.text ?? '';
+  check('in the customer language, not English', /Mueva el mapa/i.test(spanish), spanish);
+  check('and never both at once', !/drag the map/i.test(spanish), spanish);
+  repo.setCustomerLanguage(pinPhone, 'en');
+
+  // Said twice in one message, it reads as a shop that has lost its place.
+  const twice: ToolContext = { phone: pinPhone, outbound: [] };
+  JSON.parse(
+    executeTool(
+      'request_location',
+      { body: 'Send the pin. Not where you are now? Drag the map, or search for the place, before you send it.' },
+      twice,
+    ),
+  );
+  check(
+    'not repeated when the model already said it',
+    (twice.outbound[0]?.text.match(/Drag the map/gi) ?? []).length === 1,
+    twice.outbound[0]?.text,
+  );
   check('and is not restated', String(asked.next).includes('do not repeat'), asked.next);
   check('an empty body is refused', typeof pinCall('request_location', { body: '  ' }).error === 'string');
 
