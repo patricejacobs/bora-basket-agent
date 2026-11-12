@@ -2995,6 +2995,54 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('The cap closes the shift it stopped');
+{
+  const him = config.driverNumbers[0]!;
+  const H = 3600_000;
+  db.prepare(`DELETE FROM associate_shifts WHERE phone = ?`).run(him);
+
+  // Three hours overnight, then back on six hours later.
+  const on1 = new Date(Date.now() - 20 * H);
+  const off1 = new Date(Date.now() - 17 * H);
+  const on2 = new Date(Date.now() - 9 * H);
+  db.prepare(`INSERT INTO associate_shifts (phone, started_at, ended_at) VALUES (?, ?, ?)`).run(him, on1.toISOString(), off1.toISOString());
+  db.prepare(`INSERT INTO associate_shifts (phone, started_at, ended_at) VALUES (?, ?, '')`).run(him, on2.toISOString());
+  db.prepare(`INSERT INTO associates (phone, name, vehicle, active, on_duty_at, updated_at)
+              VALUES (?, '', '', 1, ?, ?)
+              ON CONFLICT(phone) DO UPDATE SET on_duty_at = excluded.on_duty_at`).run(him, on2.toISOString(), on2.toISOString());
+
+  check('three plus nine is twelve', Math.round(repo.hoursWorkedToday(him)) === 12, String(repo.hoursWorkedToday(him)));
+  check('which is off duty', !repo.isOnDuty(him));
+
+  // Asking the question closed the shift, rather than leaving it to be
+  // guessed at again later with a different answer.
+  const row = db
+    .prepare(`SELECT ended_at AS endedAt FROM associate_shifts WHERE phone = ? ORDER BY id DESC LIMIT 1`)
+    .get(him) as { endedAt: string } | undefined;
+  check('the shift was closed', Boolean(row?.endedAt), JSON.stringify(row));
+
+  // And having been closed, the hours stop climbing. Left open they would
+  // have gone on accruing to the twelve-hour lapse - charging somebody for
+  // time they did not work and keeping them off far longer than they owed.
+  const later = new Date(Date.now() + 3 * H);
+  check(
+    'the hours do not climb afterwards',
+    Math.round(repo.hoursWorkedToday(him, later)) <= 12,
+    String(repo.hoursWorkedToday(him, later)),
+  );
+
+  // They come back when the oldest hours age out, not a day later.
+  const back = repo.canWorkAgainAt(him);
+  check('they may return', back !== null);
+  if (back) {
+    const hoursAway = (back.getTime() - Date.now()) / H;
+    check('within hours, not a whole day', hoursAway > 0 && hoursAway < 12, hoursAway.toFixed(1));
+    check('and by then they are under the cap', repo.hoursWorkedToday(him, back) < config.dutyHoursPerDay);
+  }
+  db.prepare(`DELETE FROM associate_shifts WHERE phone = ?`).run(him);
+  repo.setDuty(him, false);
+}
+
 section('Twelve hours in a day, however it is split');
 {
   const { handleDriverMessage } = await import('./staff.ts');

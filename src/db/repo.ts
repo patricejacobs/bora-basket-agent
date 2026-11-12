@@ -1623,31 +1623,67 @@ export function setDuty(phone: string, on: boolean): void {
  * did not thereby work all night, and banking those hours would lock them out
  * of a shift they are entitled to.
  */
-export function hoursWorkedToday(phone: string, now = new Date()): number {
-  const digits = phone.replace(/[^0-9]/g, '');
-  const windowStart = now.getTime() - 24 * 3600_000;
-  const lapseMs = config.dutyHours * 3600_000;
-
+/**
+ * Each stretch worked, with an end that can be relied on.
+ *
+ * A stretch still running has no recorded end, and three things can have
+ * stopped it: the clock, the twelve-hour lapse, or the day's cap. The cap is
+ * the subtle one. It takes somebody off duty without closing their shift, so a
+ * row left open would go on accruing hours they did not work - and those
+ * phantom hours sit in the rolling window keeping them off duty long after
+ * they should be back.
+ *
+ * So an open stretch ends at the earliest of: now, when it would lapse, and
+ * the moment it carried them to the day's limit.
+ */
+function effectiveShifts(
+  phone: string,
+  now: Date,
+): { from: number; to: number }[] {
   const rows = db
     .prepare(
       `SELECT started_at AS startedAt, ended_at AS endedAt FROM associate_shifts
-        WHERE phone = ? AND (ended_at = '' OR ended_at >= ?)
-        ORDER BY started_at ASC`,
+        WHERE phone = ? ORDER BY started_at ASC`,
     )
-    .all(digits, new Date(windowStart).toISOString()) as unknown as {
-    startedAt: string;
-    endedAt: string;
-  }[];
+    .all(phone.replace(/[^0-9]/g, '')) as unknown as { startedAt: string; endedAt: string }[];
 
-  let worked = 0;
+  const lapseMs = config.dutyHours * 3600_000;
+  const limitMs = config.dutyHoursPerDay > 0 ? config.dutyHoursPerDay * 3600_000 : Infinity;
+  const windowStart = now.getTime() - 24 * 3600_000;
+
+  const out: { from: number; to: number }[] = [];
+  let running = 0;
+
   for (const row of rows) {
     const from = new Date(row.startedAt).getTime();
     if (!Number.isFinite(from)) continue;
-    const to = row.endedAt
-      ? new Date(row.endedAt).getTime()
-      : Math.min(now.getTime(), from + lapseMs);
-    if (!Number.isFinite(to)) continue;
 
+    let to: number;
+    if (row.endedAt) {
+      to = new Date(row.endedAt).getTime();
+      if (!Number.isFinite(to)) continue;
+    } else {
+      // Whichever stopped them first.
+      const room = Math.max(0, limitMs - running);
+      to = Math.min(now.getTime(), from + lapseMs, from + room);
+    }
+
+    out.push({ from, to });
+    const inWindow = Math.min(to, now.getTime()) - Math.max(from, windowStart);
+    if (inWindow > 0) running += inWindow;
+  }
+  return out;
+}
+
+/**
+ * Hours worked in the last 24, counting every stretch rather than the current
+ * one. A limit that reset each time somebody clocked off would be no limit:
+ * four hours on, off, then twelve more.
+ */
+export function hoursWorkedToday(phone: string, now = new Date()): number {
+  const windowStart = now.getTime() - 24 * 3600_000;
+  let worked = 0;
+  for (const { from, to } of effectiveShifts(phone, now)) {
     const overlap = Math.min(to, now.getTime()) - Math.max(from, windowStart);
     if (overlap > 0) worked += overlap;
   }
@@ -1657,7 +1693,7 @@ export function hoursWorkedToday(phone: string, now = new Date()): number {
 /**
  * When somebody who has hit the cap may work again.
  *
- * Worked out by stepping to the moment each past shift falls out of the
+ * Worked out by stepping to the moment each past stretch falls out of the
  * rolling window, rather than guessing at an interval. Null when they are not
  * capped.
  */
@@ -1665,25 +1701,16 @@ export function canWorkAgainAt(phone: string, now = new Date()): Date | null {
   const limit = config.dutyHoursPerDay;
   if (limit <= 0 || hoursWorkedToday(phone, now) < limit) return null;
 
-  const digits = phone.replace(/[^0-9]/g, '');
-  const rows = db
-    .prepare(
-      `SELECT started_at AS startedAt, ended_at AS endedAt FROM associate_shifts
-        WHERE phone = ? ORDER BY started_at ASC`,
-    )
-    .all(digits) as unknown as { startedAt: string; endedAt: string }[];
+  const shifts = effectiveShifts(phone, now);
+  // A minute past the moment a stretch leaves the window, so the comparison
+  // is not decided by whether it lands exactly on the boundary.
+  const candidates = shifts
+    .map((sft) => new Date(sft.from + 24 * 3600_000 + 60_000))
+    .filter((d) => d > now)
+    .sort((a, b) => a.getTime() - b.getTime());
 
-  const lapseMs = config.dutyHours * 3600_000;
-  for (const row of rows) {
-    const from = new Date(row.startedAt).getTime();
-    const to = row.endedAt
-      ? new Date(row.endedAt).getTime()
-      : Math.min(now.getTime(), from + lapseMs);
-    if (!Number.isFinite(to)) continue;
-
-    // The moment this stretch has fully left the 24-hour window.
-    const candidate = new Date(to + 24 * 3600_000);
-    if (candidate > now && hoursWorkedToday(phone, candidate) < limit) return candidate;
+  for (const candidate of candidates) {
+    if (hoursWorkedToday(phone, candidate) < limit) return candidate;
   }
   return null;
 }
@@ -1709,10 +1736,41 @@ export function onDutySince(phone: string, now = new Date()): string {
 
 export function isOnDuty(phone: string, now = new Date()): boolean {
   if (onDutySince(phone, now) === '') return false;
-  // Over the day's limit is off duty, whatever the clock-in says. Checked
-  // here so no caller can send a job to somebody who has worked enough.
+
   const limit = config.dutyHoursPerDay;
-  return limit <= 0 || hoursWorkedToday(phone, now) < limit;
+  if (limit <= 0) return true;
+  if (hoursWorkedToday(phone, now) < limit) return true;
+
+  // Over the limit. Write down that the shift ended, rather than leaving it
+  // open to be inferred again later.
+  //
+  // An open shift's end has to be guessed at, and the guess depends on when
+  // you ask: hours that have aged out of the rolling window make the same
+  // shift look longer. That is how somebody capped at 5pm was told to come
+  // back at 8am the next day instead of 11pm the same night. Recording the
+  // moment makes it a fact, and facts do not move.
+  closeShiftAtCap(phone, now);
+  return false;
+}
+
+/** Closes a running shift at the moment the day's limit stopped it. */
+function closeShiftAtCap(phone: string, now: Date): void {
+  const digits = phone.replace(/[^0-9]/g, '');
+  const open = db
+    .prepare(`SELECT id, started_at AS startedAt FROM associate_shifts WHERE phone = ? AND ended_at = '' LIMIT 1`)
+    .get(digits) as { id: number; startedAt: string } | undefined;
+  if (!open) return;
+
+  const ends = effectiveShifts(digits, now).at(-1)?.to ?? now.getTime();
+  db.prepare(`UPDATE associate_shifts SET ended_at = ? WHERE id = ?`).run(
+    new Date(Math.min(ends, now.getTime())).toISOString(),
+    open.id,
+  );
+  // And off duty, so the two never disagree.
+  db.prepare(`UPDATE associates SET on_duty_at = '', updated_at = ? WHERE phone = ?`).run(
+    nowIso(),
+    digits,
+  );
 }
 
 export function getAssociate(phone: string): Associate | null {
