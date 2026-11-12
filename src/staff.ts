@@ -20,6 +20,7 @@ import {
   type Audience,
 } from './order-status.ts';
 import {
+  chasePinIfMissing,
   dispatchToDrivers,
   flushOutletTickets,
   onTheWayCard,
@@ -88,6 +89,15 @@ async function applyStatus(
   // once each, so a tap on an old message cannot move them.
   if (status === 'ready') repo.markReadyAt(order.orderNo);
   if (status === 'on_the_way') repo.markUpliftedAt(order.orderNo);
+  // An order with no pin gets one last chance at one, now that somebody is
+  // actually going there. Both stages, because a grocery order has no "ready" -
+  // the ask itself is write-once, so whichever fires first wins and the second
+  // does nothing.
+  if (status === 'ready' || status === 'on_the_way') {
+    void chasePinIfMissing(order.orderNo).catch((err) =>
+      console.error('[staff] could not chase the pin:', err),
+    );
+  }
   const updated = { ...order, status };
 
   const notes: string[] = [];

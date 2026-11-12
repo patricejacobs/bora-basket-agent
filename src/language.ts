@@ -106,6 +106,7 @@ const STRINGS: Record<Language, Dictionary> = {
     on_the_way:
       '{name}, your order {order} is on its way 🛵\nTotal {total}, payable to the delivery associate.',
     delivered: 'Order {order} delivered. Thank you for choosing {store}!',
+    chase_pin: 'Order {order} is on its way. If you are at the delivery address now, tap below to share your pin — it gets the delivery associate to your door faster. If not, they will ring you when they are close.',
     delivered_confirmed: 'Order {order} delivered.' + chr10 + 'Delivery code: confirmed.' + chr10 + chr10 + 'Thank you for choosing {store}!',
     delivered_unverified: 'Order {order} delivered.' + chr10 + 'Delivery code: not confirmed.' + chr10 + chr10 + 'Thank you for choosing {store}!',
     delivered_check: chr10 + chr10 + 'Anything wrong with this order? Just message us.',
@@ -168,6 +169,7 @@ const STRINGS: Record<Language, Dictionary> = {
     on_the_way:
       '{name}, su pedido {order} va en camino 🛵\nTotal {total}, a pagar al repartidor.',
     delivered: 'Pedido {order} entregado. ¡Gracias por elegir {store}!',
+    chase_pin: 'El pedido {order} va en camino. Si ya está en la dirección de entrega, toque abajo para compartir su ubicación — el repartidor llegará antes a su puerta. Si no, le llamará cuando esté cerca.',
     delivered_confirmed: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: confirmado.' + chr10 + chr10 + '¡Gracias por elegir {store}!',
     delivered_unverified: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: no confirmado.' + chr10 + chr10 + '¡Gracias por elegir {store}!',
     delivered_check: chr10 + chr10 + '¿Algo va mal con este pedido? Escríbanos.',
@@ -230,6 +232,7 @@ const STRINGS: Record<Language, Dictionary> = {
     on_the_way:
       '{name}, o seu pedido {order} está a caminho 🛵\nTotal {total}, a pagar ao entregador.',
     delivered: 'Pedido {order} entregue. Obrigado por escolher {store}!',
+    chase_pin: 'O pedido {order} está a caminho. Se já estiver no endereço de entrega, toque abaixo para partilhar a sua localização — o entregador chega mais depressa à sua porta. Caso contrário, ligará quando estiver perto.',
     delivered_confirmed: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: confirmado.' + chr10 + chr10 + 'Obrigado por escolher {store}!',
     delivered_unverified: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: não confirmado.' + chr10 + chr10 + 'Obrigado por escolher {store}!',
     delivered_check: chr10 + chr10 + 'Algo errado com este pedido? Envie-nos uma mensagem.',
@@ -290,6 +293,7 @@ const STRINGS: Record<Language, Dictionary> = {
     confirmed: '谢谢{name}，订单 {order} 已确认。出发时我们会通知您。',
     on_the_way: '{name}，您的订单 {order} 已出发 🛵\n共计 {total}，请付给配送员。',
     delivered: '订单 {order} 已送达。感谢您选择 {store}！',
+    chase_pin: '订单 {order} 已出发。如果您现在在收货地址，请点击下方分享位置——配送员可以更快找到您。如果不在，他会在附近时给您打电话。',
     delivered_confirmed: '订单 {order} 已送达。' + chr10 + '收货码：已确认。' + chr10 + chr10 + '感谢您选择 {store}！',
     delivered_unverified: '订单 {order} 已送达。' + chr10 + '收货码：未确认。' + chr10 + chr10 + '感谢您选择 {store}！',
     delivered_check: chr10 + chr10 + '这笔订单有任何问题吗？请给我们发消息。',

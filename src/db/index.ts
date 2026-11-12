@@ -397,6 +397,35 @@ addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
 // future code path can set one without the other.
 addColumnIfMissing('orders', 'delivered_at', "TEXT NOT NULL DEFAULT ''");
 
+// Whether the customer has been asked for a pin after the order was placed.
+//
+// Write-once, because the ask goes out when an associate is being sent and
+// asking twice for the same order reads as a shop that has lost track of it.
+addColumnIfMissing('orders', 'pin_asked_at', "TEXT NOT NULL DEFAULT ''");
+
+// Places a customer has had something delivered to.
+//
+// One pin on the customer row covers the common case - most people order to
+// the same door - but not the customer standing somewhere else, which is the
+// whole reason this exists. Keyed on the coordinates rounded to about ten
+// metres: two pins dropped on the same gate on different days are the same
+// place, and storing both would offer the customer a choice between two
+// identical lines.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS customer_places (
+    phone      TEXT NOT NULL,
+    place_key  TEXT NOT NULL,
+    label      TEXT NOT NULL DEFAULT '',
+    address    TEXT NOT NULL DEFAULT '',
+    pin_label  TEXT NOT NULL DEFAULT '',
+    latitude   REAL NOT NULL,
+    longitude  REAL NOT NULL,
+    first_at   TEXT NOT NULL,
+    used_at    TEXT NOT NULL,
+    PRIMARY KEY (phone, place_key)
+  )
+`);
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *

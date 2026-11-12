@@ -242,7 +242,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'request_location',
     description:
-      "Send the customer a 'Send location' button so they can share their exact delivery pin from WhatsApp. Every order needs a pin, so call this as soon as you know they intend to order and none is on file. Keep the body to the request for the pin alone — one short line — and say everything else about their order in your normal reply, which is sent with it. Their pin arrives on its own and is saved automatically; you never record coordinates yourself.",
+      "Send the customer a 'Send location' button so they can share the delivery pin from WhatsApp. Every order needs a pin, so call this as soon as you know they intend to order and none is on file. Keep the body to the request for the pin alone — one short line — and say everything else about their order in your normal reply, which is sent with it. A note is added for you telling them they can drop the pin on the destination rather than on where they are standing, so do not say that yourself. Their pin arrives on its own and is saved automatically; you never record coordinates yourself. If they say they cannot send one at all, take a written address with save_customer_details instead.",
     input_schema: {
       type: 'object',
       properties: {
@@ -261,6 +261,34 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     description:
       "Record that the customer has confirmed who they are and where to deliver. Call this only after they have actually said yes to the name and delivery point you read back to them — never on an assumption, and never on a name that only came from their WhatsApp profile. An order cannot be placed until this is done.",
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'delivery_places',
+    description:
+      "Places this customer has had something delivered to before, most recent first. Call it when they are ordering somewhere other than their usual door, or say they are not at home — it is often faster than asking for a new pin. Read the options back to them and let them choose; never pick for them.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'use_delivery_place',
+    description:
+      "Set one of the places from delivery_places as where this order goes. Match on the name the customer used or a distinctive part of the address. Only call it once they have clearly chosen one — this is the delivery address, and a wrong guess sends the order to the wrong house.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        place: {
+          type: 'string',
+          description:
+            "Which place, as the customer identified it: its saved name, or a distinctive part of its address.",
+        },
+        label: {
+          type: 'string',
+          description:
+            "Optional name to remember this place by, when the customer gives one — \"mum's\", \"the shop\". Only pass a name they actually said.",
+        },
+      },
+      required: ['place'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'customer_record',
@@ -297,6 +325,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
+        without_pin: {
+          type: 'boolean',
+          description:
+            'Only true when the customer has been asked for a location pin and has said they cannot send one, and a written address has been saved. The order is then flagged for the delivery associate to ring on arrival. Never set this to avoid waiting for a pin.',
+        },
         payment_method: {
           type: 'string',
           // Only what the shop can actually take, so an unsupported method
@@ -1042,7 +1075,16 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!body) return fail('body is required — say why you need the pin.');
 
       const existing = repo.getIdentity(ctx.phone).location;
-      ctx.outbound.push({ kind: 'location_request', text: body.slice(0, 1024) });
+      // Appended rather than left to the model, because it is the one sentence
+      // that decides whether a customer away from the address can order at
+      // all. WhatsApp's location sheet is not only "send where I am" - the map
+      // can be moved and a place searched - and almost nobody knows that
+      // unless they are told. A model that paraphrases it on four calls out of
+      // five is a model that loses the fifth order.
+      const hint =
+        'You can drag the map or search for the place — it does not have to be where you are now.';
+      const body2 = `${body}${body.includes('drag the map') ? '' : `${String.fromCharCode(10)}${String.fromCharCode(10)}${hint}`}`;
+      ctx.outbound.push({ kind: 'location_request', text: body2.slice(0, 1024) });
       return ok({
         sent: true,
         ...(existing ? { note_already_on_file: locationView(existing) } : {}),
@@ -1058,6 +1100,50 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       }
       repo.confirmIdentity(ctx.phone);
       return ok({ confirmed: true, name: id.name, location_pin: locationView(id.location) });
+    }
+
+    case 'delivery_places': {
+      const places = repo.deliveryPlaces(ctx.phone, 5);
+      if (places.length === 0) {
+        return ok({
+          places: [],
+          next: 'Nothing on file. Ask for a pin with request_location, or take a written address.',
+        });
+      }
+      return ok({
+        places: places.map((pl) => ({
+          ...(pl.label ? { name: pl.label } : {}),
+          address: pl.address || pl.pinLabel || 'no description saved',
+          last_used: pl.usedAt.slice(0, 10),
+        })),
+        next: 'Read these back and let the customer choose, then call use_delivery_place. Do not choose for them.',
+      });
+    }
+
+    case 'use_delivery_place': {
+      const wanted = asString(input.place);
+      if (!wanted) return fail('Say which place — a saved name, or part of the address.');
+
+      const picked = repo.usePlace(ctx.phone, wanted, asString(input.label));
+      if (picked === 'ambiguous') {
+        return fail(
+          `"${wanted}" matches more than one saved place. List them again with delivery_places and ask the customer which they mean — do not guess.`,
+        );
+      }
+      if (!picked) {
+        return fail(
+          `No saved place matching "${wanted}". Call delivery_places to see what there is, or ask for a pin.`,
+        );
+      }
+      // usePlace withdraws the identity confirmation, since the place it was
+      // given for has changed. Hence the instruction to read it back below.
+      return ok({
+        using: {
+          ...(picked.label ? { name: picked.label } : {}),
+          address: picked.address || picked.pinLabel,
+        },
+        next: 'This is now the delivery address. Read it back, get a clear yes, then call confirm_identity before ordering.',
+      });
     }
 
     case 'customer_record': {
@@ -1139,15 +1225,33 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // A delivery service with no pin is a delivery associate phoning from the road. The
       // rule is enforced here rather than left to the prompt, because this is
       // the one failure that cannot be recovered after the van leaves.
-      if (!customer.location) {
+      //
+      // There is no administrator here to take an order by hand, so refusing
+      // outright - which is what this did - simply lost it. Instead the model
+      // must have asked for the pin, been told it cannot be sent, and have a
+      // written address in hand. Then the order goes through flagged, and the
+      // person who resolves it is the associate going there anyway.
+      const withoutPin = input.without_pin === true;
+      if (!customer.location && !withoutPin) {
         return fail(
-          'Cannot place the order — no location pin has been shared. Call request_location and wait for the pin to arrive. If the customer genuinely cannot send one, tell them a staff member will take the order by hand on this chat, and do not place it.',
+          'Cannot place the order — no location pin has been shared. Call request_location and wait for the pin to arrive. Only if the customer has said they cannot send one: save a written address with save_customer_details, tell them the delivery associate will ring them on arrival, and then call place_order again with without_pin true.',
+        );
+      }
+      if (!customer.location && !(customer.address ?? '').trim()) {
+        return fail(
+          'Cannot place the order without a pin and without a written address — the delivery associate would have nowhere to go and nothing to read out on the phone. Ask where it is going, save it with save_customer_details, then try again.',
         );
       }
       // Outside the delivery area. Refused here for the same reason a missing
-      // pin is: once the van has gone, nobody can undo it. Staff can still take
-      // the order by hand if the shop decides to make the trip.
-      const range = checkRange(customer.location, config.store.serviceArea);
+      // pin is: once the van has gone, nobody can undo it.
+      //
+      // Unknowable without a pin, which is one of the real costs of allowing
+      // one through: a written address cannot be measured against the delivery
+      // radius. The associate reads the address before setting off, which is
+      // the only check left.
+      const range = customer.location
+        ? checkRange(customer.location, config.store.serviceArea)
+        : { state: 'unchecked' as const, distanceKm: null, radiusKm: 0 };
       if (range.state === 'outside') {
         return fail(
           `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
@@ -1157,7 +1261,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Goods go to a person at a place. Confirming who and where is not
       // something to leave to the model's discretion.
       if (!customer.confirmed) {
-        const where = customer.location.label || 'the pin they shared';
+        const where =
+          customer.location?.label || customer.address || 'the pin they shared';
         return fail(
           `Identity not confirmed. Read back "${customer.name}, ${where}", get a clear yes, then call confirm_identity before ordering.`,
         );

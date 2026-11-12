@@ -1242,6 +1242,73 @@ carry digits; the associate is then never asked for a code they were never given
 
 Set `DELIVERY_CODE` to `false` to switch it off.
 
+### Ordering to somewhere you are not
+
+A pin is the only unambiguous way to describe a door, so checkout asks for one.
+But a customer ordering at ten in the morning for an address they reach at six
+cannot send one, and this used to refuse the order outright and tell them a
+staff member would take it by hand. **There is no staff member in this shop**,
+so that was a dead end that lost every such order.
+
+Four steps, no administrator in any of them.
+
+**The pin request says what WhatsApp can actually do.** Its location sheet is
+not only *send where I am* — the map can be dragged and a place searched. Almost
+nobody knows that unless told, so the line is appended by the code rather than
+left to the model to paraphrase:
+
+> You can drag the map or search for the place — it does not have to be where
+> you are now.
+
+**Places are remembered.** Every order with a pin files where it went, keyed on
+the coordinates rounded to about ten metres — the same gate twice is one place,
+not two identical lines to choose between. Next time: *"send it to mum's"*. A
+pin shared and then abandoned mid-conversation is deliberately **not** kept;
+offering that back later is the shop remembering a mistake.
+
+Choosing a saved place withdraws the identity confirmation, because the
+confirmation was of a person *and* a place together. Without that, a customer
+who agreed to "Marcia, Kitty" an hour ago would have silently agreed to this
+order going to Diamond.
+
+**An order can go through with a written address and no pin.** It needs the
+model to have asked for a pin, been told it cannot be sent, and to have an
+address in hand. The associate's card then leads with the problem rather than
+burying it under the phone number, because it changes how the trip is planned:
+
+```
+⚠️ NO PIN — ring before you set off
+
+Deliver to: Marcia Persaud
+Lot 77 Mocha, East Bank
+Call when you reach the junction
+📞 +5926123456
+The customer could not send a pin. The address above is all there is.
+
+Collect $235,000 cash
+```
+
+The honest cost: a written address cannot be measured against the delivery
+radius, so a no-pin order skips the service-area check. The associate reading
+the address before setting off is the only check left.
+
+**And the question is asked once more, when it can be answered.** As an
+associate is dispatched, the customer is likely to be at the address at last:
+
+```
+Order ORD-00061 is on its way. If you are at the delivery address now,
+tap below to share your pin — it gets the delivery associate to your
+door faster. If not, they will ring you when they are close.
+```
+
+A pin arriving then is written onto **the order**, not only onto the customer —
+an order carries its own copy of where it is going, so that a later change of
+address cannot move a delivery that already happened, which also means a pin
+saved on the customer alone would never reach the associate holding the bag.
+Whoever is carrying it gets the map card at once, the warning disappears from
+their card, and the ask is write-once so nobody is pestered twice. A pin for an
+order already delivered is a pin for next time.
+
 ### Counting the cash
 
 The shop trades cash on delivery, so at the end of a shift somebody is carrying

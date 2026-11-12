@@ -14,7 +14,15 @@
  */
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
-import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
+import {
+  sendText,
+  sendButtons,
+  sendTemplate,
+  sendLocation,
+  sendLocationRequest,
+} from './channels/whatsapp-send.ts';
+import { t } from './language.ts';
+import { languageFor } from './services.ts';
 import { nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin, mapsLink, distanceKm } from './location.ts';
@@ -314,6 +322,10 @@ export function dropLines(order: repo.OrderRecord): string[] {
   const receiverPhone = isParcel ? order.recipientPhone : order.contactPhone || order.phone;
 
   return [
+    // A missing pin goes first, not last. It changes how the trip is planned -
+    // ring before setting off, not after arriving at a street you cannot find -
+    // and a warning underneath the phone number is a warning read too late.
+    ...(order.location ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
     `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),
     // What the customer said about finding the door. It was going to staff
@@ -322,7 +334,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
     `📞 +${receiverPhone}`,
     ...(order.location
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
-      : ['⚠️ No location pin on this order - ring the customer']),
+      : ['The customer could not send a pin. The address above is all there is.']),
     '',
     // What it is made of, so the cash can be checked against the bag rather
       // than taken on trust at the door.
@@ -344,17 +356,85 @@ export function dropLines(order: repo.OrderRecord): string[] {
  */
 export function onTheWayCard(order: repo.OrderRecord): string {
   const head = `🛵 *${order.orderNo}* on the way`;
-  if (!repo.deliveryCodeExpected(order.orderNo)) return head;
+  // No pin: the one fact worth repeating here, because it is the difference
+  // between navigating and telephoning.
+  const noPin = order.location ? '' : `${String.fromCharCode(10)}⚠️ No pin — ring +${order.contactPhone || order.phone}`;
+  if (!repo.deliveryCodeExpected(order.orderNo)) return head + noPin;
 
   // The instruction replaces the button, so it has to carry its own weight:
   // what to do, and what to do when the customer cannot do it. This is the
   // last message in their chat and the one they come back to at the door.
   return [
-    head,
+    head + noPin,
     '',
     `🔐 Type the four-digit code from ${order.customerName.split(/\s+/)[0] || 'the customer'} to close it.`,
     'No code? Reply *no code*.',
   ].join(String.fromCharCode(10));
+}
+
+/**
+ * A pin that arrived after the order went out, passed on to whoever has it.
+ *
+ * Only to the associate carrying it. An unassigned order needs no message: its
+ * job card is built when it is dispatched and will have the pin on it by then,
+ * and a notice about an order nobody has taken is a notice to nobody.
+ */
+export async function tellAssociatePinArrived(orderNo: string): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order?.location || !order.driverPhone) return false;
+
+  const sent = await sendText(
+    order.driverPhone,
+    [
+      `📍 *${order.orderNo}* — the customer has sent a pin.`,
+      '',
+      `${order.customerName}${order.address ? `, ${order.address}` : ''}`,
+      mapsLink(order.location),
+      '',
+      'No need to ring ahead now unless you want to.',
+    ].join(String.fromCharCode(10)),
+  );
+
+  // The map card too, which is the thing they tap to navigate. The text above
+  // is for reading; this is for driving.
+  await sendLocation(order.driverPhone, {
+    latitude: order.location.latitude,
+    longitude: order.location.longitude,
+    name: `${order.orderNo} — ${order.customerName}`,
+    ...(order.address ? { address: order.address } : {}),
+  });
+  return sent;
+}
+
+/**
+ * Asks the customer for a pin once more, at the moment they are most likely to
+ * be able to answer.
+ *
+ * Somebody ordering at ten in the morning for an address they reach at six
+ * cannot send a pin at checkout, however it is asked for. By the time an
+ * associate is being dispatched they are usually there. So the question is
+ * repeated exactly once, when it has the best chance of working - and never
+ * again, because a shop that keeps asking for the same thing reads as one that
+ * has lost the order.
+ *
+ * Returns false when there was nothing to ask, nobody to ask, or it had been
+ * asked already. A failure here costs nothing: the associate still has the
+ * address and the phone number.
+ */
+export async function chasePinIfMissing(orderNo: string): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order || order.location) return false;
+
+  // Outside the 24-hour window a location request cannot be sent at all, and a
+  // template cannot carry one. Nothing to do but leave it to the phone call.
+  if (!repo.withinServiceWindow(order.phone)) {
+    console.warn(`[dispatch] ${orderNo} has no pin and the customer is outside the 24h window`);
+    return false;
+  }
+  if (!repo.markPinAsked(orderNo)) return false;
+
+  const lang = languageFor(order.phone);
+  return sendLocationRequest(order.phone, t('chase_pin', lang, { order: order.orderNo }));
 }
 
 /**
