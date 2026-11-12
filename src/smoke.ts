@@ -4502,6 +4502,49 @@ section('A queue, not a fault');
   repo.setDuty(rider, false);
 }
 
+section('One name for the person who delivers');
+{
+  const { t } = await import('./language.ts');
+
+  // The shop calls them a delivery associate. The ordinary trade word in each
+  // language - repartidor, entregador, pei song yuan - is perfectly polite and
+  // all three come back from a translator as "delivery man", which is how this
+  // was noticed: a customer read their own message through Translate.
+  const banned = ['repartidor', 'entregador', '配送员', 'delivery man', 'driver', 'rider'];
+  const expected: Record<string, string> = {
+    en: 'delivery associate',
+    es: 'asociado de entrega',
+    pt: 'associado de entrega',
+    zh: '配送专员',
+  };
+
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    for (const key of ['on_the_way', 'door_code', 'door_code_for']) {
+      const text = t(key, lang, { name: 'Dave', order: 'ORD-1', total: '$1', code: '1234' });
+      for (const word of banned) {
+        check(
+          `${lang}.${key} does not say "${word}"`,
+          !text.toLowerCase().includes(word.toLowerCase()),
+          text,
+        );
+      }
+      check(`${lang}.${key} names the role as the shop does`, text.includes(expected[lang] ?? ''), text);
+    }
+  }
+
+  // Nobody knows who will be sent, so no message may guess.
+  check(
+    'the Chinese messages do not assume a man',
+    !t('door_code', 'zh', { code: '1234' }).includes('他'),
+    t('door_code', 'zh', { code: '1234' }),
+  );
+  check(
+    'nor when it is passed on',
+    !t('door_code_for', 'zh', { code: '1234', name: 'Dave' }).includes('由他'),
+    t('door_code_for', 'zh', { code: '1234', name: 'Dave' }),
+  );
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

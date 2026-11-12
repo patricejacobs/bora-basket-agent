@@ -168,14 +168,14 @@ const STRINGS: Record<Language, Dictionary> = {
     confirmed:
       'Gracias {name} — el pedido {order} está confirmado. Le avisaremos cuando vaya en camino.',
     on_the_way:
-      '{name}, su pedido {order} va en camino 🛵\nTotal {total}, a pagar al repartidor.',
+      '{name}, su pedido {order} va en camino 🛵\nTotal {total}, a pagar al asociado de entrega.',
     delivered: 'Pedido {order} entregado. ¡Gracias por elegir {store}!',
     pin_elsewhere: '¿No está ahí ahora? Mueva el mapa, o busque el lugar, antes de enviarlo.',
     delivered_confirmed: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: confirmado.' + chr10 + chr10 + '¡Gracias por elegir {store}!',
     delivered_unverified: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: no confirmado.' + chr10 + chr10 + '¡Gracias por elegir {store}!',
     delivered_check: chr10 + chr10 + '¿Algo va mal con este pedido? Escríbanos.',
-    door_code_for: chr10 + chr10 + 'El código de entrega es *{code}* \u2014 déselo a {name}, quien se lo dirá al repartidor en la puerta, para que sepamos que el pedido llegó a las manos correctas.',
-    door_code: chr10 + chr10 + 'Su código de entrega es *{code}* — dígaselo al repartidor en la puerta, para que sepamos que su pedido llegó a las manos correctas.',
+    door_code_for: chr10 + chr10 + 'El código de entrega es *{code}* \u2014 déselo a {name}, quien se lo dirá al asociado de entrega en la puerta, para que sepamos que el pedido llegó a las manos correctas.',
+    door_code: chr10 + chr10 + 'Su código de entrega es *{code}* — dígaselo al asociado de entrega en la puerta, para que sepamos que su pedido llegó a las manos correctas.',
 
     cancel_sorry: 'Lo sentimos {name} —',
     cancel_done: 'Listo {name} —',
@@ -232,14 +232,14 @@ const STRINGS: Record<Language, Dictionary> = {
     confirmed:
       'Obrigado {name} — o pedido {order} está confirmado. Avisaremos quando estiver a caminho.',
     on_the_way:
-      '{name}, o seu pedido {order} está a caminho 🛵\nTotal {total}, a pagar ao entregador.',
+      '{name}, o seu pedido {order} está a caminho 🛵\nTotal {total}, a pagar ao associado de entrega.',
     delivered: 'Pedido {order} entregue. Obrigado por escolher {store}!',
     pin_elsewhere: 'Não está lá agora? Arraste o mapa, ou procure o local, antes de enviar.',
     delivered_confirmed: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: confirmado.' + chr10 + chr10 + 'Obrigado por escolher {store}!',
     delivered_unverified: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: não confirmado.' + chr10 + chr10 + 'Obrigado por escolher {store}!',
     delivered_check: chr10 + chr10 + 'Algo errado com este pedido? Envie-nos uma mensagem.',
-    door_code_for: chr10 + chr10 + 'O código de entrega é *{code}* \u2014 dê-o a {name}, que o informará ao entregador à porta, para sabermos que o pedido chegou às mãos certas.',
-    door_code: chr10 + chr10 + 'O seu código de entrega é *{code}* — informe-o ao entregador à porta, para sabermos que o seu pedido chegou às mãos certas.',
+    door_code_for: chr10 + chr10 + 'O código de entrega é *{code}* \u2014 dê-o a {name}, que o informará ao associado de entrega à porta, para sabermos que o pedido chegou às mãos certas.',
+    door_code: chr10 + chr10 + 'O seu código de entrega é *{code}* — informe-o ao associado de entrega à porta, para sabermos que o seu pedido chegou às mãos certas.',
 
     cancel_sorry: 'Lamentamos {name} —',
     cancel_done: 'Pronto {name} —',
@@ -294,14 +294,14 @@ const STRINGS: Record<Language, Dictionary> = {
     service_other: '其他',
 
     confirmed: '谢谢{name}，订单 {order} 已确认。出发时我们会通知您。',
-    on_the_way: '{name}，您的订单 {order} 已出发 🛵\n共计 {total}，请付给配送员。',
+    on_the_way: '{name}，您的订单 {order} 已出发 🛵\n共计 {total}，请付给配送专员。',
     delivered: '订单 {order} 已送达。感谢您选择 {store}！',
     pin_elsewhere: '现在不在那里？发送前请拖动地图，或搜索该地点。',
     delivered_confirmed: '订单 {order} 已送达。' + chr10 + '收货码：已确认。' + chr10 + chr10 + '感谢您选择 {store}！',
     delivered_unverified: '订单 {order} 已送达。' + chr10 + '收货码：未确认。' + chr10 + chr10 + '感谢您选择 {store}！',
     delivered_check: chr10 + chr10 + '这笔订单有任何问题吗？请给我们发消息。',
-    door_code_for: chr10 + chr10 + '收货码是 *{code}* — 请转告 {name}，由他在门口告知配送员，以确认订单送到正确的人手中。',
-    door_code: chr10 + chr10 + '您的收货码是 *{code}* — 配送员到达时请告知他，以确认订单送到正确的人手中。',
+    door_code_for: chr10 + chr10 + '收货码是 *{code}* — 请转告 {name}，在门口告知配送专员，以确认订单送到正确的人手中。',
+    door_code: chr10 + chr10 + '您的收货码是 *{code}* — 配送专员到达时请告知对方，以确认订单送到正确的人手中。',
 
     cancel_sorry: '很抱歉{name}，',
     cancel_done: '好的{name}，',

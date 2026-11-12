@@ -1297,6 +1297,29 @@ radius, so such an order skips the service-area check. The associate reading it
 before setting off is the only check left. The human who resolves it is the one
 going there anyway — not an administrator.
 
+### One name for the person who delivers
+
+They are a **delivery associate** — in every message, to everybody, in every
+language. Never a driver, a rider or a delivery man.
+
+That last one is why this is written down. The ordinary trade word in each
+language is perfectly polite in it: `repartidor`, `entregador`, `配送员`. But
+all three come back from a translator as *delivery man*, which is exactly how
+this was noticed — a customer read their own message through WhatsApp Translate
+and it said "Completely $5,900, pay the delivery man". The Spanish had been
+`Total $5,900, a pagar al repartidor`, which is correct Spanish and the wrong
+words for this shop.
+
+So all four now use the role as a job title: `asociado de entrega`,
+`associado de entrega`, `配送专员`. The agent is told the same thing, since it
+writes its own prose and would otherwise reach for whatever is idiomatic.
+
+The Chinese also stopped saying 他 — *him*. Nobody knows who will be sent, so no
+message should guess.
+
+A test walks every language and every message that names the role, and fails on
+any of the six banned words.
+
 ### Delivering to somebody other than the buyer
 
 A customer often orders for someone else. The card used to name the buyer and
