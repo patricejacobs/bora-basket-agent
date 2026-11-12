@@ -2995,6 +2995,42 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('Where the associates are');
+{
+  const { handleStaffMessage } = await import('./staff.ts');
+
+  const them = config.driverNumbers;
+  check('there is a roster', them.length > 0, JSON.stringify(them));
+
+  const first = them[0]!;
+  repo.upsertAssociate({ phone: first, name: 'Rider One', vehicle: 'GSS 1234' });
+  repo.saveAssociateLocation(first, { latitude: 6.8065, longitude: -58.1489 }, 'shared');
+
+  const view = (await handleStaffMessage('where', '5926497570'))[0]?.text ?? '';
+  check('the roster is listed', view.includes('Rider One'), view);
+  check('with the vehicle', view.includes('GSS 1234'), view);
+  check('and a tappable position', /maps\?q=6\.806500/.test(view), view);
+  check('and how old it is', /ago|just now/.test(view), view);
+
+  // Age is the point. A position from last week is not where somebody is.
+  db.prepare(`UPDATE associate_locations SET updated_at = ? WHERE phone = ?`).run(
+    new Date(Date.now() - 5 * 3600_000).toISOString(),
+    first,
+  );
+  const stale = (await handleStaffMessage('where', '5926497570'))[0]?.text ?? '';
+  check('a stale position is flagged', /hours ago/.test(stale), stale);
+
+  // Somebody with no position at all is still listed, not hidden.
+  const unknown = them.find((p2) => !repo.getAssociateLocation(p2));
+  if (unknown) check('and one with no position still appears', stale.includes(unknown.slice(-4)), stale);
+
+  // Asking by name finds the person; a name nobody has does not.
+  const asked = (await handleStaffMessage('where Rider', '5926497570'))[0]?.text ?? '';
+  check('asking by name finds them', /Rider One/.test(asked), asked);
+  const nobody = (await handleStaffMessage('where Nobody At All', '5926497570'))[0]?.text ?? '';
+  check('and an unknown name is refused', /No delivery associate matching/.test(nobody), nobody);
+}
+
 section('Who carried it');
 {
   const { importAssociatesText } = await import('./catalog/import-associates.ts');
@@ -3003,7 +3039,7 @@ section('Who carried it');
   const csv = [
     'phone,name,vehicle,active',
     '5926001111,Rider One,GSS 1234,1',
-    '5926002222,Marcia Khan,,1',
+    '5926002222,Rider Two,,1',
     '5926003333,Old Hand,GHH 9999,0',
     ',Nameless Number,,1',
     '5926004444,,XXX 1,1',
@@ -3016,7 +3052,7 @@ section('Who carried it');
   const wayne = repo.getAssociate('5926001111');
   check('a name is recorded', wayne?.name === 'Rider One');
   check('and a vehicle', wayne?.vehicle === 'GSS 1234');
-  check('an associate with no vehicle is still fine', repo.getAssociate('5926002222')?.name === 'Marcia Khan');
+  check('an associate with no vehicle is still fine', repo.getAssociate('5926002222')?.name === 'Rider Two');
   check('and inactive is kept but marked', repo.getAssociate('5926003333')?.active === 0);
   check('a formatted number is matched on digits', repo.getAssociate('+592 600 1111')?.name === 'Rider One');
 

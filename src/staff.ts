@@ -8,7 +8,7 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus, warnStaff } from './notifications.ts';
-import { sendText } from './channels/whatsapp-send.ts';
+import { sendLocationRequest, sendText } from './channels/whatsapp-send.ts';
 import {
   STATUS_LABEL,
   STATUS_WORDS,
@@ -215,6 +215,71 @@ async function applyStatus(
   return { body: `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${notes.join('\n')}`, status };
 }
 
+/**
+ * Where the delivery associates are, as well as anyone can know.
+ *
+ * WhatsApp gives a business a pin, not a track. Live location is a consumer
+ * feature and does not reach a business number, so there is no continuous
+ * trace to show - only the last position each associate gave us, and when.
+ *
+ * Two things give one: a pin they shared, and every doorstep they delivered
+ * to, which is the position nobody has to ask for because they were
+ * demonstrably standing on it when they tapped Delivered.
+ *
+ * The age matters more than the position. Six minutes old is where they are;
+ * two hours old is where they were, and saying so is the difference between
+ * a dispatcher trusting it and being misled by it.
+ */
+async function describeAssociates(): Promise<string> {
+  const roster = config.driverNumbers;
+  if (roster.length === 0) return 'No delivery associates are set up (DRIVER_NUMBERS is empty).';
+
+  const now = Date.now();
+  const lines = roster.map((phone) => {
+    const who = repo.getAssociate(phone);
+    const at = repo.getAssociateLocation(phone);
+    const carrying = repo.activeJobsFor(phone);
+
+    const title = [who?.name || `+${phone}`, who?.vehicle].filter(Boolean).join(' · ');
+    const out = [`🛵 *${title}*`];
+    if (who?.name) out.push(`   +${phone}`);
+
+    if (at) {
+      const mins = Math.max(0, Math.round((now - new Date(at.updatedAt).getTime()) / 60_000));
+      const how = at.source === 'delivery' ? 'last drop-off' : 'pin they sent';
+      const stale = mins > 60 ? ' ⚠️' : '';
+      out.push(`   📍 ${describeAge(mins)} (${how})${stale}`);
+      out.push(`   ${mapsLink(at)}`);
+    } else {
+      out.push('   📍 no position yet');
+    }
+
+    out.push(
+      carrying.length > 0
+        ? `   Carrying ${carrying.map((o) => o.orderNo).join(', ')}`
+        : '   Nothing with them',
+    );
+    return out.join(String.fromCharCode(10));
+  });
+
+  // A blank line between each, so three associates do not read as one block.
+  return [
+    '*Delivery associates*',
+    ...lines,
+    'Send `where <name>` to ask one of them for a fresh pin.',
+  ].join(String.fromCharCode(10) + String.fromCharCode(10));
+}
+
+/** Minutes, in words a dispatcher reads at a glance. */
+function describeAge(mins: number): string {
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
 const HELP = [
   '*Staff commands*',
   '',
@@ -228,6 +293,9 @@ const HELP = [
   '`7` — show one order',
   '',
   '`wanted` — what customers asked for and we did not have',
+  '',
+  '`where` — where the delivery associates are',
+  '`where <name>` — ask one of them for a fresh pin',
   '',
   '`outlets` — the restaurants on the system',
   'Send a photo of a menu to add one (`new outlet` for how)',
@@ -394,6 +462,39 @@ export async function handleStaffMessage(
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(HELP);
 
   if (isOnboardingCommand(trimmed)) return handleOnboardingCommand(phone, trimmed);
+
+  // Where everyone is, and a way to ask one of them for a fresh pin.
+  if (/^(where|associates|drivers|riders)$/i.test(trimmed)) {
+    return reply(await describeAssociates());
+  }
+
+  const asking = trimmed.match(/^where\s+(.+)$/i);
+  if (asking) {
+    const named = (asking[1] ?? '').trim();
+    // By name or by number, because a dispatcher knows the person and not
+    // always the digits.
+    const digits = named.replace(/[^0-9]/g, '');
+    const match = config.driverNumbers.find((p2) => {
+      if (digits.length >= 6 && p2.includes(digits)) return true;
+      const who = repo.getAssociate(p2);
+      return Boolean(who?.name && who.name.toLowerCase().includes(named.toLowerCase()));
+    });
+
+    if (!match) return reply(`No delivery associate matching "${named}". Send \`where\` to see them all.`);
+
+    const who = repo.getAssociate(match);
+    // A request they can answer with one tap, rather than a message asking
+    // somebody riding a bike to type an address.
+    const sent = await sendLocationRequest(
+      match,
+      'The shop is asking where you are. Tap below to send your location.',
+    );
+    return reply(
+      sent
+        ? `Asked ${who?.name || `+${match}`} to share their location. It will show in \`where\` when they do.`
+        : `Could not reach ${who?.name || `+${match}`} — ring them.`,
+    );
+  }
 
   if (/^outlets$/i.test(trimmed)) {
     const outlets = repo.listOutlets();
