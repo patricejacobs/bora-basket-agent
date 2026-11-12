@@ -1,5 +1,6 @@
 import { runAgent, friendlyErrorMessage, SESSION_TTL_MS as CONVERSATION_TTL_MS } from './agent/run.ts';
 import { detectLanguage } from './language.ts';
+import { languageFor } from './services.ts';
 import {
   isStaff,
   isDriver,
@@ -216,7 +217,9 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     // should be the service opening, with none of the menu in its history.
     repo.resetConversation(msg.phone);
 
-    const reply: OutboundMessage[] = [{ kind: 'text', text: serviceOpening(picked) }];
+    const reply: OutboundMessage[] = [
+      { kind: 'text', text: serviceOpening(picked, languageFor(msg.phone)) },
+    ];
     for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
     return reply;
   }

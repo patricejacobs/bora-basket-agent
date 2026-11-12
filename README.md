@@ -1133,9 +1133,23 @@ country that speaks nine.
 It is only ever set, never cleared. `ok` and a thumbs up give nothing away, and a
 one-word reply must not reset somebody who has been writing Portuguese all along.
 
-A reason a dispatcher typed by hand is passed on in the words they typed, untranslated -
-inventing a translation of somebody's sentence would be guessing at what they meant, in
-front of the customer.
+**Everything the customer reads, start to finish.** The welcome, the four services, the
+restaurant list with its prep times and delivery fees, the line that opens each service,
+every status update, the cancellation and its reason, the closing line after delivery. The
+agent translates what it says about the menu too, giving each dish's name as the menu has
+it with a short translation beside it - so the customer knows what they are ordering and
+the kitchen still gets a ticket it recognises.
+
+**Staff, kitchens and delivery associates are always in English.** Whoever is ordering,
+the people running the shop read one language, and a ticket in a script the cook cannot
+read is worse than useless. A test holds this: a customer writing Chinese produces not one
+Han character in anything sent to a kitchen, an associate or the shop.
+
+Two things are deliberately left as they are. A restaurant's own description of its cuisine
+comes from its CSV row in its own words - translating it would be putting words in
+somebody's mouth. And a cancellation reason a dispatcher typed by hand is passed on exactly
+as typed, because inventing a translation of somebody's sentence would be guessing at what
+they meant, in front of the customer.
 
 ### Timing an order
 

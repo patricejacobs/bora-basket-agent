@@ -28,7 +28,8 @@ type Definition = {
   /** Words a customer might type instead of the number. */
   spoken: RegExp;
   /** The line that opens that service, once chosen. */
-  opening: string;
+  /** A key: what the customer reads depends on their language. */
+  openingKey: string;
 };
 
 export const SERVICE_MENU: Record<Service, Definition> = {
@@ -36,28 +37,26 @@ export const SERVICE_MENU: Record<Service, Definition> = {
     number: 1,
     labelKey: 'service_grocery',
     spoken: /\b(grocer(y|ies)|shopping|shop|market|food\s*shop|supermarket|provisions?)\b/i,
-    opening: 'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
+    openingKey: 'opening_grocery',
   },
   restaurant: {
     number: 2,
     labelKey: 'service_restaurant',
     spoken: /\b(restaurant|takeaway|take\s*out|fast\s*food|cooked|hot\s*food|lunch|dinner|meal|eat)\b/i,
     // Unused: serviceOpening renders the live kitchen list for this one.
-    opening: "Let's get you fed.",
+    openingKey: 'opening_restaurant',
   },
   parcel: {
     number: 3,
     labelKey: 'service_parcel',
     spoken: /\b(parcel|package|courier|delivery\s*only|send\s*(something|a\s*thing)|drop\s*off|pick\s*up\s*something)\b/i,
-    opening:
-      "Parcel delivery. I'll need to know where it's coming from, where it's going, and who's receiving it.",
+    openingKey: 'opening_parcel',
   },
   other: {
     number: 4,
     labelKey: 'service_other',
     spoken: /\b(other|something\s*else|help|complain|complaint|speak\s*to|talk\s*to|manager|staff|problem)\b/i,
-    opening:
-      "No problem — tell me what you need and I'll pass it straight to the team with your number.",
+    openingKey: 'opening_other',
   },
 };
 
@@ -143,18 +142,23 @@ export function numberedOutlets(): NumberedOutlet[] {
  * customer who builds a $1,800 order and is only then told the kitchen will not
  * take it under $2,000 has been wasted, and it reads as a bait and switch.
  */
-export function outletListMessage(): string {
+export function outletListMessage(lang: Language = 'en'): string {
   const outlets = numberedOutlets();
   if (outlets.length === 0) {
-    return 'No restaurants are set up yet, so there is nothing to order from — but I can help you with groceries. Send *menu* to switch.';
+    return t('outlets_none_setup', lang);
   }
 
   const line = ({ number, outlet, open }: NumberedOutlet): string => {
     const facts = [
+      // The cuisine is the outlet's own words from its CSV row, left as they
+      // are. A shop describes itself; translating that would be putting words
+      // in somebody's mouth.
       outlet.cuisine,
-      `${outlet.prepMinutes} min`,
-      `${money(outlet.deliveryFee ?? config.store.deliveryFee)} delivery`,
-      ...(outlet.minOrder > 0 ? [`min ${money(outlet.minOrder)}`] : []),
+      t('outlet_minutes', lang, { n: String(outlet.prepMinutes) }),
+      t('outlet_delivery', lang, {
+        total: money(outlet.deliveryFee ?? config.store.deliveryFee),
+      }),
+      ...(outlet.minOrder > 0 ? [t('outlet_min_order', lang, { total: money(outlet.minOrder) })] : []),
     ].filter(Boolean);
 
     if (open) return `*${number}.* ${outlet.name} — ${facts.join(' · ')}`;
@@ -162,10 +166,10 @@ export function outletListMessage(): string {
     const status = hoursStatus(outlet.hours);
     const why =
       !outlet.accepting
-        ? 'kitchen paused'
+        ? t('outlet_paused', lang)
         : status.state === 'closed' && status.opensAt
-          ? `opens ${status.opensAt}`
-          : 'closed';
+          ? t('outlet_opens', lang, { time: status.opensAt })
+          : t('outlet_closed', lang);
     return `*${number}.* ${outlet.name} — _${why}_`;
   };
 
@@ -173,12 +177,12 @@ export function outletListMessage(): string {
   const shut = outlets.filter((o) => !o.open);
 
   return [
-    cooking.length > 0 ? 'Kitchens cooking right now:' : 'Nothing is cooking right now:',
+    cooking.length > 0 ? t('outlets_cooking_now', lang) : t('outlets_none_cooking', lang),
     '',
     ...cooking.map(line),
     ...(shut.length > 0 ? ['', ...shut.map(line)] : []),
     '',
-    cooking.length > 0 ? 'Reply with the number.' : 'Send *menu* if you would rather shop groceries.',
+    cooking.length > 0 ? t('reply_with_number', lang) : t('outlets_switch_groceries', lang),
   ].join('\n');
 }
 
@@ -190,9 +194,9 @@ export function outletListMessage(): string {
  * then showed nothing, leaving the customer to guess the name of a restaurant
  * they had never been shown.
  */
-export function serviceOpening(service: Service): string {
-  if (service === 'restaurant') return outletListMessage();
-  return SERVICE_MENU[service].opening;
+export function serviceOpening(service: Service, lang: Language = 'en'): string {
+  if (service === 'restaurant') return outletListMessage(lang);
+  return t(SERVICE_MENU[service].openingKey, lang);
 }
 
 /**

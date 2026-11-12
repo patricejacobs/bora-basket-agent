@@ -118,6 +118,25 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_customer: 'you asked us to cancel it',
     reason_undeliverable: 'we could not get to the address',
 
+    opening_grocery:
+      'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
+    opening_parcel:
+      "Parcel delivery. I'll need to know where it's coming from, where it's going, and who's receiving it.",
+    opening_other:
+      "No problem — tell me what you need and I'll pass it straight to the team with your number.",
+
+    outlets_cooking_now: 'Kitchens cooking right now:',
+    outlets_none_cooking: 'Nothing is cooking right now:',
+    outlets_switch_groceries: 'Send *menu* if you would rather shop groceries.',
+    outlets_none_setup:
+      'No restaurants are set up yet, so there is nothing to order from — but I can help you with groceries. Send *menu* to switch.',
+    outlet_minutes: '{n} min',
+    outlet_delivery: '{total} delivery',
+    outlet_min_order: 'min {total}',
+    outlet_paused: 'kitchen paused',
+    outlet_opens: 'opens {time}',
+    outlet_closed: 'closed',
+
     signoff_order_again: 'Enjoy your meal! Message us any time to order again. 💬',
     signoff_next_time: 'Enjoy your meal, see you next time! 👋',
     signoff_meal: 'Enjoy your meal! 🍽️',
@@ -156,6 +175,25 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_closing: 'la cocina está cerrando por hoy',
     reason_customer: 'usted nos pidió cancelarlo',
     reason_undeliverable: 'no pudimos llegar a la dirección',
+
+    opening_grocery:
+      'Supermercado entonces. Dígame qué necesita — escriba una lista, envíe una foto, o simplemente dígamelo.',
+    opening_parcel:
+      'Envío de paquetes. Necesito saber de dónde sale, a dónde va y quién lo recibe.',
+    opening_other:
+      'Sin problema — dígame qué necesita y lo paso directamente al equipo con su número.',
+
+    outlets_cooking_now: 'Cocinas abiertas ahora mismo:',
+    outlets_none_cooking: 'Ninguna cocina está abierta ahora mismo:',
+    outlets_switch_groceries: 'Envíe *menu* si prefiere hacer la compra del supermercado.',
+    outlets_none_setup:
+      'Todavía no hay restaurantes disponibles, así que no hay de dónde pedir — pero puedo ayudarle con el supermercado. Envíe *menu* para cambiar.',
+    outlet_minutes: '{n} min',
+    outlet_delivery: 'envío {total}',
+    outlet_min_order: 'mínimo {total}',
+    outlet_paused: 'cocina en pausa',
+    outlet_opens: 'abre {time}',
+    outlet_closed: 'cerrado',
 
     signoff_order_again: '¡Buen provecho! Escríbanos cuando quiera para pedir de nuevo. 💬',
     signoff_next_time: '¡Buen provecho, hasta la próxima! 👋',
@@ -196,6 +234,25 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_customer: 'você pediu para cancelar',
     reason_undeliverable: 'não conseguimos chegar ao endereço',
 
+    opening_grocery:
+      'Compras, então. Diga-me o que precisa — escreva uma lista, envie uma foto, ou diga por voz.',
+    opening_parcel:
+      'Entrega de encomendas. Preciso de saber de onde sai, para onde vai e quem a recebe.',
+    opening_other:
+      'Sem problema — diga-me o que precisa e passo diretamente à equipa com o seu número.',
+
+    outlets_cooking_now: 'Cozinhas a trabalhar agora:',
+    outlets_none_cooking: 'Nenhuma cozinha está aberta agora:',
+    outlets_switch_groceries: 'Envie *menu* se preferir fazer compras de supermercado.',
+    outlets_none_setup:
+      'Ainda não há restaurantes disponíveis, por isso não há onde pedir — mas posso ajudar com as compras. Envie *menu* para mudar.',
+    outlet_minutes: '{n} min',
+    outlet_delivery: 'entrega {total}',
+    outlet_min_order: 'mínimo {total}',
+    outlet_paused: 'cozinha em pausa',
+    outlet_opens: 'abre {time}',
+    outlet_closed: 'fechado',
+
     signoff_order_again: 'Bom apetite! Escreva-nos quando quiser para pedir novamente. 💬',
     signoff_next_time: 'Bom apetite, até à próxima! 👋',
     signoff_meal: 'Bom apetite! 🍽️',
@@ -232,6 +289,25 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_closing: '厨房今天即将打烊',
     reason_customer: '您要求取消',
     reason_undeliverable: '我们无法到达该地址',
+
+    opening_grocery:
+      '好的，超市代购。请告诉我您需要什么——可以打字列清单、发照片，或者直接说。',
+    opening_parcel:
+      '包裹递送。我需要知道从哪里取件、送到哪里，以及由谁接收。',
+    opening_other:
+      '没问题——告诉我您需要什么，我会连同您的号码直接转给团队。',
+
+    outlets_cooking_now: '现在营业的餐厅：',
+    outlets_none_cooking: '现在没有餐厅在营业：',
+    outlets_switch_groceries: '如果您想改为超市代购，请发送 *menu*。',
+    outlets_none_setup:
+      '目前还没有餐厅可供订餐——不过我可以帮您代购超市商品。发送 *menu* 切换。',
+    outlet_minutes: '{n} 分钟',
+    outlet_delivery: '配送费 {total}',
+    outlet_min_order: '最低 {total}',
+    outlet_paused: '暂停接单',
+    outlet_opens: '{time} 开始营业',
+    outlet_closed: '已打烊',
 
     signoff_order_again: '请慢用！随时可以给我们发消息再次订餐。💬',
     signoff_next_time: '请慢用，期待下次光临！👋',

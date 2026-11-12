@@ -3096,6 +3096,42 @@ section('Speaking the language a customer writes in');
   check('an unknown customer is English', languageFor('5926009000') === 'en');
 }
 
+section('Staff, kitchens and associates stay in English');
+{
+  const { handleOutletMessage, handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
+  const { notifyStaffOfNewOrder } = await import('./notifications.ts');
+
+  // A customer writing Chinese must not turn the kitchen's ticket Chinese.
+  // The people running the shop read one language, whoever is ordering.
+  const zh = '5926008001';
+  repo.setCustomerLanguage(zh, 'zh');
+
+  const sscB = repo.getOutlet('SSC');
+  const anyOrder = repo.allOrders().find((o) => o.outlet?.id === sscB?.id);
+  check('there is an order to inspect', Boolean(sscB && anyOrder));
+
+  if (sscB && anyOrder) {
+    const no = anyOrder.orderNo;
+    db.prepare(`UPDATE orders SET phone = ? WHERE order_no = ?`).run(zh, no);
+    repo.setOrderStatus(no, 'confirmed');
+
+    const han = /[一-鿿]/;
+    const toKitchen = (await handleOutletMessage(sscB, `${no} ready`))[0]?.text ?? '';
+    check('the kitchen is answered in English', !han.test(toKitchen), toKitchen);
+
+    const toDriver = (await handleDriverMessage(`${no} on the way`, '5926001111'))
+      .map((m) => m.text)
+      .join(' ');
+    check('so is the delivery associate', !han.test(toDriver), toDriver);
+
+    const toStaff = (await handleStaffMessage(no, '5926497570'))[0]?.text ?? '';
+    check('and so is the shop', !han.test(toStaff), toStaff);
+
+    // Nothing above should have thrown away the customer's own language.
+    check('while the customer keeps theirs', repo.customerLanguage(zh) === 'zh');
+  }
+}
+
 section('Timing an order');
 {
   const { handleOutletMessage, handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

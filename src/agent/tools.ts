@@ -9,7 +9,7 @@ import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
-import { numberedOutlets, serviceOpening, SERVICES } from '../services.ts';
+import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../services.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance } from '../location.ts';
@@ -846,7 +846,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         ...(cart.lines.length > 0 && action === 'cancel' ? { dropped: 'Their previous cart was cleared, as they asked.' } : {}),
         ...(wanted === 'restaurant'
           ? { next: 'Call list_outlets and show the kitchens, numbered.' }
-          : { next: serviceOpening(wanted as never) }),
+          : { next: serviceOpening(wanted as never, languageFor(ctx.phone)) }),
       });
     }
 
