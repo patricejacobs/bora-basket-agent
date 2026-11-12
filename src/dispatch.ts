@@ -314,6 +314,11 @@ export function dropLines(order: repo.OrderRecord): string[] {
   const receiverPhone = isParcel ? order.recipientPhone : order.contactPhone || order.phone;
 
   return [
+    // A missing pin goes first, not last. It changes how the trip is planned -
+    // ring before setting off, rather than after arriving at a street you
+    // cannot find - and a warning printed under the phone number is a warning
+    // read too late.
+    ...(order.location ? [] : ['⚠️ *NO PIN* — ring before you set off', '']),
     `*Deliver to:* ${receiverName}`,
     ...(order.address ? [order.address] : []),
     // What the customer said about finding the door. It was going to staff
@@ -322,7 +327,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
     `📞 +${receiverPhone}`,
     ...(order.location
       ? [describePin(order.location, checkRange(order.location, config.store.serviceArea))]
-      : ['⚠️ No location pin on this order - ring the customer']),
+      : ['The customer could not send a pin. The address above is all there is.']),
     '',
     // What it is made of, so the cash can be checked against the bag rather
       // than taken on trust at the door.
@@ -344,13 +349,18 @@ export function dropLines(order: repo.OrderRecord): string[] {
  */
 export function onTheWayCard(order: repo.OrderRecord): string {
   const head = `🛵 *${order.orderNo}* on the way`;
-  if (!repo.deliveryCodeExpected(order.orderNo)) return head;
+  // No pin: the one fact worth repeating here, because it is the difference
+  // between navigating and telephoning.
+  const noPin = order.location
+    ? ''
+    : `${String.fromCharCode(10)}⚠️ No pin — ring +${order.contactPhone || order.phone}`;
+  if (!repo.deliveryCodeExpected(order.orderNo)) return head + noPin;
 
   // The instruction replaces the button, so it has to carry its own weight:
   // what to do, and what to do when the customer cannot do it. This is the
   // last message in their chat and the one they come back to at the door.
   return [
-    head,
+    head + noPin,
     '',
     `🔐 Type the four-digit code from ${order.customerName.split(/\s+/)[0] || 'the customer'} to close it.`,
     'No code? Reply *no code*.',

@@ -1266,10 +1266,35 @@ order. It is also not repeated if the model happens to have said it already.
 Nothing downstream changes: the customer sends a real pin, so the order gets a
 map card, a service-area check and a navigable link exactly as any other does.
 
-The limit, honestly: dragging the map is confirmed on Android, which is most of
-Guyana, and iOS guidance is less consistent. A customer who still cannot send a
-pin is told a staff member will take the order by hand — which needs
-`STAFF_NUMBERS` to be set.
+Dragging the map is confirmed on Android, which is most of Guyana; iOS guidance
+is less consistent.
+
+A customer who still cannot send one gives the address in words, and the order
+goes through on that. It used to be refused outright with a promise that a staff
+member would take it by hand — there are no staff, so that was a dead end that
+lost the order. The model must have asked for the pin, been told no, and saved
+an address; an order with neither is still refused, because the associate would
+have nowhere to go and nothing to read out.
+
+The job card then leads with the problem rather than burying it under the phone
+number, since it decides whether they navigate or telephone:
+
+```
+⚠️ NO PIN — ring before you set off
+
+Deliver to: Marcia Persaud
+Lot 77 Mocha, East Bank
+Call at the junction, white fence
+📞 +5926123456
+The customer could not send a pin. The address above is all there is.
+
+Collect $235,000 cash
+```
+
+The honest cost: a written address cannot be measured against the delivery
+radius, so such an order skips the service-area check. The associate reading it
+before setting off is the only check left. The human who resolves it is the one
+going there anyway — not an administrator.
 
 ### Counting the cash
 

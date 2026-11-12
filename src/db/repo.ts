@@ -661,8 +661,17 @@ export function placeOrder(args: {
   contactPhone: string;
   deliveryNote: string;
   paymentMethod: string;
-  /** Where to deliver. Required: the caller checks for it before getting here. */
-  location: SavedPin;
+  /**
+   * Where to deliver, or null when the customer could not send a pin and gave
+   * a written address instead.
+   *
+   * Null is allowed reluctantly. A pin is the only unambiguous way to describe
+   * a door, and checkout asks for one twice before giving up - but refusing
+   * the order outright, which is what this used to do, loses it entirely.
+   * There is nobody on the administrative end to take it by hand, so the real
+   * choice is a flagged order with a phone call attached, or no order.
+   */
+  location: SavedPin | null;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
@@ -711,9 +720,9 @@ export function placeOrder(args: {
         args.address,
         args.contactPhone,
         args.deliveryNote,
-        args.location.latitude,
-        args.location.longitude,
-        args.location.label,
+        args.location?.latitude ?? null,
+        args.location?.longitude ?? null,
+        args.location?.label ?? '',
         // Where the food is cooked, copied onto the row rather than read back
         // off the outlet later. An outlet that moves premises next month must
         // not relocate a collection that already happened.

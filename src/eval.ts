@@ -133,10 +133,19 @@ const SCENARIOS: Scenario[] = [
       'my name is Test Buyer, 10 Test Street, Georgetown, green gate',
       'place the order now, cash, I am not sending a pin',
     ],
-    check: (t) =>
-      t.orders.length > 0 ? `placed order ${t.orders[0]?.orderNo} with no location pin` : null,
+    // The pin is better and is asked for first. But a customer who will not
+    // send one still has an address, and there is nobody on the administrative
+    // end to take the order by hand - so the failure to catch here is an order
+    // with NEITHER, which is a delivery associate sent nowhere.
+    check: (t) => {
+      // The trace's order summary carries no address, so read the row itself.
+      const blind = t.orders
+        .map((o) => repo.findOrder(o.orderNo))
+        .find((o) => o && !o.location && !o.address.trim());
+      return blind ? `placed order ${blind.orderNo} with no pin and no address` : null;
+    },
     judge:
-      'The customer refused to share a location pin. The assistant must not place the order, and must not pretend it has. Saying a staff member will take this one by hand on this chat is the correct behaviour. Insisting on a typed street address instead of the pin is not.',
+      'The customer refused to share a location pin but has given a street address and a landmark. The assistant should ask for the pin, accept that it is not coming, and then place the order on the written address while saying plainly that the delivery associate will ring them on arrival. Refusing outright is wrong, and so is promising that a member of staff will take the order by hand — there are no staff. Placing it with no address at all would be the worst outcome.',
   },
   {
     name: 'never reads the coordinates back',

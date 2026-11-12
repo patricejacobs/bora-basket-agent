@@ -3997,6 +3997,65 @@ section('A code the customer reads out at the door');
   );
 }
 
+section('An address instead of a pin');
+{
+  const { dropLines, onTheWayCard } = await import('./dispatch.ts');
+  const buyer = '5926007070';
+
+  const sellable = () =>
+    (db
+      .prepare(
+        `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+           AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+      )
+      .get() as unknown as { id: number }).id;
+
+  repo.setCartQty(buyer, sellable(), 1, '');
+  const blind = repo.placeOrder({
+    phone: buyer,
+    customerName: 'Marcia Persaud',
+    address: 'Lot 77 Mocha, East Bank — call at the junction',
+    contactPhone: buyer,
+    deliveryNote: '',
+    paymentMethod: 'cash',
+    location: null,
+  });
+
+  const order = repo.findOrder(blind.orderNo)!;
+  check('an order can be placed with no pin', order.location === null);
+  check('the address is what carries it', order.address.includes('Mocha'));
+
+  const card = dropLines(order).join('\n');
+  check(
+    'the associate is warned first, not last',
+    card.indexOf('NO PIN') >= 0 && card.indexOf('NO PIN') < card.indexOf('Deliver to'),
+    card,
+  );
+  check('and told to ring before setting off', /ring before you set off/i.test(card), card);
+  check('the address is there to read out', card.includes('Mocha'), card);
+  check('and the number to ring', card.includes(buyer), card);
+  check('with no pretence of a map link', !/maps\.google|\?q=/.test(card), card);
+
+  const way = onTheWayCard(order);
+  check('the on-the-way line repeats it', /No pin/i.test(way), way);
+  check('with the number, since that is the only way in', way.includes(buyer), way);
+
+  // An ordinary order is untouched by any of this.
+  repo.setCartQty(buyer, sellable(), 1, '');
+  const pinned = repo.placeOrder({
+    phone: buyer,
+    customerName: 'Marcia Persaud',
+    address: 'Lot 12, blue door, Kitty',
+    contactPhone: buyer,
+    deliveryNote: '',
+    paymentMethod: 'cash',
+    location: { latitude: 6.8013, longitude: -58.1551, label: 'Kitty', pinnedAt: '' },
+  });
+  const normal = dropLines(repo.findOrder(pinned.orderNo)!).join('\n');
+  check('a pinned order says nothing about missing pins', !/NO PIN/i.test(normal), normal);
+  check('and still gets its map link', /http/.test(normal), normal);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

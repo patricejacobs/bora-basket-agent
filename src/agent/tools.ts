@@ -300,6 +300,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       properties: {
+        without_pin: {
+          type: 'boolean',
+          description:
+            'Only true when the customer has been asked for a pin and has said they cannot send one, and their address has been saved in words. The order is then flagged for the delivery associate to ring on arrival. Never set it merely to avoid waiting for a pin.',
+        },
         payment_method: {
           type: 'string',
           // Only what the shop can actually take, so an unsupported method
@@ -1153,15 +1158,32 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // A delivery service with no pin is a delivery associate phoning from the road. The
       // rule is enforced here rather than left to the prompt, because this is
       // the one failure that cannot be recovered after the van leaves.
-      if (!customer.location) {
+      //
+      // There is nobody here to take an order by hand, so refusing outright -
+      // which is what this did, while promising a staff member who does not
+      // exist - simply lost it. Two conditions instead: the customer must have
+      // been asked and said no, and there must be an address to read out on
+      // the phone.
+      const withoutPin = input.without_pin === true;
+      if (!customer.location && !withoutPin) {
         return fail(
-          'Cannot place the order — no location pin has been shared. Call request_location and wait for the pin to arrive. If the customer genuinely cannot send one, tell them a staff member will take the order by hand on this chat, and do not place it.',
+          'Cannot place the order — no location pin has been shared. Call request_location and wait for the pin to arrive. Only if the customer says they cannot send one at all: save the address in words with save_customer_details, tell them the delivery associate will ring them on arrival, then call place_order again with without_pin true.',
+        );
+      }
+      if (!customer.location && !(customer.address ?? '').trim()) {
+        return fail(
+          'Cannot place the order with neither a pin nor a written address — the delivery associate would have nowhere to go and nothing to read out on the phone. Ask where it is going, save it with save_customer_details, then try again.',
         );
       }
       // Outside the delivery area. Refused here for the same reason a missing
-      // pin is: once the van has gone, nobody can undo it. Staff can still take
-      // the order by hand if the shop decides to make the trip.
-      const range = checkRange(customer.location, config.store.serviceArea);
+      // pin is: once the van has gone, nobody can undo it.
+      //
+      // Unmeasurable without a pin, which is the real cost of allowing one
+      // through: a written address cannot be checked against the delivery
+      // radius. The associate reading it before setting off is what is left.
+      const range = customer.location
+        ? checkRange(customer.location, config.store.serviceArea)
+        : { state: 'unchecked' as const, distanceKm: null, radiusKm: 0 };
       if (range.state === 'outside') {
         return fail(
           `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
@@ -1171,7 +1193,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Goods go to a person at a place. Confirming who and where is not
       // something to leave to the model's discretion.
       if (!customer.confirmed) {
-        const where = customer.location.label || 'the pin they shared';
+        const where =
+          customer.location?.label || customer.address || 'the pin they shared';
         return fail(
           `Identity not confirmed. Read back "${customer.name}, ${where}", get a clear yes, then call confirm_identity before ordering.`,
         );
