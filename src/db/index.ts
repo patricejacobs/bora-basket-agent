@@ -371,6 +371,24 @@ addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'uplifted_at', "TEXT NOT NULL DEFAULT ''");
 
+// Proof of delivery. Four digits the customer reads out at the door.
+//
+// Three columns rather than one, because "the code was wrong" and "the code
+// never reached them" are different events and only the first is anybody's
+// fault. Outside WhatsApp's 24-hour window the on-its-way message goes as a
+// fixed template, which cannot carry a code - so an order can reach a doorstep
+// with no code in the customer's hands, and the associate must not be asked for
+// one. `code_sent_at` is how that is known.
+addColumnIfMissing('orders', 'delivery_code', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'code_sent_at', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'code_verified_at', "TEXT NOT NULL DEFAULT ''");
+// Wrong guesses. Four digits is 9,000 possibilities, which a person tapping a
+// phone will never exhaust - but an associate who can guess freely can verify a
+// delivery without the customer, which is the one thing the code exists to
+// prevent. Three wrong and the code is spent: the order can still be delivered,
+// only never as verified.
+addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *

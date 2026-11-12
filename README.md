@@ -1128,6 +1128,69 @@ them out of a shift they are entitled to.
 
 Set `ASSOCIATE_MAX_HOURS_PER_DAY` to `0` to switch the cap off.
 
+### Proof of delivery
+
+Every order gets a four-digit code. The customer receives it with the on-its-way
+message, in their own language, and reads it out at the door:
+
+```
+Code Tester, your order ORD-00017 is on its way 🛵
+Total $2,350, payable to the delivery associate.
+
+Your delivery code is *2149* — read it to the delivery associate
+at the door, so we know your order reached the right hands.
+```
+
+Tapping **Delivered** asks for it instead of closing the order:
+
+```
+🔐 ORD-00017 — ask Code for their delivery code.
+
+Type the four digits to close the order.
+
+                                   [ No code ]
+```
+
+**No operator message carries the digits** — not the job card, not `jobs`, not
+the dispatch alert, not the CSV export. The code is not on the order object the
+operator messages are built from, so there is nothing for a future edit to print
+by accident. A code the person at the door can read off their own screen proves
+nothing.
+
+It never blocks a delivery. Tapping **No code** closes the order anyway, records
+it unverified, and tells dispatch who it was:
+
+```
+⚠️ ORD-00018 — delivered, code not verified
+
+Rider One (NEW 5678) +5926001111 reports the customer
+could not give the code.
+Customer: Code Tester +5926007777
+```
+
+Food going cold at a door while somebody hunts for a message is a worse failure
+than an unverified drop. The record is what makes a pattern visible — one of
+these is a flat battery; a dozen from the same person is something else.
+
+Three wrong guesses spend the code. Four digits is nine thousand possibilities,
+which nobody tapping a phone will exhaust — but an associate who can guess
+freely can verify a delivery without the customer, which is the one thing the
+code exists to prevent. A spent code still delivers, just never as verified.
+
+A parcel is the strongest case: the person at the door is not the person who
+placed the order. The sender gets the digits and passes them to whoever is
+receiving, which is the only way the shop can show the parcel reached the right
+hands rather than a doorstep.
+
+The export keeps two columns, **Code sent** and **Code verified**, so three cases
+stay distinguishable: no code issued, a code the customer never received, and a
+code read back at the door. One combined flag would file the middle case as a
+failure — and that is the one nobody is at fault for. It happens when an order
+is dispatched outside WhatsApp's 24-hour window, where the fixed template cannot
+carry digits; the associate is then never asked for a code they were never given.
+
+Set `DELIVERY_CODE` to `false` to switch it off.
+
 ### Where the associates are
 
 Staff send `where`:

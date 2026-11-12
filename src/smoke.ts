@@ -3732,6 +3732,157 @@ section('A cancellation reason belongs to the cancellation');
   check('while the status is the one it was moved to', after?.status === 'delivered');
 }
 
+section('A code the customer reads out at the door');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { notifyCustomerOfStatus } = await import('./notifications.ts');
+  const rider = '5926001111';
+  const buyer = '5926007777';
+
+  // Orders placed the ordinary way, so the code comes from the code that
+  // generates codes rather than being written in by the test.
+  const makeOrder = () => {
+    const sellable = (
+      db
+        .prepare(
+          `SELECT id FROM products
+            WHERE active = 1 AND sold_out = 0 AND (track_stock = 0 OR stock >= 1)
+            LIMIT 1`,
+        )
+        .get() as unknown as { id: number }
+    ).id;
+    repo.setCartQty(buyer, sellable, 1, '');
+    const placed = repo.placeOrder({
+      phone: buyer,
+      customerName: 'Code Tester',
+      address: 'Lot 9, Kitty',
+      contactPhone: buyer,
+      deliveryNote: '',
+      paymentMethod: 'cash',
+      location: { latitude: 6.8013, longitude: -58.1551, label: 'Kitty', pinnedAt: '' },
+    });
+    return repo.findOrder(placed.orderNo)!;
+  };
+
+  const first = makeOrder();
+  const code = repo.deliveryCodeFor(first.orderNo);
+  check('every order gets a code', /^\d{4}$/.test(code), code);
+  check('which is not the order number', !first.orderNo.includes(code), `${first.orderNo} / ${code}`);
+
+  const second = makeOrder();
+  const codes = new Set<string>();
+  for (let i = 0; i < 12; i += 1) codes.add(repo.deliveryCodeFor(makeOrder().orderNo));
+  check('and codes are not sequential', codes.size > 6, String(codes.size));
+
+  /* --- the customer is told, and only the customer -------------------- */
+
+  check('nothing is sent yet', !repo.deliveryCodeState(first.orderNo).sent);
+
+  // An inbound message, so the 24-hour window is open and the on-its-way
+  // message goes as free text - the only route that can carry digits.
+  repo.logMessage(buyer, 'in', 'whatsapp', 'where is my food');
+  repo.setOrderStatus(first.orderNo, 'on_the_way');
+  const route = await notifyCustomerOfStatus(repo.findOrder(first.orderNo)!, 'on_the_way');
+  check('the on-its-way message goes as text', route === 'text', String(route));
+  check('and the code is recorded as sent', repo.deliveryCodeState(first.orderNo).sent);
+
+  // The code must never reach an operator's screen. The whole point is that
+  // only the person at the door can produce it.
+  repo.assignDriver(first.orderNo, rider);
+  const jobs = (await handleDriverMessage('jobs', rider))[0]?.text ?? '';
+  check('the associate job list never shows the code', !jobs.includes(code), jobs.slice(0, 200));
+  const archived = repo.allOrders().find((o) => o.orderNo === first.orderNo);
+  check('and the export does not carry it either', !JSON.stringify(archived).includes(code));
+  check('though it records that it was sent', Boolean(archived?.codeSentAt));
+  check('and not yet verified', archived?.codeVerifiedAt === '');
+
+  /* --- the gate ------------------------------------------------------- */
+
+  const asked = await handleDriverMessage(`${first.orderNo} delivered`, rider);
+  check('Delivered asks for the code instead', (asked[0]?.text ?? '').includes('delivery code'), asked[0]?.text);
+  check('the order has not moved', repo.findOrder(first.orderNo)?.status === 'on_the_way');
+  check('and the prompt does not leak it', !(asked[0]?.text ?? '').includes(code), asked[0]?.text);
+  check('with a way past it for a customer who has none', JSON.stringify(asked).includes('No code'));
+
+  const wrongDigits = code === '1111' ? '2222' : '1111';
+  const wrong = await handleDriverMessage(wrongDigits, rider);
+  check('a wrong code is refused', (wrong[0]?.text ?? '').includes('not the code'), wrong[0]?.text);
+  check('still not delivered', repo.findOrder(first.orderNo)?.status === 'on_the_way');
+  check('and the tries left are counted down', repo.codeAttemptsLeft(first.orderNo) === 2);
+
+  const right = await handleDriverMessage(code, rider);
+  check('the right code delivers it', repo.findOrder(first.orderNo)?.status === 'delivered');
+  check('and says so', JSON.stringify(right).includes('delivered'), JSON.stringify(right).slice(0, 140));
+  const stamped = repo.deliveryCodeState(first.orderNo);
+  check('the verification is stamped', Boolean(stamped.verifiedAt), JSON.stringify(stamped));
+
+  // Write-once, like every other delivery stamp.
+  const firstStamp = stamped.verifiedAt;
+  repo.verifyDeliveryCode(first.orderNo, code);
+  check('and does not move when re-read', repo.deliveryCodeState(first.orderNo).verifiedAt === firstStamp);
+
+  /* --- no code at the door -------------------------------------------- */
+
+  repo.logMessage(buyer, 'in', 'whatsapp', 'hello');
+  repo.setOrderStatus(second.orderNo, 'on_the_way');
+  await notifyCustomerOfStatus(repo.findOrder(second.orderNo)!, 'on_the_way');
+  repo.assignDriver(second.orderNo, rider);
+
+  const skipped = await handleDriverMessage(`${second.orderNo} no code`, rider);
+  check(
+    'No code still delivers the order',
+    repo.findOrder(second.orderNo)?.status === 'delivered',
+    JSON.stringify(skipped).slice(0, 200),
+  );
+  const unver = repo.deliveryCodeState(second.orderNo);
+  check('but it is never marked verified', unver.verifiedAt === '');
+  check('and the code is spent, not deleted', unver.exists && unver.burnt);
+  const row = repo.allOrders().find((o) => o.orderNo === second.orderNo);
+  check(
+    'so the export tells the three cases apart',
+    Boolean(row?.codeSentAt) && row?.codeVerifiedAt === '',
+    JSON.stringify({ sent: row?.codeSentAt, verified: row?.codeVerifiedAt }),
+  );
+
+  /* --- guessing ------------------------------------------------------- */
+
+  const third = makeOrder();
+  const thirdCode = repo.deliveryCodeFor(third.orderNo);
+  repo.logMessage(buyer, 'in', 'whatsapp', 'hi');
+  repo.setOrderStatus(third.orderNo, 'on_the_way');
+  await notifyCustomerOfStatus(repo.findOrder(third.orderNo)!, 'on_the_way');
+  repo.assignDriver(third.orderNo, rider);
+
+  const guesses = ['0000', '0001', '0002'].map((g) => (g === thirdCode ? '9999' : g));
+  for (const g of guesses) await handleDriverMessage(g, rider);
+  check('three wrong guesses spend the code', repo.deliveryCodeState(third.orderNo).burnt);
+  check(
+    'and it delivers, unverified, rather than trapping them at a door',
+    repo.findOrder(third.orderNo)?.status === 'delivered',
+  );
+  check(
+    'the real code no longer verifies a spent order',
+    repo.verifyDeliveryCode(third.orderNo, thirdCode) === 'spent',
+  );
+
+  /* --- a code that never reached the customer ------------------------- */
+
+  const fourth = makeOrder();
+  repo.setOrderStatus(fourth.orderNo, 'on_the_way');
+  repo.assignDriver(fourth.orderNo, rider);
+  check('a code nobody was sent is not "sent"', !repo.deliveryCodeState(fourth.orderNo).sent);
+  const unasked = await handleDriverMessage(`${fourth.orderNo} delivered`, rider);
+  check(
+    'and the associate is never asked for it',
+    repo.findOrder(fourth.orderNo)?.status === 'delivered',
+    JSON.stringify(unasked).slice(0, 200),
+  );
+  check(
+    'that order reads as no code issued, not as a failure',
+    repo.allOrders().find((o) => o.orderNo === fourth.orderNo)?.codeSentAt === '',
+  );
+}
+
 section('Backing up the trading record');
 {
   const backup = await import('./backup.ts');

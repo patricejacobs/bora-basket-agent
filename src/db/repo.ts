@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import { db, nowIso } from './index.ts';
 import { config } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
@@ -638,6 +639,21 @@ export type PlacedOrder = {
  * Creates the order, decrements stock and empties the cart as one unit, so a
  * failure part-way through can never leave a confirmed order with a stale cart.
  */
+/**
+ * A four-digit code for one order.
+ *
+ * `randomInt` rather than `Math.random`, and not derived from the order number
+ * in any way: order numbers are sequential and read out loud, so anything
+ * computed from one is a code the next customer can work out. This is the one
+ * number in the system that has to be unguessable.
+ *
+ * 1000-9999, so it is always four digits. A code with a leading zero gets
+ * written down as three and read back as wrong.
+ */
+function newDeliveryCode(): string {
+  return String(randomInt(1000, 10000));
+}
+
 export function placeOrder(args: {
   phone: string;
   customerName: string;
@@ -684,9 +700,9 @@ export function placeOrder(args: {
            (order_no, phone, customer_name, address, contact_phone, delivery_note,
             latitude, longitude, location_label,
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
-            kind,
+            kind, delivery_code,
             subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -713,6 +729,11 @@ export function placeOrder(args: {
         // orders by service answered the wrong question and the archive
         // carried the wrong label for good.
         cart.outlet ? 'restaurant' : 'grocery',
+        // Written at placing time, not at dispatch. One code per order for its
+        // whole life, so a retried or re-sent message carries the same digits
+        // as the first one - a customer holding two different codes has no
+        // code at all.
+        newDeliveryCode(),
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -1206,6 +1227,143 @@ export function customerOrder(phone: string, reference: string): OrderRecord | n
   return order && order.phone === phone ? order : null;
 }
 
+/* ------------------------------------------------- proof of delivery code */
+
+/** How many wrong guesses before a code is spent. */
+const CODE_ATTEMPT_LIMIT = 3;
+
+export type DeliveryCodeState = {
+  /** Whether this order has a code at all. Old rows do not. */
+  exists: boolean;
+  /** Whether the digits actually reached the customer. */
+  sent: boolean;
+  /** When it was read back correctly, or empty. */
+  verifiedAt: string;
+  /** Wrong guesses so far. */
+  attempts: number;
+  /** Spent: too many wrong guesses, so it can no longer be verified. */
+  burnt: boolean;
+};
+
+function codeRow(orderNo: string): {
+  code: string;
+  sentAt: string;
+  verifiedAt: string;
+  attempts: number;
+} | null {
+  const row = db
+    .prepare(
+      `SELECT delivery_code AS code, code_sent_at AS sentAt,
+              code_verified_at AS verifiedAt, code_attempts AS attempts
+         FROM orders WHERE order_no = ?`,
+    )
+    .get(orderNo) as
+    | { code: string; sentAt: string; verifiedAt: string; attempts: number }
+    | undefined;
+  return row ?? null;
+}
+
+/**
+ * What the associate's side needs to know, and nothing more.
+ *
+ * Deliberately returns no digits. The code is not on `OrderRecord` either, and
+ * that is the whole safeguard: every operator message - the job card, `jobs`,
+ * the dispatch alert, the CSV - is built from an `OrderRecord`, so there is no
+ * code on the object for a future edit to print by accident. A code the person
+ * at the door can read off their own screen proves nothing.
+ */
+export function deliveryCodeState(orderNo: string): DeliveryCodeState {
+  const row = codeRow(orderNo);
+  if (!row || !row.code) {
+    return { exists: false, sent: false, verifiedAt: '', attempts: 0, burnt: false };
+  }
+  return {
+    exists: true,
+    sent: Boolean(row.sentAt),
+    verifiedAt: row.verifiedAt || '',
+    attempts: row.attempts,
+    burnt: row.attempts >= CODE_ATTEMPT_LIMIT,
+  };
+}
+
+/**
+ * The digits themselves, for the customer's own message and nowhere else.
+ *
+ * One caller: the on-its-way notification. If a second one ever appears it
+ * wants reading very carefully.
+ */
+export function deliveryCodeFor(orderNo: string): string {
+  return codeRow(orderNo)?.code ?? '';
+}
+
+/**
+ * Records that the code reached the customer.
+ *
+ * Called only after the message has actually gone, and only when it went as
+ * free text. The template route cannot carry the digits, so an order dispatched
+ * outside the 24-hour window has a code that nobody has seen - and the
+ * associate must not then be asked for it, or every such order reads as a
+ * failed verification by somebody who did nothing wrong.
+ */
+export function markCodeSent(orderNo: string): void {
+  db.prepare(`UPDATE orders SET code_sent_at = ? WHERE order_no = ? AND code_sent_at = ''`).run(
+    nowIso(),
+    orderNo,
+  );
+}
+
+export type CodeCheck = 'verified' | 'already' | 'wrong' | 'spent' | 'none';
+
+/**
+ * Checks what the associate typed against what the customer holds.
+ *
+ * Write-once, like the other delivery stamps: a code verified at 18:42 was
+ * verified at 18:42, and re-reading it later must not move that. A wrong guess
+ * is counted whether or not it was honest, because the count is the only thing
+ * standing between nine thousand possibilities and a free verification.
+ */
+export function verifyDeliveryCode(orderNo: string, typed: string): CodeCheck {
+  const row = codeRow(orderNo);
+  if (!row || !row.code) return 'none';
+  if (row.verifiedAt) return 'already';
+  if (row.attempts >= CODE_ATTEMPT_LIMIT) return 'spent';
+
+  const digits = typed.replace(/[^0-9]/g, '');
+  if (digits === row.code) {
+    db.prepare(
+      `UPDATE orders SET code_verified_at = ? WHERE order_no = ? AND code_verified_at = ''`,
+    ).run(nowIso(), orderNo);
+    return 'verified';
+  }
+
+  db.prepare(`UPDATE orders SET code_attempts = code_attempts + 1 WHERE order_no = ?`).run(orderNo);
+  // 'spent' when that was the last one, so the caller can say so in the same
+  // breath rather than inviting a fourth guess it would then refuse.
+  return (codeRow(orderNo)?.attempts ?? 0) >= CODE_ATTEMPT_LIMIT ? 'spent' : 'wrong';
+}
+
+/**
+ * Gives up on a code: the associate is at the door and the customer has none.
+ *
+ * Spends it rather than deleting it. The order can then be delivered, and the
+ * record keeps the shape that matters - a code was issued, it reached the
+ * customer, and it was never read back - which is exactly what an unverified
+ * delivery is. Deleting the code would make the order look like one that never
+ * had one, and those are nobody's fault.
+ */
+export function giveUpOnCode(orderNo: string): void {
+  db.prepare(`UPDATE orders SET code_attempts = ? WHERE order_no = ? AND code_verified_at = ''`).run(
+    CODE_ATTEMPT_LIMIT,
+    orderNo,
+  );
+}
+
+/** How many guesses are left, for the message that tells them. */
+export function codeAttemptsLeft(orderNo: string): number {
+  const row = codeRow(orderNo);
+  return Math.max(0, CODE_ATTEMPT_LIMIT - (row?.attempts ?? 0));
+}
+
 /**
  * Every order ever placed, oldest first, with the money broken out.
  *
@@ -1221,6 +1379,16 @@ export type ArchivedOrder = OrderRecord & {
   paymentMethod: string;
   /** When the status last moved. Falls back to the placing time on old rows. */
   statusChangedAt: string;
+  /**
+   * Proof of delivery, as two facts rather than one flag.
+   *
+   * Whether the code reached the customer, and whether it was read back. The
+   * digits themselves are deliberately absent: the export is the file that
+   * gets emailed around, and codes for orders still in flight have no business
+   * travelling with it.
+   */
+  codeSentAt: string;
+  codeVerifiedAt: string;
 };
 
 export function allOrders(): ArchivedOrder[] {
@@ -1229,6 +1397,8 @@ export function allOrders(): ArchivedOrder[] {
       subtotal: number;
       delivery_fee: number;
       payment_method: string;
+      code_sent_at: string | null;
+      code_verified_at: string | null;
     }
   )[];
 
@@ -1238,6 +1408,8 @@ export function allOrders(): ArchivedOrder[] {
     deliveryFee: row.delivery_fee,
     paymentMethod: row.payment_method ?? '',
     statusChangedAt: row.updated_at || row.created_at,
+    codeSentAt: row.code_sent_at ?? '',
+    codeVerifiedAt: row.code_verified_at ?? '',
   }));
 }
 
@@ -1278,9 +1450,9 @@ export function createParcelJob(args: {
          (order_no, kind, phone, customer_name, address, contact_phone, delivery_note,
           latitude, longitude, location_label,
           pickup_address, pickup_lat, pickup_lng,
-          recipient_name, recipient_phone, parcel_details,
+          recipient_name, recipient_phone, parcel_details, delivery_code,
           subtotal, delivery_fee, total, payment_method, status, created_at)
-       VALUES (?, 'parcel', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'cash_on_delivery', 'pending', ?)`,
+       VALUES (?, 'parcel', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'cash_on_delivery', 'pending', ?)`,
     ).run(
       orderNo,
       args.phone,
@@ -1296,6 +1468,11 @@ export function createParcelJob(args: {
       args.recipientName,
       args.recipientPhone,
       args.contents,
+      // A parcel is the strongest case for a code: the person at the door is
+      // not the person who placed the order. The sender gets the digits and
+      // passes them to whoever is receiving - which is the only way the shop
+      // can show the parcel reached the right hands rather than a doorstep.
+      newDeliveryCode(),
       args.fee,
       args.fee,
       nowIso(),

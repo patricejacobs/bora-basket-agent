@@ -241,9 +241,10 @@ export type Audience = 'staff' | 'outlet' | 'driver';
  * taps as ids would feed it "option_1" instead of "Grocery shopping".
  */
 export function commandFromButtonId(id: string): string | null {
-  const simple = /^(confirm|ready|otw|delivered|cancel|handover)_(\d+)$/.exec(id);
+  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode)_(\d+)$/.exec(id);
   if (simple) {
-    const verb = simple[1] === 'otw' ? 'on the way' : simple[1];
+    const verb =
+      simple[1] === 'otw' ? 'on the way' : simple[1] === 'nocode' ? 'no code' : simple[1];
     return `${simple[2]} ${verb}`;
   }
 
@@ -256,6 +257,18 @@ export function commandFromButtonId(id: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * The way past a delivery code nobody can produce.
+ *
+ * A separate button rather than a word to type, because the person tapping it
+ * is standing at a door holding food. It does not make skipping hard - it makes
+ * skipping recorded, which is the part that changes behaviour.
+ */
+export function noCodeButton(orderNo: string): { id: string; title: string; command: string } {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  return { id: `nocode_${n}`, title: 'No code', command: `${n} no code` };
 }
 
 export function nextActions(

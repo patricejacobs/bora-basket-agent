@@ -98,6 +98,8 @@ const HEADER = [
   'Kitchen handover',
   'Minutes to ready',
   'Minutes waiting for uplift',
+  'Code sent',
+  'Code verified',
   'Cancelled by',
   'Cancel reason',
   'Status changed',
@@ -176,6 +178,12 @@ function orderRow(o: repo.ArchivedOrder): string {
     // would flatter every figure it touched.
     gapMinutes(o.placedAt, o.readyAt),
     gapMinutes(o.readyAt, o.upliftedAt),
+    // Two columns, so the three cases stay distinguishable: no code issued,
+    // a code the customer never received, and a code read back at the door.
+    // One combined flag would file the middle case as a failure, and it is the
+    // one nobody is at fault for.
+    localTime(o.codeSentAt),
+    localTime(o.codeVerifiedAt),
     o.cancelledBy,
     o.cancelReason,
     localTime(o.statusChangedAt),

@@ -233,6 +233,22 @@ export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): stri
   return String.fromCharCode(10) + t(MEAL_SIGN_OFFS[pick] ?? 'signoff_meal', lang);
 }
 
+/**
+ * The line that gives a customer their delivery code, or nothing.
+ *
+ * Nothing when codes are switched off, when the order predates them, or once it
+ * has already been verified - re-sending a spent code invites somebody to read
+ * out digits that no longer open anything, and makes the shop look confused
+ * about its own delivery.
+ */
+function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
+  if (!config.deliveryCode) return '';
+  const state = repo.deliveryCodeState(order.orderNo);
+  if (!state.exists || state.verifiedAt) return '';
+  const code = repo.deliveryCodeFor(order.orderNo);
+  return code ? t('door_code', lang, { code }) : '';
+}
+
 export async function notifyCustomerOfStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
@@ -246,11 +262,12 @@ export async function notifyCustomerOfStatus(
 
   const freeForm: Partial<Record<repo.OrderStatus, string>> = {
     confirmed: t('confirmed', lang, { name: firstName, order: order.orderNo }),
-    on_the_way: t('on_the_way', lang, {
-      name: firstName,
-      order: order.orderNo,
-      total: money(order.total),
-    }),
+    on_the_way:
+      t('on_the_way', lang, {
+        name: firstName,
+        order: order.orderNo,
+        total: money(order.total),
+      }) + doorCodeLine(order, lang),
     // The store name rather than the words, so a rename carries through here
     // too — this is the last thing a customer reads from every order.
     delivered:
@@ -267,6 +284,10 @@ export async function notifyCustomerOfStatus(
 
   if (repo.withinServiceWindow(order.phone)) {
     await sendText(order.phone, message);
+    // Only now, and only on this route. The code is in the customer's hands
+    // because this message carried it; the template below cannot, and claiming
+    // otherwise would have the associate asking for digits nobody has.
+    if (status === 'on_the_way' && doorCodeLine(order, lang)) repo.markCodeSent(order.orderNo);
     return 'text';
   }
 

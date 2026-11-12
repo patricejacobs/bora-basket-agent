@@ -16,6 +16,7 @@ import {
   findCancelReason,
   isBackwards,
   nextActions,
+  noCodeButton,
   type Audience,
 } from './order-status.ts';
 import {
@@ -774,10 +775,34 @@ const DRIVER_HELP = [
   '`7 uplifted` — you have the food',
   '`7 delivered` — dropped off, cash taken',
   '',
+  'At the door, ask for the four-digit delivery code and type it in.',
+  'No code? Tap *No code* — the order still goes through.',
+  '',
   'Share your location to be offered uplifts near you.',
   '',
   'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
 ].join('\n');
+
+/**
+ * What dispatch is told when an order is delivered without its code.
+ *
+ * Named, because an unverified delivery is only worth recording if it can be
+ * attributed. One of these is a flat phone battery; a dozen from the same
+ * person is something else, and the shop can only see the difference if the
+ * name is on each one.
+ */
+function unverifiedWarning(order: repo.OrderRecord, phone: string, why: string): string {
+  const who = repo.getAssociate(phone);
+  const named = who?.name
+    ? `${who.name}${who.vehicle ? ` (${who.vehicle})` : ''} +${phone}`
+    : `+${phone}`;
+  return [
+    `⚠️ *${order.orderNo} — delivered, code not verified*`,
+    '',
+    `${named} reports ${why}.`,
+    `Customer: ${order.customerName} +${order.contactPhone || order.phone}`,
+  ].join(chr10);
+}
 
 /**
  * A delivery associate texting the shop number.
@@ -909,6 +934,88 @@ export async function handleDriverMessage(
     );
   }
 
+  // Proof of delivery, answered before the order number is parsed.
+  //
+  // The answer to "what is the code?" is four bare digits, and the parser below
+  // reads any bare number as an order number. So this has to come first - and
+  // it only fires while an order of theirs is actually waiting on a code, which
+  // means an associate who types `1234` meaning order 1234 still gets order
+  // 1234 every other time.
+  if (config.deliveryCode) {
+    const awaiting = holding.filter((o) => {
+      const st = repo.deliveryCodeState(o.orderNo);
+      return st.exists && st.sent && !st.verifiedAt && !st.burnt;
+    });
+
+    const noCode = /\bno\s*code\b/i.test(trimmed);
+    const paired = /^(?:ord[-\s]?)?0*(\d{1,6})\s+(\d{4})$/.exec(trimmed);
+    const bare = /^(\d{4})$/.exec(trimmed);
+
+    // Which order is being proved. Named explicitly, or the only one it could
+    // be. Never guessed when two are open: verifying the wrong delivery is
+    // worse than asking which.
+    const target = paired
+      ? repo.findOrder(paired[1] ?? '')
+      : bare && awaiting.length === 1
+        ? (awaiting[0] ?? null)
+        : null;
+
+    if (bare && !paired && awaiting.length > 1) {
+      const first = String(Number((awaiting[0]?.orderNo ?? '').replace(/[^0-9]/g, '')));
+      return reply(
+        [
+          'Which order is that code for?',
+          '',
+          ...awaiting.map((o) => `${o.orderNo} - ${o.customerName}`),
+          '',
+          `Send the order and the code together, like \`${first} ${bare[1]}\`.`,
+        ].join(chr10),
+      );
+    }
+
+    if (target && (paired || bare)) {
+      const typed = (paired ? paired[2] : bare?.[1]) ?? '';
+      const outcome = repo.verifyDeliveryCode(target.orderNo, typed);
+
+      // Verified, so the gate further down now opens and the ordinary
+      // delivered path runs. One route to a delivered order, not two.
+      if (outcome === 'verified' || outcome === 'already') {
+        return handleDriverMessage(`${target.orderNo} delivered`, phone);
+      }
+
+      if (outcome === 'wrong') {
+        const left = repo.codeAttemptsLeft(target.orderNo);
+        return [
+          {
+            kind: 'buttons',
+            text: [
+              `❌ That is not the code for ${target.orderNo}.`,
+              '',
+              `Ask ${target.customerName.split(/\s+/)[0] || 'the customer'} to read it from our message. ${left} ${left === 1 ? 'try' : 'tries'} left.`,
+            ].join(chr10),
+            buttons: [noCodeButton(target.orderNo)],
+          },
+        ];
+      }
+
+      // Spent, or an order that never had a code. Nothing left to prove, so
+      // the delivery goes through rather than somebody standing at a door.
+      repo.giveUpOnCode(target.orderNo);
+      await warnStaff(unverifiedWarning(target, phone, 'the code could not be confirmed'));
+      return handleDriverMessage(`${target.orderNo} delivered`, phone);
+    }
+
+    if (noCode) {
+      const named = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
+      const which = named ? repo.findOrder(named[1] ?? '') : (awaiting[0] ?? null);
+      if (which) {
+        repo.giveUpOnCode(which.orderNo);
+        await warnStaff(unverifiedWarning(which, phone, 'the customer could not give the code'));
+        return handleDriverMessage(`${which.orderNo} delivered`, phone);
+      }
+    }
+  }
+
   const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
   if (!ref) return reply(`Didn't catch an order number.\n\n${DRIVER_HELP}`);
 
@@ -971,6 +1078,31 @@ export async function handleDriverMessage(
   }
 
   if (status === 'on_the_way' && phone) repo.assignDriver(order.orderNo, phone);
+
+  // The door code, asked for instead of completing the delivery.
+  //
+  // Only when the customer actually has it. An order whose code never left the
+  // building - dispatched outside WhatsApp's 24-hour window, where the fixed
+  // template cannot carry digits - must not be held up for digits nobody was
+  // given, or every such delivery reads as a failed verification by somebody
+  // who did nothing wrong.
+  if (status === 'delivered' && config.deliveryCode) {
+    const st = repo.deliveryCodeState(order.orderNo);
+    if (st.exists && st.sent && !st.verifiedAt && !st.burnt) {
+      const who = order.customerName.split(/\s+/)[0] || 'the customer';
+      return [
+        {
+          kind: 'buttons',
+          text: [
+            `🔐 *${order.orderNo}* — ask ${who} for their delivery code.`,
+            '',
+            'Type the four digits to close the order.',
+          ].join(chr10),
+          buttons: [noCodeButton(order.orderNo)],
+        },
+      ];
+    }
+  }
 
   // A completed delivery is the one position we never have to ask for: they
   // were demonstrably at that doorstep when they tapped the button.

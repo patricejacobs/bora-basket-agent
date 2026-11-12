@@ -150,6 +150,13 @@ services:
       # breaks it. 0 switches the cap off.
       - key: ASSOCIATE_MAX_HOURS_PER_DAY
         value: "12"
+      # Four digits the customer reads out at the door, so the shop can show
+      # the right bag reached the right person - and so an associate accused of
+      # keeping an order has something better than their word. It never blocks
+      # a delivery: no code means the drop is recorded unverified and dispatch
+      # is told. "false" switches it off.
+      - key: DELIVERY_CODE
+        value: "true"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

@@ -249,6 +249,19 @@ export const config = {
    * 0 switches the cap off.
    */
   dutyHoursPerDay: Math.max(0, num('ASSOCIATE_MAX_HOURS_PER_DAY', 12)),
+  /**
+   * Whether a customer gets a four-digit code to read out at the door.
+   *
+   * Proof the right bag reached the right person, and - just as much - proof
+   * for the associate that it did. A disputed delivery otherwise comes down to
+   * two accounts of the same doorstep.
+   *
+   * It never blocks. An associate whose customer cannot produce the code can
+   * deliver anyway; the order is recorded unverified and dispatch is told. Food
+   * going cold at a door while somebody hunts for a message is a worse failure
+   * than an unverified drop, and the record is what makes a pattern visible.
+   */
+  deliveryCode: bool('DELIVERY_CODE', true),
 
   /**
    * Watching for orders that have stopped moving.
