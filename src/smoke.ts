@@ -4184,6 +4184,104 @@ section('Delivering to somebody other than the buyer');
   check('a stray code is not taken for an order number', !/No order 2149/i.test(stray), stray);
 }
 
+section('What a settled order says, to whom');
+{
+  const { handleDriverMessage, handleStaffMessage, handleOutletMessage } = await import('./staff.ts');
+  const rider = config.driverNumbers[0]!;
+  const staff = config.staffNumbers[0]!;
+
+  const make = (no: string, kind: string, status: string, code: string, reason: string, outlet: number | null) =>
+    db
+      .prepare(
+        `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+           delivery_note, kind, outlet_id, outlet_name, delivery_code, code_sent_at,
+           latitude, longitude, location_label, subtotal, delivery_fee, total,
+           payment_method, status, cancel_reason, cancelled_by, created_at)
+         VALUES (?, '5926100001','Marcia Persaud','Lot 4 Diamond','5926100001','', ?,
+           ?, ?, ?, ?, 6.64, -58.21, 'Diamond', 185000, 50000, 235000,
+           'cash', ?, ?, 'outlet', '2026-11-11T18:00:00Z')`,
+      )
+      .run(no, kind, outlet, outlet ? 'A Taste of Guyana' : '', code,
+           code ? '2026-11-11T18:40:00Z' : '', status, reason);
+
+  make('ORD-90101', 'restaurant', 'cancelled', '', 'Kitchen ran out', 1);
+  make('ORD-90102', 'restaurant', 'cancelled', '2149', 'Kitchen closing', 1);
+  make('ORD-90103', 'restaurant', 'delivered', '2149', '', 1);
+  make('ORD-90104', 'parcel', 'cancelled', '', 'Customer changed their mind', null);
+
+  /* --- the associate, who cannot cook and cannot unprepare -------------- */
+
+  const onCancelled = (await handleDriverMessage('90101 1234', rider))[0]?.text ?? '';
+  check('a wrong code on a cancelled order says it is cancelled', /was cancelled/i.test(onCancelled), onCancelled);
+  check('with the reason, so they can face the customer', /kitchen ran out/i.test(onCancelled), onCancelled);
+  check('tells them not to deliver it', /do not deliver/i.test(onCancelled), onCancelled);
+  check('and not to take money', /not collect any money/i.test(onCancelled), onCancelled);
+  check('and where to put it', /Take it back to A Taste of Guyana/.test(onCancelled), onCancelled);
+  // The old message, and the two wrong answers that replaced it in between.
+  check('never tells an associate not to prepare it', !/prepare/i.test(onCancelled), onCancelled);
+  check('never offers another try at the code', !/tries left|try left/i.test(onCancelled), onCancelled);
+  check('and never invites them to deliver it', !/delivered\` to close/i.test(onCancelled), onCancelled);
+
+  // Same answer whether or not the order ever had a code: it is cancelled
+  // either way, and that is the only fact that matters at the door.
+  const hadCode = (await handleDriverMessage('90102 1234', rider))[0]?.text ?? '';
+  check('an order that did have a code reads the same', /was cancelled/i.test(hadCode), hadCode);
+  check('and still offers no retry', !/tries left/i.test(hadCode), hadCode);
+
+  const tapped = (await handleDriverMessage('90101 no code', rider))[0]?.text ?? '';
+  check('No code on a cancelled order says the same', /was cancelled/i.test(tapped), tapped);
+
+  // A parcel goes back to whoever sent it, not to a kitchen it never had.
+  const parcel = (await handleDriverMessage('90104 delivered', rider))[0]?.text ?? '';
+  check('a cancelled parcel goes back to the sender', /Take it back to Marcia Persaud/.test(parcel), parcel);
+
+  const done = (await handleDriverMessage('90103 delivered', rider))[0]?.text ?? '';
+  check('an order already delivered says so', /already .*delivered/i.test(done), done);
+  check('and does not tell them to take it anywhere', !/Take it back/i.test(done), done);
+
+  /* --- the kitchen, which can ------------------------------------------- */
+
+  const ssc = repo.getOutlet('SSC');
+  if (ssc) {
+    db.prepare(`UPDATE orders SET outlet_id = ? WHERE order_no = 'ORD-90101'`).run(ssc.id);
+    const kitchen = (await handleOutletMessage(ssc, '90101 ready'))[0]?.text ?? '';
+    check('a kitchen IS told not to prepare it', /do not prepare/i.test(kitchen), kitchen);
+    check('with the reason at the end, not mid-sentence', /Reason: kitchen ran out/i.test(kitchen), kitchen);
+    check('and is never told to take it anywhere', !/Take it back/i.test(kitchen), kitchen);
+  }
+
+  /* --- staff ------------------------------------------------------------ */
+
+  const forStaff = (await handleStaffMessage('90102 ready', staff))[0]?.text ?? '';
+  check('staff are told plainly', /cannot be changed/i.test(forStaff), forStaff);
+  check('with no doorstep instructions', !/Take it back|not collect any money/i.test(forStaff), forStaff);
+
+  /* --- the false warning ------------------------------------------------ */
+
+  // An order that never had a code must never be reported as one whose code
+  // went unconfirmed. The two are kept apart everywhere else; this is where
+  // they were being collapsed.
+  make('ORD-90105', 'restaurant', 'on_the_way', '', '', 1);
+  db.prepare(`UPDATE orders SET driver_phone = ? WHERE order_no = 'ORD-90105'`).run(rider);
+  const noCodeEver = (await handleDriverMessage('90105 1234', rider))[0]?.text ?? '';
+  check('an order with no code says so', /No code is needed/i.test(noCodeEver), noCodeEver);
+  check('and is not delivered off a mistyped message', repo.findOrder('ORD-90105')?.status === 'on_the_way');
+  check('and no code was spent on it', repo.deliveryCodeState('ORD-90105').attempts === 0);
+  check(
+    'and it is not recorded as an unconfirmed code',
+    !repo.deliveryCodeUnconfirmed('ORD-90105'),
+  );
+
+  /* --- the job-card view ------------------------------------------------ */
+
+  const looking = (await handleDriverMessage('90101', rider))[0]?.text ?? '';
+  check('a cancelled order is never shown with cash to collect', !/Collect \$/.test(looking), looking);
+  check('it says there is nothing to collect', /Nothing to collect/i.test(looking), looking);
+  check('and shows no map link to drive to', !/http/.test(looking), looking);
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-901%'`).run();
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

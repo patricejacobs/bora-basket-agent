@@ -51,6 +51,48 @@ export const isDriver = (phone: string): boolean => config.driverNumbers.include
  * whether a cook, a dispatcher or the shop owner pressed it — and if that lived
  * in each handler, one of them would eventually forget.
  */
+/**
+ * What a terminal order says, to the person who just tried to move it.
+ *
+ * One sentence of fact and one instruction, and the instruction depends
+ * entirely on who is reading. "Do not prepare it" is a kitchen's instruction;
+ * an associate cannot unprepare anything, and told that while standing
+ * somewhere holding the food they learn nothing they can act on.
+ */
+function terminalMessage(order: repo.OrderRecord, who: 'staff' | 'outlet' | 'driver'): string {
+  if (order.status === 'delivered') {
+    return `${order.orderNo} is already *delivered* — nothing more to do.`;
+  }
+
+  // The reason, because an associate at a door may be facing the customer and
+  // "it was cancelled" with no explanation makes them look like the problem.
+  const reason = order.cancelReason
+    ? ` — ${order.cancelReason.charAt(0).toLowerCase()}${order.cancelReason.slice(1)}`
+    : '';
+
+  if (who === 'driver') {
+    // Somewhere to put it, which costs nothing to say and is the difference
+    // between an instruction and a dead end - there is nobody on the
+    // administrative end to ring for a decision.
+    const back =
+      order.outlet?.name ?? (order.kind === 'parcel' ? order.customerName : 'the shop');
+    return [
+      `🛑 ${order.orderNo} was cancelled${reason}.`,
+      '',
+      'Do not deliver it, and do not collect any money.',
+      `Take it back to ${back}.`,
+    ].join(chr10);
+  }
+
+  // The reason trails, rather than sitting mid-sentence: "was cancelled -
+  // kitchen ran out and cannot be changed" reads as though the kitchen running
+  // out is the thing that cannot be changed.
+  if (who === 'outlet') {
+    return `${order.orderNo} was cancelled and cannot be changed. Do not prepare it.${reason ? ` Reason:${reason.replace(/^ — /, " ")}.` : ''}`;
+  }
+  return `${order.orderNo} was cancelled and cannot be changed.${reason ? ` Reason:${reason.replace(/^ — /, " ")}.` : ''}`;
+}
+
 async function applyStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
@@ -61,12 +103,7 @@ async function applyStatus(
   // minutes after a cancellation would otherwise revive it and start cooking
   // something nobody wants.
   if (order.status === 'cancelled' || order.status === 'delivered') {
-    return {
-      body: `${order.orderNo} is already *${STATUS_LABEL[order.status]}* and cannot be changed.${
-        order.status === 'cancelled' ? ' Do not prepare it.' : ''
-      }`,
-      status: order.status,
-    };
+    return { body: terminalMessage(order, reportedBy), status: order.status };
   }
 
   // A delivery associate cannot cancel, ever.
@@ -1081,6 +1118,18 @@ export async function handleDriverMessage(
         ? (awaiting[0] ?? null)
         : null;
 
+    // A cancelled or delivered order has nothing left to verify, so it never
+    // reaches the code logic below.
+    //
+    // Without this, a wrong code on a cancelled order was answered "2 tries
+    // left" - inviting the associate to keep trying to complete something that
+    // is over - and an old order with no code at all was answered "send `23
+    // delivered` to close it", which is worse still: an instruction to deliver
+    // something that has been cancelled.
+    if (target && (target.status === 'cancelled' || target.status === 'delivered')) {
+      return reply(terminalMessage(target, 'driver'));
+    }
+
     if (bare && !paired && awaiting.length > 1) {
       const first = String(Number((awaiting[0]?.orderNo ?? '').replace(/[^0-9]/g, '')));
       return reply(
@@ -1119,8 +1168,28 @@ export async function handleDriverMessage(
         ];
       }
 
-      // Spent, or an order that never had a code. Nothing left to prove, so
-      // the delivery goes through rather than somebody standing at a door.
+      // An order that never had a code is not a code that went unconfirmed.
+      //
+      // These are two different facts and the whole value of the unverified
+      // count rests on keeping them apart - which this branch collapsed,
+      // warning dispatch that a code "could not be confirmed" on orders that
+      // never had one, and then forcing a delivery off what may well have been
+      // a mistyped message. Say so instead, and let them close it the ordinary
+      // way if that is what they meant.
+      if (outcome === 'none') {
+        const n = String(Number(target.orderNo.replace(/[^0-9]/g, '')));
+        return reply(
+          [
+            `No code is needed on ${target.orderNo}.`,
+            '',
+            `Send \`${n} delivered\` to close it.`,
+          ].join(chr10),
+        );
+      }
+
+      // Spent: there was a code, and it is now exhausted. Nothing left to
+      // prove, so the delivery goes through rather than somebody standing at a
+      // door - and dispatch is told, truthfully this time.
       repo.giveUpOnCode(target.orderNo);
       await warnStaff(unverifiedWarning(target, phone, 'the code could not be confirmed'));
       return handleDriverMessage(`${target.orderNo} delivered`, phone);
@@ -1148,8 +1217,16 @@ export async function handleDriverMessage(
     }
 
     if (noCode) {
-      const named = trimmed.match(/(?:ord[-\\s]?)?0*(\\d{1,6})/i);
+      // A doubled backslash here once made this `\\s` and `\\d` - a regex that
+      // matches nothing, so `80 no code` from the button never found order 80
+      // and silently fell back to whatever the associate happened to be
+      // holding. Right while they held exactly one job, wrong the moment
+      // they held two.
+      const named = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
       const which = named ? repo.findOrder(named[1] ?? '') : (awaiting[0] ?? null);
+      if (which && (which.status === 'cancelled' || which.status === 'delivered')) {
+        return reply(terminalMessage(which, 'driver'));
+      }
       if (which) {
         repo.giveUpOnCode(which.orderNo);
         await warnStaff(unverifiedWarning(which, phone, 'the customer could not give the code'));
@@ -1283,13 +1360,23 @@ export async function handleDriverMessage(
   return out;
 }
 
-const describeForDriver = (o: repo.OrderRecord): string =>
-  [
+const describeForDriver = (o: repo.OrderRecord): string => {
+  // Cancelled or delivered: there is no money to take. Printing "Collect
+  // $235,000 cash" under the word *cancelled* is an instruction and a
+  // contradiction on the same card, and the instruction is the line somebody
+  // acts on.
+  const settled = o.status === 'cancelled' || o.status === 'delivered';
+  return [
     `*${o.orderNo}* — ${STATUS_LABEL[o.status]}`,
     ...(o.outlet ? [`Pick up: ${o.outlet.name}${o.outlet.pickupAddress ? `, ${o.outlet.pickupAddress}` : ''}`] : []),
-    `To: ${o.customerName}`,
+    `To: ${o.recipientName || o.customerName}`,
     ...(o.address ? [o.address] : []),
-    `📞 +${o.contactPhone || o.phone}`,
-    ...(o.location ? [mapsLink(o.location)] : ['⚠️ No pin — ring the customer']),
-    `Collect ${money(o.total)} cash`,
+    `📞 +${o.recipientPhone || o.contactPhone || o.phone}`,
+    ...(settled ? [] : o.location ? [mapsLink(o.location)] : ['⚠️ No pin — ring the customer']),
+    settled
+      ? o.status === 'cancelled'
+        ? 'Nothing to collect — this one is cancelled.'
+        : 'Nothing to collect — already delivered.'
+      : `Collect ${money(o.total)} cash`,
   ].join('\n');
+};

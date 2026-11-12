@@ -1343,6 +1343,48 @@ to the delivery associate at the door, so we know the order reached
 the right hands.
 ```
 
+### What a settled order says, and to whom
+
+An order that is cancelled or delivered cannot move, and the message saying so
+used to be the same for everybody: *"cannot be changed. Do not prepare it."* An
+associate cannot unprepare anything. Standing somewhere holding food for an
+order that was cancelled while they drove, they learned nothing they could act
+on.
+
+Now it depends who is reading. The associate:
+
+```
+🛑 ORD-00023 was cancelled — kitchen ran out.
+
+Do not deliver it, and do not collect any money.
+Take it back to A Taste of Guyana.
+```
+
+The reason, so they can answer a customer who appears at the door; **do not
+collect any money**, because that is the expensive mistake; and somewhere to
+take it, which is actionable with nobody to ring. A cancelled parcel goes back
+to whoever sent it, not to a kitchen it never had.
+
+The kitchen keeps *Do not prepare it* — right audience, right instruction.
+Staff get the plain fact with no doorstep advice.
+
+A settled order also never reaches the code logic at all. A wrong code on a
+cancelled order used to answer *"2 tries left"*, inviting an associate to keep
+trying to complete something that was over; and an old order with no code was
+told to *"send 23 delivered to close it"*, which is worse — an instruction to
+deliver something already cancelled. Its job-card view no longer prints
+`Collect $235,000 cash` under the word *cancelled* either, which was an
+instruction and a contradiction on one card.
+
+### An order that never had a code is not a failed code
+
+These are different facts and the export keeps two columns to tell them apart.
+One branch collapsed them anyway: typing a code against an order with no code
+warned dispatch that the code *"could not be confirmed"* and then forced a
+delivery off what may have been a mistyped message. Both were false — the order
+had no code and was never delivered — and it corrupted the one count that makes
+unverified deliveries visible. It now says so and stops.
+
 ### An associate can never cancel
 
 Their own handler allows only uplifted and delivered. A second guard sits inside
