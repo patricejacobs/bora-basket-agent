@@ -18,12 +18,14 @@ import {
   nextActions,
   noCodeButton,
   nobodyThereButton,
+  transferButton,
   wrongCodeButton,
   type Audience,
 } from './order-status.ts';
 import {
   dispatchToDrivers,
   dropLines,
+  tellTransferred,
   withoutPhone,
   offerWaitingWork,
   parcelUpliftCard,
@@ -106,6 +108,8 @@ async function applyStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
   reportedBy: 'staff' | 'outlet' | 'driver' = 'staff',
+  /** Who is doing it, when that is a particular associate rather than a role. */
+  byPhone = '',
 ): Promise<{ body: string; status: repo.OrderStatus }> {
   // Delivered and cancelled are the end. The buttons on an old message do not
   // disappear when an order moves on, so a cook tapping "Confirm" twenty
@@ -150,6 +154,12 @@ async function applyStatus(
   // once each, so a tap on an old message cannot move them.
   if (status === 'ready') repo.markReadyAt(order.orderNo);
   if (status === 'on_the_way') repo.markUpliftedAt(order.orderNo);
+  // Who took it, recorded here rather than read off the order later: the job
+  // can be transferred afterwards, and a parcel's money stays with whoever
+  // collected it at the pickup.
+  if (status === 'on_the_way' && reportedBy === 'driver' && byPhone) {
+    repo.markUpliftedBy(order.orderNo, byPhone);
+  }
   const updated = { ...order, status };
 
   const notes: string[] = [];
@@ -883,6 +893,7 @@ const DRIVER_HELP = [
   '`7 delivered` — dropped off, cash taken',
   '',
   '`cash` — what you are holding this shift',
+  '`7 transfer` — hand order 7 to another associate',
   '',
   'At the door, ask for the four-digit delivery code and type it in.',
   'No code? Tap *No code* — the order still goes through.',
@@ -1339,6 +1350,109 @@ export async function handleDriverMessage(
     }
   }
 
+  // Handing a job to somebody else.
+  //
+  // The carrier gives it away rather than the other associate taking it: they
+  // are the one who knows the bag is changing hands, and a job anybody could
+  // claim is the hole this exists to close.
+  const handing = trimmed.match(/^(?:ord[-\s]?)?0*(\d{1,6})\s+transfer(?:\s+(.+))?$/i);
+  if (handing) {
+    const job = repo.findOrder(handing[1] ?? '');
+    if (!job) return reply(`No order ${handing[1]}. Send \`jobs\` to see what you have.`);
+    if (!holding.some((o) => o.orderNo === job.orderNo)) {
+      return reply(`${job.orderNo} is not with you, so it is not yours to pass on.`);
+    }
+
+    const mine = phone.replace(/[^0-9]/g, '');
+    const limit = config.maxJobsPerAssociate;
+    // On duty, carrying nothing, and not the person giving it away. Offering
+    // somebody who is already loaded breaks the one-at-a-time rule the moment
+    // they take it.
+    const free = config.driverNumbers.filter(
+      (p2) =>
+        p2 !== mine &&
+        repo.isOnDuty(p2) &&
+        (limit <= 0 || repo.activeJobsFor(p2).length < limit),
+    );
+
+    const named = (handing[2] ?? '').trim();
+    if (named) {
+      const digits = named.replace(/[^0-9]/g, '');
+      const to = free.find((p2) => {
+        if (digits.length >= 6 && p2.includes(digits)) return true;
+        const who = repo.getAssociate(p2);
+        return Boolean(who?.name && who.name.toLowerCase().includes(named.toLowerCase()));
+      });
+      if (!to) {
+        return reply(
+          `No free delivery associate matching "${named}". Send \`${handing[1]} transfer\` to see who can take it.`,
+        );
+      }
+
+      const taker = repo.getAssociate(to);
+      const takerName = taker?.name || `+${to}`;
+      repo.assignDriver(job.orderNo, to);
+      void tellTransferred(job.orderNo, mine, to).catch((err: unknown) =>
+        console.error('[staff] could not tell them about the transfer:', err),
+      );
+
+      // Where the money is decides what he is told. A parcel was paid for at
+      // the pickup and that cash stays with whoever took it; food is paid at
+      // the door by whoever gets there.
+      const isParcelJob = job.kind === 'parcel';
+      const uplifter = repo.upliftedBy(job.orderNo);
+      return reply(
+        [
+          `✅ ${job.orderNo} is now with ${takerName}.`,
+          '',
+          isParcelJob ? 'Hand them the parcel.' : 'Hand them the order.',
+          isParcelJob && uplifter === mine && job.total > 0
+            ? `The ${money(job.total)} you collected stays with you — it was paid at the uplift.`
+            : job.total > 0
+              ? `${takerName} collects the ${money(job.total)} at the door.`
+              : '',
+        ]
+          .filter((line) => line !== '')
+          .join(chr10),
+      );
+    }
+
+    if (free.length === 0) {
+      const why = config.driverNumbers
+        .filter((p2) => p2 !== mine)
+        .map((p2) => {
+          const who = repo.getAssociate(p2);
+          const label = who?.name || `+${p2}`;
+          const carrying = repo.activeJobsFor(p2);
+          if (!repo.isOnDuty(p2)) return `${label} is off duty.`;
+          return carrying.length > 0
+            ? `${label} is carrying ${carrying.map((o) => o.orderNo).join(', ')}.`
+            : `${label} is free.`;
+        });
+      return reply(
+        [
+          `🤝 Nobody is free to take ${job.orderNo}.`,
+          '',
+          ...(why.length > 0 ? why : ['There is nobody else on the list.']),
+          '',
+          'Finish it yourself, or ring the shop.',
+        ].join(chr10),
+      );
+    }
+
+    return [
+      {
+        kind: 'buttons',
+        text: `🤝 Who is taking ${job.orderNo}?`,
+        // Three is WhatsApp's limit. More than three free associates and the
+        // rest are reached by name: `72 transfer rohan`.
+        buttons: free
+          .slice(0, 3)
+          .map((p2) => transferButton(job.orderNo, p2, repo.getAssociate(p2)?.name ?? '')),
+      },
+    ];
+  }
+
   const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
   if (!ref) return reply(`Didn't catch an order number.\n\n${DRIVER_HELP}`);
 
@@ -1474,6 +1588,33 @@ export async function handleDriverMessage(
   // template cannot carry digits - must not be held up for digits nobody was
   // given, or every such delivery reads as a failed verification by somebody
   // who did nothing wrong.
+  // Only the associate carrying it may close it.
+  //
+  // The code path already checked this; `delivered` and `no code` did not, so
+  // anybody on the list could finish somebody else's job by typing its number.
+  // Which is also how the money went astray: takings are attributed to whoever
+  // the order is assigned to, so a delivery closed by the wrong person put the
+  // cash on the wrong name.
+  //
+  // A job genuinely changing hands is a real thing, and now has a real way to
+  // happen - the carrier transfers it, and the record follows the bag.
+  if (
+    (status === 'delivered' || status === 'returned') &&
+    order.driverPhone &&
+    order.driverPhone !== phone.replace(/[^0-9]/g, '')
+  ) {
+    const who = repo.getAssociate(order.driverPhone);
+    const n = String(Number(order.orderNo.replace(/[^0-9]/g, '')));
+    return reply(
+      [
+        `${order.orderNo} is not yours to close.`,
+        '',
+        `${who?.name || 'Another delivery associate'} is delivering it. If they have passed it to you,`,
+        `ask them to send \`${n} transfer\`.`,
+      ].join(chr10),
+    );
+  }
+
   // A settled order, reached by a path the code branch above does not cover:
   // `7 delivered` is neither a code nor a No-code, so it arrives here. Without
   // this an associate carrying an order cancelled while they drove was asked
@@ -1517,7 +1658,7 @@ export async function handleDriverMessage(
     repo.saveAssociateLocation(phone, order.location, 'delivery');
   }
 
-  const { body, status: landed } = await applyStatus(order, status, 'driver');
+  const { body, status: landed } = await applyStatus(order, status, 'driver', phone);
   // Read after the move, not before: the code is sent to the customer by the
   // very notification that `applyStatus` fires, so asked before it this would
   // always say no and the card would carry a Delivered button it should not.

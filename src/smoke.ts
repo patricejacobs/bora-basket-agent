@@ -22,7 +22,9 @@ for (const suffix of ['', '-wal', '-shm']) {
 process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
 process.env.STAFF_NUMBERS = '5926497570';
-process.env.DRIVER_NUMBERS = '5926001111';
+// Two, because a job changing hands between associates is a thing the suite
+// has to be able to exercise - with one number there is nobody to hand it to.
+process.env.DRIVER_NUMBERS = '5926001111,5926002222';
 // A delivery area around Stabroek Market, so the geofence is exercised rather
 // than skipped. It ships switched off (store-settings.json, asserted below),
 // and every test pin below except the deliberate far ones falls inside it.
@@ -1934,7 +1936,7 @@ section('Kitchen and delivery associate commands');
   const { nextActions, commandFromButtonId } = await import('./order-status.ts');
 
   check('recognises a configured delivery associate', isDriver('5926001111'));
-  check('does not treat a customer as a delivery associate', !isDriver('5926002222'));
+  check('does not treat a customer as a delivery associate', !isDriver('5926009191'));
 
   // Role-appropriate buttons. A cook must not be able to close an order.
   const kitchenPending = nextActions('ORD-00009', 'pending', 'outlet');
@@ -2017,7 +2019,10 @@ section('Kitchen and delivery associate commands');
   const collected = collectedOut.find((m) => m.kind !== 'location')?.text ?? '';
   check('a delivery associate can collect', collected.includes('on the way'), collected);
   check('and the order is now theirs', repo.findOrder(ref)?.driverPhone === '5926001111', repo.findOrder(ref)?.driverPhone);
-  const delivered = (await handleDriverMessage(`${ref} delivered`))[0]?.text ?? '';
+  // As the associate who collected it. Only they can close it now, which is
+  // what stops one associate finishing another's job - and putting the cash on
+  // the wrong name.
+  const delivered = (await handleDriverMessage(`${ref} delivered`, '5926001111'))[0]?.text ?? '';
   check('a delivery associate can deliver', delivered.includes('delivered'), delivered);
   check('delivered persisted', repo.findOrder(ref)?.status === 'delivered');
 
@@ -4511,6 +4516,13 @@ section('A queue, not a fault');
 
   make('ORD-90301', 'on_the_way', rider);  // in their hands
   make('ORD-90302', 'ready', '');          // cooked, waiting
+  // Everybody, not just one: with a second associate on the list the queue is
+  // only full when both are loaded.
+  const other = config.driverNumbers.filter((p2) => p2 !== rider);
+  for (const p2 of other) {
+    repo.setDuty(p2, true);
+    make(`ORD-9039${config.driverNumbers.indexOf(p2)}`, 'on_the_way', p2);
+  }
 
   /* --- the kitchen is told a queue, not a fault ----------------------- */
 
@@ -5281,6 +5293,114 @@ section('Why a parcel came back');
   db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
   for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(rider, no);
   repo.setDuty(rider, false);
+}
+
+section('Handing a job to somebody else');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { offerParcel } = await import('./dispatch.ts');
+  const A = config.driverNumbers[0]!;
+  const B = config.driverNumbers[1] ?? '5926002222';
+  const booker = '5926007878';
+
+  const held = repo.activeJobsFor(A).concat(repo.activeJobsFor(B)).map((o) => o.orderNo);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone='' WHERE order_no=?`).run(no);
+  repo.upsertAssociate({ phone: B, name: 'Rider Two', vehicle: 'PLL 1234', active: 1 } as never);
+  repo.setDuty(A, true);
+  repo.setDuty(B, true);
+  repo.saveCustomer(booker, { name: 'Office', contactPhone: booker });
+
+  const carried = async () => {
+    const j = repo.createParcelJob({
+      phone: booker,
+      senderName: 'Peter Higg',
+      pickup: null,
+      pickupAddress: '23 High St',
+      destination: null,
+      destinationAddress: '54 Kier Street',
+      recipientName: 'Frank Doly',
+      recipientPhone: '5926588596',
+      contents: 'Papers',
+      fee: 150000,
+      contactPhone: '5926771234',
+    });
+    const n = String(Number(j.orderNo.replace(/\D/g, '')));
+    await offerParcel(j.orderNo);
+    await handleDriverMessage(`${n} confirm`, A);
+    await handleDriverMessage(`${n} uplifted`, A);
+    return { no: j.orderNo, n };
+  };
+
+  /* --- the hole, closed -------------------------------------------- */
+
+  const job = await carried();
+  // Anybody on the list could finish somebody else's job by typing its
+  // number - and the takings follow whoever the order is assigned to, so the
+  // cash landed on the wrong name too.
+  const refused = (await handleDriverMessage(`${job.n} delivered`, B))[0]?.text ?? '';
+  check('another associate cannot close it', repo.findOrder(job.no)?.status === 'on_the_way', refused);
+  check('and is told whose it is', /Rider One is delivering it/.test(refused), refused);
+  check('with the way to do it properly', /transfer/.test(refused), refused);
+  const refusedBack = (await handleDriverMessage(`${job.n} nobody there`, B))[0]?.text ?? '';
+  check('nor send it back', repo.findOrder(job.no)?.status === 'on_the_way', refusedBack);
+
+  /* --- only the carrier gives it away -------------------------------- */
+
+  const notYours = (await handleDriverMessage(`${job.n} transfer`, B))[0]?.text ?? '';
+  check('and cannot transfer it either', /not with you/.test(notYours), notYours);
+
+  const offer = await handleDriverMessage(`${job.n} transfer`, A);
+  const names = ((offer[0] as { buttons?: { title: string }[] }).buttons ?? []).map((b) => b.title);
+  check('the carrier is offered who is free', names.includes('Rider Two'), JSON.stringify(names));
+  check('and never themselves', !names.includes(repo.getAssociate(A)?.name ?? 'x'), JSON.stringify(names));
+
+  /* --- the money stays where the money is ---------------------------- */
+
+  const before = repo.cashCollected(A, repo.startOfStoreDay()).total;
+  const takerBefore = repo.cashCollected(B, repo.startOfStoreDay()).total;
+  const done = (await handleDriverMessage(`${job.n} transfer ${B}`, A))[0]?.text ?? '';
+  check('it moves', repo.findOrder(job.no)?.driverPhone === B, repo.findOrder(job.no)?.driverPhone);
+  check('the giver is told to hand it over', /is now with Rider Two/.test(done), done);
+  // A parcel was paid for at the pickup. That cash is in the first
+  // associate's pocket, and moving it with the job would leave him short by
+  // exactly what he is carrying at the end of the shift.
+  check('the parcel fee stays with whoever collected it', /stays with you/.test(done), done);
+  check(
+    'and the takings agree',
+    repo.cashCollected(A, repo.startOfStoreDay()).total === before,
+    `${before} -> ${repo.cashCollected(A, repo.startOfStoreDay()).total}`,
+  );
+  check(
+    'it is not charged to the one taking it',
+    repo.cashCollected(B, repo.startOfStoreDay()).total === takerBefore,
+    `${takerBefore} -> ${repo.cashCollected(B, repo.startOfStoreDay()).total}`,
+  );
+
+  /* --- and the new carrier can finish it ----------------------------- */
+
+  check('the job is theirs now', repo.activeJobsFor(B).some((o) => o.orderNo === job.no));
+  const closed = (await handleDriverMessage(`${job.n} delivered`, B))[0]?.text ?? '';
+  check('the one holding it can close it', repo.findOrder(job.no)?.status === 'delivered', closed);
+  check('and the first is free again', !repo.activeJobsFor(A).some((o) => o.orderNo === job.no));
+
+  /* --- nobody free --------------------------------------------------- */
+
+  const second = await carried();
+  repo.setDuty(B, false);
+  const nobody = (await handleDriverMessage(`${second.n} transfer`, A))[0]?.text ?? '';
+  check('it says plainly when nobody can take it', /Nobody is free/.test(nobody), nobody);
+  check('and why', /off duty/.test(nobody), nobody);
+  check('leaving the job where it is', repo.findOrder(second.no)?.driverPhone === A);
+  repo.setDuty(B, true);
+
+  const unknown = (await handleDriverMessage(`${second.n} transfer Rohan`, A))[0]?.text ?? '';
+  check('an unknown name is refused', /No free delivery associate/.test(unknown), unknown);
+  check('and the job stays put', repo.findOrder(second.no)?.driverPhone === A);
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
+  repo.setDuty(A, false);
+  repo.setDuty(B, false);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(A, no);
 }
 
 section('Counting the cash');

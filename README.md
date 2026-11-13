@@ -1561,6 +1561,61 @@ how many tries remain — because that is their own job, not a guess at somebody
 else’s. And the advisory about a cancelled parcel still exists: it belongs on the
 card for the order somebody is actually carrying, not in a reply to a guess.
 
+### Handing a job to somebody else
+
+Only the associate carrying an order can close it. Before this, anybody on the
+list could finish somebody else's job by typing its number — and because takings
+are attributed to whoever the order is assigned to, the cash landed on the wrong
+name at the same time.
+
+```
+ORD-00072 is not yours to close.
+
+Rider One is delivering it. If they have passed it to you,
+ask them to send `72 transfer`.
+```
+
+A job genuinely changing hands is routine, so it has a proper way to happen. The
+**carrier gives it away** rather than the other associate taking it: they are
+the one who knows the bag is physically changing hands, and a job anybody could
+claim is the hole this exists to close.
+
+```
+🤝 Who is taking ORD-00072?
+
+                                          [ Rider Two ]
+```
+
+Only associates who are **on duty and carrying nothing** are offered — anyone
+else would break the one-at-a-time rule the moment they accepted. When nobody
+qualifies it says so, and why: *"Rider Two is carrying ORD-00081. Rider Three is
+off duty."* More than three free, and the rest are reached by name:
+`72 transfer rohan`.
+
+The one taking it gets the whole job on their own phone, not a notice about it —
+they are about to drive somewhere, and the card was sent to a different handset.
+
+#### Where the money goes
+
+This is what makes a transfer more than a reassignment:
+
+| | Paid | Counted against |
+|---|---|---|
+| Parcel | at the uplift, by the sender | whoever **uplifted** it |
+| Food, grocery | at the door, by the customer | whoever **delivered** it |
+
+Move a parcel's fee with the job and the first associate ends the shift short by
+exactly what is in his pocket, with nothing to show why — worse than the hole
+being fixed. So the uplifting associate is recorded on the order, separately
+from whoever currently holds it, and the giver is told which case he is in:
+
+```
+✅ ORD-00072 is now with Rider Two.
+
+Hand them the parcel.
+The $150,000 you collected stays with you — it was paid at the uplift.
+```
+
 ### An associate can never cancel
 
 Their own handler allows only uplifted and delivered. A second guard sits inside

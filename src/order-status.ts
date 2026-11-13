@@ -271,6 +271,9 @@ export function commandFromButtonId(id: string): string | null {
 
   // A cancellation with a reason on it: the reason's own typed form, so a tap
   // and a typed reason still arrive at the same parser.
+  const handed = /^xfer_(\d+)_(\d+)$/.exec(id);
+  if (handed) return `${handed[1]} transfer ${handed[2]}`;
+
   const reasoned = /^cancel_([a-z_]+)_(\d+)$/.exec(id);
   if (reasoned) {
     const reason = CANCEL_REASONS.find((r) => r.key === reasoned[1]);
@@ -311,6 +314,29 @@ export function acceptButton(orderNo: string): { id: string; title: string; comm
 export function nobodyThereButton(orderNo: string): { id: string; title: string; command: string } {
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
   return { id: `nobody_${n}`, title: 'Nobody there', command: `${n} nobody there` };
+}
+
+/**
+ * One associate handing a job to another, offered as a tap each.
+ *
+ * The carrier gives it away rather than the other taking it: they are the one
+ * who knows the bag is physically changing hands, and a job anybody could
+ * claim is the hole this exists to close.
+ */
+export function transferButton(
+  orderNo: string,
+  phone: string,
+  name: string,
+): { id: string; title: string; command: string } {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  const digits = phone.replace(/[^0-9]/g, '');
+  return {
+    id: `xfer_${n}_${digits}`,
+    // Twenty characters is WhatsApp's limit, and a truncated name is still
+    // the right person when there are three of them on a screen.
+    title: (name || `+${digits}`).slice(0, 20),
+    command: `${n} transfer ${digits}`,
+  };
 }
 
 /**

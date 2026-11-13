@@ -417,6 +417,16 @@ addColumnIfMissing('orders', 'recipient_pin', 'INTEGER NOT NULL DEFAULT 0');
 // the sender is the only one who can find out which.
 addColumnIfMissing('orders', 'return_reason', "TEXT NOT NULL DEFAULT ''");
 
+// Who uplifted it, which is not always who delivers it.
+//
+// A job can be transferred between associates mid-journey. For food that moves
+// the money too - it is collected at the door by whoever gets there. For a
+// parcel it does not: the fee was taken at the pickup and is in the uplifter's
+// pocket whatever happens next. Without this, one transfer would move an
+// already-collected fee onto somebody who never touched it, and the first
+// associate would end the shift short by exactly what he is carrying.
+addColumnIfMissing('orders', 'uplifted_by', "TEXT NOT NULL DEFAULT ''");
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *

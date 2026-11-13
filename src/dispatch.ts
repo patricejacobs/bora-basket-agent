@@ -624,6 +624,49 @@ export function onTheWayCard(
 }
 
 /**
+ * Tells both associates a job has changed hands.
+ *
+ * The one taking it gets the whole job, not a notice about it: they are about
+ * to drive somewhere, and the card they were handed was sent to somebody
+ * else's phone.
+ */
+export async function tellTransferred(
+  orderNo: string,
+  from: string,
+  to: string,
+): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order) return false;
+
+  const giver = repo.getAssociate(from.replace(/[^0-9]/g, ''));
+  const head = `🤝 *${order.orderNo}* has been handed to you by ${giver?.name || 'another delivery associate'}.`;
+
+  const body = [
+    head,
+    '',
+    ...dropLines(order),
+    ...(repo.deliveryCodeExpected(order.orderNo)
+      ? [
+          '',
+          `🔐 Type the four-digit code from ${(order.recipientName || order.customerName).split(/\s+/)[0] || 'the customer'} to close it.`,
+          order.kind === 'parcel'
+            ? 'Wrong code, or nobody there? Reply *nobody there* and bring it back.'
+            : 'No code? Reply *no code*.',
+        ]
+      : []),
+  ].join(String.fromCharCode(10));
+
+  const actions = nextActions(order.orderNo, order.status, 'driver', {
+    codeExpected: repo.deliveryCodeExpected(order.orderNo),
+    parcel: order.kind === 'parcel',
+  });
+
+  return actions.length > 0
+    ? sendButtons(to, body, actions)
+    : sendText(to, body);
+}
+
+/**
  * Offers an associate the oldest job still waiting, if they can take it.
  *
  * The other half of the one-at-a-time rule. Holding somebody to one delivery

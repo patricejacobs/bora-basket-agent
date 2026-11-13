@@ -2250,6 +2250,22 @@ export function markReadyAt(orderNo: string): void {
   stampOnce(orderNo, 'ready_at');
 }
 
+/** Who took it from the pickup, written once, at the moment they did. */
+export function markUpliftedBy(orderNo: string, phone: string): void {
+  db.prepare(`UPDATE orders SET uplifted_by = ? WHERE order_no = ? AND uplifted_by = ''`).run(
+    phone.replace(/[^0-9]/g, ''),
+    orderNo,
+  );
+}
+
+/** Who took it from the pickup, or empty on anything not yet uplifted. */
+export function upliftedBy(orderNo: string): string {
+  const row = db
+    .prepare(`SELECT uplifted_by AS phone FROM orders WHERE order_no = ?`)
+    .get(orderNo) as { phone: string } | undefined;
+  return row?.phone ?? '';
+}
+
 export function markUpliftedAt(orderNo: string): void {
   stampOnce(orderNo, 'uplifted_at');
 }
@@ -2397,6 +2413,20 @@ export type CashTally = { orders: number; total: number };
  * still paid for; dropping it out of the day's takings would leave the figures
  * short while somebody was holding the cash.
  */
+/**
+ * Whose takings an order belongs to.
+ *
+ * Food is paid at the door, so it belongs to whoever delivered it - and if the
+ * job was transferred, that is the person who finished it. A parcel was paid
+ * at the pickup, so it belongs to whoever uplifted it, whatever happened to
+ * the job afterwards. Old parcels with no uplifter recorded fall back to the
+ * assigned associate, which is what they would have reported before.
+ */
+const CASH_OWNER = `
+  CASE WHEN kind = 'parcel'
+       THEN COALESCE(NULLIF(uplifted_by, ''), driver_phone)
+       ELSE driver_phone END`;
+
 const CASH_WINDOW = `
   payment_method LIKE 'cash%'
   AND (
@@ -2421,7 +2451,7 @@ export function cashCollected(phone: string, from: Date, to = new Date()): CashT
     .prepare(
       `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
          FROM orders
-        WHERE driver_phone = ? AND ${CASH_WINDOW}`,
+        WHERE ${CASH_OWNER} = ? AND ${CASH_WINDOW}`,
     )
     .get(
       digits,
@@ -2445,10 +2475,10 @@ export type AssociateCash = CashTally & { phone: string; name: string; vehicle: 
 export function cashByAssociate(from: Date, to = new Date()): AssociateCash[] {
   const rows = db
     .prepare(
-      `SELECT driver_phone AS phone, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
+      `SELECT ${CASH_OWNER} AS phone, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
          FROM orders
-        WHERE driver_phone != '' AND ${CASH_WINDOW}
-        GROUP BY driver_phone
+        WHERE ${CASH_OWNER} != '' AND ${CASH_WINDOW}
+        GROUP BY ${CASH_OWNER}
         ORDER BY total DESC`,
     )
     .all(
@@ -2487,7 +2517,7 @@ export function unassignedCash(from: Date, to = new Date()): CashTally {
     .prepare(
       `SELECT COUNT(*) AS orders, COALESCE(SUM(total), 0) AS total
          FROM orders
-        WHERE driver_phone = '' AND ${CASH_WINDOW}`,
+        WHERE ${CASH_OWNER} = '' AND ${CASH_WINDOW}`,
     )
     .get(
       from.toISOString(),
