@@ -1605,6 +1605,13 @@ base fee** and described as flat — a per-km rate nobody can compute is a guess
 dressed as a price. With no base fee configured the job goes through unpriced,
 exactly as before, and never on an invented number.
 
+**The contents are asked for once and never repeated.** The customer is told
+about *the parcel*, never about what is in it — they packed it, so saying it back
+tells them nothing, and a WhatsApp chat is read over shoulders, forwarded, and
+left open on counters. The delivery associate is told, on their own card,
+because they are carrying it and are entitled to know what is in their hands.
+That is the only place it belongs.
+
 **The recipient can never be messaged** — WhatsApp refuses a business message to
 a number that has never written in — so the sender holds the code and passes it
 on, and is told at booking that only they can warn the recipient it is coming.

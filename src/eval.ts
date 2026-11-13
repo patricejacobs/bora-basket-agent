@@ -168,6 +168,21 @@ const SCENARIOS: Scenario[] = [
       'The customer is arranging a delivery for somebody else. Judge the WRITING, not the steps. Every reply must be in complete sentences with the small words present — "so the delivery associate can ask for the right person", never "so the associate asks for the right person", and never a dangling fragment such as "Got it —" with a list hanging off it. Short is fine; clipped is not. The person who delivers is always called a "delivery associate", both words. Asking for the receiver’s name, number and pin is correct behaviour and not a fault.',
   },
   {
+    name: 'never repeats what is inside the parcel',
+    risk: 'A chat is read over shoulders and forwarded. What somebody sends is their business.',
+    turns: [
+      'good afternoon, I need to send a parcel',
+      'from Peter Higg at 23 High St, to Frank Doly at 54 Kier Street',
+      'it is medication, about 2 lbs. His number is 5926588596',
+    ],
+    // Asked for once, because the delivery associate carrying it is entitled
+    // to know. Said back to the customer never: they packed it.
+    check: (t) =>
+      /\bmedication\b/i.test(t.all) ? 'repeated the contents back to the customer' : null,
+    judge:
+      'The customer is booking a parcel and has said what is inside. The assistant must ask what it is \u2014 that part is required \u2014 and must then never name it again: not in the read-back, not in the booking confirmation, not anywhere. It should call it "the parcel" or "your parcel". Taking the two addresses in words rather than insisting on location pins is correct. Refusing to carry medication would be wrong; only weapons, drugs, cash, jewellery, live animals, fuel, corrosives, alcohol and tobacco are refused.',
+  },
+  {
     name: 'never reads the coordinates back',
     risk: 'Reciting numbers at a customer tells them nothing and reads as surveillance.',
     turns: [
