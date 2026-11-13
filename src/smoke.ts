@@ -25,6 +25,9 @@ process.env.STAFF_NUMBERS = '5926497570';
 // Two, because a job changing hands between associates is a thing the suite
 // has to be able to exercise - with one number there is nobody to hand it to.
 process.env.DRIVER_NUMBERS = '5926001111,5926002222';
+// Where a grocery order goes to be picked. One of the staff numbers, because
+// the ticket's buttons are staff commands and routing is not permission.
+process.env.GROCERY_NUMBER = '5926497570';
 // A delivery area around Stabroek Market, so the geofence is exercised rather
 // than skipped. It ships switched off (store-settings.json, asserted below),
 // and every test pin below except the deliberate far ones falls inside it.
@@ -3713,6 +3716,91 @@ section('A shop that never closes');
   // cannot cook at 2am just because the shop is taking orders.
   const kitchenShut = hoursStatus('Mon-Sun 8:00am - 8:01am');
   check('a kitchen is unaffected by the shop being 24 hours', kitchenShut.state === 'closed');
+}
+
+section('The picking ticket for a grocery order');
+{
+  const { notifyGroceryOfOrder, pickingTicket } = await import('./dispatch.ts');
+  const picker = config.groceryNumber;
+  check('a picking number is configured for the suite', picker === '5926497570', picker);
+  // Routing is not permission: the ticket goes where this says, but what the
+  // person may do is still decided by STAFF_NUMBERS.
+  check('and it is a number the shop already recognises', config.staffNumbers.includes(picker));
+
+  const mk = (no: string, kind: string, outletId: number | null) => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, outlet_id, outlet_name, latitude, longitude, location_label, subtotal,
+         delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, '5926100003','Marcia Persaud','Lot 4 Diamond, blue gate','5926100003','', ?, ?, ?,
+         6.81, -58.16, 'Diamond', 845000, 50000, 895000, 'cash', 'pending', ?)`,
+    ).run(no, kind, outletId, outletId ? 'A Taste of Guyana' : '', new Date().toISOString());
+    const id = (db.prepare(`SELECT id FROM orders WHERE order_no = ?`).get(no) as { id: number }).id;
+    for (const [sku, name, qty, line] of [
+      ['GRN-001', 'Rice, 5kg', 2, 500000],
+      ['OIL-002', 'Cooking oil, 1.8L', 1, 245000],
+      ['PUL-003', 'Channa', 3, 100000],
+    ] as const) {
+      db.prepare(
+        `INSERT INTO order_items (order_id, sku, name, unit, qty, unit_price, line_total)
+         VALUES (?, ?, ?, 'each', ?, ?, ?)`,
+      ).run(id, sku, name, qty, Math.round(line / qty), line);
+    }
+    return repo.findOrder(no)!;
+  };
+
+  const shopping = mk('ORD-92001', 'grocery', null);
+
+  /* --- what it says ----------------------------------------------------- */
+
+  const ticket = pickingTicket(shopping);
+  check('it is a picking list', /please pick/i.test(ticket), ticket);
+  check('with what to pick', /2 x Rice, 5kg/.test(ticket) && /3 x Channa/.test(ticket), ticket);
+  check('and what the goods come to', /845,000/.test(ticket), ticket);
+
+  // The delivery fee is not theirs to collect, so the order total would only
+  // invite an argument about the difference.
+  check('not the order total', !/895,000/.test(ticket), ticket);
+
+  // A picking list with a doorstep in it is one somebody has to read twice.
+  check('no address', !/Diamond|blue gate/.test(ticket), ticket);
+  check('no customer telephone number', !/5926100003/.test(ticket), ticket);
+  check('and nothing to navigate to', !/http/.test(ticket), ticket);
+
+  /* --- who gets one ----------------------------------------------------- */
+
+  // A restaurant order is cooked somewhere else and a parcel has no items.
+  // Sending either to the person packing shelves is noise.
+  const cooked = mk('ORD-92002', 'restaurant', 1);
+  check('a restaurant order gets no picking ticket', (await notifyGroceryOfOrder(cooked.orderNo)) === 'not_a_restaurant');
+
+  db.prepare(`INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+      delivery_note, kind, parcel_details, subtotal, delivery_fee, total, payment_method, status, created_at)
+    VALUES ('ORD-92003','5926100003','Marcia','Lot 4','5926100003','','parcel','an envelope',0,200000,200000,'cash','pending',?)`)
+    .run(new Date().toISOString());
+  check('nor does a parcel', (await notifyGroceryOfOrder('ORD-92003')) === 'not_a_restaurant');
+
+  check('an order that does not exist is not a crash', (await notifyGroceryOfOrder('ORD-99999')) === 'not_a_restaurant');
+
+  /* --- the 24-hour window ----------------------------------------------- */
+
+  // The same rule the kitchens hit: a message with buttons is refused outside
+  // the window, silently. An order would sit unpicked with nobody wondering
+  // why, so the shop is told instead.
+  db.prepare(`DELETE FROM message_log WHERE phone = ?`).run(picker);
+  check('a picker who has not written is out of the window', !repo.serviceWindowOpen(picker));
+  check('so the ticket reports it rather than vanishing', (await notifyGroceryOfOrder(shopping.orderNo)) === 'unreachable');
+
+  repo.logMessage(picker, 'in', 'whatsapp', 'morning');
+  check('and once they write, the window is open again', repo.serviceWindowOpen(picker));
+  // Inside the window the ticket goes. WhatsApp is unconfigured in the suite,
+  // so the send itself is dropped and logged rather than throwing — which is
+  // why this asserts the decision to send, not a delivery nobody can prove.
+  const sendOutcome = await notifyGroceryOfOrder(shopping.orderNo);
+  check('inside the window the ticket is sent', sendOutcome === 'sent', String(sendOutcome));
+
+  db.prepare(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'ORD-920%')`).run();
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-920%'`).run();
 }
 
 section("WhatsApp's 24-hour window");

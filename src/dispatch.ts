@@ -234,6 +234,13 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
 
 export async function announceNewOrder(orderNo: string): Promise<void> {
   await notifyStaffOfNewOrder(orderNo);
+  const picking = await notifyGroceryOfOrder(orderNo);
+  if (picking === 'no_number') {
+    console.warn(`[dispatch] ${orderNo} needs picking but GROCERY_NUMBER is not set`);
+  }
+  if (picking === 'unreachable') {
+    console.warn(`[dispatch] ${orderNo}: picking ticket could not be delivered`);
+  }
   const outcome = await notifyOutletOfOrder(orderNo);
   if (outcome === 'no_number') {
     console.warn(`[dispatch] ${orderNo} needs cooking but the outlet cannot be reached`);
@@ -268,6 +275,82 @@ function itemLines(order: repo.OrderRecord): string[] {
  * you gives away the relationship and tells them nothing they need.
  */
 export type TicketOutcome = 'sent' | 'nudged' | 'unreachable' | 'no_number' | 'not_a_restaurant';
+
+/**
+ * The picking ticket for a grocery order.
+ *
+ * The counterpart to the kitchen ticket above, and missing until now: a
+ * restaurant order reaches the people who make it, a grocery order reached
+ * only the staff broadcast — which is a dispatch alert carrying an address, a
+ * telephone number and a map pin. None of that helps somebody filling a bag
+ * off a shelf, and all of it has to be read past to find the list.
+ *
+ * So: what to pick, what it comes to, when it was ordered. No address, no
+ * customer number, no map. Not for the kitchen ticket's reason — the shop
+ * already knows its own customers — but because a picking list with a
+ * doorstep in it is a picking list somebody has to read twice.
+ *
+ * Restaurant orders are left alone: those are not the shop's to pack.
+ */
+export function pickingTicket(order: repo.OrderRecord): string {
+  const goods = order.items.reduce((sum, i) => sum + i.lineTotal, 0);
+  return [
+    `🛒 *Order ${order.orderNo}* — please pick`,
+    '',
+    ...itemLines(order),
+    '',
+    // What the goods come to, not the order total. The delivery fee is not
+    // theirs to collect and not theirs to be asked about.
+    `Goods total ${money(goods)}`,
+    `Ordered ${new Date(order.placedAt).toLocaleTimeString('en-GB', {
+      timeZone: config.store.timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`,
+  ].join(String.fromCharCode(10));
+}
+
+export async function notifyGroceryOfOrder(orderNo: string): Promise<TicketOutcome> {
+  if (!config.groceryNumber) return 'no_number';
+
+  const order = repo.findOrder(orderNo);
+  if (!order) return 'not_a_restaurant';
+  // Groceries only. A parcel carries no items and a restaurant order is cooked
+  // somewhere else; sending either to the person packing shelves is noise.
+  if (order.kind !== 'grocery' || order.outlet) return 'not_a_restaurant';
+
+  // The same 24-hour rule the kitchens hit. A message with buttons is refused
+  // outside the window, silently as far as the sender is concerned, so an
+  // order would sit unpicked with nobody wondering why. There is no approved
+  // template for this one, so the honest thing is to say it did not go — the
+  // order is still in the staff broadcast, so nothing is lost by it.
+  if (!repo.serviceWindowOpen(config.groceryNumber)) {
+    await warnStaff(
+      [
+        `⚠️ ${order.orderNo} could not be sent to the picking number.`,
+        '',
+        `+${config.groceryNumber} has not messaged the shop in 24 hours, and WhatsApp will not let us start a conversation with buttons in it.`,
+        'Ask them to send any message here, and the next order will reach them.',
+      ].join(String.fromCharCode(10)),
+    );
+    return 'unreachable';
+  }
+
+  const body = pickingTicket(order);
+
+  // The same buttons the shop gets, because the titles are themselves valid
+  // commands and one parser handles a tap and a typed line alike.
+  const actions = nextActions(order.orderNo, order.status, 'outlet');
+
+  try {
+    if (actions.length > 0) await sendButtons(config.groceryNumber, body, actions);
+    else await sendText(config.groceryNumber, body);
+    return 'sent';
+  } catch (err) {
+    console.error(`[dispatch] picking ticket for ${orderNo} failed:`, err);
+    return 'unreachable';
+  }
+}
 
 export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcome> {
   const order = repo.findOrder(orderNo);

@@ -225,6 +225,22 @@ if (staff.length === 0) {
   add('ok', 'STAFF_NUMBERS', dim(`${staff.length} number(s)`));
 }
 
+// Where a grocery order goes to be picked. Routing is not permission: the
+// ticket's buttons are staff commands, so a number that is not on the staff
+// list receives a picking list it cannot act on.
+const picker = (process.env.GROCERY_NUMBER ?? '').replace(/[^0-9]/g, '');
+if (!picker) {
+  add('warn', 'GROCERY_NUMBER', 'not set — grocery orders go to the staff broadcast only, with no picking ticket');
+} else if (!staff.includes(picker)) {
+  add(
+    'warn',
+    'GROCERY_NUMBER',
+    `+${picker} is not in STAFF_NUMBERS — the picking ticket will arrive, but its buttons will do nothing`,
+  );
+} else {
+  add('ok', 'GROCERY_NUMBER', dim(`+${picker}`));
+}
+
 try {
   const { DatabaseSync } = await import('node:sqlite');
   if (fs.existsSync(dbPath)) {

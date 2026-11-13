@@ -405,6 +405,7 @@ from the business number the agent sends from. The agent cannot message itself.
 
 | Variable | Default | What it does |
 |---|---|---|
+| `GROCERY_NUMBER` | — | Where grocery orders go to be picked. See below |
 | `STORE_NAME` | Our Delivery Service | Used in every customer message |
 | `STORE_HOURS` | Mon-Sat 8am-8pm | `24 hours` for round the clock |
 | `STORE_TIMEZONE` | America/Guyana | Decides when "today" starts |
@@ -415,6 +416,46 @@ from the business number the agent sends from. The agent cannot message itself.
 | `PARCEL_FEE_PER_KM` | **0** | Per-kilometre part |
 | `PARCEL_MAX_KM` | 0 | Beyond this a parcel is refused. 0 = no limit |
 | `SERVICE_RADIUS_KM` | 0 | Beyond this an order is refused. 0 = no limit |
+
+### Picking groceries
+
+A restaurant order reaches the kitchen that cooks it, at that kitchen's own
+number. A grocery order had no equivalent — it went only to the staff
+broadcast, which is a dispatch alert carrying an address, a telephone number
+and a map pin. None of that helps somebody filling a bag off a shelf.
+
+Set `GROCERY_NUMBER` and every grocery order arrives there as a picking list:
+
+```
+🛒 *Order ORD-00074* — please pick
+
+2 x Rice, 5kg
+1 x Cooking oil, 1.8L
+3 x Channa
+
+Goods total $8,450
+Ordered 10:14
+
+[ Confirm ]  [ Cancel ]
+```
+
+**Goods total, not the order total.** The delivery fee is not theirs to collect
+and not theirs to be asked about. No address, no customer number, no map link —
+a picking list with a doorstep in it is one somebody has to read twice.
+
+*Ready* appears only after *Confirm*, the same rule kitchens follow.
+
+Restaurant orders and parcels are left alone: one is cooked elsewhere, the
+other has nothing to pick.
+
+**It must be one of your `STAFF_NUMBERS`.** The setting decides where the
+ticket goes; `STAFF_NUMBERS` decides what that person may do. A number on
+neither list still receives the ticket, but its buttons do nothing — `npm run
+check` warns you about exactly that.
+
+If the picker has not messaged the shop in 24 hours, WhatsApp will not let a
+message with buttons through. The shop is told so rather than the order sitting
+unpicked, and the order is still in the staff broadcast, so nothing is lost.
 
 ### Associates
 

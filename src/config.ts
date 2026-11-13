@@ -178,6 +178,24 @@ export const config = {
     .filter(Boolean),
 
   /**
+   * Where a grocery order goes to be picked and packed.
+   *
+   * A restaurant order reaches the kitchen that cooks it, at that kitchen's own
+   * number. A grocery order had no equivalent: it went to the whole staff
+   * broadcast and whoever happened to read it first, which is a dispatch alert
+   * and not a picking list.
+   *
+   * One number, because picking is one person's job at a time. Empty switches
+   * it off and nothing changes.
+   *
+   * For the buttons on the ticket to do anything, this number has to be one the
+   * shop already recognises — a staff number. The ticket is routed by this
+   * setting; what the person may *do* is still decided by STAFF_NUMBERS, so
+   * nothing here grants anybody a permission they did not already have.
+   */
+  groceryNumber: str('GROCERY_NUMBER', '').replace(/[^0-9]/g, ''),
+
+  /**
    * Delivery associates. They receive a dispatch when food is cooked, and drive an order to
    * delivered by tapping buttons on it. Kept apart from STAFF_NUMBERS because
    * the jobs are different: staff run the shop and see everything, a delivery associate sees
