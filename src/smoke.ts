@@ -3953,7 +3953,7 @@ section('A code the customer reads out at the door');
 
   const wrongDigits = code === '1111' ? '2222' : '1111';
   const wrong = await handleDriverMessage(wrongDigits, rider);
-  check('a wrong code is refused', (wrong[0]?.text ?? '').includes('not the code'), wrong[0]?.text);
+  check('a wrong code is refused', (wrong[0]?.text ?? '').includes('not correct for'), wrong[0]?.text);
   check('still not delivered', repo.findOrder(first.orderNo)?.status === 'on_the_way');
   check('and the tries left are counted down', repo.codeAttemptsLeft(first.orderNo) === 2);
 
@@ -4298,22 +4298,27 @@ section('What a settled order says, to whom');
 
   /* --- the associate, who cannot cook and cannot unprepare -------------- */
 
+  // An order number is four digits and sequential, so anybody can type one.
+  // A code attempt must not become a way to read the state of other people's
+  // deliveries, one guess at a time - so it is told the code is wrong, and
+  // nothing whatever about the order.
   const onCancelled = (await handleDriverMessage('90101 1234', rider))[0]?.text ?? '';
-  check('a wrong code on a cancelled order says it is cancelled', /was cancelled/i.test(onCancelled), onCancelled);
-  check('with the reason, so they can face the customer', /kitchen ran out/i.test(onCancelled), onCancelled);
-  check('tells them not to deliver it', /do not deliver/i.test(onCancelled), onCancelled);
-  check('and not to take money', /not collect any money/i.test(onCancelled), onCancelled);
-  check('and where to put it', /Take it back to A Taste of Guyana/.test(onCancelled), onCancelled);
-  // The old message, and the two wrong answers that replaced it in between.
+  check('a code against a cancelled order says only that it is wrong', /not correct for ORD-90101/.test(onCancelled), onCancelled);
+  check('never that it was cancelled', !/cancel/i.test(onCancelled), onCancelled);
+  check('nor why', !/ran out|kitchen/i.test(onCancelled), onCancelled);
+  check('nor what to do with it', !/deliver|collect|take it back/i.test(onCancelled), onCancelled);
   check('never tells an associate not to prepare it', !/prepare/i.test(onCancelled), onCancelled);
-  check('never offers another try at the code', !/tries left|try left/i.test(onCancelled), onCancelled);
-  check('and never invites them to deliver it', !/delivered\` to close/i.test(onCancelled), onCancelled);
+  check('and offers no retry on an order that is over', !/tries left|try left/i.test(onCancelled), onCancelled);
 
-  // Same answer whether or not the order ever had a code: it is cancelled
-  // either way, and that is the only fact that matters at the door.
+  // Nor can a counter be watched to find out whether a guessed order exists.
+  const probed = repo.deliveryCodeState('ORD-90102').attempts;
   const hadCode = (await handleDriverMessage('90102 1234', rider))[0]?.text ?? '';
-  check('an order that did have a code reads the same', /was cancelled/i.test(hadCode), hadCode);
-  check('and still offers no retry', !/tries left/i.test(hadCode), hadCode);
+  check('an order that did have a code reads the same', /not correct for ORD-90102/.test(hadCode), hadCode);
+  check('and says nothing more', !/cancel|deliver|closing/i.test(hadCode), hadCode);
+  check(
+    'its attempts are untouched, so nothing can be probed',
+    repo.deliveryCodeState('ORD-90102').attempts === probed,
+  );
 
   const tapped = (await handleDriverMessage('90101 no code', rider))[0]?.text ?? '';
   check('No code on a cancelled order says the same', /was cancelled/i.test(tapped), tapped);
@@ -4418,7 +4423,8 @@ section('One order in hand, start to end');
 
   const before = repo.deliveryCodeState('ORD-90202').attempts;
   const wrongNo = (await handleDriverMessage('90202 1234', rider))[0]?.text ?? '';
-  check('a code for an order they do not have is refused', /is not with you/i.test(wrongNo), wrongNo);
+  check('a code for an order they do not have is refused', /not correct for ORD-90202/.test(wrongNo), wrongNo);
+  check('saying nothing about that order', !/cancel|deliver|on the way|ready/i.test(wrongNo), wrongNo);
   check('and says which one they do have', wrongNo.includes('ORD-90201'), wrongNo);
   check('offering the same digits against it', /90201 1234/.test(wrongNo), wrongNo);
   check('never calling the code wrong', !/not the code/i.test(wrongNo), wrongNo);
@@ -4435,7 +4441,7 @@ section('One order in hand, start to end');
   // The right code against the wrong order number is refused the same way -
   // it is the number that is wrong, not the digits.
   const rightCodeWrongOrder = (await handleDriverMessage('90202 7731', rider))[0]?.text ?? '';
-  check('even with that order\'s real code', /is not with you/i.test(rightCodeWrongOrder), rightCodeWrongOrder);
+  check('even with that order\'s real code', /not correct for ORD-90202/.test(rightCodeWrongOrder), rightCodeWrongOrder);
   check('and it is still not delivered', repo.findOrder('ORD-90202')?.status === 'on_the_way');
   check('nor verified', repo.deliveryCodeState('ORD-90202').verifiedAt === '');
 

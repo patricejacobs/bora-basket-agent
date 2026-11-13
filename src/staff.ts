@@ -1166,16 +1166,20 @@ export async function handleDriverMessage(
         ? (awaiting[0] ?? null)
         : null;
 
-    // A cancelled or delivered order has nothing left to verify, so it never
-    // reaches the code logic below.
+    // An order that is over has nothing left to verify - and a code typed
+    // against it is told only that, and nothing about the order.
     //
-    // Without this, a wrong code on a cancelled order was answered "2 tries
-    // left" - inviting the associate to keep trying to complete something that
-    // is over - and an old order with no code at all was answered "send `23
-    // delivered` to close it", which is worse still: an instruction to deliver
-    // something that has been cancelled.
-    if (target && (target.status === 'cancelled' || target.status === 'delivered')) {
-      return reply(terminalMessage(target, 'driver'));
+    // An order number is four digits and sequential: anybody can type one.
+    // Answering a code attempt with "cancelled - the kitchen ran out" or
+    // "already delivered" turns the code box into a way of reading the state of
+    // other people's deliveries, one guess at a time. The advisory about what
+    // to do with a cancelled parcel still exists; it belongs on the card for
+    // the order somebody is actually carrying, not in a reply to a guess.
+    //
+    // Its attempts are deliberately untouched too, so a settled order cannot
+    // be probed by watching a counter go down.
+    if (target && (target.status === 'cancelled' || target.status === 'delivered' || target.status === 'returned')) {
+      return reply(`❌ That code is not correct for ${target.orderNo}.`);
     }
 
     if (bare && !paired && awaiting.length > 1) {
@@ -1202,8 +1206,11 @@ export async function handleDriverMessage(
     if (paired && target && !holding.some((o) => o.orderNo === target.orderNo)) {
       return reply(
         [
-          `${target.orderNo} is not with you.`,
+          `❌ That code is not correct for ${target.orderNo}.`,
           '',
+          // What they are carrying, which is their own business and the
+          // likeliest explanation - a mistyped order number. Nothing is said
+          // about the order they typed, which may belong to anybody.
           ...(holding.length === 0
             ? ['You are not carrying anything right now.', 'Send `jobs` to see what there is to uplift.']
             : [
@@ -1233,7 +1240,7 @@ export async function handleDriverMessage(
           {
             kind: 'buttons',
             text: [
-              `❌ That is not the code for ${target.orderNo}.`,
+              `❌ That code is not correct for ${target.orderNo}.`,
               '',
               // The person at the door, who is not always the person who
               // ordered - and on a parcel never is. "Ask Peter" when Peter is

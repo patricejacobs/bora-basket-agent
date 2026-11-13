@@ -1520,6 +1520,30 @@ delivery off what may have been a mistyped message. Both were false — the orde
 had no code and was never delivered — and it corrupted the one count that makes
 unverified deliveries visible. It now says so and stops.
 
+### A code attempt tells you nothing about the order
+
+An order number is four digits and sequential, so anybody can type one. If a
+code attempt answered with *“cancelled — the kitchen ran out”* or *“already
+delivered”*, the code box would become a way of reading the state of other
+people’s deliveries, one guess at a time.
+
+So a wrong code says one thing, whatever the order is, whoever it belongs to and
+whatever became of it:
+
+```
+❌ That code is not correct for ORD-00040.
+```
+
+The same for a grocery order, a restaurant order or a parcel; the same whether
+it was delivered last week, cancelled this morning or is still out. The attempts
+counter on somebody else’s order is left untouched as well, so it cannot be
+watched going down to find out whether a guessed order exists.
+
+The associate’s own live order still gets what they need — whose code it is and
+how many tries remain — because that is their own job, not a guess at somebody
+else’s. And the advisory about a cancelled parcel still exists: it belongs on the
+card for the order somebody is actually carrying, not in a reply to a guess.
+
 ### An associate can never cancel
 
 Their own handler allows only uplifted and delivered. A second guard sits inside
