@@ -1561,6 +1561,54 @@ how many tries remain — because that is their own job, not a guess at somebody
 else’s. And the advisory about a cancelled parcel still exists: it belongs on the
 card for the order somebody is actually carrying, not in a reply to a guess.
 
+### The record of what happened
+
+The order row is the state: who has it now, what it says now. It cannot answer
+*who had it before*, and after a transfer it names only whoever finished the job
+— as though the first associate never touched it. On a parcel that first
+associate is also the one holding the money, so the row and the till disagree
+with nothing to explain why.
+
+So every order carries a trail. The shop reads it on a phone with
+`7 history`:
+
+```
+📜 *ORD-00072* — 5 events
+
+12 Nov, 15:40 — *booked* (parcel for Frank Doly)
+12 Nov, 15:44 — *accepted* by Rider One
+12 Nov, 16:02 — *uplifted* by Rider One
+12 Nov, 16:31 — *transferred* by Rider One (to Rider Two +5926002222)
+12 Nov, 16:58 — *delivered* by Rider Two (code verified)
+```
+
+Placed or booked, accepted, confirmed, ready, uplifted, transferred, delivered,
+returned, cancelled — each with who did it, when, and what mattered about it: the
+cancellation reason, why a parcel came back, whether the delivery code was
+verified. The words are the ones a person uses, not the column names: an order
+reaching `on_the_way` is recorded as **uplifted**, and a parcel reaching
+`confirmed` is recorded as **accepted**, because an associate taking a job is a
+different act from a kitchen taking an order.
+
+The name is copied in as it was at the time rather than looked up later — an
+associate who leaves and is removed from the list still delivered what they
+delivered.
+
+It is **append-only**, and never read back to decide anything. Mixing a history
+with a state is how an audit trail becomes something the code depends on, and
+therefore something somebody is tempted to correct.
+
+The backup carries it as its own file, `orders-2026-11-12-events.csv`, alongside
+the orders sheet and the JSON — one row per event, because an order has one row
+and an unbounded number of events, and widening the orders sheet to fit a job
+that changed hands twice leaves every other row mostly empty. The orders sheet
+gains two columns instead: **Uplifted by** and **Delivered by**.
+
+One consequence worth knowing: **clearing orders must clear their events too.**
+Order numbers are handed out from the highest id, so a number comes round again
+after a delete — and without clearing the trail, the first order after a reset
+is born carrying somebody else's history.
+
 ### Handing a job to somebody else
 
 Only the associate carrying an order can close it. Before this, anybody on the

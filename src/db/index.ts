@@ -427,6 +427,30 @@ addColumnIfMissing('orders', 'return_reason', "TEXT NOT NULL DEFAULT ''");
 // associate would end the shift short by exactly what he is carrying.
 addColumnIfMissing('orders', 'uplifted_by', "TEXT NOT NULL DEFAULT ''");
 
+// What happened to an order, in order, with who did it.
+//
+// The order row holds the current state: who has it now, what it says now. It
+// cannot answer "who had it before" or "when did it change hands", and after a
+// transfer it shows only whoever finished the job - as though the first
+// associate never touched it. For a parcel that is also the person who took
+// the money, so the row and the till disagree with nothing to explain why.
+//
+// Append-only. A row here is a thing that happened; it is never edited and
+// never deleted, which is the whole value of it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS order_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_no   TEXT NOT NULL,
+    at         TEXT NOT NULL,
+    event      TEXT NOT NULL,
+    actor      TEXT NOT NULL DEFAULT '',
+    actor_name TEXT NOT NULL DEFAULT '',
+    detail     TEXT NOT NULL DEFAULT ''
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS order_events_by_order ON order_events (order_no, id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS order_events_by_time ON order_events (at)`);
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *

@@ -795,6 +795,12 @@ export function placeOrder(args: {
     db.prepare(`DELETE FROM cart_items WHERE phone = ?`).run(args.phone);
     db.exec('COMMIT');
     // Stock moved, and stock affects ranking — the next search should see it.
+    recordEvent(
+      orderNo,
+      'placed',
+      '',
+      `${cart.outlet ? cart.outlet.name : 'grocery'}, ${cart.lines.length} line(s)`,
+    );
     invalidateSearchIndex();
 
     return {
@@ -1477,6 +1483,8 @@ export type ArchivedOrder = OrderRecord & {
    */
   codeSentAt: string;
   codeVerifiedAt: string;
+  /** Who took it from the pickup, when that is not who finished the job. */
+  upliftedBy: string;
   /** Why a parcel came back: 'nobody_there', 'wrong_code', or empty. */
   returnReason: string;
 };
@@ -1490,6 +1498,7 @@ export function allOrders(): ArchivedOrder[] {
       code_sent_at: string | null;
       code_verified_at: string | null;
       return_reason: string | null;
+      uplifted_by: string | null;
     }
   )[];
 
@@ -1501,6 +1510,7 @@ export function allOrders(): ArchivedOrder[] {
     statusChangedAt: row.updated_at || row.created_at,
     codeSentAt: row.code_sent_at ?? '',
     codeVerifiedAt: row.code_verified_at ?? '',
+    upliftedBy: row.uplifted_by ?? '',
     returnReason: row.return_reason ?? '',
   }));
 }
@@ -1584,6 +1594,7 @@ export function createParcelJob(args: {
       nowIso(),
     );
     db.exec('COMMIT');
+    recordEvent(orderNo, 'booked', '', `parcel for ${args.recipientName}`);
     return { orderNo };
   } catch (err) {
     db.exec('ROLLBACK');
@@ -2543,6 +2554,63 @@ export function returnReason(orderNo: string): string {
     .prepare(`SELECT return_reason AS reason FROM orders WHERE order_no = ?`)
     .get(orderNo) as { reason: string } | undefined;
   return row?.reason ?? '';
+}
+
+/* ---------------------------------------------------------------- events */
+
+export type OrderEvent = {
+  orderNo: string;
+  at: string;
+  event: string;
+  actor: string;
+  actorName: string;
+  detail: string;
+};
+
+/**
+ * Writes down something that happened to an order.
+ *
+ * Append-only, and never read back to make a decision - the order row is the
+ * state, this is the history. Mixing those two is how an audit trail becomes
+ * something the code depends on and therefore something somebody is tempted
+ * to correct.
+ *
+ * The actor's name is copied in as it was at the time rather than looked up
+ * later: an associate who leaves and is removed from the list still delivered
+ * what they delivered.
+ */
+export function recordEvent(
+  orderNo: string,
+  event: string,
+  actor = '',
+  detail = '',
+): void {
+  const digits = actor.replace(/[^0-9]/g, '');
+  const who = digits ? getAssociate(digits) : null;
+  db.prepare(
+    `INSERT INTO order_events (order_no, at, event, actor, actor_name, detail)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(orderNo, nowIso(), event, digits, who?.name ?? '', detail);
+}
+
+/** Everything that happened to one order, oldest first. */
+export function orderHistory(orderNo: string): OrderEvent[] {
+  return db
+    .prepare(
+      `SELECT order_no AS orderNo, at, event, actor, actor_name AS actorName, detail
+         FROM order_events WHERE order_no = ? ORDER BY id ASC`,
+    )
+    .all(orderNo) as unknown as OrderEvent[];
+}
+
+/** Everything that happened to anything, oldest first. For the export. */
+export function allEvents(): OrderEvent[] {
+  return db
+    .prepare(
+      `SELECT order_no AS orderNo, at, event, actor, actor_name AS actorName, detail
+         FROM order_events ORDER BY id ASC`,
+    )
+    .all() as unknown as OrderEvent[];
 }
 
 /* ----------------------------------------------------------------- stalls */

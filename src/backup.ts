@@ -82,7 +82,8 @@ const HEADER = [
   'Delivery note',
   'Restaurant',
   'Pickup address',
-  'Delivery associate',
+  'Uplifted by',
+  'Delivered by',
   'Associate phone',
   'Associate vehicle',
   'Items',
@@ -106,6 +107,13 @@ const HEADER = [
   'Cancel reason',
   'Status changed',
 ];
+
+/** An uplifting associate by name, or their number, or blank. */
+function upliftName(phone: string): string {
+  if (!phone) return '';
+  const who = repo.getAssociate(phone);
+  return who?.name ? `${who.name} +${phone}` : `+${phone}`;
+}
 
 /** Local wall-clock time in the store's own zone — the timestamps staff recognise. */
 function localTime(iso: string): string {
@@ -160,6 +168,11 @@ function orderRow(o: repo.ArchivedOrder): string {
     o.deliveryNote,
     o.outlet?.name ?? '',
     o.pickup?.address ?? '',
+    // Who took it from the pickup and who finished it, which differ whenever
+    // a job changed hands. The orders row alone shows only the second, as
+    // though the first associate never had it - and on a parcel that first
+    // associate is the one holding the money.
+    upliftName(o.upliftedBy),
     o.driverName,
     o.driverPhone,
     o.driverVehicle,
@@ -203,6 +216,30 @@ function orderRow(o: repo.ArchivedOrder): string {
 export function ordersCsv(): string {
   const rows = repo.allOrders().map(orderRow);
   return `﻿${[csvRow(HEADER), ...rows].join('\r\n')}\r\n`;
+}
+
+/**
+ * Every event, oldest first: one row per thing that happened to an order.
+ *
+ * Its own file rather than more columns on the orders sheet, because an order
+ * has one row and an unbounded number of events - a job that changed hands
+ * twice has two transfers to account for, and widening the sheet to fit the
+ * worst case leaves every other row mostly empty.
+ */
+const EVENT_HEADER = ['When', 'Order', 'What happened', 'Who', 'Their number', 'Detail'];
+
+export function eventsCsv(): string {
+  const rows = repo.allEvents().map((e) =>
+    csvRow([
+      localTime(e.at),
+      e.orderNo,
+      e.event,
+      e.actorName,
+      e.actor,
+      e.detail,
+    ]),
+  );
+  return `﻿${[csvRow(EVENT_HEADER), ...rows].join('\r\n')}\r\n`;
 }
 
 /* ------------------------------------------------------------------ JSON */
@@ -426,6 +463,13 @@ export async function sendOffsiteCopy(to = ''): Promise<OffsiteResult> {
   const stem = exportStem();
   const encoder = new TextEncoder();
 
+  const eventsOk = await sendDocument(recipient, {
+    bytes: encoder.encode(eventsCsv()),
+    filename: `${stem}-events.csv`,
+    mime: 'text/csv',
+    caption: 'Every hand-off and every close, in order. The orders file says where things ended; this says how they got there.',
+  });
+
   const csvOk = await sendDocument(recipient, {
     bytes: encoder.encode(ordersCsv()),
     filename: `${stem}.csv`,
@@ -448,6 +492,7 @@ export async function sendOffsiteCopy(to = ''): Promise<OffsiteResult> {
     caption: 'The same orders, complete. This is the file that can rebuild the database.',
   });
 
+  void eventsOk;
   if (!csvOk && !jsonOk) {
     console.error('[backup] off-site copy failed — nothing left the machine');
     return 'failed';
@@ -471,9 +516,11 @@ async function main(): Promise<void> {
   const stamp = new Date().toISOString().slice(0, 10);
   const csv = path.join(dir, `orders-${stamp}.csv`);
   const json = path.join(dir, `orders-${stamp}.json`);
+  const events = path.join(dir, `orders-${stamp}-events.csv`);
 
   fs.writeFileSync(csv, ordersCsv(), 'utf8');
   fs.writeFileSync(json, ordersJson(), 'utf8');
+  fs.writeFileSync(events, eventsCsv(), 'utf8');
   const snap = await writeSnapshot();
 
   const count = repo.allOrders().length;
@@ -481,6 +528,7 @@ async function main(): Promise<void> {
   console.log(`  ${count} order(s) backed up to ${dir}`);
   console.log(`    ${path.basename(csv)}`);
   console.log(`    ${path.basename(json)}`);
+  console.log(`    ${path.basename(events)}  (${repo.allEvents().length} event(s))`);
   console.log(
     `    ${path.basename(snap.file)}  (${Math.round(snap.bytes / 1024)} KB, whole database)`,
   );

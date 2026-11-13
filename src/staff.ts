@@ -152,6 +152,45 @@ async function applyStatus(
   repo.setOrderStatus(order.orderNo, status);
   // The two moments an order is measured by, stamped as they happen. Written
   // once each, so a tap on an old message cannot move them.
+  // The trail. One row per thing that happened, with who did it, written
+  // beside the status change rather than inside setOrderStatus - the status is
+  // the state, this is the history, and a caller that does one without the
+  // other is a caller whose story has a hole in it.
+  // Words a person reads, not the status keys. "on_the_way" is what the
+  // column is called; "uplifted" is what happened. And a parcel reaching
+  // `confirmed` is an associate accepting the job, which is a different act
+  // from a kitchen accepting an order.
+  const happened =
+    status === 'on_the_way'
+      ? 'uplifted'
+      : status === 'confirmed' && order.kind === 'parcel' && reportedBy === 'driver'
+        ? 'accepted'
+        : status === 'confirmed'
+          ? 'confirmed'
+          : status;
+
+  // Who did it, said once. The actor's name carries that already when there
+  // is one, so the role is added only when there is not - a kitchen and a
+  // dispatcher have no entry in the associate list.
+  const role = byPhone ? '' : `by ${reportedBy}`;
+
+  repo.recordEvent(
+    order.orderNo,
+    happened,
+    byPhone,
+    status === 'cancelled'
+      ? [role, order.cancelReason].filter(Boolean).join(': ')
+      : status === 'returned'
+        ? repo.returnReason(order.orderNo)
+        : status === 'delivered'
+          ? repo.deliveryCodeState(order.orderNo).verifiedAt
+            ? 'code verified'
+            : repo.deliveryCodeUnconfirmed(order.orderNo)
+              ? 'code NOT verified'
+              : role
+          : role,
+  );
+
   if (status === 'ready') repo.markReadyAt(order.orderNo);
   if (status === 'on_the_way') repo.markUpliftedAt(order.orderNo);
   // Who took it, recorded here rather than read off the order later: the job
@@ -398,6 +437,7 @@ const HELP = [
   '`where <name>` — ask one of them for a fresh pin',
   '',
   '`cash` — what each associate collected today',
+  '`7 history` — everything that happened to order 7',
   '`backup` — the trading record, sent to you here',
   '',
   '`outlets` — the restaurants on the system',
@@ -568,6 +608,42 @@ export async function handleStaffMessage(
 
   // What the associates are holding in cash.
   if (/^(cash|takings|money)$/i.test(trimmed)) return reply(cashReport());
+
+  // Everything that happened to one order, in order.
+  //
+  // The order row says where a thing ended; this says how it got there - who
+  // accepted it, who uplifted it, who it was handed to, who closed it and
+  // whether the code was verified. On a phone, because that is where the
+  // shop is, and reading a CSV at a counter is not a thing anybody does.
+  const trail = trimmed.match(/^(?:ord[-\s]?)?0*(\d{1,6})\s+(?:history|trail|log)$/i);
+  if (trail) {
+    const order = repo.findOrder(trail[1] ?? '');
+    if (!order) return reply(`No order ${trail[1]}.`);
+    const events = repo.orderHistory(order.orderNo);
+    if (events.length === 0) {
+      return reply(
+        `${order.orderNo} has no history recorded. Orders placed before the trail existed have none.`,
+      );
+    }
+    return reply(
+      [
+        `📜 *${order.orderNo}* — ${events.length} event${events.length === 1 ? '' : 's'}`,
+        '',
+        ...events.map((e) => {
+          const when = new Date(e.at).toLocaleString('en-GB', {
+            timeZone: config.store.timezone,
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+          const who = e.actorName || (e.actor ? `+${e.actor}` : '');
+          return `${when} — *${e.event}*${who ? ` by ${who}` : ''}${e.detail ? ` (${e.detail})` : ''}`;
+        }),
+      ].join(chr10),
+    );
+  }
 
   // A copy of the trading record, to this phone, now.
   //
@@ -1392,6 +1468,10 @@ export async function handleDriverMessage(
       const taker = repo.getAssociate(to);
       const takerName = taker?.name || `+${to}`;
       repo.assignDriver(job.orderNo, to);
+      // Who gave it, who took it, and when. Without this the order row shows
+      // only whoever finished the job, as though the first associate never
+      // had it - and on a parcel that is the person holding the money.
+      repo.recordEvent(job.orderNo, 'transferred', mine, `to ${takerName} +${to}`);
       void tellTransferred(job.orderNo, mine, to).catch((err: unknown) =>
         console.error('[staff] could not tell them about the transfer:', err),
       );

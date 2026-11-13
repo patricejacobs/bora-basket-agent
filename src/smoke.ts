@@ -5403,6 +5403,102 @@ section('Handing a job to somebody else');
   for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(A, no);
 }
 
+section('The record of what happened');
+{
+  const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
+  const { offerParcel } = await import('./dispatch.ts');
+  const { eventsCsv, ordersCsv } = await import('./backup.ts');
+  const A = config.driverNumbers[0]!;
+  const B = config.driverNumbers[1]!;
+  const staff = config.staffNumbers[0]!;
+  const booker = '5926007979';
+
+  const held = repo.activeJobsFor(A).concat(repo.activeJobsFor(B)).map((o) => o.orderNo);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone='' WHERE order_no=?`).run(no);
+  repo.setDuty(A, true);
+  repo.setDuty(B, true);
+  repo.saveCustomer(booker, { name: 'Office', contactPhone: booker });
+
+  const j = repo.createParcelJob({
+    phone: booker,
+    senderName: 'Peter Higg',
+    pickup: null,
+    pickupAddress: '23 High St',
+    destination: null,
+    destinationAddress: '54 Kier Street',
+    recipientName: 'Frank Doly',
+    recipientPhone: '5926588596',
+    contents: 'Papers',
+    fee: 150000,
+    contactPhone: '5926771234',
+  });
+  const n = String(Number(j.orderNo.replace(/\D/g, '')));
+  // Earlier sections delete the orders they make, and order numbers are
+  // handed out from the highest id - so a number comes round again and
+  // inherits the trail of the order that had it before. Harmless here; in a
+  // shop it means clearing orders has to clear their events as well, or the
+  // first order after a reset is born with somebody else's history.
+  db.prepare(`DELETE FROM order_events WHERE order_no = ? AND id < ?`).run(
+    j.orderNo,
+    (db.prepare(`SELECT COALESCE(MAX(id),0) AS top FROM order_events WHERE order_no = ?`)
+      .get(j.orderNo) as { top: number }).top,
+  );
+  await offerParcel(j.orderNo);
+  await handleDriverMessage(`${n} confirm`, A);
+  await handleDriverMessage(`${n} uplifted`, A);
+  await handleDriverMessage(`${n} transfer ${B}`, A);
+  await handleDriverMessage(`${n} delivered`, B);
+
+  /* --- every step, with who did it ------------------------------------ */
+
+  const trail = repo.orderHistory(j.orderNo);
+  const steps = trail.map((e) => e.event);
+  check(
+    'the whole journey is recorded',
+    steps.join(' → ') === 'booked → accepted → uplifted → transferred → delivered',
+    steps.join(' → '),
+  );
+
+  // The order row holds only the current state. After a transfer it names
+  // whoever finished the job, as though the first associate never had it -
+  // and on a parcel that first associate is the one holding the money.
+  const transfer = trail.find((e) => e.event === 'transferred')!;
+  check('the hand-off names who gave it', transfer.actor === A, transfer.actor);
+  check('and who took it', transfer.detail.includes(B), transfer.detail);
+  check('the uplift names the one who collected', trail.find((e) => e.event === 'uplifted')?.actor === A);
+  check('the delivery names the one who finished', trail.find((e) => e.event === 'delivered')?.actor === B);
+  check('which the order row alone cannot say', repo.findOrder(j.orderNo)?.driverPhone === B);
+
+  // Words a person reads, not the column names.
+  check('no internal status keys leak in', !steps.includes('on_the_way'), steps.join(','));
+
+  /* --- readable on a phone --------------------------------------------- */
+
+  const shown = (await handleStaffMessage(`${n} history`, staff))[0]?.text ?? '';
+  check('staff can read it on a phone', /5 events/.test(shown), shown.slice(0, 120));
+  check('with the hand-off in it', /\*transferred\* by /.test(shown), shown);
+  check('and who it went to', /Rider Two/.test(shown), shown);
+  const unknown = (await handleStaffMessage('999999 history', staff))[0]?.text ?? '';
+  check('an unknown order says so', /No order/.test(unknown), unknown);
+
+  /* --- and in the files ------------------------------------------------ */
+
+  const events = eventsCsv();
+  check('the events file has a header a person can read', events.includes('What happened'), events.slice(0, 80));
+  check('and one row per event', events.split('\r\n').filter((l) => l.includes(j.orderNo)).length === 5);
+  check('with the taker on the transfer row', /transferred.*Rider One.*Rider Two/.test(events), '');
+
+  const orders = ordersCsv();
+  const header = orders.split('\r\n')[0] ?? '';
+  check('the orders sheet separates the two associates', header.includes('Uplifted by') && header.includes('Delivered by'), header.slice(0, 200));
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(j.orderNo);
+  repo.setDuty(A, false);
+  repo.setDuty(B, false);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(A, no);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
@@ -5616,7 +5712,10 @@ section('Backing up the trading record');
     'Latitude',
     'Longitude',
     'Total',
-    'Delivery associate',
+    // Two of them now: a job that changed hands was uplifted by one associate
+    // and finished by another, and the row used to show only the second.
+    'Uplifted by',
+    'Delivered by',
     'Restaurant',
     'Items',
   ]) {
