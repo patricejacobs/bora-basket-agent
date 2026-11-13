@@ -2428,6 +2428,20 @@ section('Parcel delivery');
   const { offerParcel, parcelUpliftCard } = await import('./dispatch.ts');
   const dispatched = await offerParcel(job!.orderNo);
   check('a parcel can be offered to a delivery associate', dispatched === 'sent', dispatched);
+  // One set of words across every card for a job. The offer said "Take to"
+  // where every other card says "Deliver to", and an associate reading four
+  // messages about one parcel should not have to work out that they mean the
+  // same thing.
+  const { parcelOfferCard, dropLines } = await import('./dispatch.ts');
+  const offer = parcelOfferCard(job!);
+  check('the offer names the destination as every card does', /\*Deliver to:\*/.test(offer), offer);
+  check('and never calls it something else', !/Take to/.test(offer), offer);
+  check('while the uplift end keeps its own word', /\*Uplift from:\*/.test(offer), offer);
+  check(
+    'the drop card agrees with it',
+    /\*Deliver to:\*/.test(dropLines(job!).join('\n')),
+    dropLines(job!).join('\n'),
+  );
   const card = parcelUpliftCard(job!);
   check('and the uplift rings the number given for the sender', card.includes('5926550101'), card);
   check('not the number that booked it', !card.includes(parcelPhone), card);

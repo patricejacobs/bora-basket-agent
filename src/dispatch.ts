@@ -191,26 +191,45 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
   const nearby = withinReach(onDuty(free), pickupPin);
   if (nearby.length === 0) return 'all_busy';
 
+  for (const associate of nearby) {
+    await sendButtons(associate, parcelOfferCard(order), [acceptButton(order.orderNo)]);
+  }
+  return 'sent';
+}
+
+/**
+ * The offer itself, built apart from the sending so it can be read.
+ *
+ * Short on purpose: this is a job somebody is deciding whether to accept, not
+ * one they are driving to. The addresses, the numbers and the cash arrive on
+ * the uplift card once it is theirs.
+ */
+export function parcelOfferCard(order: repo.OrderRecord): string {
+  const pickup = order.pickup;
+  const pickupPin =
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
+      : null;
   const trip =
     pickupPin && order.location
       ? `${formatDistance(distanceKm(pickupPin, order.location))} across town`
       : '';
 
-  const body = [
+  return [
     `📦 *New parcel job ${order.orderNo}*`,
-    ...(order.total > 0 ? [`*${money(order.total)}*, collected from the sender`] : ['*Fee not set* — the shop will confirm it']),
+    ...(order.total > 0
+      ? [`*${money(order.total)}*, collected from the sender`]
+      : ['*Fee not set* — the shop will confirm it']),
     '',
     `📦 ${order.parcelDetails || 'Contents not described'}`,
     '',
     `*Uplift from:* ${order.customerName}${pickup?.address ? `, ${pickup.address}` : ''}`,
-    `*Take to:* ${order.recipientName}${order.address ? `, ${order.address}` : ''}`,
+    // The same words as every other card for this job. An associate reading
+    // four messages about one parcel should not have to work out that "Take
+    // to" and "Deliver to" mean the same thing.
+    `*Deliver to:* ${order.recipientName}${order.address ? `, ${order.address}` : ''}`,
     ...(trip ? ['', trip] : []),
   ].join(String.fromCharCode(10));
-
-  for (const associate of nearby) {
-    await sendButtons(associate, body, [acceptButton(order.orderNo)]);
-  }
-  return 'sent';
 }
 
 export async function announceNewOrder(orderNo: string): Promise<void> {
