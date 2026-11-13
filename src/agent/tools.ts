@@ -360,7 +360,17 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           description:
             "What is in the parcel, in the customer's own words, plus rough size or weight. Required — a delivery associate has to know what they are carrying.",
         },
-        recipient_name: { type: 'string', description: 'Who receives it.' },
+        sender_name: {
+          type: 'string',
+          description:
+            'Who the parcel is collected FROM. Required. Ask — it is not necessarily the person you are talking to, and never assume it is.',
+        },
+        sender_phone: {
+          type: 'string',
+          description:
+            'The number the delivery associate rings to collect it. Required, and asked for every time: never the number they are messaging from unless they have confirmed that is the one, and never a number saved from a past order.',
+        },
+        recipient_name: { type: 'string', description: 'Who receives it. Required.' },
         recipient_phone: {
           type: 'string',
           description: "The recipient's telephone number, so the delivery associate can ring on arrival.",
@@ -376,7 +386,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
             'The same for the drop-off. Required when no pin has been shared for the destination.',
         },
       },
-      required: ['contents', 'recipient_name', 'recipient_phone'],
+      required: ['contents', 'sender_name', 'sender_phone', 'recipient_name', 'recipient_phone'],
       additionalProperties: false,
     },
   },
@@ -1310,19 +1320,42 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (wrong) return fail(wrong);
 
       const contents = asString(input.contents);
+
+      // What is inside is checked first, before any question of who or where.
+      //
+      // Refusing to carry a weapon must not depend on whether a name was
+      // supplied: somebody booking one and leaving a field blank would
+      // otherwise be told about the field, try again with it filled in, and
+      // only then be refused.
+      const allowed = checkContents(contents);
+      if (!allowed.allowed) return fail(allowed.reason);
+
+      const senderName = asString(input.sender_name);
+      const senderPhone = asString(input.sender_phone).replace(/[^0-9+]/g, '');
       const recipientName = asString(input.recipient_name);
       const recipientPhone = asString(input.recipient_phone).replace(/[^0-9+]/g, '');
 
+      // Both ends are asked for and neither is assumed.
+      //
+      // Whoever is booking is not necessarily the sender: an office arranges a
+      // courier, a daughter sends something from her mother's house, a shop
+      // books a run for a customer. Taking the WhatsApp number as the sender's
+      // sends an associate to a door where nobody is expecting them, with a
+      // number that rings somewhere else entirely.
+      if (!senderName) {
+        return fail(
+          'sender_name is required. Ask who the parcel is being collected from — it is not necessarily the person you are talking to.',
+        );
+      }
+      if (senderPhone.replace(/\D/g, '').length < 7) {
+        return fail(
+          'sender_phone is required and must be a usable number — the delivery associate rings it to collect. Ask for it rather than assuming the number they are writing from.',
+        );
+      }
       if (!recipientName) return fail('recipient_name is required — a delivery associate delivers to a person.');
       if (recipientPhone.replace(/\D/g, '').length < 7) {
         return fail('recipient_phone must be a usable number — the delivery associate rings it on arrival.');
       }
-
-      // What is inside is asked about and some answers are refused. A courier is
-      // handed a closed bag; this catches the customer who tells you honestly,
-      // which is most of them.
-      const allowed = checkContents(contents);
-      if (!allowed.allowed) return fail(allowed.reason);
 
       const draft = repo.getParcelDraft(ctx.phone);
       const pickupNote = asString(input.pickup_note);
@@ -1356,24 +1389,24 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         );
       }
 
-      const customer = repo.getIdentity(ctx.phone);
-      if (!customer.name) {
-        return fail('Get the sender\'s name first and save it with save_customer_details.');
-      }
-
       const fee = quote.priced ? quote.fee : 0;
+      // Every detail from this booking, and nothing from the customer record.
+      //
+      // A name or number saved from a past delivery is a different
+      // transaction's fact. Falling back to it is how an associate is sent to
+      // last month's address with last month's number, confidently.
       const job = repo.createParcelJob({
         phone: ctx.phone,
-        senderName: customer.name,
+        senderName,
         pickup: draft.pickup,
-        pickupAddress: asString(input.pickup_note),
+        pickupAddress: pickupNote,
         destination: draft.destination,
-        destinationAddress: asString(input.destination_note),
+        destinationAddress: destinationNote,
         recipientName,
         recipientPhone,
         contents,
         fee,
-        contactPhone: customer.contactPhone || ctx.phone,
+        contactPhone: senderPhone,
       });
 
       // The draft is spent. Left behind, the next parcel would start with the

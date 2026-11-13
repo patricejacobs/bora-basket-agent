@@ -1573,6 +1573,19 @@ unverified delivery beats a wasted meal. A parcel is somebody's property: a code
 that will not verify may mean the wrong door, and handing it over on a guess is
 how it is never seen again.
 
+**Both parties are asked for, and neither is assumed.** Whoever is booking is
+not necessarily the sender: an office arranges a courier, a daughter sends
+something from her mother’s house, a shop books a run for a customer. Taking the
+number they are writing from as the sender’s sends an associate to a door where
+nobody is expecting them, holding a number that rings somewhere else.
+
+So a parcel needs six facts — a name, a number and an address for each end — and
+the job carries its own copy of all six. **Nothing saved from a past order is
+read.** A detail saved last month belongs to last month’s delivery, and carrying
+it forward is how somebody is sent confidently to the wrong house. The sender’s
+name and number are required by the booking tool, which refuses the job without
+them rather than filling them in from the customer record.
+
 **Either end can be a pin, an address in words, or both.** A pin is better and
 is asked for first, but somebody booking a parcel is usually standing at neither
 end of it and cannot drop a pin on a door they are not at. Refusing those

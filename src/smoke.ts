@@ -2355,8 +2355,39 @@ section('Parcel delivery');
     JSON.stringify(banned),
   );
   check('and books nothing', repo.getParcelDraft(parcelPhone).pickup !== null);
+  // Booked by somebody who is neither end of the journey, which is the
+  // ordinary case: an office arranging a courier, a daughter sending
+  // something from her mother's house. Both parties are asked for.
+  const missingSender = parcel('create_parcel_job', {
+    contents: 'a laptop in a padded bag, about 2kg',
+    recipient_name: 'Dave Singh',
+    recipient_phone: '592 644 1122',
+    pickup_note: 'Blue gate, ask for Anita',
+    destination_note: 'Upstairs flat',
+  });
+  check(
+    'the sender cannot be assumed',
+    typeof missingSender.error === 'string' && /sender_name is required/.test(String(missingSender.error)),
+    JSON.stringify(missingSender).slice(0, 120),
+  );
+  const noSenderNumber = parcel('create_parcel_job', {
+    contents: 'a laptop in a padded bag, about 2kg',
+    sender_name: 'Anita Persaud',
+    recipient_name: 'Dave Singh',
+    recipient_phone: '592 644 1122',
+    pickup_note: 'Blue gate, ask for Anita',
+    destination_note: 'Upstairs flat',
+  });
+  check(
+    'nor their number',
+    typeof noSenderNumber.error === 'string' && /sender_phone is required/.test(String(noSenderNumber.error)),
+    JSON.stringify(noSenderNumber).slice(0, 120),
+  );
+
   const booked = parcel('create_parcel_job', {
     contents: 'a laptop in a padded bag, about 2kg',
+    sender_name: 'Anita Persaud',
+    sender_phone: '592 655 0101',
     recipient_name: 'Dave Singh',
     recipient_phone: '592 644 1122',
     pickup_note: 'Blue gate, ask for Anita',
@@ -2370,7 +2401,15 @@ section('Parcel delivery');
   check('it carries no line items', job?.items.length === 0, JSON.stringify(job?.items));
   check('it records what is being sent', (job?.parcelDetails ?? '').includes('laptop'), job?.parcelDetails);
   check('it records the recipient', job?.recipientName === 'Dave Singh' && job?.recipientPhone === '5926441122', `${job?.recipientName} ${job?.recipientPhone}`);
-  check('the sender is the customer', job?.phone === parcelPhone);
+  // The booking's own details, not the account holder's.
+  check('the sender is who they named', job?.customerName === 'Anita Persaud', job?.customerName);
+  check('on the number they gave for her', job?.contactPhone === '5926550101', job?.contactPhone);
+  check('while the account that booked it is still recorded', job?.phone === parcelPhone);
+  check(
+    'and nothing was inherited from the number that booked it',
+    job?.contactPhone !== parcelPhone,
+    `${job?.contactPhone} / booked from ${parcelPhone}`,
+  );
   check('pickup is where the delivery associate collects', job?.pickup?.latitude === 6.8149, JSON.stringify(job?.pickup));
   check('delivery is the destination pin', job?.location?.latitude === 6.7935, JSON.stringify(job?.location));
   check('pickup and destination are not the same place', job?.pickup?.latitude !== job?.location?.latitude);
@@ -2384,10 +2423,14 @@ section('Parcel delivery');
   // And the draft is spent, or the next parcel starts with the last one's pins.
   check('the draft is cleared after booking', repo.getParcelDraft(parcelPhone).pickup === null);
 
-  // Delivery associate dispatch has to cope with an order that has no products.
-  const { dispatchToDrivers } = await import('./dispatch.ts');
-  const dispatched = await dispatchToDrivers(job!.orderNo);
-  check('a parcel can be dispatched to a delivery associate', dispatched === 'sent', dispatched);
+  // A parcel is offered, not dispatched: it carries an Accept button because
+  // an associate chooses it, there being no kitchen to confirm it.
+  const { offerParcel, parcelUpliftCard } = await import('./dispatch.ts');
+  const dispatched = await offerParcel(job!.orderNo);
+  check('a parcel can be offered to a delivery associate', dispatched === 'sent', dispatched);
+  const card = parcelUpliftCard(job!);
+  check('and the uplift rings the number given for the sender', card.includes('5926550101'), card);
+  check('not the number that booked it', !card.includes(parcelPhone), card);
 }
 
 /* ---------------------------------------------------- cancelling an order */
@@ -4849,7 +4892,9 @@ section('A parcel end can be a pin, words, or both');
     destinationAddress: string,
   ) => {
     const phone = `59260073${label}`;
-    repo.saveCustomer(phone, { name: 'Patrice', contactPhone: phone });
+    // Saved against the account, and deliberately NOT what the card should
+    // use: a parcel takes both parties from the booking, never from here.
+    repo.saveCustomer(phone, { name: 'Patrice', contactPhone: '9998887' });
     return repo.createParcelJob({
       phone,
       senderName: 'Patrice',
@@ -4861,7 +4906,7 @@ section('A parcel end can be a pin, words, or both');
       recipientPhone: '5926100099',
       contents: 'A box of books',
       fee: 150000,
-      contactPhone: phone,
+      contactPhone: '5926550202',
     });
   };
 
@@ -4874,18 +4919,15 @@ section('A parcel end can be a pin, words, or both');
   const upliftFull = parcelUpliftCard(full);
   check('the uplift shows the written address', upliftFull.includes('Lot 12, Kitty'), upliftFull);
 
-  // The sender is the person at the other end of this conversation, so the
-  // number they write from cannot be wrong. `contact_phone` can: it lives on
-  // the customer row and a recipient's number once saved there would print
-  // under the sender's own name on every parcel they booked afterwards.
-  db.prepare(`UPDATE customers SET contact_phone = '9998887' WHERE phone = ?`).run(full.phone);
-  db.prepare(`UPDATE orders SET contact_phone = '9998887' WHERE order_no = ?`).run(full.orderNo);
-  const stale = parcelUpliftCard(repo.findOrder(full.orderNo)!);
-  check('the uplift rings the number they are writing from', stale.includes(full.phone), stale);
+  // The uplift rings the sender's own number, asked for at booking and held on
+  // the order. Whoever books a parcel is not necessarily the sender - an
+  // office arranges a courier, a daughter sends from her mother's house - so
+  // the number they are writing from is not it either.
+  check('the uplift rings the number given for the sender', upliftFull.includes('5926550202'), upliftFull);
   check(
-    'and never a number saved from somebody else',
-    !stale.includes('9998887'),
-    stale,
+    'and nothing saved against the account that booked it',
+    !upliftFull.includes('9998887'),
+    upliftFull,
   );
   check('and the pin, together', /maps\?q=6\.801300/.test(upliftFull), upliftFull);
 

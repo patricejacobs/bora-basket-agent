@@ -512,15 +512,15 @@ export function parcelUpliftCard(order: repo.OrderRecord): string {
     '',
     `*Uplift from:* ${order.customerName}`,
     ...(pickup?.address ? [pickup.address] : []),
-    // The number they are messaging from, not `contact_phone`.
+    // The sender's own number, asked for when the job was booked and carried
+    // on the order rather than on the customer.
     //
-    // The sender is by definition the person at the other end of this
-    // conversation, so that number cannot be wrong. `contact_phone` can: it
-    // means "the best number for this delivery", it lives on the customer row
-    // rather than the order, and a customer who once gave a recipient's number
-    // had it saved there for good - so it would print under the sender's name
-    // on every parcel they ever booked afterwards.
-    `📞 ${dial(order.phone)}`,
+    // Not the number they are messaging from: whoever books a parcel is not
+    // necessarily the sender. An office arranges a courier, a daughter sends
+    // something from her mother's house. `contact_phone` is safe to read here
+    // because a parcel now fills it from that booking and never from the
+    // customer record, where a past delivery's number used to leak in.
+    `📞 ${dial(order.contactPhone || order.phone)}`,
     ...(pin ? ['Click the link below for the uplift address:', mapsLink(pin)] : ['⚠️ No pin for the pickup — ring them']),
     '',
     `📦 ${order.parcelDetails || 'Contents not described'}`,
