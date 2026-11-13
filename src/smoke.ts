@@ -4396,6 +4396,99 @@ section('What a settled order says, to whom');
   db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-901%'`).run();
 }
 
+section('The correct code, on a job they have already finished');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const rider = config.driverNumbers[0]!;
+  const other = '5926007777';
+
+  // `holding` is what is out with an associate NOW, so an order they finished
+  // is not in it. That used to drop every settled order into the privacy
+  // refusal, which told them a perfectly correct code was wrong - about their
+  // own completed delivery.
+  const settle = (no: string, kind: string, status: string, code: string, driver: string,
+                  uplifter: string, verified: string, reason: string) =>
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, recipient_name, address,
+         contact_phone, delivery_note, kind, delivery_code, code_sent_at,
+         code_verified_at, driver_phone, uplifted_by, return_reason, subtotal,
+         delivery_fee, total, payment_method, status, delivered_at, created_at)
+       VALUES (?, '5926100002','Anita Raghubir','Dev Raghubir','Lot 9 Kitty',
+         '5926100002','', ?, ?, '2026-11-12T15:40:00Z', ?, ?, ?, ?, 0, 200000, 200000,
+         'cash', ?, '2026-11-12T16:58:00Z', '2026-11-12T15:30:00Z')`,
+    ).run(no, kind, code, verified, driver, uplifter, reason, status);
+
+  settle('ORD-91001', 'parcel', 'delivered', '4417', rider, rider, '2026-11-12T16:58:00Z', '');
+  settle('ORD-91002', 'restaurant', 'delivered', '5528', rider, rider, '', '');
+  settle('ORD-91003', 'parcel', 'returned', '6639', rider, rider, '', 'wrong_code');
+  settle('ORD-91004', 'parcel', 'returned', '7741', rider, rider, '', 'nobody_there');
+  // Uplifted by this associate, carried to the door by another after a
+  // transfer. The money was collected by the one who uplifted it.
+  settle('ORD-91005', 'parcel', 'delivered', '8852', other, rider, '2026-11-12T17:10:00Z', '');
+  // Somebody else's delivery entirely - the case the refusal exists for.
+  settle('ORD-91006', 'parcel', 'delivered', '9963', other, other, '2026-11-12T17:20:00Z', '');
+
+  /* --- the bug ---------------------------------------------------------- */
+
+  const right = (await handleDriverMessage('91001 4417', rider))[0]?.text ?? '';
+  check('the correct code is never called wrong', !/not correct/i.test(right), right);
+  check('it says the parcel is already delivered', /already delivered/i.test(right), right);
+  check('and that the code was confirmed', /code was confirmed/i.test(right), right);
+  check('the contents are never named', !/paper|parcel contents/i.test(right), right);
+  check(
+    'and nothing is spent on a code that is settled',
+    repo.deliveryCodeState('ORD-91001').attempts === 0,
+    String(repo.deliveryCodeState('ORD-91001').attempts),
+  );
+  check(
+    'the delivery is left exactly as it was',
+    repo.findOrder('ORD-91001')?.status === 'delivered' &&
+      repo.deliveryCodeState('ORD-91001').verifiedAt === '2026-11-12T16:58:00Z',
+  );
+
+  // A wrong code against their own finished order reads the same. The order is
+  // over; which digits they typed no longer decides anything, and "wrong code"
+  // would send them looking for a problem that is not there.
+  const stale = (await handleDriverMessage('91001 0000', rider))[0]?.text ?? '';
+  check('a wrong code on a finished order is not called wrong either', !/not correct/i.test(stale), stale);
+  check('and still reports it delivered', /already delivered/i.test(stale), stale);
+  check('with no attempt counted', repo.deliveryCodeState('ORD-91001').attempts === 0);
+
+  /* --- the honest version of each ending -------------------------------- */
+
+  const unver = (await handleDriverMessage('91002 5528', rider))[0]?.text ?? '';
+  check('a delivery that closed without a code says so', /without the code confirmed/i.test(unver), unver);
+  check('and does not claim it was confirmed', !/code was confirmed/i.test(unver), unver);
+
+  const badCode = (await handleDriverMessage('91003 6639', rider))[0]?.text ?? '';
+  check('a parcel returned on a wrong code says it went back', /went back to the sender/i.test(badCode), badCode);
+  check('and why', /code did not match/i.test(badCode), badCode);
+
+  const nobody = (await handleDriverMessage('91004 7741', rider))[0]?.text ?? '';
+  check('a parcel returned with nobody there says that instead', /nobody to receive/i.test(nobody), nobody);
+
+  // Theirs because they uplifted it and took the cash, even though somebody
+  // else closed it. Who is holding it now is not announced.
+  const handed = (await handleDriverMessage('91005 8852', rider))[0]?.text ?? '';
+  check('a parcel they uplifted and handed on still answers them', /already delivered/i.test(handed), handed);
+  check('without naming who finished it', !/5926007777/.test(handed), handed);
+
+  /* --- and the leak stays shut ------------------------------------------ */
+
+  // Ownership is read off the order's columns, so a guessed order number tells
+  // a guesser nothing. This is the regression guard for the privacy fix.
+  const theirs = (await handleDriverMessage('91006 9963', rider))[0]?.text ?? '';
+  check('somebody else\'s order still only says the code is wrong', /not correct for ORD-91006/.test(theirs), theirs);
+  check('never that it was delivered', !/already delivered|delivered/i.test(theirs), theirs);
+  check('nor when', !/17:20|16:58/.test(theirs), theirs);
+  check(
+    'and its code is left untouched, so nothing can be probed',
+    repo.deliveryCodeState('ORD-91006').attempts === 0,
+  );
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-910%'`).run();
+}
+
 section('One order in hand, start to end');
 {
   const { handleDriverMessage } = await import('./staff.ts');

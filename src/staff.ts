@@ -1331,6 +1331,72 @@ export async function handleDriverMessage(
     // or an associate fumbling a number burns a stranger's code three times
     // over, and that delivery can never be verified by the customer holding
     // the digits.
+    // An order they handled themselves, which has since moved on.
+    //
+    // `holding` is only what is out with them right now, so every order an
+    // associate has ever finished falls past it into the refusal below — and
+    // gets told that a code which is perfectly correct is wrong. An associate
+    // checking a parcel they delivered an hour ago was being told they had got
+    // their own work wrong, about a delivery that went through properly.
+    //
+    // There is nothing to protect here: they carried it, and on a parcel the
+    // money was theirs to collect. So they are told what became of it, and no
+    // attempt is counted against a code that is already settled.
+    //
+    // Ownership is read off the order's own columns, never off what was typed,
+    // so this cannot be reached by guessing at somebody else's order number.
+    // Either of the two counts: a parcel can be uplifted by one associate and
+    // delivered by another after a transfer, and the one who collected the
+    // money is as entitled to know it arrived as the one who carried it.
+    const me = phone.replace(/[^0-9]/g, '');
+    const settledAndTheirs =
+      paired &&
+      target !== null &&
+      !holding.some((o) => o.orderNo === target.orderNo) &&
+      (target.driverPhone === me || repo.upliftedBy(target.orderNo) === me);
+
+    if (paired && target && settledAndTheirs) {
+      const verified = repo.deliveryCodeState(target.orderNo).verifiedAt;
+      const what =
+        target.status === 'delivered'
+          ? [
+              `✅ ${target.orderNo} is already delivered.`,
+              '',
+              verified
+                ? 'The code was confirmed at the time. Nothing more is needed on it.'
+                : 'It closed without the code confirmed, which is already recorded.',
+            ]
+          : target.status === 'returned'
+            ? [
+                `↩️ ${target.orderNo} went back to the sender.`,
+                '',
+                repo.returnReason(target.orderNo) === 'wrong_code'
+                  ? 'It was returned because the code did not match.'
+                  : 'It was returned because there was nobody to receive it.',
+              ]
+            : target.status === 'cancelled'
+              ? [`🚫 ${target.orderNo} was cancelled. There is nothing to deliver on it.`]
+              : // Uplifted by them, delivered by somebody else after a transfer.
+                // Who is holding it now is that associate's business, not an
+                // announcement to the one who handed it over.
+                [`${target.orderNo} is not with you any more.`];
+
+      return reply(
+        [
+          ...what,
+          '',
+          ...(holding.length > 0
+            ? [
+                `You are delivering ${holding.map((o) => o.orderNo).join(', ')}.`,
+                `Send the code for that one: \`${String(
+                  Number((holding[0]?.orderNo ?? '').replace(/[^0-9]/g, '')),
+                )} ${paired[2]}\``,
+              ]
+            : ['Send `jobs` to see what there is to uplift.']),
+        ].join(chr10),
+      );
+    }
+
     if (paired && target && !holding.some((o) => o.orderNo === target.orderNo)) {
       return reply(
         [

@@ -7,7 +7,8 @@ This is the **manual**. [README.md](README.md) is the engineering record — why
 things were built the way they were. If the two ever disagree, the code is
 right and both documents are wrong; tell us and we will fix them.
 
-**Last updated:** 13 November 2026 · covers commit `2594d3e`
+**Last updated:** 13 November 2026 — tracks `main`. This file ships in the same
+commit as the change it describes, so if it is behind the agent, that is a bug.
 
 ---
 
@@ -249,10 +250,27 @@ Typing the four digits **is** the delivery.
 | Three wrong | The code is spent — a food order delivers unverified; a parcel goes back |
 | `No code` | Food delivers unverified, and the shop is told who and why |
 
-**A code attempt tells you nothing about the order.** Type a code against any
-other order number and the only answer is *"That code is not correct for
-ORD-00023"* — never whether it was delivered, cancelled or is still out, and
-never against that order's try counter.
+**A code attempt tells you nothing about somebody else's order.** Type a code
+against an order that is not yours and the only answer is *"That code is not
+correct for ORD-00023"* — never whether it was delivered, cancelled or is still
+out, and never against that order's try counter. An order number is four digits
+and sequential, so anybody could type one.
+
+**An order you finished yourself is different.** You carried it, and on a parcel
+you collected the money, so typing its code tells you plainly what became of it:
+
+```
+associate ▸ "67 4417"
+
+✅ ORD-00067 is already delivered.
+
+The code was confirmed at the time. Nothing more is needed on it.
+```
+
+A parcel that went back says so, and why — the code would not match, or there
+was nobody to receive it. Nothing is counted against a code that is already
+settled, and a wrong code on a finished order reads the same way: the order is
+over, so which digits you typed no longer decides anything.
 
 **When the delivery is for somebody else**, the buyer is told to pass the code
 on. WhatsApp will not let the shop message a number that has never written in,
@@ -490,6 +508,11 @@ a row per event. The JSON file is the one that can rebuild the database.
 ## Keeping this manual honest
 
 This document is updated **with the change**, not afterwards. Every feature
-added to the agent is added here in the same commit, and the "last updated" line
-at the top names the commit it describes. If you find something in the agent
-that is not here, that is a defect in this file.
+added to or altered in the agent is written up here in the same commit, so the
+manual and the code never travel separately. If you find something in the agent
+that is not here, or something here the agent does not do, that is a defect in
+this file.
+
+It is written from the code rather than from memory, which is the only way it
+stays true: the first pass over it caught commands described that did not exist
+and a parcel refusal category that was missing.
