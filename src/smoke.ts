@@ -5155,6 +5155,102 @@ section('A number written into an address is still one number');
   db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
 }
 
+section('Why a parcel came back');
+{
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { offerParcel } = await import('./dispatch.ts');
+  const { customerStatusMessage } = await import('./notifications.ts');
+  const rider = config.driverNumbers[0]!;
+  const booker = '5926007676';
+
+  const held = repo.activeJobsFor(rider).map((o) => o.orderNo);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone='' WHERE order_no=?`).run(no);
+  repo.setDuty(rider, true);
+  repo.saveCustomer(booker, { name: 'Office', contactPhone: booker });
+
+  const carry = async () => {
+    const j = repo.createParcelJob({
+      phone: booker,
+      senderName: 'Peter Higg',
+      pickup: null,
+      pickupAddress: '23 High St, Georgetown',
+      destination: null,
+      destinationAddress: '54 Kier Street',
+      recipientName: 'Frank Doly',
+      recipientPhone: '5926588596',
+      contents: 'A box of papers',
+      fee: 150000,
+      contactPhone: '5926771234',
+    });
+    const n = String(Number(j.orderNo.replace(/\D/g, '')));
+    await offerParcel(j.orderNo);
+    await handleDriverMessage(`${n} confirm`, rider);
+    await handleDriverMessage(`${n} uplifted`, rider);
+    return { orderNo: j.orderNo, n };
+  };
+
+  /* --- nobody there ---------------------------------------------------- */
+
+  const absent = await carry();
+  const absentCard = (await handleDriverMessage(`${absent.n} nobody home`, rider))[0]?.text ?? '';
+  check('it goes back', repo.findOrder(absent.orderNo)?.status === 'returned', absentCard);
+  check('recorded as nobody home', repo.returnReason(absent.orderNo) === 'nobody_home');
+  check('the card says why', /nobody there to take it/i.test(absentCard), absentCard);
+  const absentTold = customerStatusMessage(repo.findOrder(absent.orderNo)!, 'returned');
+  check('the sender is told it was not taken', /could not take it/i.test(absentTold), absentTold);
+  check('and nothing about a code', !/code/i.test(absentTold), absentTold);
+
+  /* --- a code that would not match -------------------------------------- */
+
+  const badCode = await carry();
+  const badCard = (await handleDriverMessage(`${badCode.n} wrong code`, rider))[0]?.text ?? '';
+  check('it goes back too', repo.findOrder(badCode.orderNo)?.status === 'returned', badCard);
+  check('recorded as a wrong code', repo.returnReason(badCode.orderNo) === 'wrong_code');
+  check('the card says which', /code did not match/i.test(badCard), badCard);
+
+  // The two are different events to the person who sent it. A missed
+  // appointment is a nuisance; a code that will not verify may mean the parcel
+  // was offered at the wrong door, and the sender is the only one who can find
+  // out which.
+  const codeTold = customerStatusMessage(repo.findOrder(badCode.orderNo)!, 'returned');
+  check('the sender is told the code did not match', /did not match/i.test(codeTold), codeTold);
+  check('and who to check with', /Check with Frank Doly/i.test(codeTold), codeTold);
+  check('the two messages differ', codeTold !== absentTold);
+  check('both say the fee stands', /not refunded/i.test(codeTold) && /not refunded/i.test(absentTold));
+
+  /* --- three failed guesses is a wrong code, however it was reached ------ */
+
+  const guessed = await carry();
+  const firstMiss = await handleDriverMessage(`${guessed.n} 1111`, rider);
+  const offered = ((firstMiss[0] as { buttons?: { title: string }[] }).buttons ?? []).map((b) => b.title);
+  check('a wrong code offers both ways out', offered.join('|') === 'Wrong code|Nobody home', JSON.stringify(offered));
+  for (const guess of ['2222', '3333']) await handleDriverMessage(`${guessed.n} ${guess}`, rider);
+  check('three misses return it', repo.findOrder(guessed.orderNo)?.status === 'returned');
+  check(
+    'recorded as a wrong code, not an absence',
+    repo.returnReason(guessed.orderNo) === 'wrong_code',
+    repo.returnReason(guessed.orderNo),
+  );
+
+  /* --- and it is in the record ------------------------------------------ */
+
+  const row = repo.allOrders().find((o) => o.orderNo === badCode.orderNo);
+  check('the export carries the reason', row?.returnReason === 'wrong_code', row?.returnReason);
+  check('a delivered order has none', repo.allOrders().some((o) => o.status === 'delivered' && o.returnReason === ''));
+
+  // All four languages, since a sender who writes Spanish is not told this in
+  // English.
+  const { t } = await import('./language.ts');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const said = t('returned_wrong_code', lang, { order: 'ORD-1', name: 'Frank' });
+    check(`the wrong-code wording exists in ${lang}`, said.includes('ORD-1') && said.includes('Frank'), said);
+  }
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(rider, no);
+  repo.setDuty(rider, false);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

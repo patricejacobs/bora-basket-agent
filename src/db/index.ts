@@ -407,6 +407,16 @@ addColumnIfMissing('orders', 'delivered_at', "TEXT NOT NULL DEFAULT ''");
 // answer, because the associate then rings.
 addColumnIfMissing('orders', 'recipient_pin', 'INTEGER NOT NULL DEFAULT 0');
 
+// Why a parcel came back.
+//
+// Its own column rather than `cancel_reason`, because a return is not a
+// cancellation: the job was accepted, collected, paid for and driven across
+// town. 'nobody_home' or 'wrong_code' - the two are different things to the
+// person who sent it. Nobody there is a missed appointment; a code that would
+// not verify means the parcel may have been offered to the wrong person, and
+// the sender is the only one who can find out which.
+addColumnIfMissing('orders', 'return_reason', "TEXT NOT NULL DEFAULT ''");
+
 /**
  * Repairs rows written before the two bugs above were fixed.
  *

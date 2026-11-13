@@ -208,7 +208,7 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   // as anything else. "No answer at the door" contains neither a delivery word
   // nor a cancellation word, but somebody typing it means exactly one thing.
   [
-    /\b(nobody\s*home|no(body)?\s*(one\s*)?(there|in|answer)|return(ed|ing)?(\s*to\s*sender)?|bring\s*it\s*back|took\s*it\s*back)\b/i,
+    /\b(nobody\s*home|no(body)?\s*(one\s*)?(there|in|answer)|wrong\s*code|bad\s*code|return(ed|ing)?(\s*to\s*sender)?|bring\s*it\s*back|took\s*it\s*back)\b/i,
     'returned',
   ],
   // "collected" and "picked up" mean a delivery associate has the food and is moving, which
@@ -252,7 +252,7 @@ export type Audience = 'staff' | 'outlet' | 'driver';
  * taps as ids would feed it "option_1" instead of "Grocery shopping".
  */
 export function commandFromButtonId(id: string): string | null {
-  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody)_(\d+)$/.exec(id);
+  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode)_(\d+)$/.exec(id);
   if (simple) {
     const verb =
       simple[1] === 'otw'
@@ -261,7 +261,9 @@ export function commandFromButtonId(id: string): string | null {
           ? 'no code'
           : simple[1] === 'nobody'
             ? 'nobody home'
-            : simple[1];
+            : simple[1] === 'badcode'
+              ? 'wrong code'
+              : simple[1];
     return `${simple[2]} ${verb}`;
   }
 
@@ -300,6 +302,19 @@ export function acceptButton(orderNo: string): { id: string; title: string; comm
 export function nobodyHomeButton(orderNo: string): { id: string; title: string; command: string } {
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
   return { id: `nobody_${n}`, title: 'Nobody home', command: `${n} nobody home` };
+}
+
+/**
+ * The other way a parcel comes back: somebody is there, and the code is wrong.
+ *
+ * Kept apart from "nobody home" because they are different events to the
+ * sender. A missed appointment is a nuisance; a code that will not verify may
+ * mean the parcel was offered to the wrong person at the wrong door, and only
+ * the sender can find out which.
+ */
+export function wrongCodeButton(orderNo: string): { id: string; title: string; command: string } {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  return { id: `badcode_${n}`, title: 'Wrong code', command: `${n} wrong code` };
 }
 
 export function noCodeButton(orderNo: string): { id: string; title: string; command: string } {

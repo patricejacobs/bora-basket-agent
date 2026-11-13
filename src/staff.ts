@@ -18,6 +18,7 @@ import {
   nextActions,
   noCodeButton,
   nobodyHomeButton,
+  wrongCodeButton,
   type Audience,
 } from './order-status.ts';
 import {
@@ -1236,11 +1237,12 @@ export async function handleDriverMessage(
               '',
               `Ask ${target.customerName.split(/\s+/)[0] || 'the customer'} to read it from our message. ${left} ${left === 1 ? 'try' : 'tries'} left.`,
             ].join(chr10),
-            buttons: [
+            // Both ways a parcel comes back, because at this moment the
+            // associate knows which it is and nobody else ever will.
+            buttons:
               target.kind === 'parcel'
-                ? nobodyHomeButton(target.orderNo)
-                : noCodeButton(target.orderNo),
-            ],
+                ? [wrongCodeButton(target.orderNo), nobodyHomeButton(target.orderNo)]
+                : [noCodeButton(target.orderNo)],
           },
         ];
       }
@@ -1272,7 +1274,7 @@ export async function handleDriverMessage(
       // verify may mean the wrong door, and handing it over on a guess is how
       // it is never seen again.
       if (target.kind === 'parcel') {
-        return handleDriverMessage(`${target.orderNo} nobody home`, phone);
+        return handleDriverMessage(`${target.orderNo} wrong code`, phone);
       }
 
       // Spent: there was a code, and it is now exhausted. Nothing left to
@@ -1351,6 +1353,14 @@ export async function handleDriverMessage(
         ? 'A delivery associate can accept a parcel, mark it uplifted, delivered, or returned. Anything else is for the shop.'
         : 'A delivery associate can mark an order uplifted or delivered. Anything else is for the shop.',
     );
+  }
+
+  // Which of the two it was, written before the status moves so every message
+  // built from the order afterwards can say so. Nobody there is a missed
+  // appointment; a code that would not verify may mean the parcel was offered
+  // at the wrong door, and the sender is the only one who can find out which.
+  if (mayReturn && order.status === 'on_the_way') {
+    repo.setReturnReason(order.orderNo, /wrong\s*code|bad\s*code/i.test(trimmed) ? 'wrong_code' : 'nobody_home');
   }
 
   // Returning is for the parcel in their hands, not for one somebody else is
@@ -1515,6 +1525,9 @@ export async function handleDriverMessage(
         : isParcel && landed === 'returned'
           ? [
               `📦 *${fresh.orderNo}* is going back to ${fresh.customerName}.`,
+              repo.returnReason(fresh.orderNo) === 'wrong_code'
+                ? 'Reason: the code did not match.'
+                : 'Reason: nobody there to take it.',
               '',
               ...(() => {
                 const written = withoutPhone(

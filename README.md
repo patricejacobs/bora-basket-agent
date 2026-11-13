@@ -1561,6 +1561,36 @@ the sender paid at the uplift"* — and the cash report counts a parcel from the
 moment it was uplifted rather than from delivery, or the day's takings run short
 until nightfall.
 
+**Why it came back is recorded and passed on.** Two things send a parcel back
+and they are not the same event to the person who sent it. Nobody at the door is
+a missed appointment. A code that will not verify may mean the parcel was
+offered at the wrong door — and the sender is the only one who can find out
+which, because only they know who they gave the code to.
+
+So the associate’s card names it, and both buttons are offered the moment a code
+fails, since that is the one moment anybody knows which it was:
+
+```
+❌ That is not the code for ORD-00002.
+
+Ask Frank to read it from our message. 2 tries left.
+
+                        [ Wrong code ]  [ Nobody home ]
+```
+
+The sender hears the difference:
+
+```
+Parcel ORD-00002 is coming back to you — the delivery code Frank Doly
+gave did not match, so the delivery associate did not hand it over.
+Check with Frank Doly that they had the code you passed on. The fee
+covers the trip, which was made, so it is not refunded.
+```
+
+Three failed guesses record a wrong code too, however the return was reached.
+The reason is its own column and its own export heading, because `cancel_reason`
+describes a cancellation and this is not one.
+
 **`returned` is a status of its own, not a cancellation.** A cancelled job never
 happened. A returned one was accepted, collected, paid for and driven across
 town. Filed as cancelled it would disappear from the takings while the associate

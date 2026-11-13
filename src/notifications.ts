@@ -373,10 +373,17 @@ export function customerStatusMessage(
     cancelled: cancelledMessage(order),
     // The one message that goes to the sender rather than to whoever was
     // receiving: it is their parcel, coming back to them.
-    returned: t('returned_to_sender', lang, {
-      order: order.orderNo,
-      name: order.recipientName || 'the recipient',
-    }),
+    // Which of the two it was. A missed appointment and a code that would not
+    // verify are different events to the person who sent it: one is a nuisance,
+    // the other means the parcel may have been offered at the wrong door, and
+    // the sender is the only one who can find out which.
+    returned: t(
+      repo.returnReason(order.orderNo) === 'wrong_code'
+        ? 'returned_wrong_code'
+        : 'returned_to_sender',
+      lang,
+      { order: order.orderNo, name: order.recipientName || 'the recipient' },
+    ),
   };
 
   return freeForm[status] ?? '';

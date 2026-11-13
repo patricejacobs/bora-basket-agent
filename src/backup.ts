@@ -101,6 +101,7 @@ const HEADER = [
   'Minutes waiting for uplift',
   'Code sent',
   'Code verified',
+  'Returned because',
   'Cancelled by',
   'Cancel reason',
   'Status changed',
@@ -185,6 +186,7 @@ function orderRow(o: repo.ArchivedOrder): string {
     // one nobody is at fault for.
     localTime(o.codeSentAt),
     localTime(o.codeVerifiedAt),
+    o.returnReason,
     o.cancelledBy,
     o.cancelReason,
     localTime(o.statusChangedAt),

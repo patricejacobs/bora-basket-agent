@@ -1477,6 +1477,8 @@ export type ArchivedOrder = OrderRecord & {
    */
   codeSentAt: string;
   codeVerifiedAt: string;
+  /** Why a parcel came back: 'nobody_home', 'wrong_code', or empty. */
+  returnReason: string;
 };
 
 export function allOrders(): ArchivedOrder[] {
@@ -1487,6 +1489,7 @@ export function allOrders(): ArchivedOrder[] {
       payment_method: string;
       code_sent_at: string | null;
       code_verified_at: string | null;
+      return_reason: string | null;
     }
   )[];
 
@@ -1498,6 +1501,7 @@ export function allOrders(): ArchivedOrder[] {
     statusChangedAt: row.updated_at || row.created_at,
     codeSentAt: row.code_sent_at ?? '',
     codeVerifiedAt: row.code_verified_at ?? '',
+    returnReason: row.return_reason ?? '',
   }));
 }
 
@@ -2492,6 +2496,23 @@ export function unassignedCash(from: Date, to = new Date()): CashTally {
       to.toISOString(),
     ) as { orders: number; total: number };
   return { orders: row.orders, total: row.total };
+}
+
+export type ReturnReason = 'nobody_home' | 'wrong_code';
+
+/** Why a parcel is going back, written before the status moves. */
+export function setReturnReason(orderNo: string, reason: ReturnReason): void {
+  db.prepare(`UPDATE orders SET return_reason = ? WHERE order_no = ? AND return_reason = ''`).run(
+    reason,
+    orderNo,
+  );
+}
+
+export function returnReason(orderNo: string): string {
+  const row = db
+    .prepare(`SELECT return_reason AS reason FROM orders WHERE order_no = ?`)
+    .get(orderNo) as { reason: string } | undefined;
+  return row?.reason ?? '';
 }
 
 /* ----------------------------------------------------------------- stalls */
