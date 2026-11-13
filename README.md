@@ -7,6 +7,10 @@ fulfil it.
 
 Built on the **WhatsApp Cloud API** (direct from Meta) and **Claude Opus 5**.
 
+> **Running the service?** [MANUAL.md](MANUAL.md) is the manual — every command,
+> setting and flow, written for the shop, the associates and the kitchens. This file
+> is the engineering record: why things were built the way they were.
+
 ---
 
 ## Quick start
