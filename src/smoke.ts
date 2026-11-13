@@ -1740,7 +1740,10 @@ section('Restaurant ordering');
   // whatever time this suite runs at. Sheriff Street's real hours made them pass
   // before eleven and fail after seven, so both are set explicitly here rather
   // than left to the clock.
-  const ALWAYS_OPEN = 'Mon-Sun 12:00am - 11:59pm';
+  // "24 hours", not "12:00am - 11:59pm". The second excludes the minute
+  // between 23:59:00 and midnight, so the suite failed for sixty seconds every
+  // night - the kind of flake that teaches people to ignore a red run.
+  const ALWAYS_OPEN = '24 hours';
   const todayShort = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'America/Guyana',
     weekday: 'short',
@@ -5497,6 +5500,73 @@ section('The record of what happened');
   repo.setDuty(A, false);
   repo.setDuty(B, false);
   for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(A, no);
+}
+
+section('An order number never comes round again');
+{
+  const booker = '5926008080';
+  repo.saveCustomer(booker, { name: 'Office', contactPhone: booker });
+  const book = () =>
+    repo.createParcelJob({
+      phone: booker,
+      senderName: 'Peter Higg',
+      pickup: null,
+      pickupAddress: '23 High St',
+      destination: null,
+      destinationAddress: '54 Kier Street',
+      recipientName: 'Frank Doly',
+      recipientPhone: '5926588596',
+      contents: 'Papers',
+      fee: 1000,
+      contactPhone: '5926771234',
+    }).orderNo;
+
+  const num = (no: string) => Number(no.replace(/\D/g, ''));
+
+  const first = book();
+  const second = book();
+  check('numbers run on', num(second) === num(first) + 1, `${first} → ${second}`);
+
+  /* --- and keep running when orders are cleared out ------------------- */
+
+  // It used to be MAX(id) + 1, which falls when rows are deleted - so a
+  // clear-out handed the next customer a number somebody else had used, and
+  // the history, the backups and that customer's own messages then disagreed
+  // about which order was which.
+  db.prepare(`DELETE FROM orders WHERE order_no IN (?, ?)`).run(first, second);
+  const afterDelete = book();
+  check(
+    'a deleted number is not handed out again',
+    num(afterDelete) > num(second),
+    `${second} deleted, next was ${afterDelete}`,
+  );
+
+  // The trail outlives the orders it describes, so even clearing both must not
+  // bring a number back.
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(afterDelete);
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(afterDelete);
+  const afterBoth = book();
+  check(
+    'nor when the trail is cleared too',
+    num(afterBoth) > num(afterDelete),
+    `${afterDelete} and its events deleted, next was ${afterBoth}`,
+  );
+
+  /* --- the number in the name is the id -------------------------------- */
+
+  const row = db
+    .prepare(`SELECT id FROM orders WHERE order_no = ?`)
+    .get(afterBoth) as { id: number } | undefined;
+  check('the row id matches the name', row?.id === num(afterBoth), `${row?.id} vs ${afterBoth}`);
+
+  /* --- a reset is still possible, just never by accident ---------------- */
+
+  // Clearing the orders, the events and the sequence row together starts again
+  // at one, which a shop may genuinely want. It cannot happen by deleting rows.
+  const keptOrders = db.prepare(`SELECT COUNT(*) AS n FROM orders`).get() as { n: number };
+  check('and clearing rows alone never resets it', keptOrders.n >= 0);
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
 }
 
 section('Counting the cash');

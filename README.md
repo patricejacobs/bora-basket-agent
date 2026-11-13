@@ -1561,6 +1561,31 @@ how many tries remain — because that is their own job, not a guess at somebody
 else’s. And the advisory about a cancelled parcel still exists: it belongs on the
 card for the order somebody is actually carrying, not in a reply to a guess.
 
+### An order number never comes round again
+
+Numbers used to be `MAX(id) + 1`, which falls when rows are deleted — so
+clearing out old orders handed the next customer a number somebody else had
+used, and the history, the backups and that customer’s own messages then
+disagreed about which order was which.
+
+The table is `AUTOINCREMENT`, so SQLite already keeps a high-water mark that
+does not fall on a delete; the numbering simply ignored it. It now takes the
+highest number anything has ever seen — that mark, the rows still present, and
+the numbers in the event trail, which outlives the orders it describes — and
+pushes the mark up to it, so the id SQLite hands out is the number in the
+order’s name and the two never drift apart.
+
+| | |
+|---|---|
+| Normal | `ORD-00001` `ORD-00002` `ORD-00003` |
+| After deleting **all** orders | `ORD-00004` |
+| After deleting orders **and** their events | `ORD-00005` |
+| Orders + events + the sequence row | `ORD-00001` |
+
+That last row is deliberate: starting again at one is a thing a shop may
+genuinely want, and it is still one command. It just cannot happen by accident
+any more.
+
 ### The record of what happened
 
 The order row is the state: who has it now, what it says now. It cannot answer

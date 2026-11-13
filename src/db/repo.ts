@@ -654,6 +654,54 @@ function newDeliveryCode(): string {
   return String(randomInt(1000, 10000));
 }
 
+/**
+ * The next order number, which never comes round again.
+ *
+ * It used to be `MAX(id) + 1`, which falls when rows are deleted - so clearing
+ * old orders handed the next customer a number somebody else had used, and the
+ * history, the backups and the customer's own messages then disagreed about
+ * which order was which.
+ *
+ * The table is AUTOINCREMENT, so SQLite already keeps a high-water mark in
+ * `sqlite_sequence` that does not fall on delete. This takes the highest
+ * number anything has ever seen - that mark, the rows still present, and the
+ * numbers in the event trail, which outlives the orders it describes - and
+ * pushes the mark up to it. The id SQLite then assigns is the number in the
+ * order's name, so the two never drift apart.
+ *
+ * Deliberately still resettable: clearing the orders, the events and the
+ * sequence row together starts again at ORD-00001, which is a thing a shop may
+ * genuinely want. It just cannot happen by accident any more.
+ */
+function nextOrderNumber(): string {
+  const seen = db
+    .prepare(
+      `SELECT MAX(n) AS n FROM (
+         SELECT COALESCE(MAX(id), 0) AS n FROM orders
+         UNION ALL
+         SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'orders'), 0)
+         UNION ALL
+         SELECT COALESCE(MAX(CAST(REPLACE(order_no, 'ORD-', '') AS INTEGER)), 0) FROM order_events
+       )`,
+    )
+    .get() as { n: number | null };
+  const high = seen.n ?? 0;
+
+  // Bring the sequence up to that mark, so the id SQLite hands out next is the
+  // number in the name. An empty table has no row in sqlite_sequence at all.
+  db.prepare(
+    `INSERT INTO sqlite_sequence (name, seq)
+     SELECT 'orders', ?
+      WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'orders')`,
+  ).run(high);
+  db.prepare(`UPDATE sqlite_sequence SET seq = ? WHERE name = 'orders' AND seq < ?`).run(
+    high,
+    high,
+  );
+
+  return `ORD-${String(high + 1).padStart(5, '0')}`;
+}
+
 export function placeOrder(args: {
   phone: string;
   customerName: string;
@@ -710,10 +758,7 @@ export function placeOrder(args: {
       }
     }
 
-    const nextIdRow = db.prepare(`SELECT COALESCE(MAX(id), 0) + 1 AS next FROM orders`).get() as {
-      next: number;
-    };
-    const orderNo = `ORD-${String(nextIdRow.next).padStart(5, '0')}`;
+    const orderNo = nextOrderNumber();
 
     const info = db
       .prepare(
@@ -1550,10 +1595,7 @@ export function createParcelJob(args: {
 }): { orderNo: string } {
   db.exec('BEGIN IMMEDIATE');
   try {
-    const next = db.prepare(`SELECT COALESCE(MAX(id), 0) + 1 AS next FROM orders`).get() as {
-      next: number;
-    };
-    const orderNo = `ORD-${String(next.next).padStart(5, '0')}`;
+    const orderNo = nextOrderNumber();
 
     db.prepare(
       `INSERT INTO orders
