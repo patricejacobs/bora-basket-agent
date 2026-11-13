@@ -4873,6 +4873,20 @@ section('A parcel end can be a pin, words, or both');
   const full = repo.findOrder(job('01', KITTY, 'Lot 12, Kitty — blue gate', THOMAS, '94 Thomas St — white fence').orderNo)!;
   const upliftFull = parcelUpliftCard(full);
   check('the uplift shows the written address', upliftFull.includes('Lot 12, Kitty'), upliftFull);
+
+  // The sender is the person at the other end of this conversation, so the
+  // number they write from cannot be wrong. `contact_phone` can: it lives on
+  // the customer row and a recipient's number once saved there would print
+  // under the sender's own name on every parcel they booked afterwards.
+  db.prepare(`UPDATE customers SET contact_phone = '9998887' WHERE phone = ?`).run(full.phone);
+  db.prepare(`UPDATE orders SET contact_phone = '9998887' WHERE order_no = ?`).run(full.orderNo);
+  const stale = parcelUpliftCard(repo.findOrder(full.orderNo)!);
+  check('the uplift rings the number they are writing from', stale.includes(full.phone), stale);
+  check(
+    'and never a number saved from somebody else',
+    !stale.includes('9998887'),
+    stale,
+  );
   check('and the pin, together', /maps\?q=6\.801300/.test(upliftFull), upliftFull);
 
   const dropFull = dropLines(full).join('\n');

@@ -287,7 +287,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         contact_phone: {
           type: 'string',
           description:
-            'The number the delivery associate should call, if the customer gives a different one. Defaults to the number they are messaging from, so only pass this when they name another.',
+            "The CUSTOMER'S own alternative number — where to ring THEM, when the phone they are writing from is not the one to call. It is saved against them and reused on every future order, so it must never be anybody else's. A number for whoever is receiving a delivery goes in recipient_phone on place_order; a number for a parcel's recipient goes in recipient_phone on create_parcel_job. Only pass this when the customer names a second number for themselves.",
         },
       },
       additionalProperties: false,
