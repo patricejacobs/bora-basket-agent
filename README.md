@@ -1539,6 +1539,23 @@ it was delivered last week, cancelled this morning or is still out. The attempts
 counter on somebody else’s order is left untouched as well, so it cannot be
 watched going down to find out whether a guessed order exists.
 
+It still has to be useful, though. Somebody at a door told only “wrong code” has
+been handed a fault and no way out of it, so the reply says nothing about the
+order they typed and everything about their own:
+
+```
+❌ That code is not correct for ORD-00023.
+
+You are delivering ORD-00072.
+
+Send the code for that one: `72 1234`
+```
+
+Their own order number, with the digits they just typed, so the next message is
+a correction rather than another guess. Every order that is over reaches this
+same branch, because what an associate is carrying is what is still out with
+them — nothing finished can be in that list.
+
 The associate’s own live order still gets what they need — whose code it is and
 how many tries remain — because that is their own job, not a guess at somebody
 else’s. And the advisory about a cancelled parcel still exists: it belongs on the

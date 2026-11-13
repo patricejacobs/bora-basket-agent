@@ -1166,22 +1166,6 @@ export async function handleDriverMessage(
         ? (awaiting[0] ?? null)
         : null;
 
-    // An order that is over has nothing left to verify - and a code typed
-    // against it is told only that, and nothing about the order.
-    //
-    // An order number is four digits and sequential: anybody can type one.
-    // Answering a code attempt with "cancelled - the kitchen ran out" or
-    // "already delivered" turns the code box into a way of reading the state of
-    // other people's deliveries, one guess at a time. The advisory about what
-    // to do with a cancelled parcel still exists; it belongs on the card for
-    // the order somebody is actually carrying, not in a reply to a guess.
-    //
-    // Its attempts are deliberately untouched too, so a settled order cannot
-    // be probed by watching a counter go down.
-    if (target && (target.status === 'cancelled' || target.status === 'delivered' || target.status === 'returned')) {
-      return reply(`❌ That code is not correct for ${target.orderNo}.`);
-    }
-
     if (bare && !paired && awaiting.length > 1) {
       const first = String(Number((awaiting[0]?.orderNo ?? '').replace(/[^0-9]/g, '')));
       return reply(
@@ -1195,14 +1179,22 @@ export async function handleDriverMessage(
       );
     }
 
-    // A code typed against an order they are not carrying.
+    // A code typed against an order they are not carrying - which includes
+    // every order that is over, since `holding` is what is out with them now.
     //
-    // Checked before the code is compared, and that order is left completely
-    // alone - no attempt counted against it. Otherwise an associate fumbling
-    // the order number burns somebody else's code, three times over, and that
-    // delivery can never be verified by the customer who actually holds the
-    // digits. The likeliest explanation by far is a mistyped order number, so
-    // say which one they are carrying rather than which code was wrong.
+    // Two things have to be true at once here, and getting one of them right
+    // is not enough. Nothing may be said about the order they typed: an order
+    // number is four digits and sequential, so answering with "cancelled, the
+    // kitchen ran out" turns the code box into a way of reading other people's
+    // deliveries one guess at a time. And they must be told what to do next:
+    // somebody at a door who is told only "wrong code" has been given a fault
+    // and no way out of it.
+    //
+    // So: nothing about that order, everything about their own. The order they
+    // typed is also left completely alone - no attempt counted against it -
+    // or an associate fumbling a number burns a stranger's code three times
+    // over, and that delivery can never be verified by the customer holding
+    // the digits.
     if (paired && target && !holding.some((o) => o.orderNo === target.orderNo)) {
       return reply(
         [
@@ -1214,11 +1206,13 @@ export async function handleDriverMessage(
           ...(holding.length === 0
             ? ['You are not carrying anything right now.', 'Send `jobs` to see what there is to uplift.']
             : [
-                `You have ${holding.map((o) => o.orderNo).join(', ')}.`,
+                `You are delivering ${holding.map((o) => o.orderNo).join(', ')}.`,
                 '',
-                `Check the order number and send it again, like \`${String(
+                // Their own order number with the digits they just typed, so
+                // the next message is a correction rather than another guess.
+                `Send the code for that one: \`${String(
                   Number((holding[0]?.orderNo ?? '').replace(/[^0-9]/g, '')),
-                )} ${paired[2]}\`.`,
+                )} ${paired[2]}\``,
               ]),
         ].join(chr10),
       );

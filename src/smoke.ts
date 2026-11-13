@@ -4306,7 +4306,11 @@ section('What a settled order says, to whom');
   check('a code against a cancelled order says only that it is wrong', /not correct for ORD-90101/.test(onCancelled), onCancelled);
   check('never that it was cancelled', !/cancel/i.test(onCancelled), onCancelled);
   check('nor why', !/ran out|kitchen/i.test(onCancelled), onCancelled);
-  check('nor what to do with it', !/deliver|collect|take it back/i.test(onCancelled), onCancelled);
+  // Narrowly: nothing about the TYPED order's state or what became of it.
+  // Their own order is named on purpose, so a blanket ban on the word
+  // "delivering" would be testing the wrong thing.
+  check('nor what became of it', !/already delivered|take it back|collect any money/i.test(onCancelled), onCancelled);
+  check('and they are told which order is theirs', /You are delivering/.test(onCancelled), onCancelled);
   check('never tells an associate not to prepare it', !/prepare/i.test(onCancelled), onCancelled);
   check('and offers no retry on an order that is over', !/tries left|try left/i.test(onCancelled), onCancelled);
 
@@ -4314,7 +4318,7 @@ section('What a settled order says, to whom');
   const probed = repo.deliveryCodeState('ORD-90102').attempts;
   const hadCode = (await handleDriverMessage('90102 1234', rider))[0]?.text ?? '';
   check('an order that did have a code reads the same', /not correct for ORD-90102/.test(hadCode), hadCode);
-  check('and says nothing more', !/cancel|deliver|closing/i.test(hadCode), hadCode);
+  check('and nothing of its state', !/cancel|closing|already delivered/i.test(hadCode), hadCode);
   check(
     'its attempts are untouched, so nothing can be probed',
     repo.deliveryCodeState('ORD-90102').attempts === probed,
@@ -4424,7 +4428,8 @@ section('One order in hand, start to end');
   const before = repo.deliveryCodeState('ORD-90202').attempts;
   const wrongNo = (await handleDriverMessage('90202 1234', rider))[0]?.text ?? '';
   check('a code for an order they do not have is refused', /not correct for ORD-90202/.test(wrongNo), wrongNo);
-  check('saying nothing about that order', !/cancel|deliver|on the way|ready/i.test(wrongNo), wrongNo);
+  check('saying nothing of that order state', !/cancel|on the way|ready|already delivered/i.test(wrongNo), wrongNo);
+  check('while naming the one they are carrying', /You are delivering ORD-90201/.test(wrongNo), wrongNo);
   check('and says which one they do have', wrongNo.includes('ORD-90201'), wrongNo);
   check('offering the same digits against it', /90201 1234/.test(wrongNo), wrongNo);
   check('never calling the code wrong', !/not the code/i.test(wrongNo), wrongNo);
