@@ -14,6 +14,7 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance } from '../location.ts';
+import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
 const chr10 = String.fromCharCode(10);
 
@@ -256,6 +257,27 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
       },
       required: ['body'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'read_location_link',
+    description:
+      "Read a location out of something the customer pasted: a Google Maps link, a plus code (like 865RXM2G+MC or XM2G+MC), or bare coordinates. Call this whenever a message contains one, instead of asking them to send a pin again — they believe they have already told you where they are. Pass their message text exactly as they sent it. The result says how precise it is: a 'place' or 'plus_code' is somewhere an associate can be sent, while a town or a map view is only good enough to know roughly where they are, and you must still ask for a pin. Nothing is saved unless you pass save: true.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description: 'The customer message containing the link, plus code or coordinates.',
+        },
+        save: {
+          type: 'boolean',
+          description:
+            'Save it as their delivery pin. Only pass true when the result came back precise enough to deliver to AND the customer has confirmed it is the delivery address — never for a town, and never on a guess.',
+        },
+      },
+      required: ['text'],
       additionalProperties: false,
     },
   },
@@ -1099,6 +1121,69 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         sent: true,
         ...(existing ? { note_already_on_file: locationView(existing) } : {}),
         next: 'The button has already been sent — do not repeat its text. Carry on with your reply about their order as normal; it goes out alongside the button. Their pin arrives as a separate message and is saved for you, so wait for it rather than asking again.',
+      });
+    }
+
+    case 'read_location_link': {
+      const text = typeof input.text === 'string' ? input.text : '';
+      // The shop's own centre, used only to recover a short plus code — one
+      // that says where somebody is relative to here. Without it those are
+      // refused rather than resolved to a place in another region.
+      const parsed = readLocationSync(text, { near: config.store.serviceArea ?? null });
+
+      if (!parsed.found) {
+        return ok({
+          found: false,
+          reason: parsed.reason,
+          next: 'Nothing usable was in that message. Ask them to share a pin with the location button, or give the address in words — do not guess at a place from the text.',
+        });
+      }
+
+      const doorstep = isDoorstep(parsed);
+      const range = checkRange(parsed.point, config.store.serviceArea);
+
+      if (!doorstep) {
+        // A town, or the centre of a map view. Precise-looking coordinates for
+        // somewhere nobody can be sent. Saving this would put a map link on an
+        // associate's card pointing confidently at the middle of a village.
+        return ok({
+          found: true,
+          precision: parsed.precision,
+          place: parsed.label || 'an area, with no place name',
+          ...(range.state === 'unchecked' ? {} : { distance_from_shop: formatDistance(range.distanceKm) }),
+          saved: false,
+          next: `That points at ${parsed.label || 'a general area'} rather than a doorstep, so it cannot be used as the delivery pin. Tell them you can see roughly where they mean, name it back to them, and ask for the exact spot — the location button, or the house and street in words.`,
+        });
+      }
+
+      if (input.save === true) {
+        const saved = repo.saveLocationPin(ctx.phone, {
+          latitude: parsed.point.latitude,
+          longitude: parsed.point.longitude,
+          label: parsed.label,
+        });
+        return ok({
+          found: true,
+          precision: parsed.precision,
+          place: parsed.label || 'the point in the link',
+          saved: true,
+          location_pin: locationView(saved),
+          next: 'Saved as their delivery pin. Read the place back to them so they can correct it if it is wrong.',
+        });
+      }
+
+      return ok({
+        found: true,
+        precision: parsed.precision,
+        place: parsed.label || 'the point in the link',
+        ...(range.state === 'unchecked' ? {} : { distance_from_shop: formatDistance(range.distanceKm) }),
+        ...(range.state === 'outside'
+          ? {
+              outside_delivery_area: `That point is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area. Say plainly that it looks outside the area and that a staff member will confirm on this chat. Do not promise delivery or invent a surcharge.`,
+            }
+          : {}),
+        saved: false,
+        next: 'Read the place back to them and ask whether that is where the delivery goes. Call this again with save: true once they say yes.',
       });
     }
 

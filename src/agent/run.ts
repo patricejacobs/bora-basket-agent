@@ -3,6 +3,7 @@ import { config } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
 import { TOOL_DEFS, executeTool, type ToolContext } from './tools.ts';
+import { expandShortLinks } from '../maps-link.ts';
 import { buildConversationContext, buildTurnContext, CONTEXT_MARKER } from './context.ts';
 import { splitReply } from './pacing.ts';
 import type { OutboundMessage, IncomingImage } from '../channels/types.ts';
@@ -186,6 +187,13 @@ export async function runAgent(
   userText: string,
   image?: IncomingImage,
 ): Promise<AgentResult> {
+  // A short Google link becomes the URL it points at before anything reads the
+  // message. Done here, at the edge, because every reader below this line is
+  // synchronous and following a redirect is not - and because a customer who
+  // pasted a link has already told us where they are. The raw text is logged
+  // before this runs, so nothing about what they actually sent is lost.
+  userText = await expandShortLinks(userText);
+
   const stored = repo.loadHistory(phone);
   const expired =
     stored.updatedAt !== null && Date.now() - new Date(stored.updatedAt).getTime() > SESSION_TTL_MS;

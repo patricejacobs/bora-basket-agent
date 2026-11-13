@@ -214,6 +214,21 @@ address, and the associate's card leads with `⚠️ NO PIN — ring before you 
 off`. The honest cost: a written address cannot be checked against the delivery
 radius.
 
+**If they paste a Google Maps link instead**, it is read. So is a plus code
+(`865RXM2G+MC`, or a short `XM2G+MC` near the shop) and bare coordinates. This
+matters most for parcels and for ordering on somebody else's behalf — a person
+booking a delivery to a door they are not standing at cannot drop a pin on it,
+but they can send a link to it.
+
+The agent reads back the place it resolved to and asks whether that is where
+the delivery goes. Nothing is saved until the customer says yes.
+
+**A link to a town is not a doorstep.** Share a place like Timehri and the
+coordinates look precise but describe a village, not a house. The agent is told
+to name the area back and still ask for the exact spot. The same applies to a
+link that only carries the map's viewport rather than the pin itself — the
+difference is about 1.2 km, which is the wrong end of a runway.
+
 **Ordering for somebody else** is normal. The agent takes the receiver's name
 and number, and the associate's card names both people separately.
 

@@ -4489,6 +4489,172 @@ section('The correct code, on a job they have already finished');
   db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-910%'`).run();
 }
 
+section('Reading a location out of what somebody pasted');
+{
+  const maps = await import('./maps-link.ts');
+
+  // The two real links this was built against, kept verbatim. Both are places
+  // whose URL carries a viewport AND a pin, which is the trap.
+  const AIRPORT =
+    'https://www.google.com/maps/place/Athens-Ben+Epps+Airport/@33.9408089,-83.3227756,14z/' +
+    'data=!4m6!3m5!1s0x88f66b676ce4ce85:0x749d5ade6813b384!8m2!3d33.9517494!4d-83.3239147!16zL20vMDdkNTky';
+  const TIMEHRI =
+    'https://www.google.com/maps/place/Timehri,+Guyana/@6.5048124,-58.2654325,15z/' +
+    'data=!3m1!4b1!4m6!3m5!1s0x8da551be598ef003:0xa38110d6bb9918c6!8m2!3d6.5048127!4d-58.2551328!16s%2Fm%2F02rsfm0';
+
+  const metres = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) =>
+    Math.hypot((a.latitude - b.latitude) * 111320, (a.longitude - b.longitude) * 111320 * Math.cos((a.latitude * Math.PI) / 180));
+
+  /* --- the trap --------------------------------------------------------- */
+
+  // A Maps URL carries the map's viewport centre as well as the pin, and the
+  // viewport is the one that looks obvious. Here they are 1.2 km apart.
+  const air = maps.parseMapsUrl(AIRPORT);
+  check('a place link resolves', air.found, JSON.stringify(air));
+  if (air.found) {
+    check('it reads the pin, not the viewport', Math.abs(air.point.latitude - 33.9517494) < 1e-6, String(air.point.latitude));
+    check('and the right longitude', Math.abs(air.point.longitude - -83.3239147) < 1e-6, String(air.point.longitude));
+    check('which is a different place from the viewport', metres(air.point, { latitude: 33.9408089, longitude: -83.3227756 }) > 1000);
+    check('and it says so is a place', air.precision === 'place', air.precision);
+    check('it keeps the name', /Athens-Ben Epps Airport/.test(air.label), air.label);
+    check('a place is somewhere to drive to', maps.isDoorstep(air));
+  }
+
+  /* --- a town is not a doorstep ----------------------------------------- */
+
+  const town = maps.parseMapsUrl(TIMEHRI);
+  check('a locality link resolves too', town.found);
+  if (town.found) {
+    check('to the middle of the town', Math.abs(town.point.latitude - 6.5048127) < 1e-6, String(town.point.latitude));
+    check('named as what it is', town.label === 'Timehri, Guyana', town.label);
+    // Precise-looking coordinates for a whole village. Good enough to say
+    // which warehouse serves them, not good enough to knock on.
+    check('but it is not a doorstep', !maps.isDoorstep(town));
+  }
+
+  /* --- plus codes, which need nothing at all ---------------------------- */
+
+  // No network, no key, no lookup: the code IS the coordinates.
+  const plus = maps.decodePlusCode('865RXM2G+MC');
+  check('a full plus code decodes', plus !== null);
+  if (plus) {
+    check(
+      'to within its own box of the real place',
+      metres(plus, { latitude: 33.9517494, longitude: -83.3239147 }) < 20,
+      String(metres(plus, { latitude: 33.9517494, longitude: -83.3239147 })),
+    );
+  }
+  check('a padded code is refused', maps.decodePlusCode('86500000+') === null);
+  check('and rubbish is refused rather than thrown', maps.decodePlusCode('not a code') === null);
+  check('a code with letters outside the alphabet is refused', maps.decodePlusCode('865RXM2I+MC') === null);
+
+  // Short codes are a position relative to somewhere, so they are recovered
+  // against the shop and refused when that cannot be right.
+  const near = { latitude: 33.9519, longitude: -83.3576 };
+  const short = maps.decodeShortPlusCode('XM2G+MC', near);
+  check('a short code recovers against a nearby reference', short !== null);
+  if (short && plus) check('to the same place as the full code', metres(short, plus) < 20);
+  check(
+    'and is refused when the reference is a continent away',
+    maps.decodeShortPlusCode('XM2G+MC', { latitude: 6.8, longitude: -58.15 }) === null ||
+      metres(maps.decodeShortPlusCode('XM2G+MC', { latitude: 6.8, longitude: -58.15 })!, { latitude: 6.8, longitude: -58.15 }) < 60000,
+  );
+
+  /* --- short links ------------------------------------------------------ */
+
+  // No network in the suite: the redirect is stubbed, because what is being
+  // tested is what we do with the answer, not that Google replies.
+  const redirectTo = (location: string) =>
+    (async () => ({ headers: { get: (k: string) => (k.toLowerCase() === 'location' ? location : null) } })) as unknown as typeof fetch;
+
+  const hopped = await maps.readLocationFrom('https://maps.app.goo.gl/QfxQfVoAa2MxjDtP7', {
+    fetchImpl: redirectTo(TIMEHRI),
+  });
+  check('a short link is followed and read', hopped.found, JSON.stringify(hopped));
+  if (hopped.found) check('to the place it points at', Math.abs(hopped.point.latitude - 6.5048127) < 1e-6);
+
+  /* --- the security boundary -------------------------------------------- */
+
+  // The URL came from whoever messaged the service. Without an allowlist this
+  // is a way to make the server fetch any address it can reach, including ones
+  // only reachable from inside the host.
+  check(
+    'a link to somewhere else is not fetched',
+    (await maps.resolveShortLink('http://169.254.169.254/latest/meta-data/', redirectTo(TIMEHRI))) === null,
+  );
+  check(
+    'nor a lookalike host',
+    (await maps.resolveShortLink('https://maps.app.goo.gl.evil.test/x', redirectTo(TIMEHRI))) === null,
+  );
+  // A redirect is the other end choosing the next address, so it is checked
+  // again rather than trusted because the first hop was allowed.
+  check(
+    'and a redirect off Google is not followed',
+    (await maps.resolveShortLink('https://maps.app.goo.gl/x', redirectTo('http://169.254.169.254/'))) === null,
+  );
+
+  /* --- the ordinary cases ----------------------------------------------- */
+
+  const typed = await maps.readLocationFrom('I am at 6.8013, -58.1551 near the market');
+  check('bare coordinates are read', typed.found && typed.precision === 'coordinates');
+
+  const nothing = await maps.readLocationFrom('deliver to my house please');
+  check('ordinary words resolve to nothing', !nothing.found);
+  check('and say so plainly', !nothing.found && /No location/.test(nothing.reason));
+
+  const dead = await maps.readLocationFrom('https://maps.app.goo.gl/nope', {
+    fetchImpl: (async () => ({ headers: { get: () => null } })) as unknown as typeof fetch,
+  });
+  check('a link that goes nowhere is reported, not guessed at', !dead.found);
+
+  /* --- expanding at the edge -------------------------------------------- */
+
+  // The tool layer is synchronous, so a short link is turned into a long one
+  // before the conversation starts rather than inside a tool.
+  const grown = await maps.expandShortLinks('here it is https://maps.app.goo.gl/QfxQfVoAa2MxjDtP7 thanks', {
+    fetchImpl: redirectTo(TIMEHRI),
+  });
+  check('a short link is expanded in place', grown.includes('!3d6.5048127'), grown);
+  check('and the words around it survive', /here it is/.test(grown) && /thanks/.test(grown), grown);
+
+  // A link that will not resolve is left alone. The customer did say
+  // something, and quietly deleting it would be worse than not reading it.
+  const kept = await maps.expandShortLinks('https://maps.app.goo.gl/nope', {
+    fetchImpl: (async () => ({ headers: { get: () => null } })) as unknown as typeof fetch,
+  });
+  check('an unresolvable link is left as it was', kept === 'https://maps.app.goo.gl/nope', kept);
+
+  check('a long URL is not fetched at all', (await maps.expandShortLinks(TIMEHRI, {
+    fetchImpl: (() => { throw new Error('should not fetch'); }) as unknown as typeof fetch,
+  })) === TIMEHRI);
+
+  /* --- what the agent actually gets -------------------------------------- */
+
+  const asTool = call('read_location_link', { text: AIRPORT });
+  check('the tool reads a place', asTool.found === true, JSON.stringify(asTool));
+  check('and does not save unless asked', asTool.saved === false);
+  check('it never hands back raw coordinates', !JSON.stringify(asTool).includes('33.95174'), JSON.stringify(asTool));
+
+  const asTown = call('read_location_link', { text: TIMEHRI });
+  check('a town is found but refused as a pin', asTown.found === true && asTown.saved === false);
+  check('and the agent is told to ask for the exact spot', /exact spot/.test(asTown.next), asTown.next);
+
+  const savedIt = call('read_location_link', { text: AIRPORT, save: true });
+  check('it saves when asked', savedIt.saved === true, JSON.stringify(savedIt));
+  const onFile = repo.getIdentity(PHONE).location;
+  check('and the pin lands on the customer record', onFile !== null && Math.abs(onFile.latitude - 33.9517494) < 1e-6, JSON.stringify(onFile));
+
+  const refused = call('read_location_link', { text: 'somewhere near the market' });
+  check('nothing readable is reported as nothing', refused.found === false, JSON.stringify(refused));
+  check('and the agent is told not to guess', /do not guess/i.test(refused.next), refused.next);
+
+  // A short link that reached the tool unexpanded must not be read as "no
+  // location" - there IS one, we just could not follow it from here.
+  const unexpanded = call('read_location_link', { text: 'https://maps.app.goo.gl/QfxQfVoAa2MxjDtP7' });
+  check('an unexpanded short link says so', unexpanded.found === false);
+  check('rather than claiming the message had nothing in it', /could not be read/.test(unexpanded.reason), unexpanded.reason);
+}
+
 section('One order in hand, start to end');
 {
   const { handleDriverMessage } = await import('./staff.ts');
