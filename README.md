@@ -1527,7 +1527,7 @@ the one function every actor passes through, so no future caller can open the
 door either. An associate is at a doorstep with the food in their hand: whatever
 has gone wrong there, voiding the order is not the answer, and a cancellation is
 the one move with no way back. A code that will not verify delivers unverified;
-nobody home is a conversation for the shop.
+nobody there is a conversation for the shop.
 
 A four-digit message with nothing waiting on a code is also answered directly
 rather than falling through to the order-number parser — otherwise `2149` could
@@ -1575,7 +1575,7 @@ fails, since that is the one moment anybody knows which it was:
 
 Ask Frank to read it from our message. 2 tries left.
 
-                        [ Wrong code ]  [ Nobody home ]
+                        [ Wrong code ]  [ Nobody there ]
 ```
 
 The sender hears the difference:

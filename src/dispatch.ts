@@ -618,7 +618,7 @@ export function onTheWayCard(
     '',
     `🔐 Type the four-digit code from ${(order.recipientName || order.customerName).split(/\s+/)[0] || 'the customer'} to close it.`,
     order.kind === 'parcel'
-      ? 'Wrong code, or nobody there? Reply *nobody home* and bring it back.'
+      ? 'Wrong code, or nobody there? Reply *nobody there* and bring it back.'
       : 'No code? Reply *no code*.',
   ].join(String.fromCharCode(10));
 }

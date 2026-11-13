@@ -17,7 +17,7 @@ import {
   isBackwards,
   nextActions,
   noCodeButton,
-  nobodyHomeButton,
+  nobodyThereButton,
   wrongCodeButton,
   type Audience,
 } from './order-status.ts';
@@ -1235,13 +1235,26 @@ export async function handleDriverMessage(
             text: [
               `❌ That is not the code for ${target.orderNo}.`,
               '',
-              `Ask ${target.customerName.split(/\s+/)[0] || 'the customer'} to read it from our message. ${left} ${left === 1 ? 'try' : 'tries'} left.`,
+              // The person at the door, who is not always the person who
+              // ordered - and on a parcel never is. "Ask Peter" when Peter is
+              // the sender sends an associate looking for somebody who is
+              // across town.
+              ...(() => {
+                const receiver = target.recipientName || target.customerName;
+                const first = receiver.split(/\s+/)[0] || 'them';
+                const tries = `${left} ${left === 1 ? 'try' : 'tries'} left.`;
+                return [
+                  target.recipientName && target.recipientName !== target.customerName
+                    ? `Ask ${first} for the code ${target.customerName} passed on. ${tries}`
+                    : `Ask ${first} to read it from our message. ${tries}`,
+                ];
+              })(),
             ].join(chr10),
             // Both ways a parcel comes back, because at this moment the
             // associate knows which it is and nobody else ever will.
             buttons:
               target.kind === 'parcel'
-                ? [wrongCodeButton(target.orderNo), nobodyHomeButton(target.orderNo)]
+                ? [wrongCodeButton(target.orderNo), nobodyThereButton(target.orderNo)]
                 : [noCodeButton(target.orderNo)],
           },
         ];
@@ -1360,7 +1373,10 @@ export async function handleDriverMessage(
   // appointment; a code that would not verify may mean the parcel was offered
   // at the wrong door, and the sender is the only one who can find out which.
   if (mayReturn && order.status === 'on_the_way') {
-    repo.setReturnReason(order.orderNo, /wrong\s*code|bad\s*code/i.test(trimmed) ? 'wrong_code' : 'nobody_home');
+    repo.setReturnReason(
+      order.orderNo,
+      /wrong\s*code|bad\s*code/i.test(trimmed) ? 'wrong_code' : 'nobody_there',
+    );
   }
 
   // Returning is for the parcel in their hands, not for one somebody else is

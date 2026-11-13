@@ -1477,7 +1477,7 @@ export type ArchivedOrder = OrderRecord & {
    */
   codeSentAt: string;
   codeVerifiedAt: string;
-  /** Why a parcel came back: 'nobody_home', 'wrong_code', or empty. */
+  /** Why a parcel came back: 'nobody_there', 'wrong_code', or empty. */
   returnReason: string;
 };
 
@@ -2498,7 +2498,7 @@ export function unassignedCash(from: Date, to = new Date()): CashTally {
   return { orders: row.orders, total: row.total };
 }
 
-export type ReturnReason = 'nobody_home' | 'wrong_code';
+export type ReturnReason = 'nobody_there' | 'wrong_code';
 
 /** Why a parcel is going back, written before the status moves. */
 export function setReturnReason(orderNo: string, reason: ReturnReason): void {

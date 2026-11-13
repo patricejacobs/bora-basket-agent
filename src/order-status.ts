@@ -208,7 +208,9 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   // as anything else. "No answer at the door" contains neither a delivery word
   // nor a cancellation word, but somebody typing it means exactly one thing.
   [
-    /\b(nobody\s*home|no(body)?\s*(one\s*)?(there|in|answer)|wrong\s*code|bad\s*code|return(ed|ing)?(\s*to\s*sender)?|bring\s*it\s*back|took\s*it\s*back)\b/i,
+    // `nobody home` is still accepted: a card sent before the wording changed
+    // is still sitting in somebody's chat, and its button never expires.
+    /\b(nobody\s*(home|there)|no(body)?\s*(one\s*)?(there|in|answer)|wrong\s*code|bad\s*code|return(ed|ing)?(\s*to\s*sender)?|bring\s*it\s*back|took\s*it\s*back)\b/i,
     'returned',
   ],
   // "collected" and "picked up" mean a delivery associate has the food and is moving, which
@@ -260,7 +262,7 @@ export function commandFromButtonId(id: string): string | null {
         : simple[1] === 'nocode'
           ? 'no code'
           : simple[1] === 'nobody'
-            ? 'nobody home'
+            ? 'nobody there'
             : simple[1] === 'badcode'
               ? 'wrong code'
               : simple[1];
@@ -298,16 +300,23 @@ export function acceptButton(orderNo: string): { id: string; title: string; comm
   return { id: `confirm_${n}`, title: 'Accept', command: `${n} confirm` };
 }
 
-/** Tapped at the recipient's door when there is nobody to take the parcel. */
-export function nobodyHomeButton(orderNo: string): { id: string; title: string; command: string } {
+/**
+ * Tapped when there is nobody to take the parcel.
+ *
+ * "Nobody there", not "Nobody home": a parcel goes to an office, a shop, a
+ * school or a building site at least as often as to a house, and an associate
+ * standing outside a locked warehouse should not have to decide whether a
+ * button about somebody's home applies to them.
+ */
+export function nobodyThereButton(orderNo: string): { id: string; title: string; command: string } {
   const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
-  return { id: `nobody_${n}`, title: 'Nobody home', command: `${n} nobody home` };
+  return { id: `nobody_${n}`, title: 'Nobody there', command: `${n} nobody there` };
 }
 
 /**
  * The other way a parcel comes back: somebody is there, and the code is wrong.
  *
- * Kept apart from "nobody home" because they are different events to the
+ * Kept apart from "nobody there" because they are different events to the
  * sender. A missed appointment is a nuisance; a code that will not verify may
  * mean the parcel was offered to the wrong person at the wrong door, and only
  * the sender can find out which.

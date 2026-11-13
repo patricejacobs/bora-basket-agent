@@ -4848,8 +4848,8 @@ section('A parcel, booked to delivered — and one that comes back');
   await handleDriverMessage('90402 uplifted', rider);
   const paid = repo.cashCollected(rider, repo.startOfStoreDay()).total;
 
-  const sentBack = (await handleDriverMessage('90402 nobody home', rider))[0]?.text ?? '';
-  check('nobody home returns it', repo.findOrder('ORD-90402')?.status === 'returned', sentBack);
+  const sentBack = (await handleDriverMessage('90402 nobody there', rider))[0]?.text ?? '';
+  check('nobody there returns it', repo.findOrder('ORD-90402')?.status === 'returned', sentBack);
   check('the card sends them back to the sender', /going back to Patrice/.test(sentBack), sentBack);
   check('with the pickup address', /Lot 12, Kitty/.test(sentBack), sentBack);
   check('and nothing more to collect', /Nothing more to collect/.test(sentBack), sentBack);
@@ -5129,7 +5129,7 @@ section('A number written into an address is still one number');
   const bn = String(Number(back.orderNo.replace(/\D/g, '')));
   await handleDriverMessage(`${bn} confirm`, rider2);
   await handleDriverMessage(`${bn} uplifted`, rider2);
-  const returning = (await handleDriverMessage(`${bn} nobody home`, rider2))[0]?.text ?? '';
+  const returning = (await handleDriverMessage(`${bn} nobody there`, rider2))[0]?.text ?? '';
   check('the return card names the sender', /going back to Peter Higg/.test(returning), returning);
   check('and prints their number once', (returning.match(/6771234|677 1234/g) ?? []).length === 1, returning);
   check('with the street intact', returning.includes('23 High St'), returning);
@@ -5192,9 +5192,9 @@ section('Why a parcel came back');
   /* --- nobody there ---------------------------------------------------- */
 
   const absent = await carry();
-  const absentCard = (await handleDriverMessage(`${absent.n} nobody home`, rider))[0]?.text ?? '';
+  const absentCard = (await handleDriverMessage(`${absent.n} nobody there`, rider))[0]?.text ?? '';
   check('it goes back', repo.findOrder(absent.orderNo)?.status === 'returned', absentCard);
-  check('recorded as nobody home', repo.returnReason(absent.orderNo) === 'nobody_home');
+  check('recorded as nobody there', repo.returnReason(absent.orderNo) === 'nobody_there');
   check('the card says why', /nobody there to take it/i.test(absentCard), absentCard);
   const absentTold = customerStatusMessage(repo.findOrder(absent.orderNo)!, 'returned');
   check('the sender is told it was not taken', /could not take it/i.test(absentTold), absentTold);
@@ -5222,8 +5222,29 @@ section('Why a parcel came back');
 
   const guessed = await carry();
   const firstMiss = await handleDriverMessage(`${guessed.n} 1111`, rider);
+  // The person at the door, not the person who booked it. On a parcel they are
+  // never the same, and "ask Peter" sends an associate looking for somebody
+  // who is across town.
+  const askText = firstMiss[0]?.text ?? '';
+  check('it names the person receiving it', /Ask Frank/.test(askText), askText);
+  check('not the sender', !/Ask Peter/.test(askText), askText);
+  check('and says where they got the code', /Peter Higg passed on/.test(askText), askText);
   const offered = ((firstMiss[0] as { buttons?: { title: string }[] }).buttons ?? []).map((b) => b.title);
-  check('a wrong code offers both ways out', offered.join('|') === 'Wrong code|Nobody home', JSON.stringify(offered));
+  // "Nobody there", not "Nobody home": a parcel goes to an office, a shop or
+  // a building site as often as to a house.
+  check('a wrong code offers both ways out', offered.join('|') === 'Wrong code|Nobody there', JSON.stringify(offered));
+  check('and neither assumes a house', !/home/i.test(offered.join(' ')), JSON.stringify(offered));
+
+  // A card sent before the wording changed is still in somebody's chat, and
+  // its button never expires.
+  const legacy = await carry();
+  await handleDriverMessage(`${legacy.n} nobody home`, rider);
+  check(
+    'the old wording still works',
+    repo.findOrder(legacy.orderNo)?.status === 'returned',
+    String(repo.findOrder(legacy.orderNo)?.status),
+  );
+  check('and records the same reason', repo.returnReason(legacy.orderNo) === 'nobody_there');
   for (const guess of ['2222', '3333']) await handleDriverMessage(`${guessed.n} ${guess}`, rider);
   check('three misses return it', repo.findOrder(guessed.orderNo)?.status === 'returned');
   check(
