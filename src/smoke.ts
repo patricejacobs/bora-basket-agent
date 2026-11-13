@@ -4527,6 +4527,9 @@ section('Reading a location out of what somebody pasted');
   if (town.found) {
     check('to the middle of the town', Math.abs(town.point.latitude - 6.5048127) < 1e-6, String(town.point.latitude));
     check('named as what it is', town.label === 'Timehri, Guyana', town.label);
+    // Google writes a town through the same precise fields as a building, so
+    // this used to come back as 'place' beside a note saying it was not one.
+    check('and reported as a locality, not a place', town.precision === 'locality', town.precision);
     // Precise-looking coordinates for a whole village. Good enough to say
     // which warehouse serves them, not good enough to knock on.
     check('but it is not a doorstep', !maps.isDoorstep(town));
@@ -4637,6 +4640,10 @@ section('Reading a location out of what somebody pasted');
 
   const asTown = call('read_location_link', { text: TIMEHRI });
   check('a town is found but refused as a pin', asTown.found === true && asTown.saved === false);
+  check('and is not described to the agent as a place', asTown.precision === 'locality', asTown.precision);
+  // An area 35 km out is out of range whether or not it is a doorstep. Asking
+  // somebody to pin it exactly and then refusing the order wastes their time.
+  check('an out-of-area town says so before asking for a pin', /beyond the/.test(asTown.outside_delivery_area ?? ''), JSON.stringify(asTown));
   check('and the agent is told to ask for the exact spot', /exact spot/.test(asTown.next), asTown.next);
 
   const savedIt = call('read_location_link', { text: AIRPORT, save: true });

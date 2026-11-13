@@ -152,6 +152,12 @@ export function encodePlusCode(point: Coordinates): string {
 export type LinkPrecision =
   /** A specific place, from the fields Google writes for the pin itself. */
   | 'place'
+  /**
+   * A town, village or district. Google writes these with the same precise
+   * fields it uses for a building, so the coordinates look like a doorstep and
+   * are the middle of a settlement. Only the name gives it away.
+   */
+  | 'locality'
   /** A plus code: a box of about 14 m, decoded rather than looked up. */
   | 'plus_code'
   /** Coordinates the customer typed or pasted directly. */
@@ -195,14 +201,37 @@ function labelFromUrl(url: string): string {
  * So `!3d`/`!4d` first, then an explicit `q=`, and only then `@` — which is
  * returned as 'viewport' so the caller knows not to treat it as a doorstep.
  */
+/**
+ * Whether a place name reads as a settlement rather than an address.
+ *
+ * A heuristic, and said to be one. "Timehri, Guyana" is a place name and a
+ * country with nothing to knock on; "Lot 9 Kitty" has a number in it. It will
+ * not catch everything — a creek or a stretch of road has no number either —
+ * which is why nothing downstream treats a 'place' as permission to skip
+ * asking the customer whether it is where the delivery goes.
+ */
+function looksLikeLocality(label: string): boolean {
+  if (!label) return false;
+  if (/\d/.test(label)) return false;
+  return label.includes(',');
+}
+
 export function parseMapsUrl(url: string): LinkParse {
   const label = labelFromUrl(url);
 
   // The pin itself, as Google records it.
+  //
+  // A town comes back through these same fields, with coordinates just as
+  // precise as a building's — so the name is the only thing that separates
+  // "Lot 9 Kitty" from "Timehri, Guyana". Judged here rather than by the
+  // caller, so there is one answer rather than a precision that says 'place'
+  // beside a note saying it is not one.
   const place = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(url);
   if (place) {
     const point = parseCoordinates(place[1], place[2]);
-    if (point) return { found: true, point, precision: 'place', label };
+    if (point) {
+      return { found: true, point, precision: looksLikeLocality(label) ? 'locality' : 'place', label };
+    }
   }
 
   // An explicit query, which is what a "share coordinates" link looks like.
@@ -414,8 +443,5 @@ export async function readLocationFrom(
  */
 export function isDoorstep(parse: LinkParse): boolean {
   if (!parse.found) return false;
-  if (parse.precision === 'viewport') return false;
-  // A locality: words, commas, and nothing that looks like a street number.
-  if (parse.label && /^[^\d]+$/.test(parse.label) && parse.label.includes(',')) return false;
-  return true;
+  return parse.precision !== 'viewport' && parse.precision !== 'locality';
 }

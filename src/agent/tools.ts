@@ -1151,6 +1151,14 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           precision: parsed.precision,
           place: parsed.label || 'an area, with no place name',
           ...(range.state === 'unchecked' ? {} : { distance_from_shop: formatDistance(range.distanceKm) }),
+          // Said here too. An area 35 km out is outside the delivery area
+          // whether or not it is a doorstep, and that is the more useful thing
+          // to tell somebody before they are asked to pin it exactly.
+          ...(range.state === 'outside'
+            ? {
+                outside_delivery_area: `That area is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area. Say that first — asking them to pin it exactly, then refusing the order, wastes their time. Say plainly that it looks outside the area and that a staff member will confirm on this chat. Do not promise delivery or invent a surcharge.`,
+              }
+            : {}),
           saved: false,
           next: `That points at ${parsed.label || 'a general area'} rather than a doorstep, so it cannot be used as the delivery pin. Tell them you can see roughly where they mean, name it back to them, and ask for the exact spot — the location button, or the house and street in words.`,
         });
