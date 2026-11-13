@@ -1586,6 +1586,16 @@ it forward is how somebody is sent confidently to the wrong house. The sender’
 name and number are required by the booking tool, which refuses the job without
 them rather than filling them in from the customer record.
 
+**A number written into an address is taken back out.** The card prints each
+party’s number on its own line directly beneath their address, so one written
+into the address as well reads as two numbers and invites somebody at a gate to
+try the wrong one. The tool descriptions say not to; the card strips it anyway,
+because a rule given to a model is guidance and this is a card somebody acts on.
+
+The guard is narrow by design: it removes only a run of at least seven digits
+that **is** the number about to be printed, matched allowing for a country code
+on one side and not the other. `Lot 677` survives; `ring 677 1234` does not.
+
 **Either end can be a pin, an address in words, or both.** A pin is better and
 is asked for first, but somebody booking a parcel is usually standing at neither
 end of it and cannot drop a pin on a door they are not at. Refusing those

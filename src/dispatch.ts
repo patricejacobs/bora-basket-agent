@@ -373,6 +373,42 @@ function dial(n: string): string {
   return n.replace(/[^0-9]/g, '').length >= 10 ? `+${n}` : n;
 }
 
+/** The same telephone number, written two different ways. */
+function sameNumber(a: string, b: string): boolean {
+  const x = a.replace(/[^0-9]/g, '');
+  const y = b.replace(/[^0-9]/g, '');
+  // Seven digits is the shortest a Guyanese number goes. Below that this is
+  // comparing house numbers, and every address would match something.
+  if (x.length < 7 || y.length < 7) return false;
+  // One may carry a country code the other leaves off.
+  return x.endsWith(y) || y.endsWith(x);
+}
+
+/**
+ * An address with the telephone number taken back out of it.
+ *
+ * The card prints the number on its own line directly beneath the address, so
+ * one written into the address as well is the same number twice - which on a
+ * card read at a gate reads as two numbers, and invites somebody to try the
+ * wrong one.
+ *
+ * Only a run that IS the number is removed, never a house or lot number:
+ * matched on at least seven digits, against the very number about to be
+ * printed. "Lot 677" survives; "ring 677 1234" does not.
+ */
+function withoutPhone(address: string, phone: string): string {
+  if (!address || !phone) return address;
+  return address
+    .replace(/[+(]?\d[\d\s().-]{5,}\d/g, (run) => (sameNumber(run, phone) ? '' : run))
+    // Whatever introduced it - "ring", "call", "tel" - and the punctuation
+    // around the hole it left.
+    .replace(/\b(ring|call|tel|phone|contact|mobile|cell)\b[\s:,.-]*(?=[,;]|$)/gi, '')
+    .replace(/\s*[,;:–—-]\s*(?=[,;]|$)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, '')
+    .trim();
+}
+
 export function dropLines(order: repo.OrderRecord): string[] {
   const isParcel = order.kind === 'parcel';
 
@@ -450,7 +486,10 @@ export function dropLines(order: repo.OrderRecord): string[] {
       ? [`*Ordered by:* ${order.customerName}`, `📞 ${dial(ordererPhone)}`, '']
       : []),
     `*Deliver to:* ${receiverName}`,
-    ...(order.address ? [order.address] : []),
+    ...(() => {
+      const written = withoutPhone(order.address, receiverPhone);
+      return written ? [written] : [];
+    })(),
     // What the customer said about finding the door. It was going to staff
     // and not to the person standing outside, which is the wrong way round.
     ...(order.deliveryNote ? [order.deliveryNote] : []),
@@ -511,7 +550,10 @@ export function parcelUpliftCard(order: repo.OrderRecord): string {
     `📦 *${order.orderNo}* is yours.`,
     '',
     `*Uplift from:* ${order.customerName}`,
-    ...(pickup?.address ? [pickup.address] : []),
+    ...(() => {
+      const written = withoutPhone(pickup?.address ?? '', order.contactPhone || order.phone);
+      return written ? [written] : [];
+    })(),
     // The sender's own number, asked for when the job was booked and carried
     // on the order rather than on the customer.
     //

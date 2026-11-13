@@ -378,12 +378,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         pickup_note: {
           type: 'string',
           description:
-            'The uplift address in words, with the doorstep detail: street, lot or house number, which gate or floor, who to ask for. Required when no pin has been shared for the uplift, and worth taking alongside a pin — the two together are what gets somebody to a door.',
+            'The uplift address in words, and the doorstep detail that goes with it: street, lot or house number, which gate or floor, who to ask for at the door. Required when no pin has been shared for the uplift, and worth taking alongside a pin — the two together are what gets somebody to a door. NO telephone numbers and no instructions: the card prints the sender\'s name and number on their own line directly beneath this, so a number written in here is the same number twice.',
         },
         destination_note: {
           type: 'string',
           description:
-            'The same for the drop-off. Required when no pin has been shared for the destination.',
+            "The same for the drop-off, under the same rule: the address and doorstep detail only, with no telephone number written into it. The recipient's name and number are printed on their own lines. Required when no pin has been shared for the destination.",
         },
       },
       required: ['contents', 'sender_name', 'sender_phone', 'recipient_name', 'recipient_phone'],
@@ -1399,9 +1399,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         phone: ctx.phone,
         senderName,
         pickup: draft.pickup,
-        pickupAddress: pickupNote,
+        // Capped, like the delivery note. An address is a line read at a gate;
+        // left open these collected whole briefings, with numbers and names
+        // the card prints for itself immediately below them.
+        pickupAddress: pickupNote.slice(0, 160),
         destination: draft.destination,
-        destinationAddress: destinationNote,
+        destinationAddress: destinationNote.slice(0, 160),
         recipientName,
         recipientPhone,
         contents,

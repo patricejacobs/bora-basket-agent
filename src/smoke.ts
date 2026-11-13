@@ -5054,6 +5054,62 @@ section('One card per step, and one warning per card');
   repo.setDuty(rider, false);
 }
 
+section('A number written into an address is still one number');
+{
+  const { parcelUpliftCard, dropLines } = await import('./dispatch.ts');
+  const booker = '5926007575';
+  repo.saveCustomer(booker, { name: 'Office', contactPhone: booker });
+
+  const mk = (pickupAddress: string, destinationAddress: string) =>
+    repo.findOrder(
+      repo.createParcelJob({
+        phone: booker,
+        senderName: 'Peter Higg',
+        pickup: null,
+        pickupAddress,
+        destination: null,
+        destinationAddress,
+        recipientName: 'Frank Doly',
+        recipientPhone: '5926588596',
+        contents: 'A box of papers',
+        fee: 150000,
+        contactPhone: '5926771234',
+      }).orderNo,
+    )!;
+
+  // The card prints the number on its own line directly beneath the address,
+  // so one written into the address as well reads as two numbers - and invites
+  // somebody at a gate to try the wrong one.
+  const written = mk('23 High St, Georgetown, ring 677 1234 on arrival', '54 Kier Street, call 658-8596');
+  const uplift = parcelUpliftCard(written);
+  check('the number appears once on the uplift', (uplift.match(/6771234|677 1234/g) ?? []).length === 1, uplift);
+  check('and the street survives', uplift.includes('23 High St'), uplift);
+  const drop = dropLines(written).join('\n');
+  check('the same at the door', (drop.match(/6588596|658-8596/g) ?? []).length === 1, drop);
+  check('with its street', drop.includes('54 Kier Street'), drop);
+
+  // Written one way in the address, another on the line below.
+  const intl = mk('23 High St, tel +5926771234', '54 Kier Street, Georgetown');
+  check(
+    'a country code does not disguise it',
+    (parcelUpliftCard(intl).match(/5926771234/g) ?? []).length === 1,
+    parcelUpliftCard(intl),
+  );
+
+  // The guard must be narrow: an address is full of numbers that are not
+  // telephone numbers, and losing a lot number sends somebody to the street
+  // with no house on it.
+  const lots = mk('Lot 677, High St, Georgetown', 'Lot 6588, Kier Street');
+  check('a lot number survives', parcelUpliftCard(lots).includes('Lot 677'), parcelUpliftCard(lots));
+  check('at both ends', dropLines(lots).join('\n').includes('Lot 6588'), dropLines(lots).join('\n'));
+
+  const clean = mk('23 High St, Georgetown — blue gate', '54 Kier Street — white fence');
+  check('a clean address is untouched', parcelUpliftCard(clean).includes('23 High St, Georgetown — blue gate'));
+  check('and so is its doorstep detail', dropLines(clean).join('\n').includes('white fence'));
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');
