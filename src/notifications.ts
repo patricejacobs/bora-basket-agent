@@ -296,38 +296,13 @@ export async function notifyCustomerOfStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
 ): Promise<'text' | 'template' | 'skipped'> {
-  const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
-
   // Everything below is fixed text rather than something the model wrote, so
   // it is the one part of the conversation that would otherwise stay English
   // however the customer has been writing.
   const lang = languageFor(order.phone);
-
-  const freeForm: Partial<Record<repo.OrderStatus, string>> = {
-    confirmed: t('confirmed', lang, { name: firstName, order: order.orderNo }),
-    on_the_way:
-      t('on_the_way', lang, {
-        name: firstName,
-        order: order.orderNo,
-        total: money(order.total),
-      }) + doorCodeLine(order, lang),
-    // The store name rather than the words, so a rename carries through here
-    // too — this is the last thing a customer reads from every order.
-    delivered: deliveredMessage(order, lang),
-    // The reason is the difference between an apology and an explanation. A
-    // customer told the kitchen ran out knows to try something else; one told
-    // only "cancelled" assumes they did something wrong.
-    cancelled: cancelledMessage(order),
-    // The one message that goes to the sender rather than to whoever was
-    // receiving: it is their parcel, coming back to them.
-    returned: t('returned_to_sender', lang, {
-      order: order.orderNo,
-      name: order.recipientName || 'the recipient',
-    }),
-  };
-
-  const message = freeForm[status];
+  const message = customerStatusMessage(order, status, lang);
   if (!message) return 'skipped';
+  const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
 
   if (repo.withinServiceWindow(order.phone)) {
     await sendText(order.phone, message);
@@ -354,4 +329,55 @@ export async function notifyCustomerOfStatus(
 
   await sendTemplate(order.phone, templateName, [firstName, order.orderNo, money(order.total)]);
   return 'template';
+}
+
+/**
+ * Exactly what a customer is sent when an order moves, or '' when nothing is.
+ *
+ * Pulled out of the sending so it can be read without sending anything - by a
+ * check, or by the walkthrough that prints one delivery end to end. A
+ * walkthrough that rebuilds the message itself proves only that it can rebuild
+ * the message: the parcel payment line was wrong for a week behind exactly
+ * that shortcut.
+ */
+export function customerStatusMessage(
+  order: repo.OrderRecord,
+  status: repo.OrderStatus,
+  lang: Language = 'en',
+): string {
+  const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
+
+  const freeForm: Partial<Record<repo.OrderStatus, string>> = {
+    confirmed: t('confirmed', lang, { name: firstName, order: order.orderNo }),
+    // A parcel was paid for at the pickup, before it went anywhere. Telling
+    // the sender it is "payable to the delivery associate" asks them for the
+    // money a second time, and tells whoever booked it to expect a bill that
+    // is already settled.
+    on_the_way:
+      (order.kind === 'parcel'
+        ? t('parcel_on_the_way', lang, {
+            order: order.orderNo,
+            name: order.recipientName || 'the recipient',
+          })
+        : t('on_the_way', lang, {
+            name: firstName,
+            order: order.orderNo,
+            total: money(order.total),
+          })) + doorCodeLine(order, lang),
+    // The store name rather than the words, so a rename carries through here
+    // too — this is the last thing a customer reads from every order.
+    delivered: deliveredMessage(order, lang),
+    // The reason is the difference between an apology and an explanation. A
+    // customer told the kitchen ran out knows to try something else; one told
+    // only "cancelled" assumes they did something wrong.
+    cancelled: cancelledMessage(order),
+    // The one message that goes to the sender rather than to whoever was
+    // receiving: it is their parcel, coming back to them.
+    returned: t('returned_to_sender', lang, {
+      order: order.orderNo,
+      name: order.recipientName || 'the recipient',
+    }),
+  };
+
+  return freeForm[status] ?? '';
 }

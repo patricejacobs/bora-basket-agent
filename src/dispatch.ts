@@ -396,7 +396,7 @@ function sameNumber(a: string, b: string): boolean {
  * matched on at least seven digits, against the very number about to be
  * printed. "Lot 677" survives; "ring 677 1234" does not.
  */
-function withoutPhone(address: string, phone: string): string {
+export function withoutPhone(address: string, phone: string): string {
   if (!address || !phone) return address;
   return address
     .replace(/[+(]?\d[\d\s().-]{5,}\d/g, (run) => (sameNumber(run, phone) ? '' : run))

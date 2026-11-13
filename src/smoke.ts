@@ -5103,6 +5103,37 @@ section('A number written into an address is still one number');
   check('a lot number survives', parcelUpliftCard(lots).includes('Lot 677'), parcelUpliftCard(lots));
   check('at both ends', dropLines(lots).join('\n').includes('Lot 6588'), dropLines(lots).join('\n'));
 
+  // The card that sends an associate back to the sender builds its own lines,
+  // so it needs the same treatment - it was printing the raw address with the
+  // number still in it.
+  const { handleDriverMessage } = await import('./staff.ts');
+  const rider2 = config.driverNumbers[0]!;
+  const held = repo.activeJobsFor(rider2).map((o) => o.orderNo);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone='' WHERE order_no=?`).run(no);
+  repo.setDuty(rider2, true);
+  const back = mk('23 High St, Georgetown, ring 677 1234 on arrival', '54 Kier Street');
+  const bn = String(Number(back.orderNo.replace(/\D/g, '')));
+  await handleDriverMessage(`${bn} confirm`, rider2);
+  await handleDriverMessage(`${bn} uplifted`, rider2);
+  const returning = (await handleDriverMessage(`${bn} nobody home`, rider2))[0]?.text ?? '';
+  check('the return card names the sender', /going back to Peter Higg/.test(returning), returning);
+  check('and prints their number once', (returning.match(/6771234|677 1234/g) ?? []).length === 1, returning);
+  check('with the street intact', returning.includes('23 High St'), returning);
+  repo.setDuty(rider2, false);
+  for (const no of held) db.prepare(`UPDATE orders SET driver_phone=? WHERE order_no=?`).run(rider2, no);
+
+  // A parcel is paid for at the pickup, so the sender must not be told it is
+  // "payable to the delivery associate" when it moves.
+  const { t } = await import('./language.ts');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const said = t('parcel_on_the_way', lang, { order: 'ORD-1', name: 'Frank Doly' });
+    check(`the parcel on-its-way message exists in ${lang}`, said.includes('ORD-1') && said.includes('Frank Doly'), said);
+  }
+  check(
+    'and asks for no money',
+    !/\$|payable|pagar|付/.test(t('parcel_on_the_way', 'en', { order: 'X', name: 'Y' })),
+  );
+
   const clean = mk('23 High St, Georgetown — blue gate', '54 Kier Street — white fence');
   check('a clean address is untouched', parcelUpliftCard(clean).includes('23 High St, Georgetown — blue gate'));
   check('and so is its doorstep detail', dropLines(clean).join('\n').includes('white fence'));

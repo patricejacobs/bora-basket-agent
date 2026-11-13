@@ -23,6 +23,7 @@ import {
 import {
   dispatchToDrivers,
   dropLines,
+  withoutPhone,
   offerWaitingWork,
   parcelUpliftCard,
   flushOutletTickets,
@@ -1515,7 +1516,13 @@ export async function handleDriverMessage(
           ? [
               `📦 *${fresh.orderNo}* is going back to ${fresh.customerName}.`,
               '',
-              ...(fresh.pickup?.address ? [fresh.pickup.address] : []),
+              ...(() => {
+                const written = withoutPhone(
+                  fresh.pickup?.address ?? '',
+                  fresh.contactPhone || fresh.phone,
+                );
+                return written ? [written] : [];
+              })(),
               `📞 ${(fresh.contactPhone || fresh.phone).replace(/[^0-9]/g, '').length >= 10 ? '+' : ''}${fresh.contactPhone || fresh.phone}`,
               '',
               'They have been told it is coming. Nothing more to collect.',
