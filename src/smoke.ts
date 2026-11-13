@@ -5569,6 +5569,89 @@ section('An order number never comes round again');
   db.prepare(`DELETE FROM orders WHERE phone = ?`).run(booker);
 }
 
+section('An associate who changes their number');
+{
+  const { handleStaffMessage } = await import('./staff.ts');
+  const staff = config.staffNumbers[0]!;
+  const OLD = '5926008181';
+  const NEW = '5926008282';
+  const H = 3600_000;
+
+  repo.upsertAssociate({ phone: OLD, name: 'Rider Nine', vehicle: 'ZZZ 999', active: 1 } as never);
+  db.prepare(`INSERT INTO associate_shifts (phone, started_at, ended_at) VALUES (?, ?, '')`).run(
+    OLD,
+    new Date(Date.now() - 4 * H).toISOString(),
+  );
+  db.prepare(`UPDATE associates SET on_duty_at = ? WHERE phone = ?`).run(
+    new Date(Date.now() - 4 * H).toISOString(),
+    OLD,
+  );
+  for (const [no, total] of [['ORD-80001', 185000], ['ORD-80002', 240000]] as const) {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, driver_phone, uplifted_by, subtotal, delivery_fee, total, payment_method,
+         status, delivered_at, created_at)
+       VALUES (?, '5926100001','Marcia','Lot 4','5926100001','','grocery', ?, ?, ?, 0, ?,
+         'cash_on_delivery', 'delivered', ?, ?)`,
+    ).run(no, OLD, OLD, total, total, new Date().toISOString(), new Date().toISOString());
+  }
+
+  const hoursBefore = repo.hoursWorkedToday(OLD);
+  const cashBefore = repo.cashCollected(OLD, repo.startOfStoreDay()).total;
+  check('he has hours on the old number', hoursBefore > 3, String(hoursBefore));
+  check('and takings', cashBefore === 425000, String(cashBefore));
+  check('while the new number knows nothing of him', repo.hoursWorkedToday(NEW) === 0);
+
+  /* --- the move -------------------------------------------------------- */
+
+  const said = (await handleStaffMessage(`change number Rider Nine ${NEW}`, staff))[0]?.text ?? '';
+  check('the shop is told it moved', /Rider Nine is now on/.test(said), said);
+  check('with what came across', /1 shift, 2 deliveries/.test(said), said);
+  check('and the takings', /425,000/.test(said), said);
+  // The records are only half of it: which numbers reach the shop at all is a
+  // setting on the host, and no command here can change that.
+  check('and told to update the variable', /ASSOCIATES/.test(said), said);
+
+  /* --- everything followed him ----------------------------------------- */
+
+  // The two failures this exists to prevent: hours starting from zero
+  // mid-day, so the daily cap lets him work another twelve; and takings split
+  // across two rows with the same name on both.
+  check('his hours came with him', Math.abs(repo.hoursWorkedToday(NEW) - hoursBefore) < 0.05, String(repo.hoursWorkedToday(NEW)));
+  check('so the daily cap is not reset', repo.hoursWorkedToday(NEW) > 3);
+  check('his takings came with him', repo.cashCollected(NEW, repo.startOfStoreDay()).total === cashBefore);
+  check('and nothing is left behind', repo.cashCollected(OLD, repo.startOfStoreDay()).total === 0);
+  check('the old record is gone', repo.getAssociate(OLD) === null, JSON.stringify(repo.getAssociate(OLD)));
+  check('the new one has his name and bike', repo.getAssociate(NEW)?.vehicle === 'ZZZ 999');
+  check('his deliveries point at him', repo.findOrder('ORD-80001')?.driverPhone === NEW);
+
+  // One row in the report, not two with the same name on both.
+  const report = (await handleStaffMessage('cash', staff))[0]?.text ?? '';
+  check('the report names him once', (report.match(/Rider Nine/g) ?? []).length === 1, report);
+
+  /* --- what it refuses -------------------------------------------------- */
+
+  const same = (await handleStaffMessage(`change number Rider Nine ${NEW}`, staff))[0]?.text ?? '';
+  check('moving to the same number does nothing', /same number/.test(same), same);
+
+  repo.upsertAssociate({ phone: '5926008383', name: 'Rider Ten', vehicle: 'YYY 888', active: 1 } as never);
+  const taken = (await handleStaffMessage(`change number Rider Ten ${NEW}`, staff))[0]?.text ?? '';
+  check('two people cannot share a number', /already belongs to Rider Nine/.test(taken), taken);
+  check('and the attempt changed nothing', repo.getAssociate('5926008383')?.name === 'Rider Ten');
+
+  const short = (await handleStaffMessage('change number Rider Ten 12345', staff))[0]?.text ?? '';
+  // This used to fall through to the order parser and answer "no order 12345",
+  // which is a reply about something the dispatcher never mentioned.
+  check('a short number is refused as a number', /usable telephone number/.test(short), short);
+
+  const unknown = (await handleStaffMessage('change number Rohan 5926009999', staff))[0]?.text ?? '';
+  check('an unknown name is refused', /No delivery associate matching/.test(unknown), unknown);
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-800%'`).run();
+  db.prepare(`DELETE FROM associate_shifts WHERE phone IN (?, ?)`).run(OLD, NEW);
+  db.prepare(`DELETE FROM associates WHERE phone IN (?, ?, ?)`).run(OLD, NEW, '5926008383');
+}
+
 section('Counting the cash');
 {
   const { handleDriverMessage, handleStaffMessage } = await import('./staff.ts');

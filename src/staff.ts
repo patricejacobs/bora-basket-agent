@@ -435,6 +435,7 @@ const HELP = [
   '',
   '`where` — where the delivery associates are',
   '`where <name>` — ask one of them for a fresh pin',
+  '`change number <name> <new number>` — they have a new SIM',
   '',
   '`cash` — what each associate collected today',
   '`7 history` — everything that happened to order 7',
@@ -605,6 +606,54 @@ export async function handleStaffMessage(
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(HELP);
 
   if (isOnboardingCommand(trimmed)) return handleOnboardingCommand(phone, trimmed);
+
+  // An associate who has changed their telephone number.
+  //
+  // Spelled "change number" rather than "number", which a kitchen already uses
+  // to set its own WhatsApp - and which is matched at the start of a message,
+  // so the two would collide.
+  //
+  // Staff only, like everything in this handler. An associate able to move
+  // their own identity onto another number is an associate able to walk off
+  // with somebody else's takings.
+  // Any digit-led tail, however short. Demanding a plausible length here sent
+  // "change number Rider Two 12345" to the order parser, which answered "no
+  // order 12345" - a reply about something the dispatcher never mentioned.
+  // The command takes the message, then says what is wrong with it.
+  const changed = trimmed.match(/^change\s*number\s+(.+?)\s+([\d][\d\s+()-]*)$/i);
+  if (changed) {
+    const named = (changed[1] ?? '').trim();
+    const to = (changed[2] ?? '').replace(/[^0-9]/g, '');
+
+    // By name or by their old number, because a dispatcher knows the person
+    // and may not have the digits to hand.
+    const digits = named.replace(/[^0-9]/g, '');
+    const from =
+      digits.length >= 6 ? digits : (repo.findAssociateByName(named)?.phone ?? '');
+
+    if (!from) {
+      return reply(
+        `No delivery associate matching "${named}". Send \`where\` to see them all, or give their old number.`,
+      );
+    }
+
+    const result = repo.moveAssociateNumber(from, to);
+    if (!result.moved) return reply(`Nothing changed. ${result.reason}`);
+
+    return reply(
+      [
+        `🔄 ${result.name || `+${result.from}`} is now on +${result.to}.`,
+        '',
+        `Moved: ${result.shifts} shift${result.shifts === 1 ? '' : 's'}, ` +
+          `${result.deliveries} deliver${result.deliveries === 1 ? 'y' : 'ies'}` +
+          `${result.takings > 0 ? `, ${money(result.takings)} in today's takings` : ''}.`,
+        '',
+        // The records are only half of it: which numbers reach the shop at all
+        // is a setting on the host, and this cannot change that.
+        `⚠️ Add +${result.to} to ASSOCIATES on Render and remove +${result.from}, or they still cannot message the shop.`,
+      ].join(chr10),
+    );
+  }
 
   // What the associates are holding in cash.
   if (/^(cash|takings|money)$/i.test(trimmed)) return reply(cashReport());

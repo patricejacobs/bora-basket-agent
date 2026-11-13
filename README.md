@@ -1561,6 +1561,53 @@ how many tries remain — because that is their own job, not a guess at somebody
 else’s. And the advisory about a cancelled parcel still exists: it belongs on the
 card for the order somebody is actually carrying, not in a reply to a guess.
 
+### When an associate changes their telephone number
+
+A number is how somebody proves it is them — they can only write from their own
+handset, and no identifier a shop issues could do that, since anybody could type
+somebody else's. But it is a poor way of saying who they *are*, because it
+changes.
+
+When it did, the associate quietly became a new person. Hours from zero, so the
+daily cap started again mid-day and let them work another twelve. Takings split
+across two rows with the same name on both:
+
+```
+Rider One (NEW 5678) — 2 orders, $425,000
+Rider One (NEW 5678) — 2 orders, $245,000
+```
+
+One man, one bike, and no way to tell from the report that he is holding
+$670,000 rather than two smaller amounts.
+
+So the records move with the person:
+
+```
+shop ▸ "change number Rider One 592 600 5555"
+
+🔄 Rider One is now on +5926005555.
+
+Moved: 1 shift, 2 deliveries, $425,000 in today's takings.
+
+⚠️ Add +5926005555 to ASSOCIATES on Render and remove +5926001111,
+   or they still cannot message the shop.
+```
+
+His shifts, his last known position, his deliveries and his money are repointed
+in one transaction. The event trail is deliberately left alone: it is
+append-only and already records the name as it was at the time, so it still
+reads correctly without rewriting what happened. A history you can edit is not
+one.
+
+Staff only — an associate able to move their own identity onto another number
+is an associate able to walk off with somebody else's takings. And it refuses a
+number that already belongs to somebody, because one number has to mean one
+person: when a message arrives, the number is the only evidence of who sent it.
+
+The warning at the end is not decoration. The command fixes the records;
+`ASSOCIATES` controls which numbers reach the shop at all, and nothing here can
+change a setting on the host.
+
 ### An order number never comes round again
 
 Numbers used to be `MAX(id) + 1`, which falls when rows are deleted — so

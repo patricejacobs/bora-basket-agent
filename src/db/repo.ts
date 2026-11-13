@@ -2394,6 +2394,118 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   );
 }
 
+/* ------------------------------------------------- an associate's number */
+
+/**
+ * An associate by name, from the table rather than from the configured list.
+ *
+ * The two disagree for a while after somebody changes number: the record moves
+ * at once, the ASSOCIATES variable when a person gets to it. Looking only at
+ * the configured list made the one who had just moved unfindable by name,
+ * which is precisely when a dispatcher is most likely to be looking for them.
+ */
+export function findAssociateByName(name: string): Associate | null {
+  const needle = name.trim().toLowerCase();
+  if (needle.length < 2) return null;
+  const rows = db
+    .prepare(`SELECT phone, name, vehicle, active FROM associates WHERE active = 1`)
+    .all() as unknown as Associate[];
+  return rows.find((a) => a.name.toLowerCase().includes(needle)) ?? null;
+}
+
+export type NumberMove =
+  | { moved: false; reason: string }
+  | {
+      moved: true;
+      name: string;
+      from: string;
+      to: string;
+      shifts: number;
+      deliveries: number;
+      takings: number;
+    };
+
+/**
+ * Moves an associate from one telephone number to another.
+ *
+ * A number is how somebody proves it is them - they can only write from their
+ * own handset - but it is a poor way of saying who they ARE, because it
+ * changes. When it did, the associate became a new person: hours from zero, so
+ * the daily cap started again mid-day; takings split across two rows with the
+ * same name on both and no way to tell why; past deliveries still pointing at
+ * a number they no longer hold.
+ *
+ * So the records move with the person. Everything that says "this is theirs" -
+ * the shifts, the last known position, the deliveries and the money - is
+ * repointed in one transaction.
+ *
+ * The event trail is deliberately left alone. It is append-only and already
+ * records the name as it was at the time, so it still reads correctly without
+ * rewriting what happened. A history you can edit is not one.
+ */
+export function moveAssociateNumber(fromRaw: string, toRaw: string): NumberMove {
+  const from = fromRaw.replace(/[^0-9]/g, '');
+  const to = toRaw.replace(/[^0-9]/g, '');
+
+  if (!from || !to) return { moved: false, reason: 'Two numbers are needed: the old one and the new one.' };
+  if (from === to) return { moved: false, reason: 'Those are the same number.' };
+  if (to.length < 7) return { moved: false, reason: 'That does not look like a usable telephone number.' };
+
+  const who = getAssociate(from);
+  if (!who) return { moved: false, reason: `No delivery associate on +${from}.` };
+
+  const taken = getAssociate(to);
+  if (taken) {
+    return {
+      moved: false,
+      reason: `+${to} already belongs to ${taken.name || 'another delivery associate'}. Two people cannot share a number.`,
+    };
+  }
+
+  // Counted before anything moves, so the report is of what was actually
+  // carried across rather than of whatever is there afterwards.
+  const since = startOfStoreDay();
+  const before = cashCollected(from, since);
+  const shifts = (
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM associate_shifts WHERE phone = ?`)
+      .get(from) as { n: number }
+  ).n;
+  const deliveries = (
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM orders WHERE driver_phone = ? OR uplifted_by = ?`)
+      .get(from, from) as { n: number }
+  ).n;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare(
+      `INSERT INTO associates (phone, name, vehicle, active, on_duty_at, updated_at)
+       SELECT ?, name, vehicle, active, on_duty_at, ? FROM associates WHERE phone = ?`,
+    ).run(to, nowIso(), from);
+    db.prepare(`DELETE FROM associates WHERE phone = ?`).run(from);
+    db.prepare(`UPDATE associate_shifts SET phone = ? WHERE phone = ?`).run(to, from);
+    db.prepare(`DELETE FROM associate_locations WHERE phone = ?`).run(to);
+    db.prepare(`UPDATE associate_locations SET phone = ? WHERE phone = ?`).run(to, from);
+    db.prepare(`UPDATE orders SET driver_phone = ? WHERE driver_phone = ?`).run(to, from);
+    db.prepare(`UPDATE orders SET uplifted_by = ? WHERE uplifted_by = ?`).run(to, from);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  return {
+    moved: true,
+    name: who.name,
+    from,
+    to,
+    shifts,
+    deliveries,
+    takings: before.total,
+  };
+}
+
 /* ------------------------------------------------------------------- cash */
 
 /**
