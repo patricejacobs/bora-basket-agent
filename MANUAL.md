@@ -501,11 +501,22 @@ next write, which is the same protection the kitchens have.
 
 ### What the customer is told when they place an order
 
-Received, and nothing more:
+Received, and nothing more. These are the words, not a description of them:
 
-> Placed — ORD-00083, total $3,100, cash to the delivery associate at the
-> door. It is with us now and waiting to be accepted — I will message you the
-> moment it is.
+> Got it — ORD-00083 received, but not yet confirmed. The moment A Taste of
+> Guyana confirms it, we'll let you know.
+
+For a grocery order the shop is not named, because with a single grocery the
+customer is never shown which one they are in:
+
+> Got it — ORD-00083 received, but not yet confirmed. The moment the shop
+> confirms it, we'll let you know.
+
+The agent is handed that sentence and told to send it word for word. It may
+change one thing: the language, if the customer has been writing in another.
+Everything the agent used to add to this message was something it did not
+know — that a kitchen had the order, that it would be twenty minutes, what was
+owed and where to pay it.
 
 It used to say more than it knew. The agent was handed the customer's name,
 address, map pin and telephone number along with the order number, and did the

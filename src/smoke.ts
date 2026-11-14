@@ -1124,7 +1124,17 @@ section('Location pins');
   check('nor the telephone number', placed.contact_number === undefined);
   check('but the order was still placed against the pin', repo.findOrder(placed.order_number)?.location?.label === 'Stabroek Market');
   // And the model is told what it may say: received, not accepted.
-  check('the model is told it is received only', placed.received_not_accepted === true);
+  check('the model is told it is received only', placed.received_not_confirmed === true);
+  // The exact words, written here rather than left to the model. Everything it
+  // was free to add was something it did not know.
+  check(
+    'and handed the words to send',
+    /^Got it — ORD-\d{5} received, but not yet confirmed\./.test(String(placed.say)),
+    String(placed.say),
+  );
+  check('which name no shop the customer never saw', /the shop confirms it/.test(String(placed.say)), String(placed.say));
+  check('and speak as the shop, not as one person', /we'll let you know/.test(String(placed.say)), String(placed.say));
+  check('with no money in them', !/\$/.test(String(placed.say)), String(placed.say));
   // No money on an order nobody has accepted. The shop may refuse it and the
   // kitchen may be shut, so a sum beside a payment method reads as a bill for
   // something that may never happen.
@@ -1132,8 +1142,12 @@ section('Location pins');
   check('nor a delivery fee', placed.delivery_fee === undefined && placed.subtotal === undefined);
   check('nor how to pay', placed.pay === undefined);
   check('and the item lines carry no prices', (placed.items ?? []).every((l: string) => !/[0-9],?[0-9]*\s*$/.test(l) && !l.includes('$')), JSON.stringify(placed.items));
-  check('and told not to claim it is confirmed', /Do NOT say it is confirmed/.test(String(placed.next)), String(placed.next).slice(0, 120));
-  check('and not to recite the address back', /Do NOT repeat their name/.test(String(placed.next)));
+  check('and told to send them word for word', /word for word/.test(String(placed.next)), String(placed.next).slice(0, 120));
+  check('and to add nothing', /Add nothing to it/.test(String(placed.next)));
+  check('not the address', /address, map pin or telephone/.test(String(placed.next)));
+  // Translating is the single permitted change, or a customer writing Spanish
+  // gets one English line in the middle of a Spanish conversation.
+  check('while still speaking their language', /send it in theirs/.test(String(placed.next)));
   check(
     'the confirmation carries no coordinates',
     !JSON.stringify(placed).includes('6.807'),

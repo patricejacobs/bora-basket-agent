@@ -1435,18 +1435,34 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         //
         // The prices were in the question the customer answered to get here,
         // one message earlier, so nothing is hidden by leaving them out.
+        // Written here rather than left to the model, and handed over as the
+        // words to send rather than as a brief.
+        //
+        // This is the one message in the conversation that has to be exact.
+        // Everything the model was free to add to it was something it did not
+        // know: that a kitchen had the order, that it would take twenty
+        // minutes, what was owed and where to pay it. None of that is true at
+        // the moment an order is placed, and a customer reading it believes
+        // the shop, not the model.
+        //
+        // The shop that confirms is named only when the customer chose it by
+        // name. With a single grocery they are never shown which shop they are
+        // in, so naming it here would introduce one in the same breath as
+        // telling them to wait for it.
+        const whoConfirms =
+          cart.outlet && cart.outlet.kind === 'restaurant' ? cart.outlet.name : 'the shop';
+
         return ok({
           placed: true,
-          received_not_accepted: true,
+          received_not_confirmed: true,
           order_number: order.orderNo,
-          items: order.lines.map((l) => `${l.qty} x ${l.name}`),
+          say: `Got it — ${order.orderNo} received, but not yet confirmed. The moment ${whoConfirms} confirms it, we'll let you know.`,
           next: [
-            'Say the order has been RECEIVED and is waiting to be accepted, and that you will message the moment it is.',
-            'Do NOT say it is confirmed, accepted, placed with the kitchen, being prepared or on its way — none of that has happened yet, and the shop sends its own message when it does.',
-            'Give the order number. You may name what they ordered.',
-            'Do NOT give the total, the delivery fee, or how and where they pay. Nothing is owed on an order nobody has accepted yet, and a sum beside a payment method reads as a bill. That comes with the acceptance.',
-            'Do NOT repeat their name, their delivery address, their map pin or their telephone number. They have just given you those.',
-            'Do not state a preparation time or a delivery time.',
+            'Send `say` as your whole reply, word for word.',
+            'If the customer has been writing in another language, send it in theirs — that is the only thing you may change.',
+            'Add nothing to it. Not the total, not the delivery fee, not how or where they pay: nothing is owed on an order nobody has confirmed, and a sum beside a payment method reads as a bill. That comes with the confirmation.',
+            'Not their name, address, map pin or telephone number either — they gave you those a moment ago.',
+            'And no preparation time and no delivery time. What they are waiting for is the shop confirming the order, not the cooking.',
           ].join(' '),
         });
       } catch (err) {
