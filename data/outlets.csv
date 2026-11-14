@@ -1,2 +1,3 @@
 code,name,kind,cuisine,hours,prep_minutes,min_order,delivery_fee,pickup_address,pickup_lat,pickup_lng,whatsapp,active
 TOG,A Taste of Guyana Roti Shop & Bakery,restaurant,"Guyanese roti, curry, fried rice, bakery","24 hours",20,0,,"Lot 14 Lamaha Street, Queenstown, Georgetown",6.81240,-58.15910,5926767471,1
+GROCERY,Next Minute Delivery,grocery,"Groceries, fresh produce and household goods","24 hours",20,0,,"Lot 9 Meadow Bank Road, Meadowbank, Georgetown",6.79020,-58.16872,5927410186,1

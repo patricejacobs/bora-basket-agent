@@ -58,7 +58,13 @@ function loadMenus(): void {
     }
   }
 
-  const existing = listOutlets().length;
+  // Counted among the kitchens, not among every shop. This import seeds
+  // outlets.csv and menu.csv, which are kitchens — and since the house grocery
+  // is created the moment the database opens, there is now always at least one
+  // outlet. Asking "are there any outlets?" would therefore answer yes on a
+  // brand new hosted disk and skip the seed for good, leaving a fresh
+  // deployment with no restaurants and no menus and nothing saying why.
+  const existing = listOutlets('restaurant').length;
   if (existing > 0 && !config.catalogSyncOnBoot) return;
 
   try {
