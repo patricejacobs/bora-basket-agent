@@ -489,6 +489,40 @@ If the shop has not messaged the business number in 24 hours, WhatsApp will not
 let a message with buttons through. It is held and handed over the moment they
 next write, which is the same protection the kitchens have.
 
+### How an order says goodbye
+
+The closing message is built in three parts: the receipt, the thanks, and a
+wish. The thanks is decided by what the customer actually did, and the wish is
+drawn from a pool for that kind of order.
+
+```
+Order ORD-00042 delivered.          ← receipt
+
+Thank you for shopping with us!     ← thanks, by kind
+Message any time for your next order. 💬   ← one of five wishes
+```
+
+| Kind | Thanked for | Wishes |
+|---|---|---|
+| Grocery | shopping with us | 5, about the day |
+| Restaurant | ordering from the named kitchen | 7, about the meal |
+| Parcel | choosing the service | 5, about the trust |
+
+A grocery and a parcel used to get no wish at all — the only pool was about
+eating, so it was skipped for anything that was not a meal, and both ended on
+"Thank you for choosing" and nothing else.
+
+The grocery thanks deliberately does **not** name the shop. With one grocery
+the customer is never shown which shop they are in, so naming it here would
+introduce a shop they have never heard of in the last message of the
+conversation. The restaurant line does name the kitchen, because they chose it
+by name.
+
+**Which wish a customer gets is decided by the order number**, not at random.
+So a message re-sent for any reason says the same thing twice, and a regular
+customer cycles through the pool. All of it exists in English, Spanish,
+Portuguese and Chinese.
+
 ### More than one grocery
 
 The model holds as many as you like. Add one the way you add a restaurant — a

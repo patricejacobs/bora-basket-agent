@@ -214,6 +214,24 @@ export const MEAL_SIGN_OFFS = [
   'signoff_appetit',
 ];
 
+/** Groceries. A wish about the day, not about a meal. */
+export const SHOPPING_SIGN_OFFS = [
+  'signoff_just_right',
+  'signoff_see_you_next',
+  'signoff_next_order',
+  'signoff_here_for_you',
+  'signoff_rest_of_day',
+];
+
+/** Parcels. Addressed to the sender, who is the one who paid and trusted us. */
+export const PARCEL_SIGN_OFFS = [
+  'signoff_moved_any_time',
+  'signoff_trusting_us',
+  'signoff_next_one',
+  'signoff_carried',
+  'signoff_good_to_help',
+];
+
 /**
  * One of them, chosen by the order number rather than at random.
  *
@@ -224,14 +242,40 @@ export const MEAL_SIGN_OFFS = [
  * about a particular message can be traced to the order that sent it.
  */
 export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): string {
-  // Asked of the order's own kind, not of whether it has a shop. A grocery
-  // order has a shop now, and reading it the old way wished somebody an
-  // enjoyable meal over a bag of rice and a bottle of bleach.
-  if (order.kind !== 'restaurant') return '';
+  // A pool per kind, because the wish has to be about what was actually
+  // delivered. "Enjoy your meal" over a bag of rice and a bottle of bleach
+  // reads as a message meant for somebody else, and a parcel sender was not
+  // given anything to enjoy at all — what they gave was trust.
+  const pool =
+    order.kind === 'restaurant'
+      ? MEAL_SIGN_OFFS
+      : order.kind === 'grocery'
+        ? SHOPPING_SIGN_OFFS
+        : PARCEL_SIGN_OFFS;
 
   const n = Number(order.orderNo.replace(/[^0-9]/g, ''));
-  const pick = Number.isFinite(n) ? n % MEAL_SIGN_OFFS.length : 0;
-  return String.fromCharCode(10) + t(MEAL_SIGN_OFFS[pick] ?? 'signoff_meal', lang);
+  const pick = Number.isFinite(n) ? n % pool.length : 0;
+  return String.fromCharCode(10) + t(pool[pick] ?? pool[0] ?? 'signoff_meal', lang);
+}
+
+/**
+ * The thanks, for what this customer actually did.
+ *
+ * One line, chosen by kind rather than written three times. A grocery customer
+ * shopped, a restaurant customer ordered from a named kitchen, and a parcel
+ * customer bought nothing at all — they chose the service to carry something.
+ *
+ * The restaurant line names the kitchen because the customer picked it by name
+ * and knows it. The grocery line deliberately does not name the shop: with one
+ * grocery nobody is ever shown which it is, so naming it here would introduce a
+ * shop the customer has never heard of in the last message of the conversation.
+ */
+export function thanksFor(order: repo.OrderRecord, lang: Language = 'en'): string {
+  if (order.kind === 'grocery') return t('thanks_grocery', lang);
+  if (order.kind === 'parcel') return t('thanks_parcel', lang, { store: config.store.name });
+  return t('thanks_restaurant', lang, {
+    outlet: order.outlet?.name ?? config.store.name,
+  });
 }
 
 /**
@@ -285,7 +329,12 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // thing - it is not a confirmed delivery and it is not a failed one, and
   // saying either would be inventing a fact about it.
   const key = unconfirmed ? 'delivered_unverified' : confirmed ? 'delivered_confirmed' : 'delivered';
-  const head = t(key, lang, { order: order.orderNo, store: config.store.name });
+  const receipt = t(key, lang, { order: order.orderNo });
+  // Receipt, then thanks, then the wish. The thanks used to be the tail of the
+  // receipt line itself, which meant one sentence had to suit a bag of
+  // groceries, a hot meal and a parcel alike.
+  const nl = String.fromCharCode(10);
+  const head = receipt + nl + nl + thanksFor(order, lang);
 
   // Only the unconfirmed one invites a reply. On a delivery the customer
   // proved themselves, "anything wrong?" would be the shop asking a question

@@ -3234,8 +3234,60 @@ section('How a food order says goodbye');
     check('and is the same every time for that order', signOffFor(food) === line);
   }
 
-  if (other) {
-    check('a grocery or parcel gets none', signOffFor(other) === '', signOffFor(other));
+  // Every kind gets one, from its own pool. A grocery and a parcel used to get
+  // nothing at all, because the only pool was about eating.
+  const { SHOPPING_SIGN_OFFS, PARCEL_SIGN_OFFS, thanksFor } = await import('./notifications.ts');
+
+  const shopping = repo.allOrders().find((o) => o.kind === 'grocery');
+  const parcel = repo.allOrders().find((o) => o.kind === 'parcel');
+  check('there is a grocery order', Boolean(shopping));
+  check('and a parcel', Boolean(parcel));
+
+  if (shopping) {
+    const line = signOffFor(shopping);
+    check('a grocery order gets one too', line !== '', JSON.stringify(line));
+    check(
+      'from the shopping pool, not the meal one',
+      SHOPPING_SIGN_OFFS.some((k) => line.includes(tr(k, 'en'))),
+      line,
+    );
+    // The thing this whole change is for: nobody is wished an enjoyable meal
+    // over a bag of rice and a bottle of bleach.
+    check('and never wishes them an enjoyable meal', !/meal|appétit|bite/i.test(line), line);
+    check('fixed for that order', signOffFor(shopping) === line);
+    check('and thanked for shopping', thanksFor(shopping) === 'Thank you for shopping with us!', thanksFor(shopping));
+  }
+
+  if (parcel) {
+    const line = signOffFor(parcel);
+    check('a parcel gets one', line !== '', JSON.stringify(line));
+    check(
+      'from the parcel pool',
+      PARCEL_SIGN_OFFS.some((k) => line.includes(tr(k, 'en'))),
+      line,
+    );
+    // Nothing was bought on a parcel job, so there is nothing to enjoy and
+    // nothing to thank them for shopping for.
+    check('nothing about enjoying or shopping', !/meal|enjoy|shopping/i.test(line), line);
+    check('and thanked for choosing the service', thanksFor(parcel).includes('choosing'), thanksFor(parcel));
+  }
+
+  // No key appears in two pools: a customer who orders food and then shopping
+  // must not get the same line twice from different pools.
+  const pools = [...MEAL_SIGN_OFFS, ...SHOPPING_SIGN_OFFS, ...PARCEL_SIGN_OFFS];
+  check('no sign-off is shared between pools', new Set(pools).size === pools.length);
+
+  // Every one of them says something in every language, or a customer writing
+  // Spanish gets an English goodbye on the last line of the conversation.
+  const { LANGUAGES } = await import('./language.ts');
+  for (const lang of LANGUAGES) {
+    check(
+      `every sign-off and thanks is written in ${lang}`,
+      [...pools, 'thanks_grocery', 'thanks_restaurant', 'thanks_parcel'].every(
+        (k) => tr(k, lang).trim() !== '',
+      ),
+      [...pools, 'thanks_grocery'].filter((k) => tr(k, lang).trim() === '').join(','),
+    );
   }
 
   // Across order numbers, every line is used.
@@ -4328,7 +4380,7 @@ section('A code the customer reads out at the door');
   const told = deliveredMessage(repo.findOrder(second.orderNo)!, 'en');
   check('the customer is told the code was not confirmed', told.includes('not confirmed'), told);
   check('as a receipt line, after the order number', told.indexOf('delivered') < told.indexOf('not confirmed'), told);
-  check('the thanks still comes', told.includes('Thank you for choosing'), told);
+  check('the thanks still comes', /Thank you for (shopping|ordering|choosing)/.test(told), told);
   check('and the way back is the last line', /message us\.?$/.test(told.trim()), told);
   check('but never the digits', !told.includes(repo.deliveryCodeFor(second.orderNo)), told);
 
@@ -4336,7 +4388,7 @@ section('A code the customer reads out at the door');
   const clean = deliveredMessage(repo.findOrder(first.orderNo)!, 'en');
   check('a verified order says the code was confirmed', clean.includes('Delivery code: confirmed'), clean);
   check('and is not read as a failure', !clean.includes('not confirmed'), clean);
-  check('and keeps its sign-off', clean.includes('Thank you for choosing'), clean);
+  check('and keeps its sign-off', /Thank you for (shopping|ordering|choosing)/.test(clean), clean);
   // Nothing to ask: the customer proved themselves at the door.
   check('and does not invite a reply', !/message us/i.test(clean), clean);
   check('nor shows the digits', !clean.includes(code), clean);
