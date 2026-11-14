@@ -1383,8 +1383,19 @@ export function customerOrder(phone: string, reference: string): OrderRecord | n
 
 /* ------------------------------------------------- proof of delivery code */
 
-/** How many wrong guesses before a code is spent. */
-const CODE_ATTEMPT_LIMIT = 3;
+/**
+ * How many wrong guesses before a code is spent.
+ *
+ * Five. Four digits is 9,000 possibilities, so this is nowhere near a number
+ * somebody could guess their way through — it is there to stop an associate
+ * verifying a delivery without the customer, which three did just as well.
+ *
+ * Three was too tight at a real door. A customer reading digits off a phone in
+ * the dark, a neighbour taking the bag, an older message read out by mistake:
+ * each of those costs a try, and running out closes the order unverified for
+ * a delivery that was perfectly honest.
+ */
+export const CODE_ATTEMPT_LIMIT = 5;
 
 export type DeliveryCodeState = {
   /** Whether this order has a code at all. Old rows do not. */

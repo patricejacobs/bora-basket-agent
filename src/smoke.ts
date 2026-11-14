@@ -3399,16 +3399,24 @@ section('A wrong code on a kitchen order says one thing');
   const first = (await drive(wrong, rider))[0]?.text ?? '';
   check('a kitchen order says only that it is wrong', first === `That code is incorrect for ${o.orderNo}.`, JSON.stringify(first));
 
-  // Three attempts, unchanged. Two of them say so; the third spends the code.
-  check('still two left after one', repo.codeAttemptsLeft(o.orderNo) === 2, String(repo.codeAttemptsLeft(o.orderNo)));
-  await drive(wrong, rider);
-  check('and one after two', repo.codeAttemptsLeft(o.orderNo) === 1, String(repo.codeAttemptsLeft(o.orderNo)));
+  // Counted down from the limit rather than from a number written here. The
+  // limit moved from three to five and every test that had spelled it out
+  // failed, which is the test telling you where it was really stored.
+  check(
+    'one gone, the rest to come',
+    repo.codeAttemptsLeft(o.orderNo) === repo.CODE_ATTEMPT_LIMIT - 1,
+    String(repo.codeAttemptsLeft(o.orderNo)),
+  );
+  for (let i = 2; i < repo.CODE_ATTEMPT_LIMIT; i++) {
+    await drive(wrong, rider);
+    check(`${repo.CODE_ATTEMPT_LIMIT - i} left after ${i}`, repo.codeAttemptsLeft(o.orderNo) === repo.CODE_ATTEMPT_LIMIT - i, String(repo.codeAttemptsLeft(o.orderNo)));
+  }
   check('with the order still out', repo.findOrder(o.orderNo)?.status === 'on_the_way');
 
-  // The third spends it. A code cannot hold a delivery open for ever, so the
-  // order closes and the record says the code was never confirmed.
+  // The last one spends it. A code cannot hold a delivery open for ever, so
+  // the order closes and the record says the code was never confirmed.
   await drive(wrong, rider);
-  check('the third closes the order', repo.findOrder(o.orderNo)?.status === 'delivered', repo.findOrder(o.orderNo)?.status);
+  check('the last one closes the order', repo.findOrder(o.orderNo)?.status === 'delivered', repo.findOrder(o.orderNo)?.status);
   check('recorded as never confirmed', repo.deliveryCodeUnconfirmed(o.orderNo));
 
   db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
@@ -4675,7 +4683,11 @@ section('A code the customer reads out at the door');
   const wrong = await handleDriverMessage(wrongDigits, rider);
   check('a wrong code is refused', (wrong[0]?.text ?? '').includes('not correct for'), wrong[0]?.text);
   check('still not delivered', repo.findOrder(first.orderNo)?.status === 'on_the_way');
-  check('and the tries left are counted down', repo.codeAttemptsLeft(first.orderNo) === 2);
+  check(
+    'and the tries left are counted down',
+    repo.codeAttemptsLeft(first.orderNo) === repo.CODE_ATTEMPT_LIMIT - 1,
+    String(repo.codeAttemptsLeft(first.orderNo)),
+  );
 
   const right = await handleDriverMessage(code, rider);
   check('the right code delivers it', repo.findOrder(first.orderNo)?.status === 'delivered');
@@ -4757,9 +4769,13 @@ section('A code the customer reads out at the door');
   await notifyCustomerOfStatus(repo.findOrder(third.orderNo)!, 'on_the_way');
   repo.assignDriver(third.orderNo, rider);
 
-  const guesses = ['0000', '0001', '0002'].map((g) => (g === thirdCode ? '9999' : g));
+  // As many wrong guesses as the limit allows, generated from it rather than
+  // listed, so raising the limit does not quietly make this test weaker.
+  const guesses = Array.from({ length: repo.CODE_ATTEMPT_LIMIT }, (_, i) =>
+    String(i).padStart(4, '0'),
+  ).map((g) => (g === thirdCode ? '9999' : g));
   for (const g of guesses) await handleDriverMessage(g, rider);
-  check('three wrong guesses spend the code', repo.deliveryCodeState(third.orderNo).burnt);
+  check('a full set of wrong guesses spends the code', repo.deliveryCodeState(third.orderNo).burnt);
   check(
     'and it delivers, unverified, rather than trapping them at a door',
     repo.findOrder(third.orderNo)?.status === 'delivered',
@@ -5888,9 +5904,11 @@ section('A parcel, booked to delivered — and one that comes back');
   book('ORD-90403');
   await handleDriverMessage('90403 confirm', rider);
   await handleDriverMessage('90403 uplifted', rider);
-  for (const guess of ['1111', '2222', '3333']) await handleDriverMessage(`90403 ${guess}`, rider);
+  for (let i = 0; i < repo.CODE_ATTEMPT_LIMIT; i++) {
+    await handleDriverMessage(`90403 ${String(1111 * ((i % 8) + 1)).slice(0, 4)}`, rider);
+  }
   check(
-    'three wrong codes return a parcel rather than delivering it',
+    'a full set of wrong codes returns a parcel rather than delivering it',
     repo.findOrder('ORD-90403')?.status === 'returned',
     String(repo.findOrder('ORD-90403')?.status),
   );
@@ -6269,8 +6287,10 @@ section('Why a parcel came back');
     String(repo.findOrder(legacy.orderNo)?.status),
   );
   check('and records the same reason', repo.returnReason(legacy.orderNo) === 'nobody_there');
-  for (const guess of ['2222', '3333']) await handleDriverMessage(`${guessed.n} ${guess}`, rider);
-  check('three misses return it', repo.findOrder(guessed.orderNo)?.status === 'returned');
+  for (let i = 1; i < repo.CODE_ATTEMPT_LIMIT; i++) {
+    await handleDriverMessage(`${guessed.n} ${String(1111 * ((i % 8) + 1)).slice(0, 4)}`, rider);
+  }
+  check('a full set of misses returns it', repo.findOrder(guessed.orderNo)?.status === 'returned');
   check(
     'recorded as a wrong code, not an absence',
     repo.returnReason(guessed.orderNo) === 'wrong_code',

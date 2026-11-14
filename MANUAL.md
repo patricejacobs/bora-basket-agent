@@ -262,7 +262,7 @@ Typing the four digits **is** the delivery.
 |---|---|
 | Correct code | Delivered, and the customer is told "Delivery code: confirmed" |
 | Wrong code | Refused, with the tries remaining |
-| Three wrong | The code is spent — a food order delivers unverified; a parcel goes back |
+| Five wrong | The code is spent — a food order delivers unverified; a parcel goes back |
 | `No code` | Food delivers unverified, and the shop is told who and why |
 
 **A code attempt tells you nothing about somebody else's order.** Type a code
@@ -582,7 +582,14 @@ it.
 
 ### A wrong code at the door
 
-Three attempts, whatever the order is. What the associate is told differs.
+Five attempts, whatever the order is. What the associate is told differs.
+
+Five rather than three because three was tight at a real door: a customer
+reading digits off a phone in the dark, a neighbour taking the bag, an older
+message read out by mistake. Each costs a try, and running out closes an
+honest delivery as unverified. Four digits is 9,000 possibilities, so five
+guesses is nowhere near enough to find one — the limit is there to stop an
+associate verifying a delivery without the customer, and it still does.
 
 **A restaurant order** says the fact and nothing else:
 
@@ -598,7 +605,7 @@ at the door is not the person who ordered:
 ```
 ❌ That code is not correct for ORD-91001.
 
-Ask Anita for the code Ramesh passed on. 2 tries left.
+Ask Anita for the code Ramesh passed on. 4 tries left.
 
 [ Wrong code ]  [ Nobody there ]
 ```

@@ -396,7 +396,7 @@ addColumnIfMissing('orders', 'code_verified_at', "TEXT NOT NULL DEFAULT ''");
 // Wrong guesses. Four digits is 9,000 possibilities, which a person tapping a
 // phone will never exhaust - but an associate who can guess freely can verify a
 // delivery without the customer, which is the one thing the code exists to
-// prevent. Three wrong and the code is spent: the order can still be delivered,
+// prevent. Five wrong and the code is spent: the order can still be delivered,
 // only never as verified.
 addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
 
