@@ -74,6 +74,22 @@ export const config = {
     to: str('BACKUP_TO', ''),
   },
   enableSimulator: bool('ENABLE_SIMULATOR', true),
+
+  /**
+   * Troubleshooting: tell the customer which telephone number moved their
+   * order.
+   *
+   * Off, and it must stay off except while somebody is watching. It puts a
+   * kitchen's telephone number into a customer's chat, which is not the
+   * shop's to give away — it is here because "the restaurant never confirmed
+   * that" is impossible to settle from the outside, and a line in the chat
+   * the shop is already staring at settles it in one order.
+   *
+   * The server log carries the same fact on every status change whether this
+   * is on or not, and so does the order's own history. This only exists for
+   * when neither of those is to hand.
+   */
+  diagnoseSource: bool('DIAGNOSE_SOURCE', false),
   /**
    * CSV to import at startup when the catalogue is empty. A hosted deploy gets a
    * blank persistent disk on first boot and often has no shell to run the

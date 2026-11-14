@@ -360,6 +360,15 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
 export async function notifyCustomerOfStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
+  /**
+   * Who moved it, appended to the message for troubleshooting.
+   *
+   * Empty unless DIAGNOSE_SOURCE is on, and it must stay that way outside a
+   * session somebody is watching: this puts a kitchen's telephone number into
+   * a customer's chat. It is never added to a template, which has no room for
+   * it and would need re-approving.
+   */
+  movedBy = '',
 ): Promise<'text' | 'template' | 'skipped'> {
   // Everything below is fixed text rather than something the model wrote, so
   // it is the one part of the conversation that would otherwise stay English
@@ -370,7 +379,10 @@ export async function notifyCustomerOfStatus(
   const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
 
   if (repo.withinServiceWindow(order.phone)) {
-    await sendText(order.phone, message);
+    const traced = movedBy
+      ? message + String.fromCharCode(10) + String.fromCharCode(10) + `_[moved by ${/^[0-9]+$/.test(movedBy) ? '+' + movedBy : movedBy}]_`
+      : message;
+    await sendText(order.phone, traced);
     // Only now, and only on this route. The code is in the customer's hands
     // because this message carried it; the template below cannot, and claiming
     // otherwise would have the associate asking for digits nobody has.

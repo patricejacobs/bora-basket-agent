@@ -3290,6 +3290,39 @@ section('A ticket that could not be sent stays owed across a restart');
   }
 }
 
+section('The trail names the telephone, not the role');
+{
+  const { handleOutletMessage: outletMsg } = await import('./staff.ts');
+  const kitchenOrder = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
+  check('there is a kitchen order', Boolean(kitchenOrder));
+
+  if (kitchenOrder) {
+    const shop = repo.outletById(kitchenOrder.outlet!.id)!;
+    const no = kitchenOrder.orderNo;
+    const n = String(Number(no.replace(/[^0-9]/g, '')));
+    db.prepare(`UPDATE orders SET status = 'pending' WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+
+    await outletMsg(shop, `${n} confirm`);
+    const trail = repo.orderHistory(no);
+    const confirmed = trail.find((e) => e.event === 'confirmed');
+    check('the change is recorded', Boolean(confirmed), JSON.stringify(trail));
+    // Only the associate's number was recorded before. A kitchen or a
+    // dispatcher showed up as a role, so "which telephone confirmed this?" --
+    // the one question a disputed order turns on -- had no answer.
+    check(
+      'with the telephone that sent it',
+      confirmed?.actor === shop.whatsapp,
+      JSON.stringify({ actor: confirmed?.actor, expected: shop.whatsapp }),
+    );
+    check(
+      'and the words that caused it',
+      /sent "/.test(confirmed?.detail ?? ''),
+      confirmed?.detail,
+    );
+  }
+}
+
 section('Only the kitchen accepts a kitchen order');
 {
   const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');

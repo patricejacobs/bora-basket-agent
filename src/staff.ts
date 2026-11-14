@@ -108,8 +108,17 @@ async function applyStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,
   reportedBy: 'staff' | 'outlet' | 'driver' = 'staff',
-  /** Who is doing it, when that is a particular associate rather than a role. */
+  /**
+   * The number that did it.
+   *
+   * Every caller passes this now. Only the associate's did before, so the
+   * trail recorded a role for everything else — "confirmed by outlet" — and
+   * the one question worth asking of a disputed order, *which telephone*, had
+   * no answer in the one place built to answer it.
+   */
   byPhone = '',
+  /** What they actually sent, recorded beside the change it caused. */
+  said = '',
 ): Promise<{ body: string; status: repo.OrderStatus }> {
   // Delivered and cancelled are the end. The buttons on an old message do not
   // disappear when an order moves on, so a cook tapping "Confirm" twenty
@@ -149,6 +158,16 @@ async function applyStatus(
     };
   }
 
+  // Said out loud on the server, every time, whoever did it. An order moving
+  // is the thing a shop argues about afterwards — "we never confirmed that" —
+  // and until now the only record was a role. A log line costs nothing and
+  // means the answer exists before anybody thinks to look for it.
+  console.log(
+    `[status] ${order.orderNo} ${order.status} → ${status}` +
+      ` by ${byPhone ? `+${byPhone}` : reportedBy}` +
+      (said ? ` — sent ${JSON.stringify(said.slice(0, 80))}` : ''),
+  );
+
   repo.setOrderStatus(order.orderNo, status);
   // The two moments an order is measured by, stamped as they happen. Written
   // once each, so a tap on an old message cannot move them.
@@ -173,22 +192,31 @@ async function applyStatus(
   // is one, so the role is added only when there is not - a kitchen and a
   // dispatcher have no entry in the associate list.
   const role = byPhone ? '' : `by ${reportedBy}`;
+  // What they sent, kept beside the change. A role answers "a kitchen did it";
+  // the words answer "a kitchen tapped Confirm at 01:19", which is the thing
+  // somebody disputing an order actually needs.
+  const words = said.trim() ? `sent "${said.trim().slice(0, 60)}"` : '';
 
   repo.recordEvent(
     order.orderNo,
     happened,
     byPhone,
-    status === 'cancelled'
-      ? [role, order.cancelReason].filter(Boolean).join(': ')
-      : status === 'returned'
-        ? repo.returnReason(order.orderNo)
-        : status === 'delivered'
-          ? repo.deliveryCodeState(order.orderNo).verifiedAt
-            ? 'code verified'
-            : repo.deliveryCodeUnconfirmed(order.orderNo)
-              ? 'code NOT verified'
-              : role
-          : role,
+    [
+      status === 'cancelled'
+        ? [role, order.cancelReason].filter(Boolean).join(': ')
+        : status === 'returned'
+          ? repo.returnReason(order.orderNo)
+          : status === 'delivered'
+            ? repo.deliveryCodeState(order.orderNo).verifiedAt
+              ? 'code verified'
+              : repo.deliveryCodeUnconfirmed(order.orderNo)
+                ? 'code NOT verified'
+                : role
+            : role,
+      words,
+    ]
+      .filter(Boolean)
+      .join(' — '),
   );
 
   if (status === 'ready') repo.markReadyAt(order.orderNo);
@@ -292,7 +320,7 @@ async function applyStatus(
     notes.push('Customer not told — nothing has changed for them until it moves.');
   } else {
     try {
-      const how = await notifyCustomerOfStatus(updated, status);
+      const how = await notifyCustomerOfStatus(updated, status, config.diagnoseSource ? byPhone || reportedBy : '');
       notes.push(
         how === 'skipped'
           ? '⚠️ Customer NOT notified — outside the 24h window and no template set up.'
@@ -849,7 +877,7 @@ ${ONBOARDING_HELP}`);
     );
   }
 
-  const { body } = await applyStatus(order, status);
+  const { body } = await applyStatus(order, status, 'staff', phone, trimmed);
   const actions = nextActions(order.orderNo, status, 'staff', {
     outletConfirms: order.kind === 'restaurant' && order.outlet !== null,
   });
@@ -1023,7 +1051,7 @@ export async function handleOutletMessage(
 
   if (order.status === status) return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
 
-  const { body } = await applyStatus(order, status, 'outlet');
+  const { body } = await applyStatus(order, status, 'outlet', outlet.whatsapp, trimmed);
   const actions = nextActions(order.orderNo, status, 'outlet');
   return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
 }
@@ -1885,7 +1913,7 @@ export async function handleDriverMessage(
     repo.saveAssociateLocation(phone, order.location, 'delivery');
   }
 
-  const { body, status: landed } = await applyStatus(order, status, 'driver', phone);
+  const { body, status: landed } = await applyStatus(order, status, 'driver', phone, text);
   // Read after the move, not before: the code is sent to the customer by the
   // very notification that `applyStatus` fires, so asked before it this would
   // always say no and the card would carry a Delivered button it should not.

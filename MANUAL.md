@@ -499,6 +499,41 @@ If the shop has not messaged the business number in 24 hours, WhatsApp will not
 let a message with buttons through. It is held and handed over the moment they
 next write, which is the same protection the kitchens have.
 
+### Who moved an order
+
+Every status change is now recorded three ways, so "the restaurant never
+confirmed that" has an answer.
+
+**In the order's own history**, always:
+
+```
+14 Nov, 02:24 — *placed* (A Taste of Guyana, 1 line(s))
+14 Nov, 02:24 — *confirmed* by +5926767471 (sent "1 confirm")
+```
+
+Send `81 history` from a staff number. Before this it said only *by outlet* —
+a role, not a telephone — because the number was never passed through for
+anyone but a delivery associate.
+
+**In the server log**, always, readable in the Render dashboard:
+
+```
+[status] ORD-00081 pending → confirmed by +5926767471 — sent "1 confirm"
+```
+
+**In the customer's own chat**, only while `DIAGNOSE_SOURCE=true`:
+
+```
+Thanks Patrice — order ORD-00081 is confirmed.
+
+_[moved by +5926767471]_
+```
+
+Leave that one off except while you are watching. It puts a kitchen's
+telephone number into a customer's chat, which is not yours to give away — it
+exists because the fastest way to settle an argument is a line in the chat you
+are already looking at.
+
 ### When a kitchen cannot be reached
 
 A ticket is a message with buttons, and WhatsApp refuses those to anybody who
