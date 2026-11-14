@@ -5869,6 +5869,99 @@ section('One order, one address');
   db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(placed.orderNo);
 }
 
+section('The address, once');
+{
+  const { dropLines } = await import('./dispatch.ts');
+  const { executeTool } = await import('./agent/tools.ts');
+  const { saysTheSamePlace } = await import('./location.ts');
+
+  /* --- what counts as the same place ---------------------------------- */
+
+  check('the same line twice is the same place', saysTheSamePlace('26 Brickdam, Georgetown', '26 Brickdam, Georgetown'));
+  check('the shorter named inside the longer', saysTheSamePlace('26 Brickdam, Georgetown', '26 Brickdam'));
+  check('either way round, since either can be longer', saysTheSamePlace('26 Brickdam', '26 Brickdam, Georgetown'));
+  check('punctuation and case do not make it new', saysTheSamePlace('26 brickdam georgetown', '26 Brickdam, Georgetown.'));
+  check('a landmark is not the address', !saysTheSamePlace('26 Brickdam, Georgetown', 'Blue gate, upstairs flat'));
+  // Whole words only. A street that merely begins with the same letters is
+  // somewhere else entirely, and suppressing a line about it would lose the
+  // only thing the associate had.
+  check('nor is a street that starts the same way', !saysTheSamePlace('Diamondback Street', 'Diamond'));
+  check(
+    'and nothing is never a repeat of something',
+    !saysTheSamePlace('', '26 Brickdam') && !saysTheSamePlace('26 Brickdam', ''),
+  );
+
+  /* --- the card prints it once ---------------------------------------- */
+
+  // Order 93, as it went out: the address, and then the address again on the
+  // next line, because the one thing the customer typed was both their
+  // address and their only landmark and it was stored in both fields.
+  const make = (no: string, note: string) => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+         delivery_note, kind, subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, '5926129920', 'Patrice Jacobs', '26 Brickdam, Georgetown', '5926129920',
+         ?, 'grocery', 2050, 500, 2550, 'cash', 'ready', '2026-11-14T18:00:00Z')`,
+    ).run(no, note);
+    return repo.findOrder(no)!;
+  };
+
+  const repeated = dropLines(make('ORD-93001', '26 Brickdam, Georgetown')).join('\n');
+  check('the address is printed once', (repeated.match(/26 Brickdam/g) ?? []).length === 1, repeated);
+
+  const partial = dropLines(make('ORD-93002', '26 Brickdam')).join('\n');
+  check('a note that is part of the address goes too', (partial.match(/26 Brickdam/g) ?? []).length === 1, partial);
+
+  const useful = dropLines(make('ORD-93003', 'Blue gate, upstairs flat')).join('\n');
+  check('a note that says something new stays', useful.includes('Blue gate, upstairs flat'), useful);
+  check('under the address it adds to', /26 Brickdam, Georgetown\nBlue gate/.test(useful), useful);
+
+  // With nothing written above it, the note is everything there is to go on.
+  // Suppressing it against an empty address would leave the card blank.
+  db.prepare(`UPDATE orders SET address = '' WHERE order_no = 'ORD-93002'`).run();
+  const alone = dropLines(repo.findOrder('ORD-93002')!).join('\n');
+  check('with no address, the note is all there is', alone.includes('26 Brickdam'), alone);
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-930%'`).run();
+
+  /* --- and it never reaches the record -------------------------------- */
+
+  const buyer = '5926007474';
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+    )
+    .get() as unknown as { id: number }).id;
+
+  repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
+  repo.confirmIdentity(buyer);
+  repo.setCartQty(buyer, sellable, 1, '');
+
+  const placed = JSON.parse(
+    executeTool(
+      'place_order',
+      {
+        payment_method: 'cash_on_delivery',
+        delivery_address: '26 Brickdam, Georgetown',
+        // Order 93's own shape: an address in words and no pin, which is the
+        // case where the written line is all the card has.
+        without_pin: true,
+        // The schema forbids this in as many words. A prompt is a request,
+        // not a guard, so the guard is in the code.
+        delivery_note: '26 Brickdam, Georgetown',
+      },
+      { phone: buyer, outbound: [] as never[] } as never,
+    ),
+  ) as { order_number?: string; error?: string };
+
+  check('the order is placed', typeof placed.order_number === 'string', JSON.stringify(placed).slice(0, 200));
+  const stored = repo.findOrder(placed.order_number ?? '')!;
+  check('the repeated note is not stored at all', stored.deliveryNote === '', JSON.stringify(stored.deliveryNote));
+  check('while the address is', stored.address === '26 Brickdam, Georgetown', stored.address);
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(stored.orderNo);
+}
+
 section('A parcel, booked to delivered — and one that comes back');
 {
   const { handleDriverMessage } = await import('./staff.ts');

@@ -73,6 +73,38 @@ export function pinLabel(name: unknown, address: unknown): string {
 }
 
 /**
+ * Does one line about a place already say what the other says?
+ *
+ * Three different fields can describe the same door — the written address, the
+ * doorstep note the customer typed, and the label WhatsApp attaches to a pin —
+ * and the card that an associate drives from prints all three. When two of them
+ * hold the same words it is the same place twice, which is not extra
+ * information: it is a line read, checked against the one above it, and
+ * trusted a little less.
+ *
+ * Contained, not equal. The shorter is usually named inside the longer: a note
+ * of "26 Brickdam" under an address of "26 Brickdam, Georgetown", or a pin
+ * label of "Diamond" under "Lot 4 Section C, Diamond - white fence". Testing
+ * the whole strings for equality finds neither.
+ *
+ * Padded with spaces so a word is matched whole. Without that, "Bank" would be
+ * swallowed by "Meadow Bank Road" — which is right — but so would "Diamond" by
+ * "Diamondback Street", which is not the same place at all.
+ *
+ * Either order, because either one can be the longer.
+ */
+export function saysTheSamePlace(a: string, b: string): boolean {
+  const words = (s: string): string =>
+    ' ' + s.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+  // Nothing is not a repeat of something. Said explicitly because ' ' sits
+  // inside every other string, so an empty line would otherwise be "covered"
+  // by all of them and silently suppress the line that was there.
+  if (a.trim() === '' || b.trim() === '') return false;
+  const [x, y] = [words(a), words(b)];
+  return x.includes(y) || y.includes(x);
+}
+
+/**
  * The area this shop delivers to: a centre and a radius in kilometres.
  *
  * A circle, not a polygon. A real delivery area is never circular — it follows

@@ -17,7 +17,14 @@ import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
 import { acceptButton, nextActions } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
-import { checkRange, describePin, mapsLink, distanceKm, formatDistance } from './location.ts';
+import {
+  checkRange,
+  describePin,
+  mapsLink,
+  distanceKm,
+  formatDistance,
+  saysTheSamePlace,
+} from './location.ts';
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 
 /**
@@ -539,21 +546,13 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // only when it says something the two lines above do not: more often than
   // not it is the same text as the address, printed twice.
   //
-  // Contained, not equal. The label is usually the district - "Diamond" - and
-  // the written address usually names that district inside a longer line:
-  // "Lot 4 Section C, Diamond - white fence, upstairs". Testing the whole
-  // strings for equality found no match and printed "Diamond" underneath, so
-  // the card named the same place three times before the link.
-  //
-  // Padded with spaces so a label is matched as a whole word. Without that,
-  // "Bank" would be swallowed by "Meadow Bank Road" - which is right - but so
-  // would "Diamond" by "Diamondback Street", which is not the same place.
-  const words = (s: string): string =>
-    ' ' + s.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
-  const covers = (whole: string, part: string): boolean => words(whole).includes(words(part));
+  // The test lives in location.ts, because the same question is asked of the
+  // doorstep note below and of the note before it is ever stored.
   const pinLabel = order.location?.label ?? '';
   const labelAdds =
-    pinLabel !== '' && !covers(order.address, pinLabel) && !covers(order.deliveryNote, pinLabel);
+    pinLabel !== '' &&
+    !saysTheSamePlace(order.address, pinLabel) &&
+    !saysTheSamePlace(order.deliveryNote, pinLabel);
 
   // Whose pin is it?
   //
@@ -582,6 +581,21 @@ export function dropLines(order: repo.OrderRecord): string[] {
   const written = withoutPhone(order.address, receiverPhone);
   const showPin = pinIsForThisDoor && order.location !== null && !written;
 
+  // The note earns its line by adding something the address does not.
+  //
+  // Order 93's card read "26 Brickdam, Georgetown", and then, on the next
+  // line, "26 Brickdam, Georgetown". The schema for `delivery_note` forbids
+  // repeating the address in as many words - but a prompt is a request, not a
+  // guard, and when the single line a customer types is both their address
+  // and their only landmark, the model has no reason to put it in one slot
+  // rather than both.
+  //
+  // Checked against what is actually printed above rather than the stored
+  // address, since the phone number is stripped out of that line; and only
+  // when something IS printed above, because with no address line the note is
+  // everything the associate has to go on.
+  const noteAdds = order.deliveryNote !== '' && !saysTheSamePlace(written, order.deliveryNote);
+
   return [
     // A missing pin goes first, not last. It changes how the trip is planned -
     // ring before setting off, rather than after arriving at a street you
@@ -599,7 +613,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
     ...(written ? [written] : []),
     // What the customer said about finding the door. It was going to staff
     // and not to the person standing outside, which is the wrong way round.
-    ...(order.deliveryNote ? [order.deliveryNote] : []),
+    ...(noteAdds ? [order.deliveryNote] : []),
     atTheDoor,
     ...(showPin && order.location
       ? [...(labelAdds ? [pinLabel] : []), 'Click the link below for the delivery address:', mapsLink(order.location)]

@@ -13,7 +13,7 @@ import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../servi
 import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
-import { checkRange, formatDistance } from '../location.ts';
+import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
 const chr10 = String.fromCharCode(10);
@@ -1384,6 +1384,18 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return fail(`Subtotal ${money(cart.subtotal)} is below the ${money(minimum)} minimum${cart.outlet ? ` for ${cart.outlet.name}` : ' order'}. Invite the customer to add more.`);
       }
 
+      // Settled before the order is written, because both fields are about to
+      // be stored and the card is not the only place they are read.
+      const deliveryAddress = asString(input.delivery_address) || customer.address || '';
+      // Capped rather than trusted. A note is a line read at a gate; left open
+      // it collected whole briefings, including a second address that
+      // contradicted the first.
+      const noteAsked = asString(input.delivery_note).slice(0, 120);
+      // A note that only repeats the address is dropped here rather than at
+      // the card, so it is never in the record either. The tool schema asks
+      // the model not to do this; this is what happens when it does anyway.
+      const deliveryNote = saysTheSamePlace(deliveryAddress, noteAsked) ? '' : noteAsked;
+
       try {
         const order = repo.placeOrder({
           phone: ctx.phone,
@@ -1397,12 +1409,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // and did the only thing it could: it put one of them in the field
           // and the other in the free-text note, so the card carried two
           // delivery addresses that disagreed.
-          address: asString(input.delivery_address) || customer.address || '',
+          address: deliveryAddress,
           contactPhone: customer.contactPhone ?? ctx.phone,
-          // Capped rather than trusted. A note is a line read at a gate; left
-          // open it collected whole briefings, including a second address that
-          // contradicted the first.
-          deliveryNote: asString(input.delivery_note).slice(0, 120),
+          deliveryNote,
           paymentMethod,
           location: customer.location,
           recipientName: asString(input.recipient_name),

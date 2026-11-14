@@ -625,7 +625,7 @@ Ask Anita for the code Ramesh passed on. 4 tries left.
 [ Wrong code ]  [ Nobody there ]
 ```
 
-**On the third wrong attempt the code is spent.** It stops being required and
+**On the fifth wrong attempt the code is spent.** It stops being required and
 the order closes, recorded permanently as delivered with the code never
 confirmed. A code cannot hold a delivery open for ever, and an associate who
 cannot close a job will close it some other way.
@@ -651,6 +651,35 @@ beyond the delivery area whether or not a link appears.
 This applies to a parcel's destination and to an order going to somebody else,
 including one where the buyer deliberately shared a pin for the recipient's
 door. If an address was written, the address is what the card gives.
+
+### And the doorstep line says something new
+
+Under the address the card prints the customer's own words about finding the
+door — *blue gate, upstairs flat*. It is printed **only when it is not the
+address again**:
+
+| Address | Note | The card prints |
+|---|---|---|
+| 26 Brickdam, Georgetown | Blue gate, upstairs flat | both lines |
+| 26 Brickdam, Georgetown | 26 Brickdam, Georgetown | the address, once |
+| 26 Brickdam, Georgetown | 26 Brickdam | the address, once |
+| *(none)* | 26 Brickdam | the note — it is all there is |
+
+A note that only repeats the address is now dropped when the order is written,
+so it is not in the record either.
+
+Order 93's card read `26 Brickdam, Georgetown` and then, on the next line,
+`26 Brickdam, Georgetown`. The tool the agent calls has always told it not to
+repeat the address in the note — but a prompt is a request, not a guard, and
+when the one line a customer types is both their address and their only
+landmark, there is no reason for the agent to put it in one field rather than
+both. The same place twice is not extra information: it is a line read at a
+gate, checked against the one above it, and trusted a little less.
+
+Matching is on whole words, either way round, ignoring case and punctuation, so
+*26 Brickdam* under *26 Brickdam, Georgetown* is caught — while *Diamond*
+under *Diamondback Street* is not, because that is somewhere else entirely.
+It is the same test that keeps a pin's label from repeating the address.
 
 ### Who moved an order
 
