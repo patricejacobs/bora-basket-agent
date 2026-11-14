@@ -45,6 +45,26 @@ const MARKERS: [Language, RegExp][] = [
     'es',
     /\b(hola|gracias|quiero|cuánto|cuanto cuesta|dónde|donde está|buenos días|buenas tardes|buenas noches|usted|necesito|quisiera|pedido para)\b|[ñ¿¡]/i,
   ],
+  // English last, and detected rather than assumed.
+  //
+  // It had no markers at all: English was the absence of the others, which
+  // returns null, and null never updates the stored language because a one-word
+  // reply must not reset somebody who has been writing Portuguese all along.
+  //
+  // The two rules together were a trap. One "gracias" from an English speaker
+  // latched the account to Spanish, and nothing they wrote afterwards could
+  // ever unlatch it, because English was unsayable. Their order confirmations,
+  // delivery codes and receipts went out in Spanish for good, while the agent's
+  // own replies followed the English they were actually writing - so the
+  // conversation came back in two languages and only the fixed half was wrong.
+  //
+  // Checked after the others on purpose, exactly as Portuguese is checked
+  // before Spanish: a Spanish sentence carrying one English word is still
+  // Spanish, and matches above before it reaches here.
+  [
+    'en',
+    /\b(the|and|is|are|was|you|your|please|thanks|thank you|i want|i need|i would|how much|where|what|when|good morning|good afternoon|good evening|hello|order|delivery|deliver|send|have|can)\b/i,
+  ],
 ];
 
 /** Han characters. Unambiguous in a way no word list can be. */

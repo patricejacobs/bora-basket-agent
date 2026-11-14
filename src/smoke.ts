@@ -3611,12 +3611,34 @@ section('Speaking the language a customer writes in');
     check(`${lang} has nothing English lacks`, mine.every((k) => english.includes(k)));
   }
 
+  // English is detected, not assumed. It had no markers at all, so it was the
+  // absence of the others - which returns null, and null never updates the
+  // stored language. One "gracias" from an English speaker latched the account
+  // to Spanish and nothing they wrote afterwards could unlatch it, because
+  // English was unsayable. Every confirmation, delivery code and receipt went
+  // out in Spanish from then on.
+  check('English is detected rather than inferred', detectLanguage('I want to order rice') === 'en');
+  check('and so can take an account back', detectLanguage('Good morning, what do you have') === 'en');
+  // Checked after the others, as Portuguese is checked before Spanish: a
+  // Spanish sentence carrying one English word is still Spanish.
+  check('a Spanish sentence with an English word stays Spanish', detectLanguage('Hola, I want the delivery') === 'es');
+  // A short reply gives nothing away and must not reset somebody who has been
+  // writing Portuguese all along.
+  for (const quiet of ['ok', '👍', '81', 'Place it', '']) {
+    check(`"${quiet}" moves nobody`, detectLanguage(quiet) === null, String(detectLanguage(quiet)));
+  }
+
   check('Chinese is read from its characters', detectLanguage('我要点餐') === 'zh');
   check('Spanish from its words', detectLanguage('hola, quiero arroz') === 'es');
   check('and its punctuation', detectLanguage('¿cuánto cuesta?') === 'es');
   check('Portuguese from its words', detectLanguage('bom dia, quero arroz') === 'pt');
   check('and its accents', detectLanguage('nao tenho pao') === null || detectLanguage('não tenho pão') === 'pt');
-  check('English gives nothing away', detectLanguage('hello, I want rice') === null);
+  // This used to assert the opposite — that English gave nothing away — which
+  // was the design, and the design was the bug. English was the absence of the
+  // other three, so it returned null, and null never updates the stored
+  // language. One "gracias" latched an English speaker to Spanish and nothing
+  // they wrote afterwards could unlatch it.
+  check('English says so, like any other language', detectLanguage('hello, I want rice') === 'en');
   check('and neither does a shrug', detectLanguage('ok') === null);
   check('nor an empty message', detectLanguage('   ') === null);
 
