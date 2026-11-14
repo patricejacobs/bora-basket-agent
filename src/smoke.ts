@@ -3247,6 +3247,49 @@ section('The pin label earns its line or loses it');
   d.prepare(`DELETE FROM products WHERE sku = 'LBL-001'`).run();
 }
 
+section('A ticket that could not be sent stays owed across a restart');
+{
+  // An empty outlet_notified_at means two different things: a row written
+  // before the column existed, and a live order whose ticket was refused
+  // because the kitchen was outside WhatsApp's 24-hour window. The boot repair
+  // mended both, so every restart wrote down that a ticket had been delivered
+  // when it had not -- and flushOutletTickets then had nothing to hand over
+  // when the kitchen finally wrote in. On a host that sleeps when idle that is
+  // several times a day, and the orders simply vanish from the kitchen's view.
+  // Taken from an order that exists rather than from the first kitchen on the
+  // list, which may be one nobody has ordered from.
+  const owed = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
+  const kitchen = owed?.outlet ? repo.outletById(owed.outlet.id) : null;
+  check('there is a kitchen order to use', Boolean(owed) && Boolean(kitchen));
+
+  if (owed && kitchen) {
+    db.prepare(`UPDATE orders SET status = 'pending', outlet_notified_at = '' WHERE order_no = ?`).run(owed.orderNo);
+    check('it is owed a ticket', repo.ordersAwaitingTicket(kitchen.id).some((o) => o.orderNo === owed.orderNo));
+
+    // The repair, exactly as the database runs it on every boot.
+    const boot = (): void => {
+      db.exec(`
+        UPDATE orders SET outlet_notified_at = created_at
+         WHERE outlet_notified_at = '' AND outlet_id IS NOT NULL
+           AND status <> 'pending';
+      `);
+    };
+    boot();
+    boot();
+    check(
+      'and is still owed after two restarts',
+      repo.ordersAwaitingTicket(kitchen.id).some((o) => o.orderNo === owed.orderNo),
+    );
+
+    // The mend still does its job. A settled order cannot be owed a ticket, so
+    // a kitchen saying hello is not buried under a month of old history.
+    db.prepare(`UPDATE orders SET status = 'delivered', outlet_notified_at = '' WHERE order_no = ?`).run(owed.orderNo);
+    boot();
+    const row = db.prepare(`SELECT outlet_notified_at AS at FROM orders WHERE order_no = ?`).get(owed.orderNo) as { at: string };
+    check('while a settled one is still mended', row.at !== '', JSON.stringify(row));
+  }
+}
+
 section('Only the kitchen accepts a kitchen order');
 {
   const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');

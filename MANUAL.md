@@ -499,6 +499,25 @@ If the shop has not messaged the business number in 24 hours, WhatsApp will not
 let a message with buttons through. It is held and handed over the moment they
 next write, which is the same protection the kitchens have.
 
+### When a kitchen cannot be reached
+
+A ticket is a message with buttons, and WhatsApp refuses those to anybody who
+has not written to you in 24 hours. The order is held and handed over the
+moment that kitchen next sends anything — a question, a thumbs up, a tapped
+template button.
+
+A held ticket is recorded by leaving its "notified" time empty. That same
+emptiness is what rows written before the column existed look like, and a
+boot-time mend filled them all in — so **every restart wrote down that a ticket
+had been delivered when it had not**, and the hand-over then had nothing left
+to give. On a host that sleeps when idle, that is several times a day, and the
+result is a queue of orders the kitchen has never seen and never will, with
+nothing anywhere saying so.
+
+The mend now skips orders that are still pending, since a settled order cannot
+be owed a ticket. If you have a pile of pending restaurant orders and a kitchen
+saying it never saw them, this is why.
+
 ### Who accepts a restaurant order
 
 **Only the kitchen.** The desk's own alert no longer carries a *Confirm*

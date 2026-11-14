@@ -476,6 +476,21 @@ db.exec(`CREATE INDEX IF NOT EXISTS order_events_by_time ON order_events (at)`);
  * grocery order has an outlet too, and without the kind check this would
  * relabel every grocery order as a restaurant one on every single boot.
  *
+ * Nor is `status <> 'pending'` in the third. That statement mends rows written
+ * before the column existed, so that a kitchen saying hello is not buried under
+ * a month of history it can do nothing about. Without the status check it did
+ * far more than mending: an empty `outlet_notified_at` is also how a live order
+ * records that its ticket could NOT be sent — the kitchen was outside
+ * WhatsApp's 24-hour window — and that it is still owed one. Marking those as
+ * delivered on every boot is the system writing down that it did something it
+ * did not do, and `flushOutletTickets` then has nothing left to hand over when
+ * the kitchen finally writes in.
+ *
+ * On a host that sleeps when idle, "every boot" is several times a day. The
+ * result is a queue of pending orders the kitchen has never seen and will never
+ * be sent, with nothing anywhere saying so. A settled order cannot be owed a
+ * ticket, so restricting the mend to those keeps its purpose and drops the harm.
+ *
  * Idempotent, and cheap once there is nothing left to mend: both run on every
  * boot and match no rows after the first.
  */
@@ -488,7 +503,8 @@ db.exec(`
    WHERE status <> 'cancelled' AND (cancel_reason <> '' OR cancelled_by <> '');
 
   UPDATE orders SET outlet_notified_at = created_at
-   WHERE outlet_notified_at = '' AND outlet_id IS NOT NULL;
+   WHERE outlet_notified_at = '' AND outlet_id IS NOT NULL
+     AND status <> 'pending';
 `);
 
 /**
