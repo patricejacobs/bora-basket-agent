@@ -494,6 +494,20 @@ is the wrong way to measure.
 **One order comes from one shop.** Two groceries is two deliveries, and
 shopping never shares an order with cooked food.
 
+### Editing a shop through the CSV
+
+`data/outlets.csv` can hold any shop, the grocery included, and re-importing it
+is how you change several at once.
+
+**A column you leave out is a field you are not changing.** Import a file with
+only `code,name,hours` and only the hours move — the number, the minimum, the
+fee, the pickup pin and whether it is a grocery all stay as they were. This
+matters because numbers are usually set by `number KFH 5926123456` rather than
+in the file, so they are often not in it; before this rule, importing such a
+file blanked them and the shop simply stopped receiving tickets.
+
+To clear a field on purpose, include its column and leave the cell empty.
+
 ### Associates
 
 | Variable | Default | What it does |

@@ -1724,6 +1724,70 @@ section('Restaurant ordering');
   const outlets = importOutletsText(outletCsv);
   check('imports every sample outlet', outlets.imported === outletRows, `${outlets.imported} of ${outletRows}`);
   check('no outlet rows skipped', outlets.skipped.length === 0, JSON.stringify(outlets.skipped));
+  check('and they come in as kitchens', repo.getOutlet('KFH')?.kind === 'restaurant');
+
+  // A kind the importer does not know is refused rather than filed as a
+  // kitchen. A grocery listed among the restaurants is a supermarket offered to
+  // somebody who asked for takeaway, with nothing in the file to show why.
+  const badKind = importOutletsText(
+    [
+      'code,name,kind,hours',
+      'WHZ,Warehouse Nine,warehouse,24 hours',
+    ].join(String.fromCharCode(10)),
+  );
+  check('an unknown kind is refused', badKind.imported === 0, JSON.stringify(badKind));
+  check('and says what to use instead', /restaurant or grocery/.test(badKind.skipped[0]?.reason ?? ''), badKind.skipped[0]?.reason);
+
+  // Saying nothing about the kind of a shop that already exists means "leave it
+  // alone", never "make it a kitchen". Otherwise setting the grocery's pickup
+  // address from a CSV with no kind column would quietly turn the grocery into
+  // a restaurant and empty the list its own customers are shown.
+  const beforeKind = repo.getOutlet('GROCERY')?.kind;
+  const beforeNumber = repo.getOutlet('GROCERY')?.whatsapp;
+  const silent = importOutletsText(
+    [
+      'code,name,hours,pickup_address,pickup_lat,pickup_lng',
+      `GROCERY,${config.store.name},24 hours,"Lot 14 Lamaha Street, Georgetown",6.8124,-58.1591`,
+    ].join(String.fromCharCode(10)),
+  );
+  check('a row with no kind column imports', silent.imported === 1, JSON.stringify(silent));
+  check('the grocery is still a grocery', repo.getOutlet('GROCERY')?.kind === beforeKind);
+  check('and it picked up its pickup pin', repo.getOutlet('GROCERY')?.pickupLat === 6.8124);
+  check('so it is still the shop groceries go to', repo.defaultGrocery()?.code === 'GROCERY');
+
+  // The same rule, and the one that actually costs money: that file had no
+  // whatsapp column, so the number its orders are sent to must be untouched.
+  // The upsert writes every column, so leaving one out used to blank it — and
+  // editing one field is the whole reason to re-import the file.
+  check(
+    'and kept the number the file did not mention',
+    repo.getOutlet('GROCERY')?.whatsapp === beforeNumber,
+    `${beforeNumber} -> ${repo.getOutlet('GROCERY')?.whatsapp}`,
+  );
+
+  // Proved on a kitchen too, since that is where it would have been noticed
+  // last: a roti shop that silently stops receiving tickets.
+  const kfhBefore = repo.getOutlet('KFH')!;
+  importOutletsText(
+    ['code,name,hours', `KFH,${kfhBefore.name},Mon-Sat 9am-9pm`].join(String.fromCharCode(10)),
+  );
+  const kfhAfter = repo.getOutlet('KFH')!;
+  check('a kitchen keeps its number through a partial file', kfhAfter.whatsapp === kfhBefore.whatsapp);
+  check('and its minimum', kfhAfter.minOrder === kfhBefore.minOrder);
+  check('and its pickup pin', kfhAfter.pickupLat === kfhBefore.pickupLat);
+  check('while the field it did mention changed', kfhAfter.hours === 'Mon-Sat 9am-9pm', kfhAfter.hours);
+  // Put the sample row back, so later sections read the file's own hours.
+  importOutletsText(outletCsv);
+
+  // A shop that does not exist yet, saying nothing, is a kitchen — which is
+  // what every outlet row written before this column existed meant.
+  const fresh = importOutletsText(
+    ['code,name,hours', 'NEWK,Brand New Kitchen,24 hours'].join(String.fromCharCode(10)),
+  );
+  check('a new shop with no kind is a kitchen', fresh.imported === 1 && repo.getOutlet('NEWK')?.kind === 'restaurant');
+  // Withdrawn again: later sections count the kitchens, and a shop invented by
+  // this one must not change what they see.
+  db.prepare(`DELETE FROM outlets WHERE code = 'NEWK'`).run();
 
   const menu = importMenuText(fs.readFileSync(path.resolve('./data/sample-menu.csv'), 'utf8'));
   check('imports the sample menus', menu.items >= 30, JSON.stringify(menu.items));

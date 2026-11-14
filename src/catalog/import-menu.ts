@@ -114,8 +114,27 @@ export function importOutletsText(text: string): { imported: number; skipped: Me
         continue;
       }
 
-      const lat = numberOrNull(get('lat'));
-      const lng = numberOrNull(get('lng'));
+      // A column the file does not have is a field the shop did not mean to
+      // change.
+      //
+      // This matters more than it looks. The upsert writes every column, so a
+      // CSV that leaves one out used to overwrite it with a blank — and the
+      // natural reason to re-import this file is to edit one field. Setting the
+      // grocery's pickup address from a file with no `whatsapp` column wiped
+      // the number its orders are sent to, and the file you were reading looked
+      // exactly right. Numbers are often set by `number KFH 5926123456` rather
+      // than in the CSV, which is precisely how they end up absent from it.
+      //
+      // So an absent column falls back to what the shop already has, and only
+      // a shop being created for the first time takes a default.
+      const prev = getOutlet(code);
+      const has = (field: string): boolean => columns.includes(field);
+      const text = (field: string, current: string | undefined, fallback = ''): string =>
+        has(field) ? get(field) : (current ?? fallback);
+
+      const pinGiven = has('lat') || has('lng');
+      const lat = pinGiven ? numberOrNull(get('lat')) : (prev?.pickupLat ?? null);
+      const lng = pinGiven ? numberOrNull(get('lng')) : (prev?.pickupLng ?? null);
       if ((lat === null) !== (lng === null)) {
         skipped.push({ line, reason: 'a pickup pin needs both a latitude and a longitude' });
         continue;
@@ -128,31 +147,45 @@ export function importOutletsText(text: string): { imported: number; skipped: Me
       // takeaway, and the shop would have no way to see why.
       const rawKind = get('kind').toLowerCase();
       const kind =
-        rawKind === '' || rawKind === 'restaurant' || rawKind === 'kitchen'
-          ? ('restaurant' as const)
-          : rawKind === 'grocery' || rawKind === 'shop' || rawKind === 'supermarket'
-            ? ('grocery' as const)
-            : null;
+        // Said nothing. For a shop that already exists this means "leave it as
+        // it is", never "make it a kitchen" — otherwise editing the grocery's
+        // pickup address in a CSV with no kind column would turn the grocery
+        // into a restaurant, take it out of the list its customers are shown,
+        // and leave the shop reading a file that looks right.
+        rawKind === ''
+          ? (prev?.kind ?? ('restaurant' as const))
+          : rawKind === 'restaurant' || rawKind === 'kitchen'
+            ? ('restaurant' as const)
+            : rawKind === 'grocery' || rawKind === 'shop' || rawKind === 'supermarket'
+              ? ('grocery' as const)
+              : null;
       if (kind === null) {
         skipped.push({ line, reason: `"${rawKind}" is not a kind — use restaurant or grocery` });
         continue;
       }
 
-      const fee = numberOrNull(get('delivery_fee'));
+      const fee = has('delivery_fee') ? numberOrNull(get('delivery_fee')) : null;
       upsertOutlet({
         code,
         name,
         kind,
-        cuisine: get('cuisine'),
-        hours: get('hours'),
-        prepMinutes: numberOrNull(get('prep')) ?? 20,
-        minOrder: toMinorUnits(get('min_order') || '0'),
-        deliveryFee: fee === null ? null : toMinorUnits(String(fee)),
-        pickupAddress: get('address'),
+        cuisine: text('cuisine', prev?.cuisine),
+        hours: text('hours', prev?.hours),
+        prepMinutes: has('prep')
+          ? (numberOrNull(get('prep')) ?? 20)
+          : (prev?.prepMinutes ?? 20),
+        minOrder: has('min_order')
+          ? toMinorUnits(get('min_order') || '0')
+          : (prev?.minOrder ?? 0),
+        deliveryFee: has('delivery_fee')
+          ? (fee === null ? null : toMinorUnits(String(fee)))
+          : (prev?.deliveryFee ?? null),
+        pickupAddress: text('address', prev?.pickupAddress),
         pickupLat: lat,
         pickupLng: lng,
-        whatsapp: get('whatsapp'),
-        active: truthy(get('active')) ? 1 : 0,
+        // The one that cost a shop its tickets. See the note above.
+        whatsapp: text('whatsapp', prev?.whatsapp),
+        active: has('active') ? (truthy(get('active')) ? 1 : 0) : (prev?.active ?? 1),
       });
       imported++;
     }
