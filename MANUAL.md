@@ -499,6 +499,29 @@ If the shop has not messaged the business number in 24 hours, WhatsApp will not
 let a message with buttons through. It is held and handed over the moment they
 next write, which is the same protection the kitchens have.
 
+### What the customer is told when they place an order
+
+Received, and nothing more:
+
+> Placed — ORD-00083, total $3,100, cash to the delivery associate at the
+> door. It is with us now and waiting to be accepted — I will message you the
+> moment it is.
+
+It used to say more than it knew. The agent was handed the customer's name,
+address, map pin and telephone number along with the order number, and did the
+natural thing with them: read them back. It also quoted the shop's own
+`prep_minutes` setting as though the kitchen had spoken — *"the kitchen says
+about 20 minutes"* — when the kitchen had said nothing and may not have seen
+the order at all.
+
+So that reply now carries the order number, the items, the total and how they
+pay. **No name, no address, no pin, no telephone number** — the customer typed
+those a moment ago, and nobody wants their address recited on a shared phone.
+And no preparation time, because at that point what they are waiting for is the
+shop accepting the order, not the cooking.
+
+The acceptance is a separate message, sent when it actually happens.
+
 ### Who moved an order
 
 Every status change is now recorded three ways, so "the restaurant never

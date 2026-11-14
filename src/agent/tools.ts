@@ -1415,20 +1415,29 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           console.error('[tools] order announcement failed:', err),
         );
 
+        // Deliberately no name, address, pin or telephone number in here.
+        //
+        // They were all handed back before, and the model did the natural
+        // thing with them: read them out. A customer who has just typed their
+        // address does not need it recited, and a receipt that repeats where
+        // somebody lives is a receipt they would rather not have on a shared
+        // phone. The order has them; this reply does not need them.
         return ok({
           placed: true,
+          received_not_accepted: true,
           order_number: order.orderNo,
           items: order.lines.map((l) => `${l.qty} x ${l.name} — ${money(l.lineTotal)}`),
           subtotal: money(order.subtotal),
           delivery_fee: order.deliveryFee === 0 ? 'free' : money(order.deliveryFee),
           total: money(order.total),
           pay: paymentMethod.replace('_on_delivery', '') + ' on delivery',
-          deliver_to: [order.customerName, order.location?.label, order.address]
-            .filter(Boolean)
-            .join(', '),
-          delivering_to_pin: locationView(order.location),
-          contact_number: customer.contactPhone ?? ctx.phone,
-          next: 'Tell the customer the order number and total, and that the store will confirm the delivery window shortly.',
+          next: [
+            'Say the order has been RECEIVED and is waiting to be accepted, and that you will message the moment it is.',
+            'Do NOT say it is confirmed, accepted, placed with the kitchen, being prepared or on its way — none of that has happened yet, and the shop will send its own message when it does.',
+            'Give the order number, the total and how they pay.',
+            'Do NOT repeat their name, their delivery address, their map pin or their telephone number. They have just given you those; reading them back says nothing and nobody wants their address recited on a shared phone.',
+            'Do not state a preparation time or a delivery time.',
+          ].join(' '),
         });
       } catch (err) {
         return fail(err instanceof Error ? err.message : 'Could not place the order.');

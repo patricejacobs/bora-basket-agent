@@ -1106,7 +1106,19 @@ section('Location pins');
 
   const placed = pinCall('place_order', { payment_method: 'cash_on_delivery' });
   check('checkout completes with a pin', placed.placed === true, JSON.stringify(placed).slice(0, 120));
-  check('the agent is told where it is going', placed.delivering_to_pin?.where === 'Stabroek Market');
+  // Deliberately NOT told where it is going any more. It was, and the model
+  // did the natural thing with an address handed to it: read it back. A
+  // customer who has just typed their address does not need it recited, and
+  // nobody wants theirs on the screen of a shared phone. The order holds it;
+  // this reply does not need to.
+  check('the pin is not handed back to be read out', placed.delivering_to_pin === undefined, JSON.stringify(placed).slice(0, 160));
+  check('nor the address', placed.deliver_to === undefined);
+  check('nor the telephone number', placed.contact_number === undefined);
+  check('but the order was still placed against the pin', repo.findOrder(placed.order_number)?.location?.label === 'Stabroek Market');
+  // And the model is told what it may say: received, not accepted.
+  check('the model is told it is received only', placed.received_not_accepted === true);
+  check('and told not to claim it is confirmed', /Do NOT say it is confirmed/.test(String(placed.next)), String(placed.next).slice(0, 120));
+  check('and not to recite the address back', /Do NOT repeat their name/.test(String(placed.next)));
   check(
     'the confirmation carries no coordinates',
     !JSON.stringify(placed).includes('6.807'),
