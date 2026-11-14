@@ -479,6 +479,16 @@ bag for them to collect.
 A kitchen gets the same message with different words — *please prepare*, and a
 food total. One ticket, two shapes, picked by what kind of shop it is.
 
+The dispatch desk's own alert follows the same rule: 🛒 and "Picking takes
+about 20 minutes" for a grocery, 🍽️ and "Kitchen reckons about 20 minutes" for
+a kitchen. It used to say the kitchen line over a bag of shopping, because
+having a shop and being cooked were once the same fact.
+
+To see every card for all three kinds of business side by side, run
+`node cards-gallery.ts`. It drives the real notify and dispatch functions and
+prints what they hand to WhatsApp, so it is the message rather than a
+description of one.
+
 **The number does not need to be staff.** This is the part worth knowing if you
 set this up before: a grocery is reached through its own record, so whoever
 holds that number can Confirm and Cancel without being on `STAFF_NUMBERS` — and

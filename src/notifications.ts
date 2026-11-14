@@ -44,12 +44,17 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   if (!order) return;
 
   const isParcel = order.kind === 'parcel';
+  // Read from the order's own kind, not from whether it has a shop. A grocery
+  // order has one now, so the old test treated it as a restaurant order: the
+  // dispatch desk saw a knife and fork beside somebody's shopping, and was
+  // told a kitchen was cooking it.
+  const isCooked = order.kind === 'restaurant';
 
   const lines = [
     isParcel
       ? `📦 *New parcel job ${order.orderNo}*`
       : order.outlet
-        ? `🍽️ *New order ${order.orderNo}* — ${order.outlet.name}`
+        ? `${isCooked ? '🍽️' : '🛒'} *New order ${order.orderNo}* — ${order.outlet.name}`
         : `🛒 *New order ${order.orderNo}*`,
     '',
     // A parcel has no line items — one bag and a description.
@@ -66,12 +71,16 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     ...(isParcel && order.pickup
       ? ['', `Uplift from: ${order.pickup.address || 'pin below'}`, `Sender ${order.customerName} +${order.contactPhone || order.phone}`]
       : []),
-    // A restaurant order is not yours to pack, so the shop's line is the wait
-    // and the collection rather than a picking list.
+    // Somebody else prepares it, so the shop's line is the wait and the
+    // collection rather than a picking list. Only a kitchen is described as
+    // cooking — "Kitchen reckons about 20 minutes" over a bag of groceries is
+    // the desk being told about a kitchen that does not exist.
     ...(order.outlet
       ? [
           `Uplift from ${order.outlet.name}${order.outlet.pickupAddress ? `, ${order.outlet.pickupAddress}` : ''}`,
-          `Kitchen reckons about ${order.outlet.prepMinutes} minutes`,
+          isCooked
+            ? `Kitchen reckons about ${order.outlet.prepMinutes} minutes`
+            : `Picking takes about ${order.outlet.prepMinutes} minutes`,
         ]
       : []),
     '',
