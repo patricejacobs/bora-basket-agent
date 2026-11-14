@@ -3247,6 +3247,54 @@ section('The pin label earns its line or loses it');
   d.prepare(`DELETE FROM products WHERE sku = 'LBL-001'`).run();
 }
 
+section('Only the kitchen accepts a kitchen order');
+{
+  const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');
+  const { nextActions } = await import('./order-status.ts');
+  const staffPhone = '5926497570';
+  const food = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
+  check('there is a kitchen order to try', Boolean(food));
+
+  if (food) {
+    const no = food.orderNo;
+    const n = String(Number(no.replace(/[^0-9]/g, '')));
+    db.prepare(`UPDATE orders SET status = 'pending' WHERE order_no = ?`).run(no);
+
+    // The shop saying "confirmed" on a kitchen's behalf tells the customer a
+    // restaurant has taken an order it may not have seen -- and the customer
+    // believes it, because it came from us.
+    const refused = (await handleStaffMessage(`${n} confirm`, staffPhone))[0]?.text ?? '';
+    check('the desk cannot confirm it', repo.findOrder(no)?.status === 'pending', repo.findOrder(no)?.status);
+    check('and is told whose it is', /to accept/.test(refused), refused);
+    check('and how to override if they rang them', /confirm anyway/.test(refused), refused);
+
+    // Not offered on the card either. Hiding the button is only a courtesy --
+    // a reply button never expires, so the refusal above is what enforces it.
+    const offered = nextActions(no, 'pending', 'staff', { outletConfirms: true }).map((a) => a.id);
+    check('nor offered as a button', !offered.some((id) => id.startsWith('confirm')), JSON.stringify(offered));
+    check('while cancel stays', offered.some((id) => id.startsWith('cancel')), JSON.stringify(offered));
+
+    // The kitchen's own Confirm is untouched.
+    const kitchen = repo.outletById(food.outlet!.id)!;
+    await handleOutletMessage(kitchen, `${n} confirm`);
+    check('the kitchen can', repo.findOrder(no)?.status === 'confirmed', repo.findOrder(no)?.status);
+
+    // And the escape hatch, for a kitchen reached by telephone instead.
+    db.prepare(`UPDATE orders SET status = 'pending' WHERE order_no = ?`).run(no);
+    await handleStaffMessage(`${n} confirm anyway`, staffPhone);
+    check('the desk can still confirm deliberately', repo.findOrder(no)?.status === 'confirmed', repo.findOrder(no)?.status);
+
+    // A grocery is the shop's own, so the desk confirms it as before.
+    const shopping = repo.allOrders().find((o) => o.kind === 'grocery' && o.outlet !== null);
+    if (shopping) {
+      const gn = String(Number(shopping.orderNo.replace(/[^0-9]/g, '')));
+      db.prepare(`UPDATE orders SET status = 'pending' WHERE order_no = ?`).run(shopping.orderNo);
+      await handleStaffMessage(`${gn} confirm`, staffPhone);
+      check('a grocery order is still the desk to confirm', repo.findOrder(shopping.orderNo)?.status === 'confirmed', repo.findOrder(shopping.orderNo)?.status);
+    }
+  }
+}
+
 section('How a food order says goodbye');
 {
   const { MEAL_SIGN_OFFS, signOffFor } = await import('./notifications.ts');

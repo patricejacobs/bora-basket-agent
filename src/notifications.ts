@@ -96,7 +96,13 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   if (order.deliveryNote) lines.push(`Note: ${order.deliveryNote}`);
 
   const body = lines.join('\n');
-  const actions = nextActions(order.orderNo, order.status);
+  // The desk's own alert. No Confirm on it when a kitchen owns the order:
+  // accepting is theirs, and the card is exactly where somebody taps without
+  // reading. The refusal that actually enforces this lives in handleStaffMessage,
+  // because a reply button never expires.
+  const actions = nextActions(order.orderNo, order.status, 'staff', {
+    outletConfirms: order.kind === 'restaurant' && order.outlet !== null,
+  });
 
   for (const staff of config.staffNumbers) {
     // Buttons so dispatch is a tap rather than a typed command. Their titles are

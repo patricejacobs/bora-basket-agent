@@ -366,7 +366,19 @@ export function nextActions(
    * looked up, so this module stays free of the database and can be reasoned
    * about from its arguments alone.
    */
-  opts: { codeExpected?: boolean; parcel?: boolean } = {},
+  opts: {
+    codeExpected?: boolean;
+    parcel?: boolean;
+    /**
+     * This order belongs to a kitchen, so accepting it is theirs to do.
+     *
+     * The shop's own card drops Confirm when this is set. It is a courtesy
+     * rather than a guard - a reply button never expires, so an old card can
+     * still be tapped and the refusal has to live where the status moves - but
+     * a button nobody is offered is a button almost nobody taps.
+     */
+    outletConfirms?: boolean;
+  } = {},
 ): { id: string; title: string; command: string }[] {
   // "ORD-00007" -> "7": dispatchers read the short form, and it keeps titles
   // inside the 20-character limit.
@@ -456,7 +468,7 @@ export function nextActions(
 
   switch (status) {
     case 'pending':
-      return [confirm, otw, cancel];
+      return opts.outletConfirms ? [otw, cancel] : [confirm, otw, cancel];
     case 'confirmed':
       return [ready, otw, cancel];
     case 'ready':

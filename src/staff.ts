@@ -819,8 +819,40 @@ ${ONBOARDING_HELP}`);
     return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
   }
 
+  // Accepting an order is the shop's own act to perform, and only for its own
+  // shops. A kitchen is somebody else's business: the desk saying "confirmed"
+  // on their behalf tells the customer a restaurant has taken an order it may
+  // not have seen, and the customer believes it because it came from us.
+  //
+  // Refused rather than hidden. Taking Confirm off the card is not enough on
+  // its own — a reply button never expires, so a tap on this morning's alert
+  // still arrives this evening, and the card is where somebody taps without
+  // reading. The check has to be here, where the status actually moves.
+  //
+  // There is still a way through, because a kitchen that cannot be reached by
+  // WhatsApp is often reachable by telephone, and an order nobody can move is
+  // worse than one accepted on the phone. It just has to be said deliberately.
+  if (
+    status === 'confirmed' &&
+    order.kind === 'restaurant' &&
+    order.outlet &&
+    !/\banyway\b/i.test(trimmed)
+  ) {
+    return reply(
+      [
+        `${order.orderNo} is ${order.outlet.name}'s to accept.`,
+        '',
+        'They have the order and their own *Confirm* button. Confirming here would tell the customer the kitchen has taken it, which only the kitchen knows.',
+        '',
+        `If you have rung them and they have said yes, send \`${String(Number(order.orderNo.replace(/[^0-9]/g, '')))} confirm anyway\`.`,
+      ].join(chr10),
+    );
+  }
+
   const { body } = await applyStatus(order, status);
-  const actions = nextActions(order.orderNo, status);
+  const actions = nextActions(order.orderNo, status, 'staff', {
+    outletConfirms: order.kind === 'restaurant' && order.outlet !== null,
+  });
   return actions.length > 0 ? [{ kind: 'buttons', text: body, buttons: actions }] : reply(body);
 }
 

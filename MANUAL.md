@@ -499,6 +499,30 @@ If the shop has not messaged the business number in 24 hours, WhatsApp will not
 let a message with buttons through. It is held and handed over the moment they
 next write, which is the same protection the kitchens have.
 
+### Who accepts a restaurant order
+
+**Only the kitchen.** The desk's own alert no longer carries a *Confirm*
+button for an order belonging to a restaurant, and confirming one from a staff
+number is refused:
+
+```
+ORD-00082 is A Taste of Guyana's to accept.
+
+They have the order and their own Confirm button. Confirming here would
+tell the customer the kitchen has taken it, which only the kitchen knows.
+
+If you have rung them and they have said yes, send `82 confirm anyway`.
+```
+
+Refused rather than merely hidden, because a WhatsApp reply button never
+expires — a tap on this morning's alert still arrives this evening.
+
+`82 confirm anyway` is the way through when a kitchen that will not answer
+WhatsApp answers the telephone. It is deliberate, and it is recorded in the
+order's history with the number that sent it.
+
+A **grocery** order is your own shop's, so the desk confirms it as before.
+
 ### How an order says goodbye
 
 The closing message is built in three parts: the receipt, the thanks, and a
