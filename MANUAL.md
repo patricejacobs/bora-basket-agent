@@ -433,6 +433,7 @@ nothing overwrites it.
 
 | What | Where it lives | How to change it |
 |---|---|---|
+| Its name | the shop's own record | `name GROCERY Centro de Gangas` |
 | Its number | the shop's own record | `number GROCERY 5927410186` |
 | Its hours | the shop's own record | `hours GROCERY 24 hours` |
 | Its minimum | the shop's own record | `minimum GROCERY 1500` |
@@ -441,6 +442,11 @@ nothing overwrites it.
 
 `npm run check` tells you if it has no number, because a grocery nobody can
 reach is a grocery with nobody packing.
+
+Renaming it is a command rather than an edit to the file, because the file is
+not re-read on a hosted deployment. The name is copied onto each order when it
+is placed, so orders from before a rename keep the old name — that is their
+history, and the command says so when you rename.
 
 ### The picking list
 

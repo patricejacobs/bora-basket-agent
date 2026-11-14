@@ -126,6 +126,7 @@ export const ONBOARDING_HELP = [
   '',
   'After publishing:',
   '`hours KFH Mon-Sat 10am-10pm`',
+  '`name KFH Kingston Fried Hut` — what customers see',
   '`number KFH 5926123456` — the kitchen\'s WhatsApp',
   '`minimum KFH 1500` / `fee KFH 700`',
   'Share a location pin to set where the delivery associate uplifts.',
@@ -133,7 +134,7 @@ export const ONBOARDING_HELP = [
 
 /** True when this looks like an onboarding command rather than a dispatch one. */
 export function isOnboardingCommand(text: string): boolean {
-  return /^(draft|publish|discard|new\s*outlet|add\s*restaurant|hours|number|minimum|fee)\b/i.test(
+  return /^(draft|publish|discard|new\s*outlet|add\s*restaurant|hours|name|number|minimum|fee)\b/i.test(
     text.trim(),
   );
 }
@@ -178,6 +179,29 @@ export async function handleOnboardingCommand(
     if (!rest) return reply(`Hours for ${outlet.name} are "${outlet.hours || 'not set'}".`);
     repo.upsertOutlet({ ...outlet, hours: rest });
     return reply(`${outlet.name} now opens ${rest}.`);
+  }
+
+  if (verb === 'name') {
+    if (!rest) return reply(`${outlet.code} is called "${outlet.name}".`);
+
+    // The same compliance check a published menu name gets. A shop's name is
+    // read out to customers, and a name that is literally a drink can cost the
+    // business its WhatsApp number.
+    const banned = restrictedReason(rest);
+    if (banned) return reply(`That names ${banned}, which WhatsApp does not allow. Pick another name.`);
+
+    const was = outlet.name;
+    repo.upsertOutlet({ ...outlet, name: rest });
+    return reply(
+      [
+        `${outlet.code} is now called *${rest}*.`,
+        '',
+        // Said plainly, because it looks like a bug otherwise: the name is
+        // copied onto an order when it is placed, so that a shop which later
+        // renames itself does not rewrite where last week's order came from.
+        `Orders placed before now still say "${was}" — that is their history, not a mistake.`,
+      ].join(String.fromCharCode(10)),
+    );
   }
 
   if (verb === 'number') {

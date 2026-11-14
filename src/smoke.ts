@@ -3114,6 +3114,24 @@ section('Onboarding a restaurant');
   check('hours can be corrected', repo.getOutlet('MGH')?.hours === 'Mon-Sun 9am-9pm');
   await handleOnboardingCommand(staffPhone, 'number MGH 592 611 9999');
   check('the kitchen number can be corrected', repo.getOutlet('MGH')?.whatsapp === '5926119999');
+
+  // Renaming. There is no shell on a hosted deployment and the shops file is
+  // not re-read there, so without this a shop could never be renamed at all.
+  const renamed = (await handleOnboardingCommand(staffPhone, 'name MGH Centro de Gangas'))[0]?.text ?? '';
+  check('a shop can be renamed', repo.getOutlet('MGH')?.name === 'Centro de Gangas', repo.getOutlet('MGH')?.name);
+  check('and is told what it is called now', /Centro de Gangas/.test(renamed), renamed);
+  // The name is copied onto an order when it is placed, so renaming must not
+  // rewrite where last week's order came from. Said out loud, because a shop
+  // seeing the old name on an old order would otherwise read it as a bug.
+  check('and warned that old orders keep the old name', /still say/.test(renamed), renamed);
+  const asked = (await handleOnboardingCommand(staffPhone, 'name MGH'))[0]?.text ?? '';
+  check('asking with no name reads it back', /Centro de Gangas/.test(asked), asked);
+  // The same compliance check a published menu name gets: a shop name is read
+  // out to customers, and one that is literally a drink costs the number.
+  const boozy = (await handleOnboardingCommand(staffPhone, 'name MGH Banks Beer Depot'))[0]?.text ?? '';
+  check('a name WhatsApp prohibits is refused', repo.getOutlet('MGH')?.name === 'Centro de Gangas', repo.getOutlet('MGH')?.name);
+  check('and says why', /WhatsApp does not allow/.test(boozy), boozy);
+  await handleOnboardingCommand(staffPhone, 'name MGH Meadow Grill House');
   const unknown = (await handleOnboardingCommand(staffPhone, 'hours NOPE 9am-5pm'))[0]?.text ?? '';
   check('an unknown outlet code is refused', /No outlet/.test(unknown), unknown);
 
