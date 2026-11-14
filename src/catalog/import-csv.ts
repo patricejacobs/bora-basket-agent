@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { toMinorUnits, money } from '../config.ts';
 import { db } from '../db/index.ts';
-import { upsertProduct, productCount } from '../db/repo.ts';
+import { upsertProduct, productCount, getOutlet } from '../db/repo.ts';
 
 /** Minimal RFC 4180 parser: handles quoted fields, embedded commas, and "" escapes. */
 export function parseCsv(text: string): string[][] {
@@ -89,6 +89,10 @@ const HEADER_ALIASES: Record<string, string> = {
   aliases: 'keywords',
   active: 'active',
   enabled: 'active',
+  outlet: 'outlet',
+  outlet_code: 'outlet',
+  shop: 'outlet',
+  store: 'outlet',
   image: 'image_url',
   image_url: 'image_url',
   photo: 'image_url',
@@ -175,6 +179,25 @@ export function importCsvText(
       const activeRaw = get('active').toLowerCase();
       const active = activeRaw === '' || ['1', 'true', 'yes', 'y'].includes(activeRaw) ? 1 : 0;
 
+      // Which shop stocks it. A plain product list names none and goes to the
+      // house grocery, which is the whole catalogue for a shop with one. Name a
+      // shop and the row belongs to that one instead — this is how the second
+      // grocery gets its own shelves.
+      //
+      // A code that does not exist is refused rather than filed under the house
+      // grocery. Silently putting someone else's stock in your own shop is the
+      // kind of mistake that is only noticed by a customer.
+      const outletCode = get('outlet');
+      let outletId: number | undefined;
+      if (outletCode) {
+        const outlet = getOutlet(outletCode);
+        if (!outlet) {
+          skipped.push({ line: r + 1, reason: `no shop with code "${outletCode}"` });
+          continue;
+        }
+        outletId = outlet.id;
+      }
+
       upsertProduct({
         sku,
         name,
@@ -186,6 +209,7 @@ export function importCsvText(
         active,
         keywords: get('keywords'),
         imageUrl: imageUrlFor(get('image_url'), r + 1, skipped),
+        ...(outletId === undefined ? {} : { outletId }),
       });
 
       seenSkus.add(sku.toLowerCase());

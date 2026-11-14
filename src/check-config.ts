@@ -225,20 +225,15 @@ if (staff.length === 0) {
   add('ok', 'STAFF_NUMBERS', dim(`${staff.length} number(s)`));
 }
 
-// Where a grocery order goes to be picked. Routing is not permission: the
-// ticket's buttons are staff commands, so a number that is not on the staff
-// list receives a picking list it cannot act on.
-const picker = (process.env.GROCERY_NUMBER ?? '').replace(/[^0-9]/g, '');
-if (!picker) {
-  add('warn', 'GROCERY_NUMBER', 'not set — grocery orders go to the staff broadcast only, with no picking ticket');
-} else if (!staff.includes(picker)) {
+// GROCERY_NUMBER is only read once, to seed the house grocery. Saying so is
+// worth a line: a shop that still has it set would otherwise assume it is what
+// routes their orders, and would change it there when it stopped being read.
+if ((process.env.GROCERY_NUMBER ?? '').trim()) {
   add(
     'warn',
     'GROCERY_NUMBER',
-    `+${picker} is not in STAFF_NUMBERS — the picking ticket will arrive, but its buttons will do nothing`,
+    'no longer read — it seeded the grocery\'s own number once. Change it with `number GROCERY <digits>`',
   );
-} else {
-  add('ok', 'GROCERY_NUMBER', dim(`+${picker}`));
 }
 
 try {
@@ -249,15 +244,60 @@ try {
       .prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='outlets'`)
       .get() as { n: number };
 
-    if (hasOutlets.n > 0) {
-      const row = db.prepare('SELECT COUNT(*) AS n FROM outlets WHERE active = 1').get() as { n: number };
+    // This opens the database file directly rather than through src/db, which
+    // is what keeps the checker side-effect free — it must never migrate a
+    // production database as a consequence of somebody asking a question. The
+    // cost is that a database the app has not opened since this change has no
+    // kind column yet, so it is tested for rather than assumed.
+    const migrated = (db.prepare(`PRAGMA table_info(outlets)`).all() as { name: string }[]).some(
+      (c) => c.name === 'kind',
+    );
+    if (hasOutlets.n > 0 && !migrated) {
+      db.close();
+      add(
+        'warn',
+        'shops',
+        'this database predates groceries having their own record — it will migrate itself the next time the agent starts',
+      );
+    } else if (hasOutlets.n > 0) {
+      const row = db
+        .prepare(`SELECT COUNT(*) AS n FROM outlets WHERE active = 1 AND kind = 'restaurant'`)
+        .get() as { n: number };
       const noNumber = db
         .prepare(`SELECT COUNT(*) AS n FROM outlets WHERE active = 1 AND whatsapp = ''`)
         .get() as { n: number };
+
+      // The groceries, reported separately. A grocery with no number is the
+      // worse failure of the two: a shop that cannot be reached about an order
+      // off its own shelves has nobody packing it.
+      const groceries = db
+        .prepare(
+          `SELECT code, name, whatsapp FROM outlets WHERE active = 1 AND kind = 'grocery' ORDER BY name`,
+        )
+        .all() as { code: string; name: string; whatsapp: string }[];
       db.close();
 
+      if (groceries.length === 0) {
+        add('fail', 'groceries', 'none set up — a grocery order would have no shop to go to');
+      } else {
+        const mute = groceries.filter((g) => !g.whatsapp);
+        if (mute.length > 0) {
+          add(
+            'fail',
+            'grocery WhatsApp',
+            `${mute.map((g) => g.code).join(', ')} ha${mute.length === 1 ? 's' : 've'} no number — grocery orders will reach nobody to pick them. Set it with \`number ${mute[0]?.code} <digits>\``,
+          );
+        } else {
+          add(
+            'ok',
+            'groceries',
+            dim(groceries.map((g) => `${g.name} +${g.whatsapp}`).join(', ')),
+          );
+        }
+      }
+
       if (row.n > 0) {
-        add('ok', 'restaurants', dim(`${row.n} active outlet(s)`));
+        add('ok', 'restaurants', dim(`${row.n} active kitchen(s)`));
 
         const associates = numbers('DRIVER_NUMBERS');
         if (associates.length === 0) {

@@ -224,9 +224,10 @@ export const MEAL_SIGN_OFFS = [
  * about a particular message can be traced to the order that sent it.
  */
 export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): string {
-  // Food is food because a kitchen cooked it, which is the one fact that
-  // cannot be wrong - a grocery order has no outlet and neither does a parcel.
-  if (!order.outlet) return '';
+  // Asked of the order's own kind, not of whether it has a shop. A grocery
+  // order has a shop now, and reading it the old way wished somebody an
+  // enjoyable meal over a bag of rice and a bottle of bleach.
+  if (order.kind !== 'restaurant') return '';
 
   const n = Number(order.orderNo.replace(/[^0-9]/g, ''));
   const pick = Number.isFinite(n) ? n % MEAL_SIGN_OFFS.length : 0;

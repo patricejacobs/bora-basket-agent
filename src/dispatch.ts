@@ -93,11 +93,14 @@ export async function tellKitchenCancelled(orderNo: string, hadAccepted = true):
   if (!order?.outlet) return '';
 
   const outlet = repo.outletById(order.outlet.id);
-  if (!outlet?.whatsapp) return '⚠️ Kitchen has no WhatsApp number — ring them to stop the order.';
+  // A grocery needs calling off exactly as much as a kitchen does — somebody
+  // is filling a bag — so this runs for both, and only the noun changes.
+  const who = outlet?.kind === 'grocery' ? 'Shop' : 'Kitchen';
+  if (!outlet?.whatsapp) return `⚠️ ${who} has no WhatsApp number — ring them to stop the order.`;
 
   const reason = order.cancelReason ? ` — ${order.cancelReason}` : '';
-  // A kitchen that never accepted the ticket has not started, and telling it to
-  // "stop cooking" invites a worried phone call about food it never made.
+  // A shop that never accepted the ticket has not started, and telling it to
+  // "stop" invites a worried phone call about work it never did.
   const what = hadAccepted
     ? 'Stop preparing it if you have started.'
     : 'Do not start it — ignore the ticket.';
@@ -105,10 +108,10 @@ export async function tellKitchenCancelled(orderNo: string, hadAccepted = true):
     await sendText(outlet.whatsapp, `🚫 *${order.orderNo} cancelled*${reason}.
 
 ${what}`);
-    return 'Kitchen told to stop.';
+    return `${who} told to stop.`;
   } catch (err) {
-    console.error('[dispatch] could not tell the kitchen about a cancellation:', err);
-    return '⚠️ Could not tell the kitchen — ring them.';
+    console.error('[dispatch] could not tell the shop about a cancellation:', err);
+    return `⚠️ Could not tell the ${who.toLowerCase()} — ring them.`;
   }
 }
 
@@ -234,19 +237,15 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
 
 export async function announceNewOrder(orderNo: string): Promise<void> {
   await notifyStaffOfNewOrder(orderNo);
-  const picking = await notifyGroceryOfOrder(orderNo);
-  if (picking === 'no_number') {
-    console.warn(`[dispatch] ${orderNo} needs picking but GROCERY_NUMBER is not set`);
-  }
-  if (picking === 'unreachable') {
-    console.warn(`[dispatch] ${orderNo}: picking ticket could not be delivered`);
-  }
+  // One call for every shop. A grocery used to need a second route of its own,
+  // because it was not an outlet and had nowhere for a ticket to go; it is one
+  // now, so a kitchen and a grocery are told the same way.
   const outcome = await notifyOutletOfOrder(orderNo);
   if (outcome === 'no_number') {
-    console.warn(`[dispatch] ${orderNo} needs cooking but the outlet cannot be reached`);
+    console.warn(`[dispatch] ${orderNo} needs preparing but the shop cannot be reached`);
   }
   if (outcome === 'nudged') {
-    console.log(`[dispatch] ${orderNo}: kitchen nudged by template, ticket held until they reply`);
+    console.log(`[dispatch] ${orderNo}: shop nudged by template, ticket held until they reply`);
   }
 }
 
@@ -310,47 +309,15 @@ export function pickingTicket(order: repo.OrderRecord): string {
   ].join(String.fromCharCode(10));
 }
 
-export async function notifyGroceryOfOrder(orderNo: string): Promise<TicketOutcome> {
-  if (!config.groceryNumber) return 'no_number';
-
-  const order = repo.findOrder(orderNo);
-  if (!order) return 'not_a_restaurant';
-  // Groceries only. A parcel carries no items and a restaurant order is cooked
-  // somewhere else; sending either to the person packing shelves is noise.
-  if (order.kind !== 'grocery' || order.outlet) return 'not_a_restaurant';
-
-  // The same 24-hour rule the kitchens hit. A message with buttons is refused
-  // outside the window, silently as far as the sender is concerned, so an
-  // order would sit unpicked with nobody wondering why. There is no approved
-  // template for this one, so the honest thing is to say it did not go — the
-  // order is still in the staff broadcast, so nothing is lost by it.
-  if (!repo.serviceWindowOpen(config.groceryNumber)) {
-    await warnStaff(
-      [
-        `⚠️ ${order.orderNo} could not be sent to the picking number.`,
-        '',
-        `+${config.groceryNumber} has not messaged the shop in 24 hours, and WhatsApp will not let us start a conversation with buttons in it.`,
-        'Ask them to send any message here, and the next order will reach them.',
-      ].join(String.fromCharCode(10)),
-    );
-    return 'unreachable';
-  }
-
-  const body = pickingTicket(order);
-
-  // The same buttons the shop gets, because the titles are themselves valid
-  // commands and one parser handles a tap and a typed line alike.
-  const actions = nextActions(order.orderNo, order.status, 'outlet');
-
-  try {
-    if (actions.length > 0) await sendButtons(config.groceryNumber, body, actions);
-    else await sendText(config.groceryNumber, body);
-    return 'sent';
-  } catch (err) {
-    console.error(`[dispatch] picking ticket for ${orderNo} failed:`, err);
-    return 'unreachable';
-  }
-}
+/* `notifyGroceryOfOrder` stood here.
+ *
+ * It existed because a grocery had no record and therefore nowhere for a
+ * ticket to be addressed: the number came from GROCERY_NUMBER, the 24-hour
+ * window had to be checked separately, and there was no template to fall back
+ * on. A grocery is an outlet now, so `notifyOutletOfOrder` does all of that,
+ * including the window and the nudge. The ticket it wrote survives as
+ * `pickingTicket` above, which is the part that was worth keeping.
+ */
 
 export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcome> {
   const order = repo.findOrder(orderNo);
@@ -362,6 +329,8 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
     return 'no_number';
   }
 
+  const packing = outlet.kind === 'grocery';
+
   // The 24-hour window. A ticket is a plain message with buttons, and Meta
   // refuses those outside it — silently, as far as the kitchen is concerned.
   // Sending anyway is how an order sits at pending with nobody wondering why.
@@ -369,22 +338,36 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
     return nudgeOutlet(order, outlet.whatsapp);
   }
 
-  const body = [
-    `👨‍🍳 *Order ${order.orderNo}* — please prepare`,
-    '',
-    ...itemLines(order),
-    '',
-    // The food only. A kitchen has no business seeing what the customer pays
-    // for delivery, and showing it invites an argument about the split.
-    `Food total ${money(order.items.reduce((sum, i) => sum + i.lineTotal, 0))}`,
-    `Ordered ${new Date(order.placedAt).toLocaleTimeString('en-GB', {
-      timeZone: config.store.timezone,
-      hour: 'numeric',
-      minute: '2-digit',
-    })}`,
-    '',
-    `Tap *Confirm* to accept, then *${order.orderNo} ready* when the food is up and a delivery associate will come.`,
-  ].join('\n');
+  // Two shapes, one send path.
+  //
+  // A kitchen is told to cook; a grocery is told to pick. The picking list is
+  // the better message for somebody at a shelf — items, goods total, and
+  // nothing about where it is going — and it was already written for the old
+  // GROCERY_NUMBER route, so this chooses between the two rather than making a
+  // grocery read a ticket that tells it to start cooking.
+  //
+  // Neither is shown the delivery fee. It is not theirs to collect, and
+  // showing it invites an argument about the split.
+  const body = packing
+    ? [
+        pickingTicket(order),
+        '',
+        `Tap *Confirm* to accept, then *${order.orderNo} ready* when the bag is packed and a delivery associate will come.`,
+      ].join('\n')
+    : [
+        `👨‍🍳 *Order ${order.orderNo}* — please prepare`,
+        '',
+        ...itemLines(order),
+        '',
+        `Food total ${money(order.items.reduce((sum, i) => sum + i.lineTotal, 0))}`,
+        `Ordered ${new Date(order.placedAt).toLocaleTimeString('en-GB', {
+          timeZone: config.store.timezone,
+          hour: 'numeric',
+          minute: '2-digit',
+        })}`,
+        '',
+        `Tap *Confirm* to accept, then *${order.orderNo} ready* when the food is up and a delivery associate will come.`,
+      ].join('\n');
 
   const ok = await sendButtons(
     outlet.whatsapp,

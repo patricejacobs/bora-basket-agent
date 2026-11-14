@@ -178,20 +178,22 @@ export const config = {
     .filter(Boolean),
 
   /**
-   * Where a grocery order goes to be picked and packed.
+   * Superseded. Read once, to seed the house grocery's own number.
    *
-   * A restaurant order reaches the kitchen that cooks it, at that kitchen's own
-   * number. A grocery order had no equivalent: it went to the whole staff
-   * broadcast and whoever happened to read it first, which is a dispatch alert
-   * and not a picking list.
+   * This used to be where a grocery order went to be picked, because a grocery
+   * was not a shop: it had no record, so its telephone number had nowhere to
+   * live but here, and the person holding it had to be staff before the
+   * ticket's buttons would do anything.
    *
-   * One number, because picking is one person's job at a time. Empty switches
-   * it off and nothing changes.
+   * A grocery is an outlet now, with its number in its own row, so the number
+   * lives in the database where a restaurant's does and the person holding it
+   * needs no permissions at all. The migration in db/index.ts copies this
+   * value into the house grocery the first time it runs, so a shop that had
+   * configured it keeps working without touching anything.
    *
-   * For the buttons on the ticket to do anything, this number has to be one the
-   * shop already recognises — a staff number. The ticket is routed by this
-   * setting; what the person may *do* is still decided by STAFF_NUMBERS, so
-   * nothing here grants anybody a permission they did not already have.
+   * Nothing else reads this. Change the number with
+   * `number GROCERY <digits>` or in the outlets CSV; changing it here after
+   * the first boot does nothing.
    */
   groceryNumber: str('GROCERY_NUMBER', '').replace(/[^0-9]/g, ''),
 

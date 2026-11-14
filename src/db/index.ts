@@ -28,13 +28,20 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_active   ON products(active);
 
--- Restaurants and fast-food outlets the customer can order from.
+-- The shops the customer can order from: kitchens that cook, and groceries that
+-- pack off a shelf. Told apart by the kind column.
 --
--- The house grocery catalogue has no outlet (products.outlet_id IS NULL); every
--- menu item belongs to exactly one of these. Each keeps its own hours, because
--- a roti shop shutting at three and a fried-chicken counter open till eleven
--- cannot share one setting, and its own prep time, because the delivery promise
--- is cooking plus driving and only the kitchen knows the first half.
+-- Every product belongs to exactly one of these. Groceries used to be the
+-- exception — a house catalogue with products.outlet_id IS NULL and its number
+-- in an environment variable — which meant one implicit shop, no confirm step
+-- of its own, and a number that had to be staff to press a button. A grocery is
+-- an outlet now, so it has the same record, the same tickets and the same
+-- Confirm as a kitchen, and there can be more than one of them.
+--
+-- Each keeps its own hours, because a roti shop shutting at three and a
+-- fried-chicken counter open till eleven cannot share one setting, and its own
+-- prep time, because the delivery promise is preparing plus driving and only
+-- the shop knows the first half.
 CREATE TABLE IF NOT EXISTS outlets (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   code           TEXT    NOT NULL UNIQUE,
@@ -282,9 +289,13 @@ addColumnIfMissing('orders', 'location_label', "TEXT NOT NULL DEFAULT ''");
 
 /* ------------------------------------------------- restaurants and menus */
 
-// Which outlet a row belongs to. NULL is the house grocery catalogue, so every
-// existing product keeps working untouched.
+// Which outlet a row belongs to. NULL meant the house grocery catalogue until
+// groceries became outlets of their own; the migration near the foot of this
+// file adopts any row still carrying NULL, so nothing is stranded.
 addColumnIfMissing('products', 'outlet_id', 'INTEGER REFERENCES outlets(id)');
+// A kitchen or a grocery. Defaulting to 'restaurant' is right for every row
+// that existed before this column did — the only outlets then were kitchens.
+addColumnIfMissing('outlets', 'kind', "TEXT NOT NULL DEFAULT 'restaurant'");
 // Modifier groups, in the compact text form the menu CSV uses. Empty for
 // groceries: a bag of rice has no size, spice level or "no onions".
 addColumnIfMissing('products', 'options', "TEXT NOT NULL DEFAULT ''");
@@ -455,16 +466,23 @@ db.exec(`CREATE INDEX IF NOT EXISTS order_events_by_time ON order_events (at)`);
  * Repairs rows written before the two bugs above were fixed.
  *
  * Both are rewrites of what the row already meant, not guesses. An order with
- * an outlet was cooked in a kitchen whatever its `kind` column says, and a
- * cancellation reason on an order that is not cancelled described something
- * that did not happen.
+ * a *restaurant* outlet was cooked in a kitchen whatever its `kind` column
+ * says, and a cancellation reason on an order that is not cancelled described
+ * something that did not happen.
+ *
+ * The outlet kind in that first statement is not decoration. Before groceries
+ * became outlets, "has an outlet" and "is a restaurant order" were the same
+ * fact, so the repair tested the cheaper one. They are different facts now: a
+ * grocery order has an outlet too, and without the kind check this would
+ * relabel every grocery order as a restaurant one on every single boot.
  *
  * Idempotent, and cheap once there is nothing left to mend: both run on every
  * boot and match no rows after the first.
  */
 db.exec(`
   UPDATE orders SET kind = 'restaurant'
-   WHERE outlet_id IS NOT NULL AND kind = 'grocery';
+   WHERE outlet_id IS NOT NULL AND kind = 'grocery'
+     AND outlet_id IN (SELECT id FROM outlets WHERE kind = 'restaurant');
 
   UPDATE orders SET cancel_reason = '', cancelled_by = ''
    WHERE status <> 'cancelled' AND (cancel_reason <> '' OR cancelled_by <> '');
@@ -520,6 +538,73 @@ db.exec(`
 {
   const info = db.prepare(`UPDATE products SET active = 0 WHERE sku = 'BEV-001' AND active = 1`).run();
   if (info.changes > 0) console.log('[db] deactivated BEV-001 — alcohol is not permitted on WhatsApp');
+}
+
+/**
+ * Groceries become a shop with a record, rather than the absence of one.
+ *
+ * A grocery used to be implied: products with no outlet, a number in
+ * GROCERY_NUMBER, and the shop's own staff pressing Confirm on its behalf.
+ * That worked for exactly one grocery and gave it no identity — no hours of its
+ * own, no pickup address for the associate, and a telephone number that had to
+ * be staff before it could press a button.
+ *
+ * So one house grocery is created here, and every product still carrying NULL
+ * is adopted into it. After this runs there is no such thing as a product
+ * without a shop, which is what lets the restaurant path — tickets, Confirm,
+ * Ready, dispatch, per-outlet hours and fees — serve groceries unchanged.
+ *
+ * Runs on every boot and is idempotent: the insert is ignored once the row
+ * exists, and the adoption matches nothing once nothing is orphaned.
+ *
+ * It is deliberately unconditional rather than only running when orphans
+ * exist. `upsertProduct` files a product with no outlet into this shop, so it
+ * has to be here before the first product is, including on a database created
+ * from scratch a moment ago.
+ */
+export const HOUSE_GROCERY_CODE = 'GROCERY';
+{
+  const centre = config.store.serviceArea;
+  db.prepare(
+    `INSERT INTO outlets
+       (code, name, kind, cuisine, hours, prep_minutes, min_order, delivery_fee,
+        pickup_address, pickup_lat, pickup_lng, whatsapp, accepting, active, updated_at)
+     VALUES (?, ?, 'grocery', ?, ?, 20, 0, NULL, '', ?, ?, ?, 1, 1, ?)
+     ON CONFLICT(code) DO NOTHING`,
+  ).run(
+    HOUSE_GROCERY_CODE,
+    config.store.name,
+    'Groceries and household goods',
+    // Open round the clock: a shelf does not shut the way a kitchen does, and
+    // an hours string that disagreed with the shop would refuse real orders.
+    '24 hours',
+    centre?.latitude ?? null,
+    centre?.longitude ?? null,
+    // Seeded from GROCERY_NUMBER where it was set, so a shop that configured
+    // the picking number keeps it without doing the work twice. The outlet's
+    // own column is the home for it from here on.
+    config.groceryNumber,
+    new Date().toISOString(),
+  );
+
+  const house = db.prepare(`SELECT id FROM outlets WHERE code = ?`).get(HOUSE_GROCERY_CODE) as
+    | { id: number }
+    | undefined;
+
+  if (house) {
+    const adopted = db
+      .prepare(`UPDATE products SET outlet_id = ? WHERE outlet_id IS NULL`)
+      .run(house.id);
+    if (adopted.changes > 0) {
+      console.log(`[db] migrated: ${adopted.changes} grocery products now belong to a shop`);
+    }
+    // Carts parked under the old grocery sentinel, so somebody mid-shop across
+    // the deploy finds their list where they left it rather than empty.
+    const moved = db
+      .prepare(`UPDATE parked_cart_items SET outlet_key = ? WHERE outlet_key = 0`)
+      .run(house.id);
+    if (moved.changes > 0) console.log(`[db] migrated: ${moved.changes} parked grocery cart lines`);
+  }
 }
 
 export const nowIso = (): string => new Date().toISOString();

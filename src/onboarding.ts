@@ -185,7 +185,7 @@ export async function handleOnboardingCommand(
     if (digits.length < 7) return reply('That does not look like a telephone number.');
     repo.upsertOutlet({ ...outlet, whatsapp: digits });
     return reply(
-      `${outlet.name} kitchen tickets will go to +${digits}. They can reply \`orders\`, \`7 confirm\`, \`7 ready\`.`,
+      `${outlet.name} ${outlet.kind === 'grocery' ? 'picking lists' : 'kitchen tickets'} will go to +${digits}. They can reply \`orders\`, \`7 confirm\`, \`7 ready\`.`,
     );
   }
 

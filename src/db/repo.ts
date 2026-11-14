@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { db, nowIso } from './index.ts';
+import { db, nowIso, HOUSE_GROCERY_CODE } from './index.ts';
 import { config } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
@@ -40,10 +40,22 @@ export const PRODUCT_COLUMNS = `
   image_url AS imageUrl, outlet_id AS outletId,
   track_stock AS trackStock, sold_out AS soldOut`;
 
+/**
+ * A kitchen that cooks, or a grocery that packs off a shelf.
+ *
+ * The two share this record because they share nearly everything that matters
+ * to an order: a telephone number that receives a ticket, a Confirm, a pickup
+ * the associate drives to, their own hours and their own fee. What differs is
+ * the wording on the ticket and which list a customer is shown.
+ */
+export type OutletKind = 'restaurant' | 'grocery';
+
 export type Outlet = {
   id: number;
   code: string;
   name: string;
+  kind: OutletKind;
+  /** What the shop sells, in words. A cuisine for a kitchen; a range for a grocery. */
   cuisine: string;
   hours: string;
   prepMinutes: number;
@@ -122,13 +134,19 @@ function pinFromRow(row: {
 
 /* ------------------------------------------------------------------ catalog */
 
-export function listCategories(): { category: string; count: number }[] {
-  return db
-    .prepare(
-      `SELECT category, COUNT(*) AS count FROM products
-       WHERE active = 1 GROUP BY category ORDER BY category`,
-    )
-    .all() as { category: string; count: number }[];
+/**
+ * The aisles of one shop.
+ *
+ * Scoped, because the answer to "what do you sell?" is one shop's range.
+ * Unscoped it would pool a grocery's shelves with every kitchen's menu and
+ * offer the customer categories they cannot order from where they are standing.
+ */
+export function listCategories(outletId?: number | null): { category: string; count: number }[] {
+  const scoped = outletId !== undefined && outletId !== null;
+  const sql = `SELECT category, COUNT(*) AS count FROM products
+       WHERE active = 1${scoped ? ' AND outlet_id = ?' : ''} GROUP BY category ORDER BY category`;
+  const rows = scoped ? db.prepare(sql).all(outletId) : db.prepare(sql).all();
+  return rows as { category: string; count: number }[];
 }
 
 export function getProductBySku(sku: string): Product | null {
@@ -142,10 +160,43 @@ export function getProductBySku(sku: string): Product | null {
 
 /* ------------------------------------------------------------------ outlets */
 
-export function listOutlets(): Outlet[] {
-  return db
-    .prepare(`SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE active = 1 ORDER BY name`)
-    .all() as unknown as Outlet[];
+/**
+ * The shops in use, optionally narrowed to one kind.
+ *
+ * Narrowing matters: someone who asked for takeaway must not be offered a
+ * supermarket, and someone shopping for rice must not be offered a roti shop.
+ */
+export function listOutlets(kind?: OutletKind): Outlet[] {
+  const where = kind ? `active = 1 AND kind = ?` : `active = 1`;
+  const sql = `SELECT *, ${OUTLET_COLUMNS} FROM outlets WHERE ${where} ORDER BY name`;
+  const rows = kind ? db.prepare(sql).all(kind) : db.prepare(sql).all();
+  return rows as unknown as Outlet[];
+}
+
+/**
+ * The grocery a customer shops in when they have not chosen one.
+ *
+ * With a single grocery — which is where every shop starts — this is what
+ * removes the choosing step entirely: the customer says "groceries" and is
+ * already in the shop, exactly as they were when a grocery was not a shop at
+ * all. With several, there is a real decision to make and this returns null so
+ * the caller asks instead of guessing.
+ *
+ * Picking the nearest one to the customer would go here. It is deliberately
+ * not here yet: it needs the customer's pin before the catalogue rather than
+ * at checkout, and across the Demerara a straight line is the wrong measure.
+ */
+export function defaultGrocery(): Outlet | null {
+  const groceries = listOutlets('grocery');
+  return groceries.length === 1 ? (groceries[0] ?? null) : null;
+}
+
+/** The house grocery, which every product with no shop of its own belongs to. */
+export function houseGroceryId(): number | null {
+  const row = db.prepare(`SELECT id FROM outlets WHERE code = ?`).get(HOUSE_GROCERY_CODE) as
+    | { id: number }
+    | undefined;
+  return row?.id ?? null;
 }
 
 export function getOutlet(code: string): Outlet | null {
@@ -188,6 +239,8 @@ export function outletByWhatsapp(phone: string): Outlet | null {
 export function upsertOutlet(o: {
   code: string;
   name: string;
+  /** Defaults to a kitchen, which is what an outlet meant before groceries were one. */
+  kind?: OutletKind;
   cuisine?: string;
   hours?: string;
   prepMinutes?: number;
@@ -202,11 +255,12 @@ export function upsertOutlet(o: {
 }): void {
   db.prepare(
     `INSERT INTO outlets
-       (code, name, cuisine, hours, prep_minutes, min_order, delivery_fee,
+       (code, name, kind, cuisine, hours, prep_minutes, min_order, delivery_fee,
         pickup_address, pickup_lat, pickup_lng, whatsapp, accepting, active, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(code) DO UPDATE SET
-       name = excluded.name, cuisine = excluded.cuisine, hours = excluded.hours,
+       name = excluded.name, kind = excluded.kind,
+       cuisine = excluded.cuisine, hours = excluded.hours,
        prep_minutes = excluded.prep_minutes, min_order = excluded.min_order,
        delivery_fee = excluded.delivery_fee, pickup_address = excluded.pickup_address,
        pickup_lat = excluded.pickup_lat, pickup_lng = excluded.pickup_lng,
@@ -215,6 +269,7 @@ export function upsertOutlet(o: {
   ).run(
     o.code,
     o.name,
+    o.kind ?? 'restaurant',
     o.cuisine ?? '',
     o.hours ?? '',
     o.prepMinutes ?? 20,
@@ -339,7 +394,11 @@ export function upsertProduct(p: {
   active: number;
   keywords: string;
   imageUrl?: string;
-  /** Null (the default) files the row in the house grocery catalogue. */
+  /**
+   * Which shop stocks it. Omitted, the row goes to the house grocery — the
+   * importer for a plain product list names no shop, and a product belonging
+   * to none of them would be invisible to every search.
+   */
   outletId?: number | null;
   options?: string;
   /** 0 for anything cooked to order; see availability.ts. */
@@ -368,7 +427,7 @@ export function upsertProduct(p: {
     p.active,
     p.keywords,
     p.imageUrl ?? '',
-    p.outletId ?? null,
+    p.outletId ?? houseGroceryId(),
     p.options ?? '',
     p.trackStock ?? 1,
     nowIso(),
@@ -387,10 +446,19 @@ export function photoCoverage(): { withPhoto: number; total: number } {
   return { withPhoto: row.withPhoto ?? 0, total: row.total };
 }
 
-/** Active menu items across every outlet, as distinct from grocery stock. */
+/**
+ * Active menu items, as distinct from grocery stock.
+ *
+ * Joined to the outlet rather than testing for one. Every product has a shop
+ * now, so "belongs to an outlet" counts the groceries this is meant to exclude.
+ */
 export function menuItemCount(): number {
   const row = db
-    .prepare(`SELECT COUNT(*) AS n FROM products WHERE active = 1 AND outlet_id IS NOT NULL`)
+    .prepare(
+      `SELECT COUNT(*) AS n FROM products p
+         JOIN outlets o ON o.id = p.outlet_id
+        WHERE p.active = 1 AND o.kind = 'restaurant'`,
+    )
     .get() as { n: number };
   return row.n;
 }
@@ -580,18 +648,6 @@ export function cartOutletId(phone: string): number | null {
     )
     .get(phone) as { outletId: number } | undefined;
   return row?.outletId ?? null;
-}
-
-/** True when the cart holds house groceries, which cannot mix with a menu. */
-export function cartHasGroceries(phone: string): boolean {
-  const row = db
-    .prepare(
-      `SELECT 1 AS found FROM cart_items c
-         JOIN products p ON p.id = c.product_id
-        WHERE c.phone = ? AND p.outlet_id IS NULL LIMIT 1`,
-    )
-    .get(phone) as { found: number } | undefined;
-  return row !== undefined;
 }
 
 export function setCartQty(phone: string, productId: number, qty: number, options = ''): void {
@@ -794,7 +850,13 @@ export function placeOrder(args: {
         // one: the outlet name was right, so nothing broke, but counting
         // orders by service answered the wrong question and the archive
         // carried the wrong label for good.
-        cart.outlet ? 'restaurant' : 'grocery',
+        //
+        // Read from the shop's kind, never from whether there is a shop. Every
+        // cart has one now, and the older test — `cart.outlet ? ...` — filed
+        // every grocery order as a restaurant order the moment groceries
+        // became shops. The label is permanent, so getting it wrong here is
+        // not a display bug; it is the archive saying something untrue.
+        cart.outlet?.kind === 'grocery' ? 'grocery' : 'restaurant',
         // Written at placing time, not at dispatch. One code per order for its
         // whole life, so a retried or re-sent message carries the same digits
         // as the first one - a customer holding two different codes has no

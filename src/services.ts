@@ -120,9 +120,13 @@ export type NumberedOutlet = { number: number; outlet: Outlet; open: boolean };
  *
  * Kitchens that are cooking come first: a list led by three closed restaurants
  * reads as a shop that is shut.
+ *
+ * Restaurants unless asked otherwise. Groceries are outlets too now, and a
+ * customer who asked for takeaway must not be offered a supermarket in the
+ * same numbered list.
  */
-export function numberedOutlets(): NumberedOutlet[] {
-  const withState = repo.listOutlets().map((outlet) => ({
+export function numberedOutlets(kind: repo.OutletKind = 'restaurant'): NumberedOutlet[] {
+  const withState = repo.listOutlets(kind).map((outlet) => ({
     outlet,
     open: hoursStatus(outlet.hours).state !== 'closed' && Boolean(outlet.accepting),
   }));
@@ -142,8 +146,11 @@ export function numberedOutlets(): NumberedOutlet[] {
  * customer who builds a $1,800 order and is only then told the kitchen will not
  * take it under $2,000 has been wasted, and it reads as a bait and switch.
  */
-export function outletListMessage(lang: Language = 'en'): string {
-  const outlets = numberedOutlets();
+export function outletListMessage(
+  lang: Language = 'en',
+  kind: repo.OutletKind = 'restaurant',
+): string {
+  const outlets = numberedOutlets(kind);
   if (outlets.length === 0) {
     return t('outlets_none_setup', lang);
   }

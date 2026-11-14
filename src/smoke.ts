@@ -1888,7 +1888,18 @@ section('Numbered kitchen list');
   const { numberedOutlets, outletListMessage, serviceOpening } = await import('./services.ts');
 
   const numbered = numberedOutlets();
-  check('numbers every outlet', numbered.length === repo.listOutlets().length, JSON.stringify(numbered.length));
+  // Restaurants only. Groceries are outlets too, and a customer who asked for
+  // takeaway must not find a supermarket numbered among the kitchens.
+  check(
+    'numbers every kitchen',
+    numbered.length === repo.listOutlets('restaurant').length,
+    JSON.stringify(numbered.length),
+  );
+  check(
+    'and leaves the groceries out of the kitchen list',
+    repo.listOutlets().length > repo.listOutlets('restaurant').length,
+  );
+  check('every numbered entry is a kitchen', numbered.every((n) => n.outlet.kind === 'restaurant'));
   check('numbers start at 1 and run consecutively', numbered.every((n, i) => n.number === i + 1), JSON.stringify(numbered.map((n) => n.number)));
 
   // Bourda Roti House shuts at 4pm, so whether it is open depends on when this
@@ -2154,7 +2165,7 @@ section('Kitchen and delivery associate commands');
     // Any order belonging to a kitchen, put back on the pass. Which orders are
     // open by this point depends on every test above it, and a button test
     // should not be hostage to that.
-    const fresh = repo.allOrders().find((o) => o.outlet !== null);
+    const fresh = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
     const itsOutlet = fresh?.outlet ? repo.getOutlet(repo.outletById(fresh.outlet.id)?.code ?? '') : null;
     check('there is an order on the pass', Boolean(fresh && itsOutlet), JSON.stringify(fresh?.orderNo));
 
@@ -2829,7 +2840,13 @@ section('Changing service mid-conversation');
   check('the service changed', repo.getService(phone) === 'restaurant');
 
   const parked = repo.listParkedCarts(phone);
-  check('the groceries are parked', parked.length === 1 && parked[0]?.label === 'Groceries', JSON.stringify(parked));
+  // Labelled with the shop rather than the word "Groceries". A grocery is a
+  // place now, and with more than one of them the label has to say which.
+  check(
+    'the groceries are parked, under the shop they came from',
+    parked.length === 1 && parked[0]?.label === config.store.name,
+    JSON.stringify(parked),
+  );
   check('with everything in them', parked[0]?.itemCount === 3, String(parked[0]?.itemCount));
 
   // The agent is reminded on every turn, or it will tell them the list is gone.
@@ -3074,7 +3091,7 @@ section('How a food order says goodbye');
   const { t: tr } = await import('./language.ts');
   check('including the French one', MEAL_SIGN_OFFS.some((k) => /Bon app/.test(tr(k, 'en'))));
 
-  const food = repo.allOrders().find((o) => o.outlet !== null);
+  const food = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
   const other = repo.allOrders().find((o) => o.outlet === null);
   check('there is a food order', Boolean(food));
   check('and one that is not', Boolean(other));
@@ -3337,7 +3354,7 @@ section('Who carried it');
   check('a formatted number is matched on digits', repo.getAssociate('+592 600 1111')?.name === 'Rider One');
 
   // Taking an order stamps who took it.
-  const order = repo.allOrders().find((o) => o.outlet !== null);
+  const order = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
   if (order) {
     const no = order.orderNo;
     repo.setOrderStatus(no, 'ready');
@@ -3720,12 +3737,40 @@ section('A shop that never closes');
 
 section('The picking ticket for a grocery order');
 {
-  const { notifyGroceryOfOrder, pickingTicket } = await import('./dispatch.ts');
-  const picker = config.groceryNumber;
-  check('a picking number is configured for the suite', picker === '5926497570', picker);
-  // Routing is not permission: the ticket goes where this says, but what the
-  // person may do is still decided by STAFF_NUMBERS.
-  check('and it is a number the shop already recognises', config.staffNumbers.includes(picker));
+  const { notifyOutletOfOrder, pickingTicket } = await import('./dispatch.ts');
+
+  /* --- the grocery is a shop -------------------------------------------- */
+
+  const house = repo.getOutlet('GROCERY');
+  check('a house grocery exists without anybody creating one', house !== null);
+  check('and it is a grocery, not a kitchen', house?.kind === 'grocery', String(house?.kind));
+  check('named after the shop', house?.name === config.store.name, house?.name);
+  // The two settings the shop asked for: a shelf does not shut the way a
+  // kitchen does, and there is no floor on a grocery order.
+  check('open round the clock', house?.hours === '24 hours', house?.hours);
+  check('with no minimum order', house?.minOrder === 0, String(house?.minOrder));
+  check(
+    'seeded with the number GROCERY_NUMBER used to hold',
+    house?.whatsapp === '5926497570',
+    house?.whatsapp,
+  );
+
+  // Nothing is stranded. A product belonging to no shop is invisible to every
+  // search, so the migration has to have adopted all of them.
+  const orphans = db.prepare(`SELECT COUNT(*) AS n FROM products WHERE outlet_id IS NULL`).get() as {
+    n: number;
+  };
+  check('no product is left without a shop', orphans.n === 0, String(orphans.n));
+
+  // Its own number, deliberately not a staff number. This is the point of the
+  // change: an outlet is routed by outletByWhatsapp, so the person pressing
+  // Confirm no longer has to be staff — and adding them to STAFF_NUMBERS would
+  // have quietly outranked their other role.
+  const picker = '5926497123';
+  repo.upsertOutlet({ code: 'GROCERY', name: config.store.name, kind: 'grocery', hours: '24 hours', whatsapp: picker });
+  check('the picking number need not be staff', !config.staffNumbers.includes(picker));
+  check('and the shop is reached through its own record', repo.outletByWhatsapp(picker)?.code === 'GROCERY');
+  const groceryId = repo.getOutlet('GROCERY')!.id;
 
   const mk = (no: string, kind: string, outletId: number | null) => {
     db.prepare(
@@ -3734,7 +3779,13 @@ section('The picking ticket for a grocery order');
          delivery_fee, total, payment_method, status, created_at)
        VALUES (?, '5926100003','Marcia Persaud','Lot 4 Diamond, blue gate','5926100003','', ?, ?, ?,
          6.81, -58.16, 'Diamond', 845000, 50000, 895000, 'cash', 'pending', ?)`,
-    ).run(no, kind, outletId, outletId ? 'A Taste of Guyana' : '', new Date().toISOString());
+    ).run(
+      no,
+      kind,
+      outletId,
+      outletId === null ? '' : (repo.outletById(outletId)?.name ?? 'A Taste of Guyana'),
+      new Date().toISOString(),
+    );
     const id = (db.prepare(`SELECT id FROM orders WHERE order_no = ?`).get(no) as { id: number }).id;
     for (const [sku, name, qty, line] of [
       ['GRN-001', 'Rice, 5kg', 2, 500000],
@@ -3749,7 +3800,7 @@ section('The picking ticket for a grocery order');
     return repo.findOrder(no)!;
   };
 
-  const shopping = mk('ORD-92001', 'grocery', null);
+  const shopping = mk('ORD-92001', 'grocery', groceryId);
 
   /* --- what it says ----------------------------------------------------- */
 
@@ -3769,35 +3820,69 @@ section('The picking ticket for a grocery order');
 
   /* --- who gets one ----------------------------------------------------- */
 
-  // A restaurant order is cooked somewhere else and a parcel has no items.
-  // Sending either to the person packing shelves is noise.
-  const cooked = mk('ORD-92002', 'restaurant', 1);
-  check('a restaurant order gets no picking ticket', (await notifyGroceryOfOrder(cooked.orderNo)) === 'not_a_restaurant');
+  // The house grocery is created when the database opens, so it holds id 1 on
+  // a fresh one. Nothing may assume a low outlet id is a kitchen.
+  check('the grocery is not assumed to be a restaurant', repo.outletById(1)?.kind === 'grocery');
+
+  // A parcel has no items to pick, and a kitchen is told to cook rather than
+  // to pack. One send path, which decides the words from the shop's kind.
+  const kitchenId = repo.listOutlets('restaurant')[0]!.id;
+  const cooked = mk('ORD-92002', 'restaurant', kitchenId);
+  check('a restaurant order belongs to a kitchen', cooked.outlet !== null, JSON.stringify(cooked.outlet));
+  check('and that kitchen is not the grocery', cooked.outlet?.id !== groceryId);
 
   db.prepare(`INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
       delivery_note, kind, parcel_details, subtotal, delivery_fee, total, payment_method, status, created_at)
     VALUES ('ORD-92003','5926100003','Marcia','Lot 4','5926100003','','parcel','an envelope',0,200000,200000,'cash','pending',?)`)
     .run(new Date().toISOString());
-  check('nor does a parcel', (await notifyGroceryOfOrder('ORD-92003')) === 'not_a_restaurant');
+  check('a parcel belongs to no shop', (await notifyOutletOfOrder('ORD-92003')) === 'not_a_restaurant');
 
-  check('an order that does not exist is not a crash', (await notifyGroceryOfOrder('ORD-99999')) === 'not_a_restaurant');
+  check('an order that does not exist is not a crash', (await notifyOutletOfOrder('ORD-99999')) === 'not_a_restaurant');
+
+  /* --- the boot repair must not relabel groceries ----------------------- */
+
+  // Before groceries were shops, "has an outlet" and "is a restaurant order"
+  // were the same fact, and a boot-time repair rewrote the kind on that basis.
+  // They are different facts now: without the outlet-kind check in that
+  // statement this order would be relabelled 'restaurant' on every boot, and
+  // every grocery order in the shop would quietly become a restaurant one.
+  db.exec(`
+    UPDATE orders SET kind = 'restaurant'
+     WHERE outlet_id IS NOT NULL AND kind = 'grocery'
+       AND outlet_id IN (SELECT id FROM outlets WHERE kind = 'restaurant');
+  `);
+  const survived = repo.findOrder(shopping.orderNo)!;
+  check('a grocery order survives the boot repair', survived.kind === 'grocery', survived.kind);
 
   /* --- the 24-hour window ----------------------------------------------- */
 
-  // The same rule the kitchens hit: a message with buttons is refused outside
-  // the window, silently. An order would sit unpicked with nobody wondering
-  // why, so the shop is told instead.
+  // The same rule the kitchens hit, now through the same code: a message with
+  // buttons is refused outside the window, silently. An order would sit
+  // unpicked with nobody wondering why.
   db.prepare(`DELETE FROM message_log WHERE phone = ?`).run(picker);
   check('a picker who has not written is out of the window', !repo.serviceWindowOpen(picker));
-  check('so the ticket reports it rather than vanishing', (await notifyGroceryOfOrder(shopping.orderNo)) === 'unreachable');
+  const held = await notifyOutletOfOrder(shopping.orderNo);
+  check('so the ticket is held rather than vanishing', held !== 'sent', String(held));
 
   repo.logMessage(picker, 'in', 'whatsapp', 'morning');
   check('and once they write, the window is open again', repo.serviceWindowOpen(picker));
-  // Inside the window the ticket goes. WhatsApp is unconfigured in the suite,
-  // so the send itself is dropped and logged rather than throwing — which is
-  // why this asserts the decision to send, not a delivery nobody can prove.
-  const sendOutcome = await notifyGroceryOfOrder(shopping.orderNo);
-  check('inside the window the ticket is sent', sendOutcome === 'sent', String(sendOutcome));
+
+  // Nothing can actually be sent here — WhatsApp is unconfigured in the suite —
+  // so what is provable is that the grocery sits inside the same ticket
+  // machinery the kitchens do, and that a refused send is never written down as
+  // a delivered one. That second rule is the one worth guarding: an order
+  // recorded as ticketed when it was not is an order nobody is packing.
+  db.prepare(`UPDATE orders SET outlet_notified_at = '' WHERE order_no = ?`).run(shopping.orderNo);
+  check(
+    'the grocery is owed its ticket like any shop',
+    repo.ordersAwaitingTicket(groceryId).some((o) => o.orderNo === shopping.orderNo),
+  );
+  const attempted = await notifyOutletOfOrder(shopping.orderNo);
+  check('a ticket that cannot be sent reports it', attempted === 'unreachable', String(attempted));
+  check(
+    'and is still owed afterwards, not marked delivered',
+    repo.ordersAwaitingTicket(groceryId).some((o) => o.orderNo === shopping.orderNo),
+  );
 
   db.prepare(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE order_no LIKE 'ORD-920%')`).run();
   db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-920%'`).run();
@@ -3831,7 +3916,7 @@ section("WhatsApp's 24-hour window");
   check('two hours old is still open', repo.serviceWindowOpen('5926123459'));
 
   // A ticket that could not be sent is owed to the kitchen.
-  const cooked = repo.allOrders().find((o) => o.outlet !== null);
+  const cooked = repo.allOrders().find((o) => o.kind === 'restaurant' && o.outlet !== null);
   check('there is a restaurant order to hold', Boolean(cooked));
 
   if (cooked?.outlet) {
@@ -3883,19 +3968,43 @@ section('What an order says it is');
 {
   const archived = repo.allOrders();
 
-  const cooked = archived.filter((o) => o.outlet !== null);
-  check('there is a restaurant order to check', cooked.length > 0);
+  // This section used to read an order's nature off whether it had an outlet,
+  // which was the same shortcut the code took. Both were right while a grocery
+  // was not a shop and wrong the moment it became one, and a test that shares
+  // a wrong assumption with the code it checks cannot catch it.
+  //
+  // So the rule asserted here is the one that does not rot: an order's kind is
+  // the kind of the shop it came from. It is the invariant both bugs behind
+  // this change broke — placing an order, and repairing one on boot.
+  const fromAShop = archived
+    .filter((o) => o.kind !== 'parcel')
+    .flatMap((o) => {
+      const shop = o.outlet === null ? null : repo.outletById(o.outlet.id);
+      return shop ? [{ order: o, shop }] : [];
+    });
+
+  check('there are orders with a shop to check', fromAShop.length > 0);
   check(
-    'an order from a kitchen is recorded as a restaurant order',
-    cooked.every((o) => o.kind === 'restaurant'),
-    cooked.map((o) => `${o.orderNo}=${o.kind}`).slice(0, 3).join(' '),
+    "an order's kind is the kind of the shop it came from",
+    fromAShop.every(({ order, shop }) => order.kind === shop.kind),
+    fromAShop
+      .filter(({ order, shop }) => order.kind !== shop.kind)
+      .map(({ order, shop }) => `${order.orderNo}=${order.kind} but ${shop.code}=${shop.kind}`)
+      .slice(0, 3)
+      .join(' '),
   );
 
-  const shelves = archived.filter((o) => o.outlet === null && o.kind !== 'parcel');
-  check(
-    'and one picked off the shelves is still a grocery order',
-    shelves.every((o) => o.kind === 'grocery'),
-  );
+  const cooked = fromAShop.filter(({ shop }) => shop.kind === 'restaurant');
+  check('a kitchen order is a restaurant order', cooked.length > 0);
+
+  const picked = fromAShop.filter(({ shop }) => shop.kind === 'grocery');
+  check('and one picked off the shelves is a grocery order', picked.length > 0);
+
+  // Orders placed before groceries were shops kept their empty outlet. They
+  // are history and must stay readable as what they were.
+  const legacy = archived.filter((o) => o.outlet === null && o.kind !== 'parcel');
+  check('a grocery order from before the change still reads as one', legacy.every((o) => o.kind === 'grocery'));
+
   check(
     'a parcel is neither',
     archived.filter((o) => o.parcelDetails !== '').every((o) => o.kind === 'parcel'),

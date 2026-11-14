@@ -31,6 +31,7 @@ export type MenuImportResult = {
 const OUTLET_HEADERS: Record<string, string> = {
   code: 'code', outlet: 'code', outlet_code: 'code',
   name: 'name', outlet_name: 'name',
+  kind: 'kind', shop_kind: 'kind', shop_type: 'kind',
   cuisine: 'cuisine', serves: 'cuisine', type: 'cuisine',
   hours: 'hours', opening_hours: 'hours',
   prep_minutes: 'prep', prep: 'prep', prep_time: 'prep', cook_time: 'prep',
@@ -120,10 +121,28 @@ export function importOutletsText(text: string): { imported: number; skipped: Me
         continue;
       }
 
+      // A kitchen unless the row says otherwise, because that is what every
+      // row written before this column existed meant. Anything unrecognised is
+      // refused rather than quietly filed as a restaurant: a grocery listed
+      // among the kitchens is a supermarket offered to somebody who asked for
+      // takeaway, and the shop would have no way to see why.
+      const rawKind = get('kind').toLowerCase();
+      const kind =
+        rawKind === '' || rawKind === 'restaurant' || rawKind === 'kitchen'
+          ? ('restaurant' as const)
+          : rawKind === 'grocery' || rawKind === 'shop' || rawKind === 'supermarket'
+            ? ('grocery' as const)
+            : null;
+      if (kind === null) {
+        skipped.push({ line, reason: `"${rawKind}" is not a kind — use restaurant or grocery` });
+        continue;
+      }
+
       const fee = numberOrNull(get('delivery_fee'));
       upsertOutlet({
         code,
         name,
+        kind,
         cuisine: get('cuisine'),
         hours: get('hours'),
         prepMinutes: numberOrNull(get('prep')) ?? 20,

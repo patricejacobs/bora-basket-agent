@@ -7,7 +7,7 @@ This is the **manual**. [README.md](README.md) is the engineering record — why
 things were built the way they were. If the two ever disagree, the code is
 right and both documents are wrong; tell us and we will fix them.
 
-**Last updated:** 13 November 2026 — tracks `main`. This file ships in the same
+**Last updated:** 14 November 2026 — tracks `main`. This file ships in the same
 commit as the change it describes, so if it is behind the agent, that is a bug.
 
 ---
@@ -35,7 +35,7 @@ runs it through to the door. There are four services:
 
 | | |
 |---|---|
-| **Grocery** | Shopping from the shop's own catalogue |
+| **Grocery** | Shopping from a grocery shop |
 | **Restaurant** | Food from a partner kitchen |
 | **Parcel** | Collect something from one address, take it to another |
 | **Other** | Anything else — handed to a person |
@@ -405,7 +405,6 @@ from the business number the agent sends from. The agent cannot message itself.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `GROCERY_NUMBER` | — | Where grocery orders go to be picked. See below |
 | `STORE_NAME` | Our Delivery Service | Used in every customer message |
 | `STORE_HOURS` | Mon-Sat 8am-8pm | `24 hours` for round the clock |
 | `STORE_TIMEZONE` | America/Guyana | Decides when "today" starts |
@@ -417,14 +416,30 @@ from the business number the agent sends from. The agent cannot message itself.
 | `PARCEL_MAX_KM` | 0 | Beyond this a parcel is refused. 0 = no limit |
 | `SERVICE_RADIUS_KM` | 0 | Beyond this an order is refused. 0 = no limit |
 
-### Picking groceries
+### The grocery shop
 
-A restaurant order reaches the kitchen that cooks it, at that kitchen's own
-number. A grocery order had no equivalent — it went only to the staff
-broadcast, which is a dispatch alert carrying an address, a telephone number
-and a map pin. None of that helps somebody filling a bag off a shelf.
+Your grocery is a **shop**, with its own record, exactly like a restaurant. It
+has its own name, its own hours, its own pickup address and its own WhatsApp
+number, and it accepts an order before anybody packs it.
 
-Set `GROCERY_NUMBER` and every grocery order arrives there as a picking list:
+It is created for you. The first time the agent starts it makes one, named
+after `STORE_NAME`, open **24 hours**, with **no minimum order**, and every
+product you have already imported is filed into it. Its code is `GROCERY`.
+
+| What | Where it lives | How to change it |
+|---|---|---|
+| Its number | the shop's own record | `number GROCERY 5927410186` |
+| Its hours | the shop's own record | `hours GROCERY 24 hours` |
+| Its minimum | the shop's own record | `minimum GROCERY 1500` |
+| Its delivery fee | the shop's own record | `fee GROCERY 700` |
+| Where it is collected from | the shop's own record | share a location pin |
+
+`npm run check` tells you if it has no number, because a grocery nobody can
+reach is a grocery with nobody packing.
+
+### The picking list
+
+Every grocery order arrives at that number the moment it is placed:
 
 ```
 🛒 *Order ORD-00074* — please pick
@@ -436,6 +451,9 @@ Set `GROCERY_NUMBER` and every grocery order arrives there as a picking list:
 Goods total $8,450
 Ordered 10:14
 
+Tap *Confirm* to accept, then *ORD-00074 ready* when the bag is packed
+and a delivery associate will come.
+
 [ Confirm ]  [ Cancel ]
 ```
 
@@ -443,26 +461,38 @@ Ordered 10:14
 and not theirs to be asked about. No address, no customer number, no map link —
 a picking list with a doorstep in it is one somebody has to read twice.
 
-*Ready* appears only after *Confirm*, the same rule kitchens follow.
+*Ready* appears only after *Confirm*, the same rule kitchens follow. And
+*Ready* is what sends the delivery associate: before it, there is nothing in a
+bag for them to collect.
 
-Restaurant orders and parcels are left alone: one is cooked elsewhere, the
-other has nothing to pick.
+A kitchen gets the same message with different words — *please prepare*, and a
+food total. One ticket, two shapes, picked by what kind of shop it is.
 
-**The grocery shop is not an outlet.** A row in `outlets.csv` creates a
-restaurant: a kitchen with a cuisine, a prep time and a menu, which customers
-browse separately. Grocery stock has no outlet at all. Putting the shop's own
-number there does not route a picking ticket — it stops one, because an order
-belonging to an outlet is deliberately skipped. `GROCERY_NUMBER` is the only
-place that number goes.
+**The number does not need to be staff.** This is the part worth knowing if you
+set this up before: a grocery is reached through its own record, so whoever
+holds that number can Confirm and Cancel without being on `STAFF_NUMBERS` — and
+without the promotion to staff that would have outranked their job as a
+delivery associate.
 
-**It must be one of your `STAFF_NUMBERS`.** The setting decides where the
-ticket goes; `STAFF_NUMBERS` decides what that person may do. A number on
-neither list still receives the ticket, but its buttons do nothing — `npm run
-check` warns you about exactly that.
+If the shop has not messaged the business number in 24 hours, WhatsApp will not
+let a message with buttons through. It is held and handed over the moment they
+next write, which is the same protection the kitchens have.
 
-If the picker has not messaged the shop in 24 hours, WhatsApp will not let a
-message with buttons through. The shop is told so rather than the order sitting
-unpicked, and the order is still in the staff broadcast, so nothing is lost.
+### More than one grocery
+
+The model holds as many as you like. Add one the way you add a restaurant — a
+row in `data/outlets.csv` with `kind` set to `grocery` — and give its stock an
+`outlet` column in your products CSV naming its code.
+
+With **one** grocery, nobody is ever asked to choose: a customer saying
+"groceries" is already in the shop. With **two or more**, the agent asks which,
+the same way it asks which restaurant. Choosing the nearest shop to the
+customer automatically is not built yet; it needs their location before they
+start shopping rather than at checkout, and across the Demerara a straight line
+is the wrong way to measure.
+
+**One order comes from one shop.** Two groceries is two deliveries, and
+shopping never shares an order with cooked food.
 
 ### Associates
 

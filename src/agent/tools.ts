@@ -540,40 +540,56 @@ function requireService(phone: string, needed: string): string | null {
  * catalogue otherwise — never both. Someone ordering from a chicken counter who
  * asks for "wings" must not be offered a frozen pack from the freezer aisle.
  */
+/**
+ * Which shop's shelves a search looks at.
+ *
+ * Null means no shop is settled on, and a search scoped to null finds nothing
+ * at all — every product belongs to a shop now, so "belongs to none" is empty
+ * rather than meaning the grocery catalogue. Callers must handle null by asking
+ * the customer which shop, not by searching anyway.
+ *
+ * A customer who has chosen nothing falls back to the single grocery, which is
+ * what keeps grocery shopping free of a choosing step while there is only one.
+ */
 function browsingScope(phone: string): number | null {
-  return repo.getBrowsingOutlet(phone)?.id ?? null;
+  const chosen = repo.getBrowsingOutlet(phone);
+  if (chosen) return chosen.id;
+  return repo.defaultGrocery()?.id ?? null;
 }
 
+/** What to tell the model when there is no shop to search. */
+const NO_SHOP_SELECTED =
+  'No shop is selected and there is more than one to choose from. Call list_outlets and ask the customer which they want, then choose_outlet, before searching.';
+
 /**
- * Refuses a second kitchen, or groceries mixed with cooked food.
+ * Refuses a cart that would span two shops.
  *
  * One order is one collection. A burger from one place and a roti from another
- * are two prep times, two pickups and two delivery associates; groceries and hot food are
- * worse still. So the cart holds one source, and switching is a deliberate act
- * the customer has to agree to rather than something that happens silently.
+ * are two prep times, two pickups and two delivery associates; a kitchen and a
+ * grocery are worse still. So the cart holds one shop, and switching is a
+ * deliberate act the customer has to agree to rather than something that
+ * happens silently.
+ *
+ * This used to be three rules, because groceries were not a shop and had to be
+ * tested for separately. They are a shop now, so there is one rule.
  */
 function refuseMixedCart(phone: string, product: repo.Product): string | null {
   const wanted = product.outletId ?? null;
   const current = repo.cartOutletId(phone);
-  const hasGroceries = repo.cartHasGroceries(phone);
+  if (wanted === null || current === null || current === wanted) return null;
 
-  if (wanted === null) {
-    if (current !== null) {
-      const outlet = repo.outletById(current);
-      return `The cart already holds a ${outlet?.name ?? 'restaurant'} order. Groceries and cooked food go out as separate deliveries — ask whether to start a fresh grocery order (clear_cart) or finish this one first.`;
-    }
-    return null;
-  }
-
-  if (hasGroceries) {
-    return `The cart already holds groceries. A restaurant order is a separate delivery — ask whether to start a fresh one (clear_cart) or check out the groceries first.`;
-  }
-  if (current !== null && current !== wanted) {
-    const from = repo.outletById(current);
-    const to = repo.outletById(wanted);
-    return `The cart is from ${from?.name ?? 'another outlet'} and this item is from ${to?.name ?? 'a different outlet'}. One order comes from one kitchen — tell them switching clears what they have so far, and only call clear_cart if they agree.`;
-  }
-  return null;
+  const from = repo.outletById(current);
+  const to = repo.outletById(wanted);
+  // Two kitchens, two groceries, and one of each are three different
+  // conversations, so the reason given is the real one rather than a generic
+  // refusal the customer cannot argue with.
+  const why =
+    from && to && from.kind !== to.kind
+      ? 'Shopping and cooked food go out as separate deliveries'
+      : to?.kind === 'restaurant'
+        ? 'One order comes from one kitchen'
+        : 'One order comes from one shop';
+  return `The cart is from ${from?.name ?? 'another shop'} and this item is from ${to?.name ?? 'a different shop'}. ${why} — tell them switching clears what they have so far, and only call clear_cart if they agree.`;
 }
 
 /** Validates the customer's option picks against what the item offers. */
@@ -718,8 +734,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
   switch (name) {
     case 'list_categories': {
-      const cats = repo.listCategories();
-      if (cats.length === 0) return fail('The catalogue is empty. No products have been imported yet.');
+      const scope = browsingScope(ctx.phone);
+      if (scope === null) return fail(NO_SHOP_SELECTED);
+      const cats = repo.listCategories(scope);
+      if (cats.length === 0) {
+        return fail('This shop has nothing in it. No products have been imported for it yet.');
+      }
       return ok({ categories: cats });
     }
 
@@ -728,7 +748,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!query) return fail('query is required.');
       const limit = Math.min(Math.max(asInt(input.limit) ?? 8, 1), 15);
       const category = asString(input.category) || undefined;
-      const { results, unmatched } = searchCatalog(query, category, limit, browsingScope(ctx.phone));
+      const scope = browsingScope(ctx.phone);
+      if (scope === null) return fail(NO_SHOP_SELECTED);
+      const { results, unmatched } = searchCatalog(query, category, limit, scope);
       if (results.length === 0) {
         recordMiss(ctx.phone, query);
         return ok({
@@ -754,12 +776,14 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const raw = Array.isArray(input.queries) ? input.queries : [];
       const queries = raw.map(asString).filter(Boolean).slice(0, 20);
       if (queries.length === 0) return fail('queries must contain at least one search phrase.');
+      const manyScope = browsingScope(ctx.phone);
+      if (manyScope === null) return fail(NO_SHOP_SELECTED);
 
       // Fewer results each than a single search: a list needs breadth, not depth,
       // and a wall of options per line is unreadable on a phone.
       return ok({
         searches: queries.map((query) => {
-          const { results, unmatched } = searchCatalog(query, undefined, 3, browsingScope(ctx.phone));
+          const { results, unmatched } = searchCatalog(query, undefined, 3, manyScope);
           if (results.length === 0) {
             recordMiss(ctx.phone, query);
             return { query, results: [], note: 'No match — say so plainly, do not substitute silently.' };
@@ -896,8 +920,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       repo.setService(ctx.phone, wanted);
       // Leaving a menu selected would scope the next search to a restaurant the
-      // customer has moved away from.
-      if (wanted !== 'restaurant') repo.setBrowsingOutlet(ctx.phone, null);
+      // customer has moved away from. Groceries are the exception: they are a
+      // shop now, so moving into grocery shopping means moving into one, and
+      // with a single grocery that happens without anybody being asked.
+      const grocery = wanted === 'grocery' ? repo.defaultGrocery() : null;
+      if (wanted === 'grocery') repo.setBrowsingOutlet(ctx.phone, grocery?.id ?? null);
+      else if (wanted !== 'restaurant') repo.setBrowsingOutlet(ctx.phone, null);
 
       return ok({
         now_in: wanted,
@@ -909,13 +937,19 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         ...(cart.lines.length > 0 && action === 'cancel' ? { dropped: 'Their previous cart was cleared, as they asked.' } : {}),
         ...(wanted === 'restaurant'
           ? { next: 'Call list_outlets and show the kitchens, numbered.' }
-          : { next: serviceOpening(wanted as never, languageFor(ctx.phone)) }),
+          : wanted === 'grocery' && !grocery
+            ? { next: 'Call list_outlets and show the grocery shops, numbered — there is more than one.' }
+            : { next: serviceOpening(wanted as never, languageFor(ctx.phone)) }),
+        ...(grocery ? { shopping_at: grocery.name } : {}),
       });
     }
 
     case 'resume_parked_cart': {
       const code = asString(input.outlet_code);
-      const outlet = code ? repo.getOutlet(code) : null;
+      // No code means the grocery cart, which used to be the cart belonging to
+      // no shop. It belongs to a shop now, so "the grocery cart" has to be
+      // resolved to one rather than left as an absence.
+      const outlet = code ? repo.getOutlet(code) : repo.defaultGrocery();
       if (code && !outlet) return fail(`No outlet with code "${code}".`);
 
       const parkedCarts = repo.listParkedCarts(ctx.phone);
@@ -944,7 +978,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       // Put them back in the right service and menu, or the restored cart would
       // sit in a conversation that cannot add to it.
-      repo.setService(ctx.phone, target === null ? 'grocery' : 'restaurant');
+      //
+      // Decided by the shop's kind, not by whether there is a shop at all.
+      // "Has an outlet" used to mean "is a restaurant order"; a grocery cart
+      // has one now, and reading it the old way dropped a customer restoring
+      // their shopping into the restaurant service.
+      repo.setService(ctx.phone, outlet?.kind === 'restaurant' ? 'restaurant' : 'grocery');
       repo.setBrowsingOutlet(ctx.phone, target);
 
       return ok({
@@ -957,11 +996,19 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     }
 
     case 'list_outlets': {
-      const numbered = numberedOutlets();
+      // A grocery customer is shown groceries and a restaurant customer
+      // kitchens. One tool, because to the customer it is one question — which
+      // shop? — and the agent should not have to pick between two tools to ask
+      // it.
+      const kind: repo.OutletKind = repo.getService(ctx.phone) === 'grocery' ? 'grocery' : 'restaurant';
+      const numbered = numberedOutlets(kind);
       if (numbered.length === 0) {
         return ok({
           outlets: [],
-          note: 'No restaurants are set up yet. Offer the grocery catalogue instead — do not invent outlets.',
+          note:
+            kind === 'grocery'
+              ? 'No grocery shop is set up yet. Say the shop is not open for grocery orders — do not invent one.'
+              : 'No restaurants are set up yet. Offer grocery shopping instead — do not invent outlets.',
         });
       }
 
@@ -1003,12 +1050,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (current !== null && current !== outlet.id) {
         const from = repo.outletById(current);
         return fail(
-          `There is still a ${from?.name ?? 'restaurant'} order in the cart. Ask whether to drop it before switching to ${outlet.name}, and only call clear_cart if they say yes.`,
-        );
-      }
-      if (repo.cartHasGroceries(ctx.phone)) {
-        return fail(
-          `There are groceries in the cart. Hot food is a separate delivery — ask whether to check those out first or clear them.`,
+          `There is still a ${from?.name ?? 'another shop'} order in the cart. Ask whether to drop it before switching to ${outlet.name}, and only call clear_cart if they say yes.`,
         );
       }
 
@@ -1028,8 +1070,17 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           `The cart still holds a ${outlet?.name ?? 'restaurant'} order. Deal with that first — check it out, or ask before clearing it.`,
         );
       }
-      repo.setBrowsingOutlet(ctx.phone, null);
-      return ok({ left: outlet?.name ?? null, note: 'Back to the grocery catalogue.' });
+      // Back to the grocery rather than to nothing. Clearing the selection
+      // outright used to mean "the house catalogue"; it now means no shop at
+      // all, and the next search would find nothing.
+      const grocery = repo.defaultGrocery();
+      repo.setBrowsingOutlet(ctx.phone, grocery?.id ?? null);
+      return ok({
+        left: outlet?.name ?? null,
+        note: grocery
+          ? `Back to shopping at ${grocery.name}.`
+          : 'No shop is selected now. Call list_outlets and ask which grocery they want.',
+      });
     }
 
     case 'add_to_cart':
