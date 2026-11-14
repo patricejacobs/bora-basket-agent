@@ -1422,20 +1422,30 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // address does not need it recited, and a receipt that repeats where
         // somebody lives is a receipt they would rather not have on a shared
         // phone. The order has them; this reply does not need them.
+        // What is deliberately absent matters more here than what is present.
+        //
+        // No name, address, pin or telephone number: the customer typed those
+        // a moment ago and the model read them straight back, which tells them
+        // nothing and puts their address on the screen of a shared phone.
+        //
+        // No money either, and no payment method. Nothing is owed on an order
+        // nobody has accepted yet — the shop may refuse it, the kitchen may be
+        // shut — and a sum quoted beside a payment method reads as a bill. It
+        // belongs in the message that says the order is going ahead.
+        //
+        // The prices were in the question the customer answered to get here,
+        // one message earlier, so nothing is hidden by leaving them out.
         return ok({
           placed: true,
           received_not_accepted: true,
           order_number: order.orderNo,
-          items: order.lines.map((l) => `${l.qty} x ${l.name} — ${money(l.lineTotal)}`),
-          subtotal: money(order.subtotal),
-          delivery_fee: order.deliveryFee === 0 ? 'free' : money(order.deliveryFee),
-          total: money(order.total),
-          pay: paymentMethod.replace('_on_delivery', '') + ' on delivery',
+          items: order.lines.map((l) => `${l.qty} x ${l.name}`),
           next: [
             'Say the order has been RECEIVED and is waiting to be accepted, and that you will message the moment it is.',
-            'Do NOT say it is confirmed, accepted, placed with the kitchen, being prepared or on its way — none of that has happened yet, and the shop will send its own message when it does.',
-            'Give the order number, the total and how they pay.',
-            'Do NOT repeat their name, their delivery address, their map pin or their telephone number. They have just given you those; reading them back says nothing and nobody wants their address recited on a shared phone.',
+            'Do NOT say it is confirmed, accepted, placed with the kitchen, being prepared or on its way — none of that has happened yet, and the shop sends its own message when it does.',
+            'Give the order number. You may name what they ordered.',
+            'Do NOT give the total, the delivery fee, or how and where they pay. Nothing is owed on an order nobody has accepted yet, and a sum beside a payment method reads as a bill. That comes with the acceptance.',
+            'Do NOT repeat their name, their delivery address, their map pin or their telephone number. They have just given you those.',
             'Do not state a preparation time or a delivery time.',
           ].join(' '),
         });

@@ -514,11 +514,20 @@ natural thing with them: read them back. It also quoted the shop's own
 about 20 minutes"* — when the kitchen had said nothing and may not have seen
 the order at all.
 
-So that reply now carries the order number, the items, the total and how they
-pay. **No name, no address, no pin, no telephone number** — the customer typed
-those a moment ago, and nobody wants their address recited on a shared phone.
-And no preparation time, because at that point what they are waiting for is the
-shop accepting the order, not the cooking.
+So that reply now carries the order number and what was ordered, and nothing
+else.
+
+| Left out | Why |
+|---|---|
+| Name, address, pin, telephone | typed a moment ago; nobody wants their address recited on a shared phone |
+| The total and the delivery fee | nothing is owed on an order nobody has accepted |
+| How and where to pay | a sum beside a payment method reads as a bill |
+| Preparation time | what they are waiting for is acceptance, not cooking |
+
+The money arrives with the acceptance, which is the first moment anything is
+actually owed — the shop may refuse the order and the kitchen may be shut. The
+prices were in the question the customer answered to get here, one message
+earlier, so nothing is hidden by leaving them out.
 
 The acceptance is a separate message, sent when it actually happens.
 

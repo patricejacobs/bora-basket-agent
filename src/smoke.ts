@@ -356,7 +356,15 @@ section('Checkout');
   const order = call('place_order', { payment_method: 'cash_on_delivery', delivery_note: 'Call on arrival' });
   check('places the order', order.placed === true, JSON.stringify(order).slice(0, 160));
   check('returns an order number', /^ORD-\d{5}$/.test(order.order_number ?? ''), order.order_number);
-  check('order total matches the cart', order.total === money(2 * 1850 + 500), order.total);
+  // Asserted on the order, not on what the reply told the model. The total is
+  // no longer handed back at placement — nothing is owed until somebody
+  // accepts it — so the record is the only place it should be, and the only
+  // place worth checking.
+  check(
+    'order total matches the cart',
+    repo.findOrder(order.order_number)?.total === 2 * 1850 + 500,
+    String(repo.findOrder(order.order_number)?.total),
+  );
 
   const stockAfter = call('get_product', { sku: 'RIC-001' }).stock_remaining;
   check('decrements stock', stockAfter === stockBefore - 2, `${stockBefore} -> ${stockAfter}`);
@@ -1117,6 +1125,13 @@ section('Location pins');
   check('but the order was still placed against the pin', repo.findOrder(placed.order_number)?.location?.label === 'Stabroek Market');
   // And the model is told what it may say: received, not accepted.
   check('the model is told it is received only', placed.received_not_accepted === true);
+  // No money on an order nobody has accepted. The shop may refuse it and the
+  // kitchen may be shut, so a sum beside a payment method reads as a bill for
+  // something that may never happen.
+  check('no total is handed back', placed.total === undefined, JSON.stringify(placed).slice(0, 160));
+  check('nor a delivery fee', placed.delivery_fee === undefined && placed.subtotal === undefined);
+  check('nor how to pay', placed.pay === undefined);
+  check('and the item lines carry no prices', (placed.items ?? []).every((l: string) => !/[0-9],?[0-9]*\s*$/.test(l) && !l.includes('$')), JSON.stringify(placed.items));
   check('and told not to claim it is confirmed', /Do NOT say it is confirmed/.test(String(placed.next)), String(placed.next).slice(0, 120));
   check('and not to recite the address back', /Do NOT repeat their name/.test(String(placed.next)));
   check(
