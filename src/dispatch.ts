@@ -567,6 +567,21 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // pin for the recipient during that order.
   const pinIsForThisDoor = order.location !== null && (!toSomebodyElse || order.recipientPin);
 
+  // One way to the door, not two.
+  //
+  // A written address and a map link were both printed, and an associate
+  // reading a card had to decide which to believe. They are not the same
+  // claim: the address is what the customer typed, the pin is where they
+  // happened to be standing, and when they disagree the card says so without
+  // saying which is right.
+  //
+  // So the address wins where there is one, because it is what the customer
+  // meant to say, and the link appears only when there is nothing written to
+  // go on. That is the shop's rule, and this is the one place it has to hold:
+  // the card somebody drives from.
+  const written = withoutPhone(order.address, receiverPhone);
+  const showPin = pinIsForThisDoor && order.location !== null && !written;
+
   return [
     // A missing pin goes first, not last. It changes how the trip is planned -
     // ring before setting off, rather than after arriving at a street you
@@ -581,27 +596,28 @@ export function dropLines(order: repo.OrderRecord): string[] {
       ? [`*Ordered by:* ${order.customerName}`, `📞 ${dial(ordererPhone)}`, '']
       : []),
     `*Deliver to:* ${receiverName}`,
-    ...(() => {
-      const written = withoutPhone(order.address, receiverPhone);
-      return written ? [written] : [];
-    })(),
+    ...(written ? [written] : []),
     // What the customer said about finding the door. It was going to staff
     // and not to the person standing outside, which is the wrong way round.
     ...(order.deliveryNote ? [order.deliveryNote] : []),
     atTheDoor,
-    ...(pinIsForThisDoor && order.location
-      ? [
-          ...(labelAdds ? [pinLabel] : []),
-          'Click the link below for the delivery address:',
-          mapsLink(order.location),
-          ...(() => {
-            const range = checkRange(order.location, config.store.serviceArea);
-            return range.state === 'outside'
-              ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area`]
-              : [];
-          })(),
-        ]
+    ...(showPin && order.location
+      ? [...(labelAdds ? [pinLabel] : []), 'Click the link below for the delivery address:', mapsLink(order.location)]
       : []),
+    // Outside the delivery area, said whether or not the link is shown.
+    //
+    // It is not navigation, so it does not belong to the link: it is the one
+    // fact on the card that changes whether the trip should be made at all.
+    // Suppressing the pin in favour of a written address must not take this
+    // with it — an associate riding thirty kilometres and finding out there is
+    // the worst version of this card.
+    ...(() => {
+      if (!pinIsForThisDoor || !order.location) return [];
+      const range = checkRange(order.location, config.store.serviceArea);
+      return range.state === 'outside'
+        ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area`]
+        : [];
+    })(),
     '',
     // What it is made of, so the cash can be checked against the bag rather
     // than taken on trust at the door - and WHO hands it over, because

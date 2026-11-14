@@ -3256,33 +3256,39 @@ section('The pin label earns its line or loses it');
   repo.upsertProduct({ sku: 'LBL-001', name: 'Label Test Rice', description: '', category: 'Rice & Grains', unit: 'each', price: 1850, stock: 9, active: 1, keywords: 'labeltest', trackStock: 0 });
   const pid = (d.prepare(`SELECT id FROM products WHERE sku = 'LBL-001'`).get() as { id: number }).id;
 
-  // WhatsApp attaches a label to a shared pin, and it is almost always the
-  // district - which the written address names too. Printed anyway, the card
-  // said the same place three times before the link.
-  const card = (address: string, label: string, i: number): string[] => {
+  // The pin only appears when nothing was written down, so the label it
+  // carries is read against the doorstep note rather than against an address.
+  const card = (address: string, note: string, label: string, i: number): string[] => {
     const phone = `59261299${String(10 + i)}`;
     repo.saveLocationPin(phone, { latitude: 6.642, longitude: -58.218, label });
     repo.saveCustomer(phone, { name: 'Label Tester', address, contactPhone: phone });
     repo.setCartQty(phone, pid, 1, '');
-    const o = repo.placeOrder({ phone, customerName: 'Label Tester', address, contactPhone: phone, deliveryNote: '', paymentMethod: 'cash', location: repo.getIdentity(phone).location });
+    const o = repo.placeOrder({ phone, customerName: 'Label Tester', address, contactPhone: phone, deliveryNote: note, paymentMethod: 'cash', location: repo.getIdentity(phone).location });
     return dropLines(repo.findOrder(o.orderNo)!);
   };
 
-  const inside = card('Lot 4 Section C, Diamond — white fence, upstairs', 'Diamond', 0);
-  check('a label already inside the address is dropped', !inside.includes('Diamond'), JSON.stringify(inside));
-  check('but the address itself stays', inside.some((l) => l.includes('Lot 4 Section C')), JSON.stringify(inside));
-  check('and so does the link', inside.some((l) => l.includes('maps?q=')), JSON.stringify(inside));
+  // A written address answers the question, so the pin and its label are not
+  // printed beside it. One way to the door, not two.
+  const written = card('Lot 4 Section C, Diamond — white fence, upstairs', '', 'Diamond', 0);
+  check('a written address keeps the card to itself', written.some((l) => l.includes('Lot 4 Section C')), JSON.stringify(written));
+  check('with no link under it', !written.some((l) => l.includes('maps?q=')), JSON.stringify(written));
+  check('and no pin label either', !written.includes('Diamond'), JSON.stringify(written));
 
-  const adds = card('Lot 4 Section C, white fence, upstairs', 'Diamond', 1);
-  check('a label naming a district the address does not is kept', adds.includes('Diamond'), JSON.stringify(adds));
+  // Nothing written, so the pin is the answer and its label is worth a line.
+  const pinned = card('', '', 'Diamond', 1);
+  check('with nothing written the pin carries it', pinned.some((l) => l.includes('maps?q=')), JSON.stringify(pinned));
+  check('and its label names the district', pinned.includes('Diamond'), JSON.stringify(pinned));
 
-  const whole = card('Diamond', 'Diamond', 2);
-  check('a label equal to the whole address is dropped', whole.filter((l) => l === 'Diamond').length === 1, JSON.stringify(whole));
+  // Unless the doorstep note already said it, which is the duplication the
+  // label check exists for.
+  const noted = card('', 'Diamond, white fence', 'Diamond', 2);
+  check('a label already inside the note is dropped', !noted.includes('Diamond'), JSON.stringify(noted));
+  check('while the note itself stays', noted.some((l) => l.includes('white fence')), JSON.stringify(noted));
 
   // Matched as a whole word. "Diamond" and "Diamondback Street" are not the
   // same place, and swallowing the label there would lose the only line saying
   // which district the door is in.
-  const near = card('Lot 9 Diamondback Street', 'Diamond', 3);
+  const near = card('', 'Lot 9 Diamondback Street', 'Diamond', 3);
   check('a label is not swallowed by a longer word', near.includes('Diamond'), JSON.stringify(near));
 
   d.prepare(`DELETE FROM products WHERE sku = 'LBL-001'`).run();
@@ -4743,7 +4749,11 @@ section('An address instead of a pin');
   });
   const normal = dropLines(repo.findOrder(pinned.orderNo)!).join('\n');
   check('a pinned order says nothing about missing pins', !/NO PIN/i.test(normal), normal);
-  check('and still gets its map link', /http/.test(normal), normal);
+  // A pin, and a written address as well. The address is what is printed:
+  // one way to the door, not two. The pin still earns its keep by silencing
+  // the NO PIN warning above — there is one, it simply is not the answer here.
+  check('and no link beside its written address', !/http/.test(normal), normal);
+  check('which is what carries it', normal.includes('Lot 12, blue door, Kitty'), normal);
 }
 
 section('Delivering to somebody other than the buyer');
@@ -5550,10 +5560,14 @@ section('Whose number, whose address, whose pin');
     (mixed.match(/Lot 4 Section C, Diamond/g) ?? []).length === 1,
     mixed,
   );
-  // A label that says something new still earns its place.
+  // A label belongs to the pin, and the pin is not printed beside a written
+  // address. Even one saying something genuinely new goes with it: the rule is
+  // one way to the door, and a landmark under an address the associate is
+  // already reading is the second way.
   make('ORD-91002', { label: 'Beside the mosque', contact: '5926108888' });
   const useful = dropLines(repo.findOrder('ORD-91002')!).join('\n');
-  check('a label that adds something is kept', useful.includes('Beside the mosque'), useful);
+  check('a label goes with the pin it belongs to', !useful.includes('Beside the mosque'), useful);
+  check('leaving the written address to do the work', useful.includes('Lot 4 Section C, Diamond'), useful);
 
   /* --- whose pin is it ------------------------------------------------ */
 
@@ -5572,9 +5586,14 @@ section('Whose number, whose address, whose pin');
     recipientPin: 1,
   });
   const shared = dropLines(repo.findOrder('ORD-91003')!).join('\n');
-  check('a pin shared for the recipient does show', /http/.test(shared), shared);
-  check('announced, not bare', /Click the link below for the delivery address/.test(shared), shared);
+  // The pin is trusted here - it was shared for Jenny's door, not Patrice's -
+  // and still not printed, because there is a written address and the card
+  // gives one way to the door. What the pin changes is the warning: nobody is
+  // told to ring before setting off, because the address is an answer rather
+  // than a gap.
+  check('a written address still wins', !/http/.test(shared), shared);
   check('and the NO PIN flag is gone', !/NO PIN/.test(shared), shared);
+  check('the address is what they drive to', shared.includes('Lot 4 Section C, Diamond'), shared);
   check('with the recipient\'s own number at the door', /\+5926100099 — ring at the door/.test(shared), shared);
 
   /* --- an ordinary order is untouched --------------------------------- */
@@ -5582,7 +5601,8 @@ section('Whose number, whose address, whose pin');
   make('ORD-91004', { contact: '5926108888', label: 'Diamond' });
   const plain = dropLines(repo.findOrder('ORD-91004')!).join('\n');
   check('a self-delivery names nobody else', !/Ordered by/.test(plain), plain);
-  check('keeps its link', /http/.test(plain), plain);
+  check('shows no link beside its address', !/http/.test(plain), plain);
+  check('and the address instead', plain.includes('Lot 4 Section C, Diamond'), plain);
   check('and is not flagged', !/NO PIN/.test(plain), plain);
 
   db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-910%'`).run();
@@ -5839,10 +5859,12 @@ section('A parcel end can be a pin, words, or both');
 
   const dropFull = dropLines(full).join('\n');
   check('the drop shows its written address', dropFull.includes('94 Thomas St'), dropFull);
-  // The bug this caught: a parcel's destination pin IS the recipient's, but
-  // the flag that says so was never set by the booking path, so a properly
-  // pinned parcel showed NO PIN and no link.
-  check('and its pin, together', /maps\?q=6\.812400/.test(dropFull), dropFull);
+  // A parcel's destination pin IS the recipient's, and the flag that says so
+  // is set by the booking path — which is what keeps NO PIN off this card.
+  // The pin is not printed, because an address was written down and the card
+  // gives one way to the door.
+  check('and no pin beside it', !/maps\?q=6\.812400/.test(dropFull), dropFull);
+  check('nor a warning about one', !/NO PIN/.test(dropFull), dropFull);
   check('with no false NO PIN warning', !/NO PIN/.test(dropFull), dropFull);
 
   /* --- pickup in words only -------------------------------------------- */
@@ -5853,8 +5875,12 @@ section('A parcel end can be a pin, words, or both');
   check('the card gives the address', upliftTyped.includes('Lot 12, Kitty'), upliftTyped);
   check('and says to ring rather than pretending there is a map', /No pin for the pickup/.test(upliftTyped), upliftTyped);
   check('with no uplift link', !/Click the link below for the uplift/.test(upliftTyped), upliftTyped);
-  // The other end is unaffected.
-  check('while the drop keeps its pin', /maps\?q=6\.812400/.test(dropLines(typedPickup).join('\n')));
+  // The other end is unaffected: it has a written address, so it shows that.
+  check(
+    'while the drop still gives its address',
+    dropLines(typedPickup).join('\n').includes('94 Thomas St'),
+    dropLines(typedPickup).join('\n'),
+  );
 
   /* --- destination in words only --------------------------------------- */
 

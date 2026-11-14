@@ -542,6 +542,28 @@ earlier, so nothing is hidden by leaving them out.
 
 The acceptance is a separate message, sent when it actually happens.
 
+### One way to the door
+
+A delivery card gives the associate **either** a written address **or** a map
+link, never both. If the customer wrote an address down, that is what is
+printed; the pin is kept on the order but stays off the card.
+
+| What the order has | What the card shows |
+|---|---|
+| An address | the address |
+| A pin only | the pin's label and the link |
+| An address and a pin | **the address** |
+| Neither | ⚠️ *NO PIN — ring before you set off* |
+
+The pin still does work when it is not printed. It silences that warning —
+there *is* a pin, it simply is not the answer being given — and it is still
+what the out-of-area check measures, so an associate is told when a drop is
+beyond the delivery area whether or not a link appears.
+
+This applies to a parcel's destination and to an order going to somebody else,
+including one where the buyer deliberately shared a pin for the recipient's
+door. If an address was written, the address is what the card gives.
+
 ### Who moved an order
 
 Every status change is now recorded three ways, so "the restaurant never
