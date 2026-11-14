@@ -538,12 +538,22 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // The pin's own label, which WhatsApp attaches to a shared location. Shown
   // only when it says something the two lines above do not: more often than
   // not it is the same text as the address, printed twice.
-  const sameText = (a: string, b: string): boolean =>
-    a.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ') ===
-    b.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  //
+  // Contained, not equal. The label is usually the district - "Diamond" - and
+  // the written address usually names that district inside a longer line:
+  // "Lot 4 Section C, Diamond - white fence, upstairs". Testing the whole
+  // strings for equality found no match and printed "Diamond" underneath, so
+  // the card named the same place three times before the link.
+  //
+  // Padded with spaces so a label is matched as a whole word. Without that,
+  // "Bank" would be swallowed by "Meadow Bank Road" - which is right - but so
+  // would "Diamond" by "Diamondback Street", which is not the same place.
+  const words = (s: string): string =>
+    ' ' + s.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ';
+  const covers = (whole: string, part: string): boolean => words(whole).includes(words(part));
   const pinLabel = order.location?.label ?? '';
   const labelAdds =
-    pinLabel !== '' && !sameText(pinLabel, order.address) && !sameText(pinLabel, order.deliveryNote);
+    pinLabel !== '' && !covers(order.address, pinLabel) && !covers(order.deliveryNote, pinLabel);
 
   // Whose pin is it?
   //

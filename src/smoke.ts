@@ -3207,6 +3207,46 @@ section('What else is still on the counter');
   }
 }
 
+section('The pin label earns its line or loses it');
+{
+  const { dropLines } = await import('./dispatch.ts');
+  const { db: d } = await import('./db/index.ts');
+
+  repo.upsertProduct({ sku: 'LBL-001', name: 'Label Test Rice', description: '', category: 'Rice & Grains', unit: 'each', price: 1850, stock: 9, active: 1, keywords: 'labeltest', trackStock: 0 });
+  const pid = (d.prepare(`SELECT id FROM products WHERE sku = 'LBL-001'`).get() as { id: number }).id;
+
+  // WhatsApp attaches a label to a shared pin, and it is almost always the
+  // district - which the written address names too. Printed anyway, the card
+  // said the same place three times before the link.
+  const card = (address: string, label: string, i: number): string[] => {
+    const phone = `59261299${String(10 + i)}`;
+    repo.saveLocationPin(phone, { latitude: 6.642, longitude: -58.218, label });
+    repo.saveCustomer(phone, { name: 'Label Tester', address, contactPhone: phone });
+    repo.setCartQty(phone, pid, 1, '');
+    const o = repo.placeOrder({ phone, customerName: 'Label Tester', address, contactPhone: phone, deliveryNote: '', paymentMethod: 'cash', location: repo.getIdentity(phone).location });
+    return dropLines(repo.findOrder(o.orderNo)!);
+  };
+
+  const inside = card('Lot 4 Section C, Diamond — white fence, upstairs', 'Diamond', 0);
+  check('a label already inside the address is dropped', !inside.includes('Diamond'), JSON.stringify(inside));
+  check('but the address itself stays', inside.some((l) => l.includes('Lot 4 Section C')), JSON.stringify(inside));
+  check('and so does the link', inside.some((l) => l.includes('maps?q=')), JSON.stringify(inside));
+
+  const adds = card('Lot 4 Section C, white fence, upstairs', 'Diamond', 1);
+  check('a label naming a district the address does not is kept', adds.includes('Diamond'), JSON.stringify(adds));
+
+  const whole = card('Diamond', 'Diamond', 2);
+  check('a label equal to the whole address is dropped', whole.filter((l) => l === 'Diamond').length === 1, JSON.stringify(whole));
+
+  // Matched as a whole word. "Diamond" and "Diamondback Street" are not the
+  // same place, and swallowing the label there would lose the only line saying
+  // which district the door is in.
+  const near = card('Lot 9 Diamondback Street', 'Diamond', 3);
+  check('a label is not swallowed by a longer word', near.includes('Diamond'), JSON.stringify(near));
+
+  d.prepare(`DELETE FROM products WHERE sku = 'LBL-001'`).run();
+}
+
 section('How a food order says goodbye');
 {
   const { MEAL_SIGN_OFFS, signOffFor } = await import('./notifications.ts');
