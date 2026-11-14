@@ -448,6 +448,13 @@ a picking list with a doorstep in it is one somebody has to read twice.
 Restaurant orders and parcels are left alone: one is cooked elsewhere, the
 other has nothing to pick.
 
+**The grocery shop is not an outlet.** A row in `outlets.csv` creates a
+restaurant: a kitchen with a cuisine, a prep time and a menu, which customers
+browse separately. Grocery stock has no outlet at all. Putting the shop's own
+number there does not route a picking ticket — it stops one, because an order
+belonging to an outlet is deliberately skipped. `GROCERY_NUMBER` is the only
+place that number goes.
+
 **It must be one of your `STAFF_NUMBERS`.** The setting decides where the
 ticket goes; `STAFF_NUMBERS` decides what that person may do. A number on
 neither list still receives the ticket, but its buttons do nothing — `npm run
