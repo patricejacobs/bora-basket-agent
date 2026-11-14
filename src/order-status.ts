@@ -13,7 +13,9 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   on_the_way: 'on the way',
   delivered: 'delivered',
   cancelled: 'cancelled',
-  returned: 'returned to sender',
+  // Not "to sender". Anything can come back now, and only a parcel has a
+  // sender to come back to — a grocery goes onto the shelf it came off.
+  returned: 'returned',
 };
 
 /**
@@ -30,7 +32,7 @@ export const CUSTOMER_STATUS: Record<OrderStatus, string> = {
   on_the_way: 'out with the delivery associate',
   delivered: 'delivered',
   cancelled: 'cancelled',
-  returned: 'brought back to you',
+  returned: 'came back undelivered',
 };
 
 /**

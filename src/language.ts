@@ -136,6 +136,11 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: 'Parcel {order} is coming back to you — the delivery code {name} gave did not match, so the delivery associate did not hand it over. Check with {name} that they had the code you passed on. The fee covers the trip, which was made, so it is not refunded.',
     parcel_on_the_way: 'Parcel {order} has been collected and is on its way to {name}.',
     returned_to_sender: 'Parcel {order} is coming back to you — {name} could not take it. The delivery associate will bring it to where it was collected. The fee covers the trip, which was made, so it is not refunded.',
+    // The customer IS the one who was not there, so none of the parcel
+    // wording fits: nothing is "coming back to you", and nobody else needs
+    // checking with. Nothing is said about money either, because nothing was
+    // paid - it is collected at the door, and there was no door.
+    returned_nobody_home: 'Order {order} has come back — there was nobody at the door to take it. Message us when you are ready and we will arrange another delivery.',
     delivered_confirmed: 'Order {order} delivered.' + chr10 + 'Delivery code: confirmed.',
     delivered_unverified: 'Order {order} delivered.' + chr10 + 'Delivery code: not confirmed.',
     delivered_check: chr10 + chr10 + 'Anything wrong with this order? Just message us.',
@@ -221,6 +226,7 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: 'El paquete {order} vuelve a usted — el código que dio {name} no coincidió, así que el asociado de entrega no lo entregó. Confirme con {name} que tenía el código que usted le pasó. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     parcel_on_the_way: 'El paquete {order} ha sido recogido y va camino a {name}.',
     returned_to_sender: 'El paquete {order} vuelve a usted — {name} no pudo recibirlo. El asociado de entrega lo llevará al lugar donde lo recogió. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
+    returned_nobody_home: 'El pedido {order} ha regresado — no había nadie en la puerta para recibirlo. Escríbanos cuando pueda y organizamos otra entrega.',
     delivered_confirmed: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: confirmado.',
     delivered_unverified: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: no confirmado.',
     delivered_check: chr10 + chr10 + '¿Algo va mal con este pedido? Escríbanos.',
@@ -301,6 +307,7 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: 'A encomenda {order} está a voltar para si — o código que {name} deu não coincidiu, por isso o associado de entrega não a entregou. Confirme com {name} que tinha o código que lhe passou. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     parcel_on_the_way: 'A encomenda {order} foi recolhida e está a caminho de {name}.',
     returned_to_sender: 'A encomenda {order} está a voltar para si — {name} não a pôde receber. O associado de entrega levá-la-á ao local onde a recolheu. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
+    returned_nobody_home: 'O pedido {order} voltou — não estava ninguém à porta para o receber. Escreva-nos quando puder e combinamos outra entrega.',
     delivered_confirmed: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: confirmado.',
     delivered_unverified: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: não confirmado.',
     delivered_check: chr10 + chr10 + 'Algo errado com este pedido? Envie-nos uma mensagem.',
@@ -379,6 +386,7 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: '包裹 {order} 正在退回给您 — {name} 提供的收货码不正确，配送专员因此没有交付。请与 {name} 核对您转告的收货码。费用已用于本次行程，故不予退还。',
     parcel_on_the_way: '包裹 {order} 已提取，正在送往 {name}。',
     returned_to_sender: '包裹 {order} 正在退回给您 — {name} 无法签收。配送专员会将其送回取件地点。费用已用于本次行程，故不予退还。',
+    returned_nobody_home: '订单 {order} 已退回 — 门口无人接收。方便时请联系我们，我们会再安排一次配送。',
     delivered_confirmed: '订单 {order} 已送达。' + chr10 + '收货码：已确认。',
     delivered_unverified: '订单 {order} 已送达。' + chr10 + '收货码：未确认。',
     delivered_check: chr10 + chr10 + '这笔订单有任何问题吗？请给我们发消息。',

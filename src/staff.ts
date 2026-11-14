@@ -1524,12 +1524,16 @@ export async function handleDriverMessage(
                     })(),
                   ]),
             ].join(chr10),
-            // Both ways a parcel comes back, because at this moment the
-            // associate knows which it is and nobody else ever will.
+            // Both ways an order comes back, because at this moment the
+            // associate knows which it is and nobody else ever will. A parcel
+            // distinguishes them, since a code that will not verify may mean
+            // it was offered at the wrong door and only the sender can find
+            // out. Elsewhere the customer is the one at the door, so the only
+            // question worth a button is whether anybody was there at all.
             buttons:
               target.kind === 'parcel'
                 ? [wrongCodeButton(target.orderNo), nobodyThereButton(target.orderNo)]
-                : [noCodeButton(target.orderNo)],
+                : [noCodeButton(target.orderNo), nobodyThereButton(target.orderNo)],
           },
         ];
       }
@@ -1734,25 +1738,38 @@ export async function handleDriverMessage(
   //
   // A parcel has no kitchen to accept it, so the associate accepts it - that
   // is the step that was missing, and without it every parcel waited at
-  // `pending` for a confirmation only a staff member could give. And a parcel
-  // can come back: nobody at the door, or a code that will not verify. Food
-  // never comes back, because food is eaten.
+  // `pending` for a confirmation only a staff member could give.
   const isParcel = order.kind === 'parcel';
   const mayAccept = isParcel && status === 'confirmed' && order.status === 'pending';
-  const mayReturn = isParcel && status === 'returned';
+
+  // Anything can come back, because anything can meet a locked gate.
+  //
+  // This used to be parcels only, on the reasoning that food never comes back
+  // because food is eaten. True of the curry and untrue of everything around
+  // it: a bag of rice goes back on the shelf, and even a meal nobody can save
+  // still has to be recorded as not delivered. The associate's only other
+  // options were Delivered and No code, and both close the order - so a locked
+  // gate was written down as a completed delivery, the customer was told their
+  // order had arrived, and the associate was recorded as holding cash they had
+  // never been given.
+  //
+  // What differs between the kinds is where the goods end up, which is the
+  // shop's business and not this status's.
+  const mayReturn = status === 'returned';
 
   if (status !== 'on_the_way' && status !== 'delivered' && !mayAccept && !mayReturn) {
     return reply(
       isParcel
         ? 'A delivery associate can accept a parcel, mark it uplifted, delivered, or returned. Anything else is for the shop.'
-        : 'A delivery associate can mark an order uplifted or delivered. Anything else is for the shop.',
+        : 'A delivery associate can mark an order uplifted, delivered, or returned. Anything else is for the shop.',
     );
   }
 
   // Which of the two it was, written before the status moves so every message
   // built from the order afterwards can say so. Nobody there is a missed
-  // appointment; a code that would not verify may mean the parcel was offered
-  // at the wrong door, and the sender is the only one who can find out which.
+  // appointment; a code that would not verify may mean the order was offered
+  // at the wrong door, and on a parcel the sender is the only one who can find
+  // out which.
   if (mayReturn && order.status === 'on_the_way') {
     repo.setReturnReason(
       order.orderNo,
@@ -1760,8 +1777,8 @@ export async function handleDriverMessage(
     );
   }
 
-  // Returning is for the parcel in their hands, not for one somebody else is
-  // carrying and not for one still sitting at a pickup point.
+  // Returning is for what is in their hands, not for something somebody else
+  // is carrying and not for one still sitting at a counter.
   if (mayReturn && order.status !== 'on_the_way') {
     return reply(
       `${order.orderNo} is not out with you — there is nothing to bring back. Send \`jobs\` to see what you have.`,

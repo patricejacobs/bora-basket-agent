@@ -454,13 +454,20 @@ export function customerStatusMessage(
     // verify are different events to the person who sent it: one is a nuisance,
     // the other means the parcel may have been offered at the wrong door, and
     // the sender is the only one who can find out which.
-    returned: t(
-      repo.returnReason(order.orderNo) === 'wrong_code'
-        ? 'returned_wrong_code'
-        : 'returned_to_sender',
-      lang,
-      { order: order.orderNo, name: order.recipientName || 'the recipient' },
-    ),
+    // Three endings, not two. A parcel goes back to whoever sent it, and the
+    // two reasons read differently to them. Everything else is going back to
+    // the shop and the person being written to is the one who was not at the
+    // door - so none of the parcel wording fits, and saying "coming back to
+    // you" to somebody who was out is close to rude.
+    returned: order.kind === 'parcel'
+      ? t(
+          repo.returnReason(order.orderNo) === 'wrong_code'
+            ? 'returned_wrong_code'
+            : 'returned_to_sender',
+          lang,
+          { order: order.orderNo, name: order.recipientName || 'the recipient' },
+        )
+      : t('returned_nobody_home', lang, { order: order.orderNo }),
   };
 
   return freeForm[status] ?? '';

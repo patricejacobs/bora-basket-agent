@@ -3414,6 +3414,68 @@ section('A wrong code on a kitchen order says one thing');
   db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
 }
 
+section('Anything can come back from a locked gate');
+{
+  const { handleDriverMessage: drive } = await import('./staff.ts');
+  const { customerStatusMessage } = await import('./notifications.ts');
+  const rider = config.driverNumbers[0]!;
+  await drive('on', rider);
+
+  const kitchen = repo.listOutlets('restaurant')[0]!;
+  const grocery = repo.defaultGrocery()!;
+
+  const tryKind = async (kind: 'restaurant' | 'grocery', outletId: number, i: number) => {
+    const sku = `RET-00${i}`;
+    repo.upsertProduct({ sku, name: `Return Test ${i}`, description: '', category: 'X', unit: 'each', price: 1850, stock: 0, active: 1, keywords: 'returntest', outletId, trackStock: 0 });
+    const pid = (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(sku) as { id: number }).id;
+    const phone = `592612990${i}`;
+    repo.logMessage(phone, 'in', 'whatsapp', 'hello');
+    repo.saveCustomer(phone, { name: 'Marcia Persaud', address: '26 Brickdam', contactPhone: phone });
+    repo.setCartQty(phone, pid, 1, '');
+    const o = repo.placeOrder({ phone, customerName: 'Marcia Persaud', address: '26 Brickdam', contactPhone: phone, deliveryNote: '', paymentMethod: 'cash', location: null });
+    const n = String(Number(o.orderNo.replace(/[^0-9]/g, '')));
+    repo.setOrderStatus(o.orderNo, 'ready');
+    await drive(`${n} uplifted`, rider);
+
+    // The way out is on the card the associate is already holding.
+    const wrong = repo.deliveryCodeFor(o.orderNo) === '1111' ? '2222' : '1111';
+    const offered = (await drive(wrong, rider))[0] as { buttons?: { title: string }[] };
+    check(
+      `a ${kind} order offers a way to say nobody was there`,
+      (offered.buttons ?? []).some((b) => /Nobody/i.test(b.title)),
+      JSON.stringify((offered.buttons ?? []).map((b) => b.title)),
+    );
+
+    await drive(`${n} nobody there`, rider);
+    const done = repo.findOrder(o.orderNo)!;
+    // The whole point: a locked gate used to be written down as a completed
+    // delivery, with the customer told their order had arrived and the
+    // associate recorded as holding cash nobody had given them.
+    check(`a ${kind} order comes back rather than being delivered`, done.status === 'returned', done.status);
+    check(`and says why`, repo.returnReason(o.orderNo) === 'nobody_there', repo.returnReason(o.orderNo));
+    check(`and is not counted as delivered`, done.status !== 'delivered');
+
+    // None of the parcel wording fits: the customer is the one who was out.
+    const told = customerStatusMessage(done, 'returned', 'en');
+    check(`the ${kind} customer is not told it is coming back to them`, !/coming back to you/i.test(told), told);
+    check(`but is told nobody was at the door`, /nobody at the door/i.test(told), told);
+    check(`and invited to arrange another delivery`, /another delivery/i.test(told), told);
+
+    db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
+  };
+
+  await tryKind('restaurant', kitchen.id, 1);
+  await tryKind('grocery', grocery.id, 2);
+
+  // A parcel still speaks to its sender, who really is getting it back.
+  const parcel = repo.allOrders().find((o) => o.kind === 'parcel');
+  if (parcel) {
+    db.prepare(`UPDATE orders SET return_reason = 'nobody_there' WHERE order_no = ?`).run(parcel.orderNo);
+    const sender = customerStatusMessage(repo.findOrder(parcel.orderNo)!, 'returned', 'en');
+    check('a parcel sender is still told it is coming back to them', /coming back to you/i.test(sender), sender);
+  }
+}
+
 section('Only the kitchen accepts a kitchen order');
 {
   const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');

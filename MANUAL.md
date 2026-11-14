@@ -542,6 +542,44 @@ earlier, so nothing is hidden by leaving them out.
 
 The acceptance is a separate message, sent when it actually happens.
 
+### When nobody is at the door
+
+Any order can come back. The associate gets a *Nobody there* button beside the
+code prompt, and `7 nobody there` works typed:
+
+```
+ORD-00083 → *returned*.
+Customer notified.
+```
+
+The order is recorded as **returned**, with the reason *nobody there*. It is
+not recorded as delivered — which matters for three separate people:
+
+- the **customer** is not told their order arrived when it did not
+- the **associate** is not charged for cash nobody ever handed them
+- the **shop** sees it in the queue as returned, and can act on it
+
+This used to be parcels only, on the reasoning that food never comes back
+because food is eaten. True of the curry and untrue of everything around it: a
+bag of rice goes back on the shelf, and even a meal nobody can save still has
+to be written down as not delivered. The only options were *Delivered* and
+*No code*, and both closed the order.
+
+Where the goods end up differs by kind — a parcel to its sender, a grocery
+onto the shelf, a restaurant meal almost certainly written off — but that is
+the shop's business, not the order status's.
+
+**What the customer is told** differs too. A parcel sender really is getting it
+back, so they are told so. Everybody else is the person who was not at the
+door:
+
+> Order ORD-00083 has come back — there was nobody at the door to take it.
+> Message us when you are ready and we will arrange another delivery.
+
+**Stock is not put back.** Nothing in the shop restocks a returned or cancelled
+order today, so a tracked item stays counted as sold until somebody corrects
+it.
+
 ### A wrong code at the door
 
 Three attempts, whatever the order is. What the associate is told differs.
