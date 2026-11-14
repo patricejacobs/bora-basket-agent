@@ -198,6 +198,79 @@ export function importOutletsText(text: string): { imported: number; skipped: Me
   return { imported, skipped };
 }
 
+/**
+ * Fills in what a shop has not got, from the file, without changing anything
+ * it has.
+ *
+ * There is no shell on a hosted deployment, so the committed CSV is the only
+ * way to tell a live shop something — but a full re-import is gated, because
+ * it would also undo every edit made since by somebody sending `hours TOG ...`
+ * from their phone. That gate left a real gap: the house grocery is created
+ * automatically with no number and no pickup address, and a number nobody set
+ * is a shop whose orders reach nobody.
+ *
+ * So these three facts, and only when they are missing. A blank number, a
+ * blank pickup address and an unset pin are not opinions a shop might hold —
+ * each one is a shop that cannot be reached or cannot be found, and filling it
+ * from the file cannot contradict a decision because no decision was made.
+ * Anything already set is left exactly as it is, which is what makes this safe
+ * to run on every boot.
+ *
+ * Shops absent from the database are not created here. That is the full seed's
+ * job, and doing it quietly on every boot is how a shop that was deliberately
+ * withdrawn comes back.
+ */
+export function fillMissingOutletDetails(text: string): { code: string; fields: string[] }[] {
+  const rows = parseCsv(text);
+  const header = rows[0];
+  if (!header) return [];
+
+  const columns = header.map(mapHeader(OUTLET_HEADERS));
+  const filled: { code: string; fields: string[] }[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]!;
+    const get = (field: string): string => {
+      const at = columns.indexOf(field);
+      return at === -1 ? '' : (row[at] ?? '').trim();
+    };
+
+    const code = get('code');
+    if (!code) continue;
+    const outlet = getOutlet(code);
+    if (!outlet) continue;
+
+    const patch: Parameters<typeof upsertOutlet>[0] = { ...outlet };
+    const fields: string[] = [];
+
+    if (!outlet.whatsapp && get('whatsapp').replace(/[^0-9]/g, '')) {
+      patch.whatsapp = get('whatsapp');
+      fields.push('its number');
+    }
+    if (!outlet.pickupAddress && get('address')) {
+      patch.pickupAddress = get('address');
+      fields.push('where to collect from');
+    }
+    // Both or neither, the same rule the full import follows: half a pin is
+    // worse than none, because it looks like a location.
+    if (outlet.pickupLat === null && outlet.pickupLng === null) {
+      const lat = numberOrNull(get('lat'));
+      const lng = numberOrNull(get('lng'));
+      if (lat !== null && lng !== null) {
+        patch.pickupLat = lat;
+        patch.pickupLng = lng;
+        fields.push('its pickup pin');
+      }
+    }
+
+    if (fields.length === 0) continue;
+    upsertOutlet(patch);
+    filled.push({ code, fields });
+  }
+
+  return filled;
+}
+
 /* -------------------------------------------------------------------- menus */
 
 export function importMenuText(text: string): MenuImportResult {

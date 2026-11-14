@@ -426,6 +426,11 @@ It is created for you. The first time the agent starts it makes one, named
 after `STORE_NAME`, open **24 hours**, with **no minimum order**, and every
 product you have already imported is filed into it. Its code is `GROCERY`.
 
+It has no number of its own at that moment, and takes one from the first of
+these that can supply it: the `GROCERY_NUMBER` setting, if you had one; then
+its row in `data/outlets.csv`. After that the number is the shop's own and
+nothing overwrites it.
+
 | What | Where it lives | How to change it |
 |---|---|---|
 | Its number | the shop's own record | `number GROCERY 5927410186` |
@@ -507,6 +512,13 @@ in the file, so they are often not in it; before this rule, importing such a
 file blanked them and the shop simply stopped receiving tickets.
 
 To clear a field on purpose, include its column and leave the cell empty.
+
+**A shop missing its number, its address or its pin gets them from the file on
+startup.** Only those three, and only when they are blank — a shop that cannot
+be reached or cannot be found is broken rather than configured, so there is no
+decision to overrule. Anything you have set, from the file or from your phone,
+is left exactly as it is. This is how the grocery gets its number without any
+Render setting at all.
 
 ### Associates
 

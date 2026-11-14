@@ -1713,7 +1713,9 @@ section('Restricted goods');
 
 section('Restaurant ordering');
 {
-  const { importOutletsText, importMenuText } = await import('./catalog/import-menu.ts');
+  const { importOutletsText, importMenuText, fillMissingOutletDetails } = await import(
+    './catalog/import-menu.ts',
+  );
 
   const outletCsv = fs.readFileSync(path.resolve('./data/sample-outlets.csv'), 'utf8');
   // Derived from the file rather than hardcoded, so adding a sample outlet does
@@ -1777,6 +1779,46 @@ section('Restaurant ordering');
   check('and its pickup pin', kfhAfter.pickupLat === kfhBefore.pickupLat);
   check('while the field it did mention changed', kfhAfter.hours === 'Mon-Sat 9am-9pm', kfhAfter.hours);
   // Put the sample row back, so later sections read the file's own hours.
+  importOutletsText(outletCsv);
+
+  /* --- filling in what a shop has not got ------------------------------- */
+
+  // There is no shell on a hosted deployment, and the full re-import is gated
+  // because it would undo edits made since from somebody's phone. That left the
+  // house grocery created with no number, which is a shop whose orders reach
+  // nobody. Blanks are filled from the file; anything set is left alone.
+  const blankCsv = [
+    'code,name,whatsapp,pickup_address,pickup_lat,pickup_lng',
+    'KFH,Kingston Fried Hut,5926120099,"12 Camp Street, Kingston",6.8149,-58.1628',
+  ].join(String.fromCharCode(10));
+
+  db.prepare(`UPDATE outlets SET whatsapp = '', pickup_address = '', pickup_lat = NULL, pickup_lng = NULL WHERE code = 'KFH'`).run();
+  const firstFill = fillMissingOutletDetails(blankCsv);
+  check('a shop with no number has it filled from the file', repo.getOutlet('KFH')?.whatsapp === '5926120099');
+  check('and where to collect from', repo.getOutlet('KFH')?.pickupAddress === '12 Camp Street, Kingston');
+  check('and its pin', repo.getOutlet('KFH')?.pickupLat === 6.8149);
+  check('and it says what it filled', firstFill[0]?.fields.length === 3, JSON.stringify(firstFill));
+
+  // The rule that makes it safe to run on every single boot.
+  repo.upsertOutlet({ ...repo.getOutlet('KFH')!, whatsapp: '5926127777' });
+  const secondFill = fillMissingOutletDetails(blankCsv);
+  check('a number somebody set is never overruled', repo.getOutlet('KFH')?.whatsapp === '5926127777');
+  check('and a boot with nothing to fill changes nothing', secondFill.length === 0, JSON.stringify(secondFill));
+
+  // Half a pin is worse than none, because it looks like a location.
+  db.prepare(`UPDATE outlets SET pickup_lat = NULL, pickup_lng = NULL WHERE code = 'KFH'`).run();
+  fillMissingOutletDetails(
+    ['code,name,pickup_lat', 'KFH,Kingston Fried Hut,6.8149'].join(String.fromCharCode(10)),
+  );
+  check('a latitude with no longitude is not a pin', repo.getOutlet('KFH')?.pickupLat === null);
+
+  // Creating shops is the full seed's job. Doing it quietly on every boot is
+  // how a shop that was deliberately withdrawn comes back.
+  const ghost = fillMissingOutletDetails(
+    ['code,name,whatsapp', 'GHOST,Never Existed,5926120001'].join(String.fromCharCode(10)),
+  );
+  check('a shop not in the database is not created', ghost.length === 0 && repo.getOutlet('GHOST') === null);
+  // Back to the file's own values for the sections that follow.
   importOutletsText(outletCsv);
 
   // A shop that does not exist yet, saying nothing, is a kitchen — which is

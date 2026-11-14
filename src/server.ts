@@ -5,7 +5,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { config, assertWhatsAppConfigured, money } from './config.ts';
 import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
-import { importOutletsText, importMenuText } from './catalog/import-menu.ts';
+import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
 import { startStallWatch } from './stalls.ts';
 import {
@@ -65,7 +65,21 @@ function loadMenus(): void {
   // brand new hosted disk and skip the seed for good, leaving a fresh
   // deployment with no restaurants and no menus and nothing saying why.
   const existing = listOutlets('restaurant').length;
-  if (existing > 0 && !config.catalogSyncOnBoot) return;
+  if (existing > 0 && !config.catalogSyncOnBoot) {
+    // Set up already, so the file is not reimported - it would undo every edit
+    // made since from somebody's phone. But a shop still missing its number,
+    // its pickup address or its pin is a shop that cannot be reached or found,
+    // and the file is the only way to tell a hosted deployment anything. Those
+    // blanks are filled; nothing already set is touched.
+    try {
+      for (const { code, fields } of fillMissingOutletDetails(fs.readFileSync(outletsFile, 'utf8'))) {
+        console.log(`[menu] ${code}: filled in ${fields.join(' and ')} from ${path.basename(outletsFile)}`);
+      }
+    } catch (err) {
+      console.error('[menu] could not read the outlets file:', err);
+    }
+    return;
+  }
 
   try {
     const outlets = importOutletsText(fs.readFileSync(outletsFile, 'utf8'));
