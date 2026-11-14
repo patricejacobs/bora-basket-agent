@@ -226,6 +226,12 @@ async function publishDraft(phone: string): Promise<OutboundMessage[]> {
     hours: menu.outlet.hours,
     // Keep anything a person has already set; a re-publish must not wipe the
     // pickup pin or the kitchen's number back to blank.
+    //
+    // The kind belongs in that list for the same reason. This flow reads a
+    // printed menu, so a shop it creates is a kitchen — but omitting the kind
+    // defaults it to one, and re-publishing an existing grocery would then
+    // turn it into a restaurant and empty the list its own customers are shown.
+    kind: existing?.kind ?? 'restaurant',
     prepMinutes: existing?.prepMinutes ?? 20,
     minOrder: existing?.minOrder ?? 0,
     deliveryFee: existing?.deliveryFee ?? null,
