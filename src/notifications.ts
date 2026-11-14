@@ -67,7 +67,7 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     '',
     order.total > 0
       ? `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`
-      : '*Fee not set* — confirm the cost with the customer before uplifting',
+      : '*Fee not set* — the associate agrees it with the sender at the pickup',
     ...(isParcel && order.pickup
       ? ['', `Uplift from: ${order.pickup.address || 'pin below'}`, `Sender ${order.customerName} +${order.contactPhone || order.phone}`]
       : []),

@@ -336,7 +336,7 @@ if (parcelBase <= 0 && parcelPerKm <= 0) {
   add(
     'warn',
     'PARCEL_FEE_BASE',
-    'not set — parcel jobs will be taken without a price and staff must confirm the cost each time',
+    'not set — parcel jobs will be taken without a price and the associate must agree one at each pickup',
   );
 } else {
   add('ok', 'parcel pricing', dim(`${parcelBase} base + ${parcelPerKm}/km`));

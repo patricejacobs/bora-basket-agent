@@ -6,7 +6,8 @@
  *
  * Pricing, because a parcel's cost depends on how far it goes rather than what
  * is in it. Unpriced by default: with no fee configured the job is still taken
- * and staff confirm the cost, rather than the agent inventing a figure. A quoted
+ * and the associate confirms the cost at the pickup, rather than the agent
+ * inventing a figure. A quoted
  * price is a promise, and a wrong one is an argument on a doorstep.
  *
  * And what may be carried. A shop chooses what to stock, but a courier is handed
@@ -43,7 +44,7 @@ export function flatParcelQuote(): ParcelQuote {
       priced: false,
       distanceKm: 0,
       reason:
-        'No parcel pricing is configured and the distance cannot be measured without both pins, so you cannot quote a fee. Take the job and say the shop will confirm the cost before uplifting — never guess a price.',
+        'No parcel pricing is configured and the distance cannot be measured without both pins, so you cannot quote a fee. Take the job and say the delivery associate will confirm the cost with them before it is uplifted — never guess a price.',
     };
   }
   return {
@@ -67,7 +68,7 @@ export function quoteParcel(from: Coordinates, to: Coordinates): ParcelQuote {
       priced: false,
       distanceKm: km,
       reason:
-        'No parcel pricing is configured, so you cannot quote a fee. Take the job and say the shop will confirm the cost before uplifting — never guess a price.',
+        'No parcel pricing is configured, so you cannot quote a fee. Take the job and say the delivery associate will confirm the cost with them before it is uplifted — never guess a price.',
     };
   }
 

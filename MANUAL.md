@@ -411,7 +411,7 @@ from the business number the agent sends from. The agent cannot message itself.
 | `DELIVERY_FEE` | 0 | Flat fee on shopping orders |
 | `FREE_DELIVERY_OVER` | 0 | Waives it above this subtotal |
 | `MIN_ORDER_TOTAL` | 0 | Smallest order accepted |
-| `PARCEL_FEE_BASE` | **0** | Flat part of a parcel fee. **At 0 every parcel books unpriced** |
+| `PARCEL_FEE_BASE` | **0** | Flat part of a parcel fee. **At 0 every parcel books unpriced** — see below |
 | `PARCEL_FEE_PER_KM` | **0** | Per-kilometre part |
 | `PARCEL_MAX_KM` | 0 | Beyond this a parcel is refused. 0 = no limit |
 | `SERVICE_RADIUS_KM` | 0 | Beyond this an order is refused. 0 = no limit |
@@ -579,6 +579,29 @@ door:
 **Stock is not put back.** Nothing in the shop restocks a returned or cancelled
 order today, so a tracked item stays counted as sold until somebody corrects
 it.
+
+### A parcel with no price on it
+
+With `PARCEL_FEE_BASE` and `PARCEL_FEE_PER_KM` both at 0, a parcel is still
+booked — the agent never invents a figure, because a quoted price is a promise
+and a wrong one is an argument on a doorstep.
+
+**The delivery associate agrees the price at the pickup.** They are the one who
+turns up and sees the parcel, so they are the only person who can. The
+customer is told so:
+
+> The delivery associate will confirm the cost with you before it is uplifted.
+
+This used to say *the shop* would confirm it, and the associate's own card said
+the same — so the customer waited for a message nobody was going to send, and
+the associate waited for a price the shop was not setting. Their card now says:
+
+```
+*Fee not set* — agree it with the sender at the pickup
+```
+
+Set a base, and optionally a rate per kilometre, and none of this applies: the
+fee is quoted at booking like any other.
 
 ### A code answers about one order
 

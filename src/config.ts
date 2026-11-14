@@ -343,10 +343,15 @@ export const config = {
    * Parcel delivery pricing.
    *
    * Both default to 0, which means "not priced". The agent then takes the job
-   * and says staff will confirm the cost before pickup, rather than inventing a
-   * figure — a quoted price is a promise, and a wrong one is an argument on a
-   * doorstep. Set a base, and optionally a rate per kilometre between the two
-   * pins, to have it quote.
+   * and says the delivery associate will confirm the cost at the pickup, rather
+   * than inventing a figure — a quoted price is a promise, and a wrong one is an
+   * argument on a doorstep. Set a base, and optionally a rate per kilometre
+   * between the two pins, to have it quote.
+   *
+   * The associate rather than the shop, because the associate is the one who
+   * turns up, sees the parcel and agrees a figure with the sender face to face.
+   * Telling the customer the shop would do it left them waiting for a message
+   * nobody was going to send.
    */
   parcel: {
     baseFee: Math.round(num('PARCEL_FEE_BASE', 0) * minorPerUnit),

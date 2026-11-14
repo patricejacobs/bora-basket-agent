@@ -229,7 +229,7 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
     `📦 *New parcel job ${order.orderNo}*`,
     ...(order.total > 0
       ? [`*${money(order.total)}*, collected from the sender`]
-      : ['*Fee not set* — the shop will confirm it']),
+      : ['*Fee not set* — agree it with the sender at the pickup']),
     '',
     `📦 ${order.parcelDetails || 'Contents not described'}`,
     '',
@@ -645,7 +645,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
       : order.total > 0
         ? `*Collect ${money(order.total)} cash* from ${toSomebodyElse ? receiverName : 'the customer'}` +
           ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`
-        : '*Fee not set* - the shop will confirm it, do not quote one',
+        : '*Fee not set* - agree it with the sender at the pickup',
   ];
 }
 
@@ -694,7 +694,7 @@ export function parcelUpliftCard(order: repo.OrderRecord): string {
     '',
     order.total > 0
       ? `*Collect ${money(order.total)} cash from ${order.customerName} when you take it.*`
-      : '*Fee not set* — do not quote one. The shop will confirm it.',
+      : '*Fee not set* — agree it with the sender at the pickup.',
   ].join(String.fromCharCode(10));
 }
 

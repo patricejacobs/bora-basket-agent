@@ -1623,7 +1623,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
           : {
               fee: 'to be confirmed',
-              note: 'Tell them the shop will confirm the cost before uplifting. Do not quote a figure.',
+              note: 'Tell them the delivery associate will confirm the cost with them before it is uplifted. Do not quote a figure.',
             }),
         next: 'Give them the job number and what happens next: a delivery associate uplifts it, then delivers. No time promise.',
       });

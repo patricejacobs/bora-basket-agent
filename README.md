@@ -235,9 +235,14 @@ honestly, which is most people.
 | `PARCEL_FEE_PER_KM` | added per kilometre between the two pins, rounded up |
 | `PARCEL_MAX_KM` | beyond this the job is refused; `0` disables the cap |
 
-**With neither fee set, the job is still taken** and the agent says the shop will confirm
-the cost before collecting, rather than inventing a figure. A quoted price is a promise and
-a wrong one is an argument on a doorstep.
+**With neither fee set, the job is still taken** and the agent says the delivery associate
+will confirm the cost before it is uplifted, rather than inventing a figure. A quoted price
+is a promise and a wrong one is an argument on a doorstep.
+
+The associate rather than the shop, because the associate is the one who turns up, sees the
+parcel and agrees a figure with the sender. Naming the shop left a customer waiting for a
+message nobody was going to send, and the associate's own card told them the shop had it in
+hand — so both ends waited for the other.
 
 ## Other — handing over to a person
 
