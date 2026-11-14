@@ -3422,6 +3422,68 @@ section('A wrong code on a kitchen order says one thing');
   db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
 }
 
+section('A code answers about one order, never a list');
+{
+  const { handleDriverMessage: drive } = await import('./staff.ts');
+  const rider = config.driverNumbers[0]!;
+  await drive('on', rider);
+
+  const kitchen = repo.listOutlets('restaurant')[0]!;
+  const made: { orderNo: string; n: string; code: string }[] = [];
+
+  // Two orders out with one associate at once. Only possible above the usual
+  // one-job limit, but a transfer gets there too, and it is the case where the
+  // old answer listed somebody else's delivery on a screen a customer can see.
+  for (let i = 1; i <= 2; i++) {
+    const sku = `TWO-00${i}`;
+    repo.upsertProduct({ sku, name: `Two Test ${i}`, description: '', category: 'X', unit: 'each', price: 1850, stock: 0, active: 1, keywords: 'twotest', outletId: kitchen.id, trackStock: 0 });
+    const pid = (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(sku) as { id: number }).id;
+    const phone = `592612989${i}`;
+    repo.logMessage(phone, 'in', 'whatsapp', 'hello');
+    repo.saveCustomer(phone, { name: `Customer ${i}`, address: '26 Brickdam', contactPhone: phone });
+    repo.setCartQty(phone, pid, 1, '');
+    const o = repo.placeOrder({ phone, customerName: `Customer ${i}`, address: '26 Brickdam', contactPhone: phone, deliveryNote: '', paymentMethod: 'cash', location: null });
+    // Driven straight onto the associate, since the ordinary path refuses a
+    // second job while one is open.
+    db.prepare(
+      `UPDATE orders SET status = 'on_the_way', driver_phone = ?, uplifted_at = ?, code_sent_at = ? WHERE order_no = ?`,
+    ).run(rider, `2026-11-14T1${i}:00:00Z`, '2026-11-14T10:00:00Z', o.orderNo);
+    made.push({ orderNo: o.orderNo, n: String(Number(o.orderNo.replace(/[^0-9]/g, ''))), code: repo.deliveryCodeFor(o.orderNo) });
+    db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
+  }
+
+  const [first, second] = made as [typeof made[0], typeof made[0]];
+  check('both are out with the same associate', repo.activeJobsFor(rider).length >= 2, String(repo.activeJobsFor(rider).length));
+
+  // The second was uplifted later, so it is the door they are standing at.
+  const wrong = second.code === '1111' ? '2222' : '1111';
+  const said = (await drive(wrong, rider))[0]?.text ?? '';
+  check('the answer names the order being delivered', said.includes(second.orderNo), said);
+  check('and never the other one', !said.includes(first.orderNo), said);
+  // The old answer listed every order they were carrying, with the customer's
+  // name beside it, on a screen somebody at the door can read over.
+  check('nor anybody else by name', !/Customer 1/.test(said), said);
+  check('and does not ask them to choose', !/Which order/i.test(said), said);
+
+  // The attempt landed on that order and not on the other.
+  check('the attempt counts against the one being delivered', repo.codeAttemptsLeft(second.orderNo) === repo.CODE_ATTEMPT_LIMIT - 1, String(repo.codeAttemptsLeft(second.orderNo)));
+  check('and leaves the other untouched', repo.codeAttemptsLeft(first.orderNo) === repo.CODE_ATTEMPT_LIMIT, String(repo.codeAttemptsLeft(first.orderNo)));
+
+  // Naming an order explicitly still overrides which one is assumed.
+  const named = (await drive(`${first.n} ${wrong}`, rider))[0]?.text ?? '';
+  check('naming one still chooses it', named.includes(first.orderNo), named);
+  check('and still mentions no other', !named.includes(second.orderNo), named);
+
+  // Both withdrawn again. They were forced onto the associate past the usual
+  // one-job limit, and every section after this one assumes a free rider.
+  for (const m of made) {
+    db.prepare(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE order_no = ?)`).run(m.orderNo);
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(m.orderNo);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(m.orderNo);
+  }
+  check('and the associate is free again', repo.activeJobsFor(rider).length === 0, String(repo.activeJobsFor(rider).length));
+}
+
 section('Anything can come back from a locked gate');
 {
   const { handleDriverMessage: drive } = await import('./staff.ts');

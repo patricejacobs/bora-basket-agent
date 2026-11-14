@@ -1353,27 +1353,23 @@ export async function handleDriverMessage(
     const paired = /^(?:ord[-\s]?)?0*(\d{1,6})\s+(\d{4})$/.exec(trimmed);
     const bare = /^(\d{4})$/.exec(trimmed);
 
-    // Which order is being proved. Named explicitly, or the only one it could
-    // be. Never guessed when two are open: verifying the wrong delivery is
-    // worse than asking which.
-    const target = paired
-      ? repo.findOrder(paired[1] ?? '')
-      : bare && awaiting.length === 1
-        ? (awaiting[0] ?? null)
-        : null;
+    // The one in their hands.
+    //
+    // An associate typing four digits is standing at a door, and the order
+    // they are standing at is the one they picked up last. So a bare code is
+    // tested against that, and every message about it names that order and no
+    // other.
+    //
+    // This used to ask which, and list every order they were carrying with the
+    // customer's name beside it. Two things wrong with that. It answers a
+    // question nobody asked — they are at one door, not choosing between
+    // doors — and it puts other people's undelivered orders on the screen of
+    // somebody who is mid-conversation with a customer who can see it.
+    const beingDelivered = [...awaiting].sort((a, b) =>
+      (b.upliftedAt || '').localeCompare(a.upliftedAt || ''),
+    )[0];
 
-    if (bare && !paired && awaiting.length > 1) {
-      const first = String(Number((awaiting[0]?.orderNo ?? '').replace(/[^0-9]/g, '')));
-      return reply(
-        [
-          'Which order is that code for?',
-          '',
-          ...awaiting.map((o) => `${o.orderNo} - ${o.customerName}`),
-          '',
-          `Send the order and the code together, like \`${first} ${bare[1]}\`.`,
-        ].join(chr10),
-      );
-    }
+    const target = paired ? repo.findOrder(paired[1] ?? '') : bare ? (beingDelivered ?? null) : null;
 
     // A code typed against an order they are not carrying - which includes
     // every order that is over, since `holding` is what is out with them now.
@@ -1581,18 +1577,23 @@ export async function handleDriverMessage(
     // `2149` as order 2149 - a different order, or none. A code attempt must
     // never be capable of moving some other order, whatever the digits are.
     if (bare && !paired && awaiting.length === 0) {
-      const mine = holding.map((o) => o.orderNo);
+      // Again, one order and not a list. The most recently uplifted is the one
+      // they are standing at; the others are nobody's business while somebody
+      // is at a door.
+      const carrying = [...holding].sort((a, b) =>
+        (b.upliftedAt || '').localeCompare(a.upliftedAt || ''),
+      )[0];
       return reply(
-        mine.length === 0
+        !carrying
           ? [
               `Nothing of yours is waiting on a code.`,
               '',
               'Send `jobs` to see what there is to uplift.',
             ].join(chr10)
           : [
-              `No code is needed on ${mine.join(', ')}.`,
+              `No code is needed on ${carrying.orderNo}.`,
               '',
-              `Send \`${String(Number((mine[0] ?? '').replace(/[^0-9]/g, '')))} delivered\` to close it.`,
+              `Send \`${String(Number(carrying.orderNo.replace(/[^0-9]/g, '')))} delivered\` to close it.`,
             ].join(chr10),
       );
     }

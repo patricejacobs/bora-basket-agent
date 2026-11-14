@@ -580,6 +580,21 @@ door:
 order today, so a tracked item stays counted as sold until somebody corrects
 it.
 
+### A code answers about one order
+
+Four digits typed by an associate are tested against **the order they picked
+up last**, because that is the door they are standing at. Every message about
+it names that order and no other.
+
+It used to ask which, when they were carrying more than one, and list each
+order with the customer's name beside it. That answers a question nobody
+asked — they are at one door, not choosing between doors — and it puts other
+people's undelivered orders on a screen the customer at that door can read
+over.
+
+Naming an order explicitly still wins: `86 1234` is about order 86 whatever
+else they are carrying.
+
 ### A wrong code at the door
 
 Five attempts, whatever the order is. What the associate is told differs.
