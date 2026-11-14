@@ -3370,6 +3370,50 @@ section('The trail names the telephone, not the role');
   }
 }
 
+section('A wrong code on a kitchen order says one thing');
+{
+  const { handleDriverMessage: drive } = await import('./staff.ts');
+  const rider = config.driverNumbers[0]!;
+  await drive('on', rider);
+
+  const kitchen = repo.listOutlets('restaurant')[0]!;
+  const sku = 'WRG-001';
+  repo.upsertProduct({ sku, name: 'Wrong Code Roti', description: '', category: 'Mains', unit: 'plate', price: 1850, stock: 0, active: 1, keywords: 'wrongcode', outletId: kitchen.id, trackStock: 0 });
+  const pid = (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(sku) as { id: number }).id;
+
+  const phone = '5926129901';
+  repo.logMessage(phone, 'in', 'whatsapp', 'hello');
+  repo.saveCustomer(phone, { name: 'Marcia Persaud', address: '26 Brickdam', contactPhone: phone });
+  repo.setCartQty(phone, pid, 1, '');
+  const o = repo.placeOrder({ phone, customerName: 'Marcia Persaud', address: '26 Brickdam', contactPhone: phone, deliveryNote: '', paymentMethod: 'cash', location: null });
+  const n = String(Number(o.orderNo.replace(/[^0-9]/g, '')));
+  repo.setOrderStatus(o.orderNo, 'ready');
+  await drive(`${n} uplifted`, rider);
+
+  const code = repo.deliveryCodeFor(o.orderNo);
+  const wrong = code === '1111' ? '2222' : '1111';
+
+  // The fact and nothing else. The associate is at the door with the customer
+  // in front of them and knows to ask again; a line telling them to was the
+  // same line every time and got read past.
+  const first = (await drive(wrong, rider))[0]?.text ?? '';
+  check('a kitchen order says only that it is wrong', first === `That code is incorrect for ${o.orderNo}.`, JSON.stringify(first));
+
+  // Three attempts, unchanged. Two of them say so; the third spends the code.
+  check('still two left after one', repo.codeAttemptsLeft(o.orderNo) === 2, String(repo.codeAttemptsLeft(o.orderNo)));
+  await drive(wrong, rider);
+  check('and one after two', repo.codeAttemptsLeft(o.orderNo) === 1, String(repo.codeAttemptsLeft(o.orderNo)));
+  check('with the order still out', repo.findOrder(o.orderNo)?.status === 'on_the_way');
+
+  // The third spends it. A code cannot hold a delivery open for ever, so the
+  // order closes and the record says the code was never confirmed.
+  await drive(wrong, rider);
+  check('the third closes the order', repo.findOrder(o.orderNo)?.status === 'delivered', repo.findOrder(o.orderNo)?.status);
+  check('recorded as never confirmed', repo.deliveryCodeUnconfirmed(o.orderNo));
+
+  db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
+}
+
 section('Only the kitchen accepts a kitchen order');
 {
   const { handleStaffMessage, handleOutletMessage } = await import('./staff.ts');

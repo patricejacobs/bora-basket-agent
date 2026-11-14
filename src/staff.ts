@@ -1496,22 +1496,33 @@ export async function handleDriverMessage(
           {
             kind: 'buttons',
             text: [
-              `❌ That code is not correct for ${target.orderNo}.`,
-              '',
-              // The person at the door, who is not always the person who
-              // ordered - and on a parcel never is. "Ask Peter" when Peter is
-              // the sender sends an associate looking for somebody who is
-              // across town.
-              ...(() => {
-                const receiver = target.recipientName || target.customerName;
-                const first = receiver.split(/\s+/)[0] || 'them';
-                const tries = `${left} ${left === 1 ? 'try' : 'tries'} left.`;
-                return [
-                  target.recipientName && target.recipientName !== target.customerName
-                    ? `Ask ${first} for the code ${target.customerName} passed on. ${tries}`
-                    : `Ask ${first} to read it from our message. ${tries}`,
-                ];
-              })(),
+              // A restaurant order gets the fact and nothing else. The
+              // associate is at the door with the customer in front of them
+              // and knows perfectly well to ask again; a line telling them to
+              // is a line they read past, and it was the same line every time.
+              //
+              // The three attempts are unchanged — only what is said about
+              // them is.
+              ...(target.kind === 'restaurant'
+                ? [`That code is incorrect for ${target.orderNo}.`]
+                : [
+                    `❌ That code is not correct for ${target.orderNo}.`,
+                    '',
+                    // The person at the door, who is not always the person who
+                    // ordered - and on a parcel never is. "Ask Peter" when Peter is
+                    // the sender sends an associate looking for somebody who is
+                    // across town.
+                    ...(() => {
+                      const receiver = target.recipientName || target.customerName;
+                      const first = receiver.split(/\s+/)[0] || 'them';
+                      const tries = `${left} ${left === 1 ? 'try' : 'tries'} left.`;
+                      return [
+                        target.recipientName && target.recipientName !== target.customerName
+                          ? `Ask ${first} for the code ${target.customerName} passed on. ${tries}`
+                          : `Ask ${first} to read it from our message. ${tries}`,
+                      ];
+                    })(),
+                  ]),
             ].join(chr10),
             // Both ways a parcel comes back, because at this moment the
             // associate knows which it is and nobody else ever will.

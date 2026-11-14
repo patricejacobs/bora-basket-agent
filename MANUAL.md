@@ -542,6 +542,34 @@ earlier, so nothing is hidden by leaving them out.
 
 The acceptance is a separate message, sent when it actually happens.
 
+### A wrong code at the door
+
+Three attempts, whatever the order is. What the associate is told differs.
+
+**A restaurant order** says the fact and nothing else:
+
+```
+That code is incorrect for ORD-00083.
+
+[ No code ]
+```
+
+**A grocery or a parcel** also names who to ask, which matters when the person
+at the door is not the person who ordered:
+
+```
+❌ That code is not correct for ORD-91001.
+
+Ask Anita for the code Ramesh passed on. 2 tries left.
+
+[ Wrong code ]  [ Nobody there ]
+```
+
+**On the third wrong attempt the code is spent.** It stops being required and
+the order closes, recorded permanently as delivered with the code never
+confirmed. A code cannot hold a delivery open for ever, and an associate who
+cannot close a job will close it some other way.
+
 ### One way to the door
 
 A delivery card gives the associate **either** a written address **or** a map
