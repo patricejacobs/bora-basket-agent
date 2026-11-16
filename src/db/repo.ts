@@ -1193,7 +1193,13 @@ export type OrderRecord = {
   address: string;
   contactPhone: string;
   deliveryNote: string;
+  /** What the goods came to, before delivery. */
+  subtotal: number;
+  /** What was charged to bring them. `total` is the two added up. */
+  deliveryFee: number;
   total: number;
+  /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
+  paymentMethod: string;
   status: OrderStatus;
   placedAt: string;
   /**
@@ -1290,6 +1296,13 @@ function hydrateOrder(row: {
   recipient_pin: number | null;
   cancel_reason: string | null;
   cancelled_by: string | null;
+  // Both halves of the total, not just the sum. They have been in the table
+  // since the first order was written and were simply never read back: until
+  // the receipt there was nothing customer-facing that had to say what the
+  // money was made of. Null-guarded for rows written before the columns.
+  subtotal: number | null;
+  delivery_fee: number | null;
+  payment_method: string | null;
   total: number;
   status: string;
   created_at: string;
@@ -1342,6 +1355,9 @@ function hydrateOrder(row: {
     recipientPin: Boolean(row.recipient_pin),
     cancelReason: row.cancel_reason ?? '',
     cancelledBy: row.cancelled_by ?? '',
+    subtotal: row.subtotal ?? 0,
+    deliveryFee: row.delivery_fee ?? 0,
+    paymentMethod: row.payment_method ?? '',
     items: (
       db
         .prepare(

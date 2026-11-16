@@ -132,6 +132,20 @@ const STRINGS: Record<Language, Dictionary> = {
     thanks_grocery: 'Thank you for shopping with us!',
     thanks_restaurant: 'Thank you for ordering from {outlet}!',
     thanks_parcel: 'Thank you for choosing {store}!',
+
+    // The receipt, printed above the three lines of thanks. Labels only - the
+    // figures and the item lines are built from the order itself.
+    receipt_title: 'Receipt',
+    receipt_goods: 'Goods',
+    receipt_delivery: 'Delivery',
+    receipt_total: 'Total',
+    receipt_paid_cash: 'paid in cash',
+    receipt_paid_card: 'paid by card',
+    // A parcel bought nothing, and its fee was handed over at the uplift by
+    // the person who sent it - so neither the goods line nor "paid at the
+    // door" is true of one.
+    receipt_parcel_fee: 'Delivery fee',
+    receipt_paid_at_pickup: 'paid at pickup',
     pin_elsewhere: 'Not where you are now? Drag the map, or search for the place, before you send it.',
     returned_wrong_code: 'Parcel {order} is coming back to you — the delivery code {name} gave did not match, so the delivery associate did not hand it over. Check with {name} that they had the code you passed on. The fee covers the trip, which was made, so it is not refunded.',
     parcel_on_the_way: 'Parcel {order} has been collected and is on its way to {name}.',
@@ -222,6 +236,15 @@ const STRINGS: Record<Language, Dictionary> = {
     thanks_grocery: '¡Gracias por comprar con nosotros!',
     thanks_restaurant: '¡Gracias por pedir en {outlet}!',
     thanks_parcel: '¡Gracias por elegir {store}!',
+
+    receipt_title: 'Recibo',
+    receipt_goods: 'Productos',
+    receipt_delivery: 'Entrega',
+    receipt_total: 'Total',
+    receipt_paid_cash: 'pagado en efectivo',
+    receipt_paid_card: 'pagado con tarjeta',
+    receipt_parcel_fee: 'Costo de entrega',
+    receipt_paid_at_pickup: 'pagado al recoger',
     pin_elsewhere: '¿No está ahí ahora? Mueva el mapa, o busque el lugar, antes de enviarlo.',
     returned_wrong_code: 'El paquete {order} vuelve a usted — el código que dio {name} no coincidió, así que el asociado de entrega no lo entregó. Confirme con {name} que tenía el código que usted le pasó. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     parcel_on_the_way: 'El paquete {order} ha sido recogido y va camino a {name}.',
@@ -303,6 +326,15 @@ const STRINGS: Record<Language, Dictionary> = {
     thanks_grocery: 'Obrigado por comprar connosco!',
     thanks_restaurant: 'Obrigado por pedir em {outlet}!',
     thanks_parcel: 'Obrigado por escolher {store}!',
+
+    receipt_title: 'Recibo',
+    receipt_goods: 'Produtos',
+    receipt_delivery: 'Entrega',
+    receipt_total: 'Total',
+    receipt_paid_cash: 'pago em dinheiro',
+    receipt_paid_card: 'pago com cartão',
+    receipt_parcel_fee: 'Taxa de entrega',
+    receipt_paid_at_pickup: 'pago na coleta',
     pin_elsewhere: 'Não está lá agora? Arraste o mapa, ou procure o local, antes de enviar.',
     returned_wrong_code: 'A encomenda {order} está a voltar para si — o código que {name} deu não coincidiu, por isso o associado de entrega não a entregou. Confirme com {name} que tinha o código que lhe passou. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     parcel_on_the_way: 'A encomenda {order} foi recolhida e está a caminho de {name}.',
@@ -382,6 +414,15 @@ const STRINGS: Record<Language, Dictionary> = {
     thanks_grocery: '感谢您在我们这里购物！',
     thanks_restaurant: '感谢您从 {outlet} 订餐！',
     thanks_parcel: '感谢您选择 {store}！',
+
+    receipt_title: '收据',
+    receipt_goods: '商品',
+    receipt_delivery: '配送',
+    receipt_total: '合计',
+    receipt_paid_cash: '现金支付',
+    receipt_paid_card: '刷卡支付',
+    receipt_parcel_fee: '配送费',
+    receipt_paid_at_pickup: '取件时已付',
     pin_elsewhere: '现在不在那里？发送前请拖动地图，或搜索该地点。',
     returned_wrong_code: '包裹 {order} 正在退回给您 — {name} 提供的收货码不正确，配送专员因此没有交付。请与 {name} 核对您转告的收货码。费用已用于本次行程，故不予退还。',
     parcel_on_the_way: '包裹 {order} 已提取，正在送往 {name}。',

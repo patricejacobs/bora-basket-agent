@@ -3686,6 +3686,105 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('A receipt at the door');
+{
+  const { deliveredMessage, receiptLines } = await import('./notifications.ts');
+  const { LANGUAGES } = await import('./language.ts');
+
+  const buyer = '5926007575';
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 2`,
+    )
+    .all() as unknown as { id: number }[]).map((p) => p.id);
+
+  repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
+  repo.setCartQty(buyer, sellable[0]!, 2, '');
+  if (sellable[1]) repo.setCartQty(buyer, sellable[1], 1, '');
+  const placed = repo.placeOrder({
+    phone: buyer,
+    customerName: 'Patrice',
+    address: '26 Brickdam, Georgetown',
+    contactPhone: buyer,
+    deliveryNote: '',
+    paymentMethod: 'cash_on_delivery',
+    location: null,
+  } as never);
+  db.prepare(`UPDATE orders SET status = 'delivered', delivery_fee = 500, total = subtotal + 500 WHERE order_no = ?`).run(placed.orderNo);
+  const order = repo.findOrder(placed.orderNo)!;
+
+  /* --- both halves of the money are on the record now ----------------- */
+
+  // They have been in the table since the first order and were never read
+  // back, because nothing customer-facing had to say what the total was made
+  // of. A receipt does.
+  check('the goods total is carried', order.subtotal > 0, String(order.subtotal));
+  check('and the delivery charge', order.deliveryFee === 500, String(order.deliveryFee));
+  check('which add up to the total', order.subtotal + order.deliveryFee === order.total, `${order.subtotal} + ${order.deliveryFee} ≠ ${order.total}`);
+  check('and how it was paid', order.paymentMethod === 'cash_on_delivery', order.paymentMethod);
+
+  /* --- what the customer is handed ------------------------------------ */
+
+  const msg = deliveredMessage(order, 'en');
+  check('every item ordered is priced on it', order.items.every((i) => msg.includes(`${i.qty} x ${i.name}`) && msg.includes(money(i.lineTotal))), msg);
+  check('the goods are totalled', msg.includes(`Goods ${money(order.subtotal)}`), msg);
+  check('the delivery is charged separately', msg.includes(`Delivery ${money(order.deliveryFee)}`), msg);
+  check('and the total says how it was paid', msg.includes(`*Total ${money(order.total)}* — paid in cash`), msg);
+
+  // Manners last. The useful part is not something to scroll past the thanks
+  // to reach.
+  check(
+    'the receipt comes before the thanks',
+    msg.indexOf('🧾') < msg.indexOf('delivered.') && msg.indexOf('delivered.') < msg.indexOf('Thank you'),
+    msg,
+  );
+  // The same rule as the doorstep line: one reference, said once.
+  check('the order number appears once', (msg.match(new RegExp(order.orderNo, 'g')) ?? []).length === 1, msg);
+
+  /* --- a parcel bought nothing ---------------------------------------- */
+
+  const job = repo.createParcelJob({
+    phone: buyer,
+    senderName: 'Patrice',
+    pickup: null,
+    pickupAddress: '26 Brickdam',
+    destination: null,
+    destinationAddress: '12 Kitty',
+    recipientName: 'Marcia',
+    recipientPhone: '5926100077',
+    contents: '6 flattened cardboard boxes',
+    fee: 1500,
+    contactPhone: buyer,
+  } as never);
+  db.prepare(`UPDATE orders SET status = 'delivered' WHERE order_no = ?`).run(job.orderNo);
+  const parcel = deliveredMessage(repo.findOrder(job.orderNo)!, 'en');
+  check('a parcel is described, not itemised', parcel.includes('📦 6 flattened cardboard boxes'), parcel);
+  check('with no goods line, because nothing was bought', !parcel.includes('Goods'), parcel);
+  // It was settled at the uplift by the person who sent it, so "paid in cash"
+  // at the door would be a second payment nobody made.
+  check('and the fee is marked paid at pickup', parcel.includes(`*Delivery fee ${money(1500)}* — paid at pickup`), parcel);
+
+  // The one the associate agreed at the counter. The shop never learned the
+  // figure, so the receipt does not print one rather than printing a zero.
+  db.prepare(`UPDATE orders SET total = 0 WHERE order_no = ?`).run(job.orderNo);
+  const unpriced = deliveredMessage(repo.findOrder(job.orderNo)!, 'en');
+  check('an unpriced parcel invents no figure', !unpriced.includes('Delivery fee') && !unpriced.includes('$0'), unpriced);
+  check('while still saying what was carried', unpriced.includes('6 flattened cardboard boxes'), unpriced);
+
+  /* --- in every language ---------------------------------------------- */
+
+  for (const lang of LANGUAGES) {
+    const lines = receiptLines(order, lang).join('\n');
+    check(`the ${lang} receipt prices every item`, order.items.every((i) => lines.includes(money(i.lineTotal))), lines);
+    check(`the ${lang} receipt totals the same figure`, lines.includes(money(order.total)), lines);
+  }
+  const es = receiptLines(order, 'es').join('\n');
+  check('and is translated, not just reprinted', es.includes('Productos') && es.includes('Entrega') && !es.includes('Goods'), es);
+
+  db.prepare(`DELETE FROM orders WHERE order_no IN (?, ?)`).run(placed.orderNo, job.orderNo);
+}
+
 section('The cap closes the shift it stopped');
 {
   const him = config.driverNumbers[0]!;

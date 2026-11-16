@@ -324,6 +324,84 @@ export function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
 }
 
 /**
+ * The receipt, printed when the order is handed over.
+ *
+ * Until now the last priced thing a customer saw was the cart, before the
+ * order existed. They were told their order arrived and never told what
+ * arrived, or what the money was for - which is the one message where both
+ * facts are finally settled.
+ *
+ * What was ORDERED, line by line, plus the delivery charge. Nothing here is
+ * recalculated: every figure is read off the order as it was written, so the
+ * receipt and the total the associate collected cannot drift apart.
+ *
+ * No padded columns. WhatsApp renders a plain message in a proportional font,
+ * so spaces lined up here arrive ragged on a phone; the label goes in front of
+ * each figure instead, which reads the same in any font.
+ */
+export function receiptLines(order: repo.OrderRecord, lang: Language): string[] {
+  const isParcel = order.kind === 'parcel';
+
+  // The order's own time, in the shop's timezone rather than the server's.
+  const when = (() => {
+    const at = new Date(order.placedAt);
+    if (Number.isNaN(at.getTime())) return '';
+    return at.toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: config.store.timezone,
+    });
+  })();
+
+  // Deliberately without the order number: the line directly below this one
+  // is "Order ORD-00042 delivered", and the same reference twice in one
+  // message is a line read, checked against the other, and trusted less.
+  const head = `🧾 *${t('receipt_title', lang)}*${when ? ` — ${when}` : ''}`;
+
+  // A parcel bought nothing. Its fee was agreed and handed over at the uplift
+  // by the person who sent it, so neither a goods line nor "paid at the door"
+  // is true of one.
+  if (isParcel) {
+    return [
+      head,
+      '',
+      `📦 ${order.parcelDetails || t('receipt_parcel_fee', lang)}`,
+      // An unpriced parcel - one the associate agreed at the counter - has no
+      // figure anybody here knows. Saying nothing is the only honest option:
+      // the shop never learned what was settled.
+      ...(order.total > 0
+        ? ['', `*${t('receipt_parcel_fee', lang)} ${money(order.total)}* — ${t('receipt_paid_at_pickup', lang)}`]
+        : []),
+    ];
+  }
+
+  // How it was paid, from what was agreed when the order was placed. An
+  // unrecognised method drops the clause rather than guessing: "Total $6,750"
+  // on its own is true whatever the money was.
+  const method = order.paymentMethod.startsWith('cash')
+    ? t('receipt_paid_cash', lang)
+    : order.paymentMethod.startsWith('card')
+      ? t('receipt_paid_card', lang)
+      : '';
+
+  return [
+    head,
+    '',
+    ...order.items.map((i) => {
+      const chosen = summariseStored(i.options);
+      return `${i.qty} x ${i.name}${chosen ? ` _${chosen}_` : ''} — ${money(i.lineTotal)}`;
+    }),
+    '',
+    `${t('receipt_goods', lang)} ${money(order.subtotal)}`,
+    `${t('receipt_delivery', lang)} ${money(order.deliveryFee)}`,
+    `*${t('receipt_total', lang)} ${money(order.total)}*${method ? ` — ${method}` : ''}`,
+  ];
+}
+
+/**
  * How a delivered order closes.
  *
  * Two shapes, differing in one receipt line. The unverified one states the fact
@@ -349,7 +427,11 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // receipt line itself, which meant one sentence had to suit a bag of
   // groceries, a hot meal and a parcel alike.
   const nl = String.fromCharCode(10);
-  const head = receipt + nl + nl + thanksFor(order, lang);
+  // The receipt goes in front of all of it. What was delivered and what it
+  // cost are the facts; the thanks and the wish are the manners, and manners
+  // go last so the useful part is not scrolled past to reach them.
+  const head =
+    receiptLines(order, lang).join(nl) + nl + nl + receipt + nl + nl + thanksFor(order, lang);
 
   // Only the unconfirmed one invites a reply. On a delivery the customer
   // proved themselves, "anything wrong?" would be the shop asking a question

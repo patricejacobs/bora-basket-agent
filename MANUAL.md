@@ -784,16 +784,63 @@ A **grocery** order is your own shop's, so the desk confirms it as before.
 
 ### How an order says goodbye
 
-The closing message is built in three parts: the receipt, the thanks, and a
-wish. The thanks is decided by what the customer actually did, and the wish is
-drawn from a pool for that kind of order.
+The closing message is built in four parts: the receipt, the line saying it
+arrived, the thanks, and a wish. The thanks is decided by what the customer
+actually did, and the wish is drawn from a pool for that kind of order.
 
 ```
-Order ORD-00042 delivered.          ← receipt
+🧾 *Receipt* — 16 Nov, 17:59        ← the receipt
+
+2 x Karibee Parboiled Rice — $3,700
+1 x Fresh Milk — $780
+3 x Bath Soap — $1,770
+
+Goods $6,250
+Delivery $500
+*Total $6,750* — paid in cash
+
+Order ORD-00042 delivered.          ← it arrived
 
 Thank you for shopping with us!     ← thanks, by kind
 Message any time for your next order. 💬   ← one of five wishes
 ```
+
+**Everything ordered, line by line, plus the delivery charge.** Before this
+the last priced thing a customer saw was the cart, before the order existed:
+they were told their order arrived and never told what arrived or what the
+money was for. Nothing on the receipt is recalculated — every figure is read
+off the order as it was written, so the receipt and the amount the associate
+collects cannot drift apart.
+
+The goods total and the delivery charge have been stored on every order since
+the first one. They were simply never read back, because until the receipt
+nothing shown to a customer had to say what the total was made of.
+
+**A parcel bought nothing**, so it gets its contents and its fee, marked as
+settled where it actually was:
+
+```
+🧾 *Receipt* — 16 Nov, 17:59
+
+📦 6 flattened cardboard boxes
+
+*Delivery fee $1,500* — paid at pickup
+```
+
+A parcel the associate priced at the counter prints no figure at all. The shop
+never learned what was agreed, and a zero would be a claim about it.
+
+**The receipt goes first and the manners last**, so the useful part is not
+something to scroll past the thanks to reach. It carries no order number of
+its own — the line directly below it already says `Order ORD-00042 delivered`,
+and the same reference twice in one message is a line read, checked against
+the other, and trusted less.
+
+**No padded columns.** WhatsApp renders a plain message in a proportional
+font, so figures lined up with spaces arrive ragged on a phone. The label goes
+in front of each figure instead, which reads the same in any font.
+
+All of it exists in English, Spanish, Portuguese and Chinese.
 
 | Kind | Thanked for | Wishes |
 |---|---|---|
