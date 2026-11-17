@@ -3930,6 +3930,43 @@ section('Accepted is not delivered');
   db.prepare(`DELETE FROM associates WHERE phone = ?`).run(unseen);
 }
 
+section('The cash, and what it is made of');
+{
+  const { dropLines } = await import('./dispatch.ts');
+
+  const make = (kind: string, subtotal: number, fee: number) => {
+    const no = `ORD-9500${kind === 'restaurant' ? 1 : 2}${fee}`;
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+         delivery_note, kind, subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, '5926129920', 'Patrice', '26 Brickdam', '5926129920', '',
+         ?, ?, ?, ?, 'cash_on_delivery', 'ready', '2026-11-17T20:00:00Z')`,
+    ).run(no, kind, subtotal, fee, subtotal + fee);
+    return repo.findOrder(no)!;
+  };
+
+  // The old line said "(2 items + delivery)" - a description of a receipt
+  // rather than a receipt. Somebody at a gate asked why it is $3,700 got an
+  // answer that did not add up to anything.
+  const food = dropLines(make('restaurant', 3200, 500)).join(String.fromCharCode(10));
+  check('the cash figure is the total', food.includes(`*Collect ${money(3700)} cash*`), food);
+  check('broken down so it can be read out', food.includes(`${money(3200)} food + ${money(500)} delivery`), food);
+  check('and the old item count is gone', !/items \+ delivery/.test(food), food);
+
+  // The same word for a bag of shopping and a hot meal never sounds right.
+  const shopping = dropLines(make('grocery', 3200, 500)).join(String.fromCharCode(10));
+  check('a grocery order says goods, not food', shopping.includes(`${money(3200)} goods + ${money(500)} delivery`), shopping);
+
+  // A charge that was never made is said as such, not printed as a zero.
+  const free = dropLines(make('grocery', 1900, 0)).join(String.fromCharCode(10));
+  check('free delivery says so', free.includes(`${money(1900)} goods, delivery free`), free);
+  check('rather than printing a zero', !free.includes(`+ ${money(0)}`), free);
+  check('and the cash is still the total', free.includes(`*Collect ${money(1900)} cash*`), free);
+
+  db.prepare(`DELETE FROM orders WHERE order_no LIKE 'ORD-9500%'`).run();
+}
+
 section('A receipt at the door');
 {
   const { deliveredMessage, receiptLines } = await import('./notifications.ts');
@@ -3976,13 +4013,27 @@ section('A receipt at the door');
   check('the delivery is charged separately', msg.includes(`Delivery ${money(order.deliveryFee)}`), msg);
   check('and the total says how it was paid', msg.includes(`*Total ${money(order.total)}* — paid in cash`), msg);
 
-  // Manners last. The useful part is not something to scroll past the thanks
-  // to reach.
+  // The order closes, then the receipt for it, then the manners. The line the
+  // customer is waiting for is the one saying it arrived; a receipt is what
+  // you are handed afterwards, not something to scroll past to find out
+  // whether your delivery is done.
   check(
-    'the receipt comes before the thanks',
-    msg.indexOf('🧾') < msg.indexOf('delivered.') && msg.indexOf('delivered.') < msg.indexOf('Thank you'),
+    'the delivery line comes first, then the receipt, then the thanks',
+    msg.indexOf('delivered.') < msg.indexOf('🧾') && msg.indexOf('🧾') < msg.indexOf('Thank you'),
     msg,
   );
+
+  /* --- a charge that was never made is not a line ---------------------- */
+
+  // "Goods $3,200" above "Total $3,200" is the same figure twice, and
+  // "Delivery $0" reads like a question rather than an answer.
+  db.prepare(`UPDATE orders SET delivery_fee = 0, total = subtotal WHERE order_no = ?`).run(order.orderNo);
+  const free = deliveredMessage(repo.findOrder(order.orderNo)!, 'en');
+  check('with no delivery charge there is no delivery line', !free.includes('Delivery'), free);
+  check('nor a goods line saying the total again', !free.includes('Goods'), free);
+  check('just the total', free.includes(`*Total ${money(repo.findOrder(order.orderNo)!.total)}*`), free);
+  check('and the items it is made of', free.includes(`${order.items[0]!.qty} x ${order.items[0]!.name}`), free);
+  db.prepare(`UPDATE orders SET delivery_fee = 500, total = subtotal + 500 WHERE order_no = ?`).run(order.orderNo);
   // The same rule as the doorstep line: one reference, said once.
   check('the order number appears once', (msg.match(new RegExp(order.orderNo, 'g')) ?? []).length === 1, msg);
 
@@ -5250,12 +5301,12 @@ section('An address instead of a pin');
   // answer - and a sentence explaining that only repeats the banner above it.
   check('and no sentence repeating the banner', !/could not send a pin/i.test(card), card);
   check('and no orphan pin label', !/^\s*📍/m.test(card), card);
-  // Five lines here, each of which somebody at a gate acts on: the warning,
-  // the name, the address, the number, the cash. A doorstep note would make
-  // six; this fixture has none.
+  // Six lines here, each of which somebody at a gate acts on: the warning,
+  // the name, the address, the number, the cash, and what the cash is made
+  // of. A doorstep note would make seven; this fixture has none.
   check(
     'the card stays tight',
-    card.split(String.fromCharCode(10)).filter((l) => l.trim() !== '').length === 5,
+    card.split(String.fromCharCode(10)).filter((l) => l.trim() !== '').length === 6,
     JSON.stringify(card.split(String.fromCharCode(10))),
   );
 

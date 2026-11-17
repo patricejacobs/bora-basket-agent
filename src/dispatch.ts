@@ -644,12 +644,26 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // A parcel was paid for at the pickup, by the person who sent it. Asking
     // the recipient for the same money again is how somebody pays twice for
     // one journey - and the person at the door never agreed to pay at all.
-    isParcel
-      ? 'Nothing to collect — the sender paid at the uplift.'
+    ...(isParcel
+      ? ['Nothing to collect — the sender paid at the uplift.']
       : order.total > 0
-        ? `*Collect ${money(order.total)} cash* from ${toSomebodyElse ? receiverName : 'the customer'}` +
-          ` (${order.items.length} item${order.items.length === 1 ? '' : 's'} + delivery)`
-        : '*Fee not set* - agree it with the sender at the pickup',
+        ? [
+            `*Collect ${money(order.total)} cash* from ${toSomebodyElse ? receiverName : 'the customer'}`,
+            // The figure broken down, because the associate is the one asked
+            // to justify it. "Two items plus delivery" was a description of
+            // the receipt rather than the receipt: somebody at a gate saying
+            // "why is it four thousand four hundred and eighty" got an
+            // answer that did not add up to anything.
+            //
+            // The split, not the item prices. The customer's own receipt
+            // itemises it afterwards, and a card held in one hand at a gate
+            // should answer the question actually asked - what is the
+            // delivery costing me - in one line.
+            order.deliveryFee > 0
+              ? `${money(order.subtotal)} ${order.kind === 'restaurant' ? 'food' : 'goods'} + ${money(order.deliveryFee)} delivery`
+              : `${money(order.subtotal)} ${order.kind === 'restaurant' ? 'food' : 'goods'}, delivery free`,
+          ]
+        : ['*Fee not set* - agree it with the sender at the pickup']),
   ];
 }
 

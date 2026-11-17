@@ -748,6 +748,33 @@ This applies to a parcel's destination and to an order going to somebody else,
 including one where the buyer deliberately shared a pin for the recipient's
 door. If an address was written, the address is what the card gives.
 
+### The cash, and what it is made of
+
+The associate's card ends with the figure to collect and the figure broken
+down, because the associate is the one asked to justify it at a gate:
+
+```
+*Collect $3,700 cash* from the customer
+$3,200 food + $500 delivery
+```
+
+It said `(2 items + delivery)` before — a description of a receipt rather than
+a receipt. Somebody asked *"why is it three thousand seven hundred?"* got an
+answer that did not add up to anything.
+
+It says **food** for a restaurant order and **goods** for a grocery one, and
+where there is no delivery charge it says so rather than printing a zero:
+
+```
+*Collect $1,900 cash* from the customer
+$1,900 goods, delivery free
+```
+
+The split, not the item prices. The customer's own receipt itemises it
+afterwards, and a card held in one hand at a gate should answer the question
+actually asked — what is the delivery costing me — in one line. The item list
+higher up the card stays a list of things to check in the bag.
+
 ### And the doorstep line says something new
 
 Under the address the card prints the customer's own words about finding the
@@ -905,21 +932,30 @@ arrived, the thanks, and a wish. The thanks is decided by what the customer
 actually did, and the wish is drawn from a pool for that kind of order.
 
 ```
-🧾 *Receipt* — 16 Nov, 17:59        ← the receipt
-
-2 x Karibee Parboiled Rice — $3,700
-1 x Fresh Milk — $780
-3 x Bath Soap — $1,770
-
-Goods $6,250
-Delivery $500
-*Total $6,750* — paid in cash
-
 Order ORD-00042 delivered.          ← it arrived
+Delivery code: confirmed.
 
-Thank you for shopping with us!     ← thanks, by kind
-Message any time for your next order. 💬   ← one of five wishes
+🧾 *Receipt* — 17 Nov, 16:47        ← the receipt
+
+1 x Goat Curry — $2,700
+1 x Plain Rice _Large_ — $500
+
+Goods $3,200
+Delivery $500
+*Total $3,700* — paid in cash
+
+Thank you for ordering from A Taste of Guyana!   ← thanks, by kind
+Enjoy your meal, see you next time! 👋           ← one of seven wishes
 ```
+
+**The delivery line first, then the receipt.** The line a customer is waiting
+for is the one saying it arrived; a receipt is what you are handed afterwards,
+not something to scroll past to find out whether your delivery is done.
+
+**No delivery charge, no delivery line.** Where the fee is zero the split is
+dropped and only the total is printed: `Goods $3,200` above `Total $3,200` is
+the same figure twice, and `Delivery $0` reads like a question rather than an
+answer.
 
 **Everything ordered, line by line, plus the delivery charge.** Before this
 the last priced thing a customer saw was the cart, before the order existed:
@@ -946,11 +982,11 @@ settled where it actually was:
 A parcel the associate priced at the counter prints no figure at all. The shop
 never learned what was agreed, and a zero would be a claim about it.
 
-**The receipt goes first and the manners last**, so the useful part is not
-something to scroll past the thanks to reach. It carries no order number of
-its own — the line directly below it already says `Order ORD-00042 delivered`,
-and the same reference twice in one message is a line read, checked against
-the other, and trusted less.
+**The manners go last**, so the useful part is not something to scroll past
+the thanks to reach. The receipt carries no order number of its own — the line
+directly above it already says `Order ORD-00042 delivered`, and the same
+reference twice in one message is a line read, checked against the other, and
+trusted less.
 
 **No padded columns.** WhatsApp renders a plain message in a proportional
 font, so figures lined up with spaces arrive ragged on a phone. The label goes

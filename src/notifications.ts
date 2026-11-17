@@ -395,8 +395,16 @@ export function receiptLines(order: repo.OrderRecord, lang: Language): string[] 
       return `${i.qty} x ${i.name}${chosen ? ` _${chosen}_` : ''} — ${money(i.lineTotal)}`;
     }),
     '',
-    `${t('receipt_goods', lang)} ${money(order.subtotal)}`,
-    `${t('receipt_delivery', lang)} ${money(order.deliveryFee)}`,
+    // The split only where there is something to split. With no delivery
+    // charge, "Goods $3,200" above "Total $3,200" is the same figure twice
+    // and a "Delivery $0" line is a charge that was never made - which on a
+    // receipt reads like a question rather than an answer.
+    ...(order.deliveryFee > 0
+      ? [
+          `${t('receipt_goods', lang)} ${money(order.subtotal)}`,
+          `${t('receipt_delivery', lang)} ${money(order.deliveryFee)}`,
+        ]
+      : []),
     `*${t('receipt_total', lang)} ${money(order.total)}*${method ? ` — ${method}` : ''}`,
   ];
 }
@@ -427,11 +435,14 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // receipt line itself, which meant one sentence had to suit a bag of
   // groceries, a hot meal and a parcel alike.
   const nl = String.fromCharCode(10);
-  // The receipt goes in front of all of it. What was delivered and what it
-  // cost are the facts; the thanks and the wish are the manners, and manners
-  // go last so the useful part is not scrolled past to reach them.
+  // The order closes, then the receipt for it, then the manners.
+  //
+  // The receipt used to come first. It reads better this way round: the line
+  // the customer is waiting for is the one that says it arrived, and a receipt
+  // is what you are handed afterwards rather than something to scroll past to
+  // find out whether your delivery is done.
   const head =
-    receiptLines(order, lang).join(nl) + nl + nl + receipt + nl + nl + thanksFor(order, lang);
+    receipt + nl + nl + receiptLines(order, lang).join(nl) + nl + nl + thanksFor(order, lang);
 
   // Only the unconfirmed one invites a reply. On a delivery the customer
   // proved themselves, "anything wrong?" would be the shop asking a question
