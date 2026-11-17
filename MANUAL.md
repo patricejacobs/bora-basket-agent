@@ -145,6 +145,39 @@ variable was invisible: the log said *"nobody is clocked on"* while they stood
 there clocked on, and if their number happened to be a shop's, the router fell
 past them and answered with the kitchen commands.
 
+### They have to say something first
+
+**WhatsApp will not carry a job card to a number that has never messaged the
+shop.** Meta only allows a free-form message within 24 hours of that number's
+last message *in*, so an associate who has never opened the chat cannot be
+sent anything at all. One message from them — `on` is enough — opens it.
+
+The shop now says so at boot rather than leaving it to be discovered:
+
+```
+[associates] +8673464384 (Wayne Jacobs) has never messaged the shop —
+             nothing can be sent to them until they do
+```
+
+and the same warning goes to `STAFF_NUMBERS`.
+
+**`sent` on `/health` means Meta accepted the message, not that anybody got
+it.** A valid-looking number that is not on WhatsApp is accepted with a
+message id and then silently never delivered. `/health` now carries Meta's own
+verdict alongside the send count:
+
+```
+"outbound": { "attempted": 11, "sent": 11, "failed": 0 },
+"delivery": { "delivered": 9, "read": 7, "failed": 2,
+              "lastFailure": "+8673464384 — (131026) Receiver is incapable of
+                              receiving this message" }
+```
+
+`outbound.failed` is the Graph API refusing a message — a bad token, a shut
+window. `delivery.failed` is Meta taking it and finding nobody to give it to.
+The two have different fixes, so they are counted separately, and every
+undelivered message is logged with the number it was addressed to.
+
 Send `help` to the shop number for this list.
 
 | Command | What it does |

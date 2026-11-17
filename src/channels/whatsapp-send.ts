@@ -28,6 +28,24 @@ export const sendStats = {
   lastErrorAt: null as string | null,
 };
 
+/**
+ * What became of those messages, as Meta reports it afterwards.
+ *
+ * `sendStats.sent` only ever meant "the Graph API accepted it". A number that
+ * is not on WhatsApp is accepted with a message id and then silently never
+ * delivered, so a shop could read `sent: 11, failed: 0` while an associate sat
+ * waiting for a job card that was never going to arrive. These counters are
+ * the other half of that sentence, and they only move when Meta says so.
+ */
+export const deliveryStats = {
+  delivered: 0,
+  read: 0,
+  failed: 0,
+  /** The number and reason of the most recent undelivered message. */
+  lastFailure: null as string | null,
+  lastFailureAt: null as string | null,
+};
+
 /** Meta's own error code, which is what distinguishes the failure modes. */
 function summariseGraphError(status: number, body: string): string {
   const match = body.match(/"code"\s*:\s*(\d+)/);

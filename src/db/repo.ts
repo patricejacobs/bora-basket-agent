@@ -2229,6 +2229,32 @@ export function associateNumbers(): string[] {
   ).map((a) => a.phone);
 }
 
+/**
+ * Active associates the shop has never heard from.
+ *
+ * A number nobody has ever messaged the shop from is a number nothing can be
+ * sent to. WhatsApp only carries a free-form message within 24 hours of that
+ * number's last message IN, so an associate who has never said anything -
+ * because their number is wrong, or because they have never opened the chat -
+ * cannot be given a job card, and the shop finds out by watching food go cold.
+ *
+ * Checked at boot and printed by name, because the fix is thirty seconds of
+ * someone sending the word `on` and the alternative is a week of silence.
+ */
+export function associatesNeverSeen(): { phone: string; name: string }[] {
+  return db
+    .prepare(
+      `SELECT a.phone AS phone, a.name AS name
+         FROM associates a
+        WHERE a.active = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM message_log m WHERE m.phone = a.phone AND m.direction = 'in'
+          )
+        ORDER BY a.phone ASC`,
+    )
+    .all() as unknown as { phone: string; name: string }[];
+}
+
 /** Whether this number is an associate who may be sent work. */
 export function isActiveAssociate(phone: string): boolean {
   const digits = phone.replace(/[^0-9]/g, '');

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
@@ -18,7 +18,8 @@ import {
 } from './backup.ts';
 import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
-import { sendStats } from './channels/whatsapp-send.ts';
+import { sendStats, deliveryStats } from './channels/whatsapp-send.ts';
+import { warnStaff } from './notifications.ts';
 import { simulatorRouter } from './channels/simulator.ts';
 import { ensureImagesDirectory, imagesDirectory, refreshImages, imageCount } from './product-images.ts';
 
@@ -176,9 +177,42 @@ function loadCatalogue(): void {
   }
 }
 
+/**
+ * Associates nobody can reach yet, named at boot.
+ *
+ * WhatsApp carries a free-form message only within 24 hours of that number's
+ * last message TO the shop. An associate who has never messaged it cannot be
+ * sent a job card at all - and the way a shop currently discovers that is an
+ * order going cold on a counter while `/health` reports the send as a success,
+ * because the Graph API accepting a message is not the same as anybody getting
+ * one.
+ *
+ * A warning, not a refusal: the number may be perfectly right and its owner
+ * simply has not opened the chat yet, which one message from them fixes.
+ */
+function warnAboutUnreachableAssociates(): void {
+  const unseen = associatesNeverSeen();
+  if (unseen.length === 0) return;
+
+  for (const a of unseen) {
+    console.warn(
+      `[associates] +${a.phone}${a.name ? ` (${a.name})` : ''} has never messaged the shop — nothing can be sent to them until they do`,
+    );
+  }
+  void warnStaff(
+    [
+      `⚠️ ${unseen.length} delivery associate(s) cannot be reached yet:`,
+      ...unseen.map((a) => `+${a.phone}${a.name ? ` — ${a.name}` : ''}`),
+      '',
+      'WhatsApp will not carry a job card to a number that has never messaged the shop. Ask them to send *on* to this number.',
+    ].join(String.fromCharCode(10)),
+  ).catch(() => {});
+}
+
 loadCatalogue();
 loadMenus();
 loadAssociates();
+warnAboutUnreachableAssociates();
 startStallWatch();
 startBackupSchedule();
 
@@ -268,6 +302,9 @@ app.get('/health', (_req: Request, res: Response) => {
     },
     webhooks: webhookStats,
     outbound: sendStats,
+    // What Meta says became of them. `outbound.sent` only means the Graph API
+    // accepted the message; this is the half that says somebody got it.
+    delivery: deliveryStats,
     commit: (process.env.RENDER_GIT_COMMIT ?? 'local').slice(0, 7),
     uptimeSeconds: Math.round(process.uptime()),
   });

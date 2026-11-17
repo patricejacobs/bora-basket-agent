@@ -3765,6 +3765,84 @@ section('The directory decides who gets work');
   });
 }
 
+section('Accepted is not delivered');
+{
+  const { parseStatuses } = await import('./channels/whatsapp.ts');
+
+  // What Meta sends back once it knows. The shape is the real one: the number
+  // is `recipient_id`, and the reason is buried in the first error.
+  const report = (status: string, extra: Record<string, unknown> = {}) => ({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              statuses: [{ id: 'wamid.X', recipient_id: '8673464384', status, ...extra }],
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  const ok = parseStatuses(report('delivered'));
+  check('a delivery is reported', ok.length === 1 && ok[0]!.status === 'delivered', JSON.stringify(ok));
+  check('against the number it went to', ok[0]!.phone === '8673464384', JSON.stringify(ok));
+
+  const bad = parseStatuses(
+    report('failed', {
+      errors: [{ code: 131026, title: 'Message undeliverable', error_data: { details: 'Receiver is incapable of receiving this message' } }],
+    }),
+  );
+  check('a failure is reported', bad.length === 1 && bad[0]!.status === 'failed', JSON.stringify(bad));
+  // The code and the detail, because "failed" on its own does not distinguish
+  // a number that is not on WhatsApp from a shut 24-hour window, and those
+  // have different fixes.
+  check('with Meta\'s own code', bad[0]!.reason.includes('131026'), bad[0]!.reason);
+  check('and its own words', bad[0]!.reason.includes('incapable of receiving'), bad[0]!.reason);
+
+  // A webhook carries messages or statuses, never both, and the two parsers
+  // must not each try to read the other's payload.
+  check('a message payload yields no statuses', parseStatuses({
+    entry: [{ changes: [{ value: { messages: [{ from: '5926129920', id: 'wamid.Y', type: 'text', text: { body: 'hello' } }] } }] }],
+  }).length === 0);
+  check('and rubbish yields nothing', parseStatuses({ nonsense: true }).length === 0 && parseStatuses(null).length === 0);
+
+  /* --- an associate nobody can reach ---------------------------------- */
+
+  const unseen = '5926108800';
+  db.prepare(`DELETE FROM associates WHERE phone = ?`).run(unseen);
+  db.prepare(`DELETE FROM message_log WHERE phone = ?`).run(unseen);
+  repo.upsertAssociate({ phone: unseen, name: 'Never Texted', vehicle: '', active: true });
+  check(
+    'an associate who has never messaged the shop is named',
+    repo.associatesNeverSeen().some((a) => a.phone === unseen),
+    JSON.stringify(repo.associatesNeverSeen()),
+  );
+  // Which is the same fact the window check reports, from the other side: a
+  // number with no inbound message has no open window, so nothing can be sent.
+  check('and nothing can be sent to them', !repo.serviceWindowOpen(unseen));
+
+  repo.logMessage(unseen, 'in', 'whatsapp', 'on');
+  check(
+    'one message from them clears it',
+    !repo.associatesNeverSeen().some((a) => a.phone === unseen),
+    JSON.stringify(repo.associatesNeverSeen()),
+  );
+
+  // Off the road is not the same as unreachable: an inactive associate is not
+  // somebody to chase about opening a chat.
+  repo.upsertAssociate({ phone: unseen, name: 'Never Texted', vehicle: '', active: false });
+  db.prepare(`DELETE FROM message_log WHERE phone = ?`).run(unseen);
+  check(
+    'an inactive associate is not chased',
+    !repo.associatesNeverSeen().some((a) => a.phone === unseen),
+    JSON.stringify(repo.associatesNeverSeen()),
+  );
+
+  db.prepare(`DELETE FROM associates WHERE phone = ?`).run(unseen);
+}
+
 section('A receipt at the door');
 {
   const { deliveredMessage, receiptLines } = await import('./notifications.ts');

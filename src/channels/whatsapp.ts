@@ -4,7 +4,7 @@ import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
 import { handleIncoming } from '../conversation.ts';
-import { deliver, markReadAndTyping } from './whatsapp-send.ts';
+import { deliver, markReadAndTyping, deliveryStats } from './whatsapp-send.ts';
 import { downloadMedia, downloadAudio, mediaFailureMessage } from './whatsapp-media.ts';
 import { transcribeAudio, transcriptionAvailable } from '../transcribe.ts';
 import { parseCoordinates, pinLabel, type LocationPin } from '../location.ts';
@@ -127,6 +127,62 @@ type ParsedInbound = {
   /** Set when the customer shared a location pin. */
   location?: LocationPin;
 };
+
+/**
+ * What Meta later says happened to a message we sent.
+ *
+ * `sent` from the Graph API means Meta ACCEPTED the message, not that anybody
+ * got it. A syntactically valid number that is not on WhatsApp is accepted
+ * with a message id and then silently never delivered - which is how a job
+ * card for a cooked order went out, counted as a success, and reached nobody.
+ * The only signal is this callback, and nothing was reading it.
+ */
+export type DeliveryReport = {
+  /** The number it was addressed to. */
+  phone: string;
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  /** Meta's own reason, on a failure. */
+  reason: string;
+};
+
+export function parseStatuses(body: unknown): DeliveryReport[] {
+  const out: DeliveryReport[] = [];
+  const entries = (body as { entry?: unknown[] })?.entry;
+  if (!Array.isArray(entries)) return out;
+
+  for (const entry of entries) {
+    const changes = (entry as { changes?: unknown[] })?.changes;
+    if (!Array.isArray(changes)) continue;
+
+    for (const change of changes) {
+      const value = (change as { value?: Record<string, unknown> })?.value;
+      const statuses = value?.statuses;
+      if (!Array.isArray(statuses)) continue;
+
+      for (const raw of statuses) {
+        const s = raw as Record<string, any>;
+        const phone: string = String(s.recipient_id ?? '').replace(/[^0-9]/g, '');
+        const status: string = String(s.status ?? '');
+        if (!phone) continue;
+        if (status !== 'sent' && status !== 'delivered' && status !== 'read' && status !== 'failed') {
+          continue;
+        }
+        // Meta nests the useful part differently depending on the error, so
+        // take whichever of the three is present rather than insisting on one.
+        const err = (Array.isArray(s.errors) ? s.errors[0] : undefined) as
+          | { code?: number; title?: string; message?: string; error_data?: { details?: string } }
+          | undefined;
+        const reason = err
+          ? [err.code ? `(${err.code})` : '', err.error_data?.details || err.title || err.message || '']
+              .filter(Boolean)
+              .join(' ')
+          : '';
+        out.push({ phone, status, reason });
+      }
+    }
+  }
+  return out;
+}
 
 /** Pulls the customer-authored messages out of a webhook payload, ignoring status events. */
 export function parseWebhook(body: unknown): ParsedInbound[] {
@@ -266,6 +322,10 @@ whatsappRouter.post('/webhook', (req: Request, res: Response) => {
   // Meta retries anything that is not a prompt 200, so acknowledge before working.
   res.sendStatus(200);
 
+  // What became of what we sent, before what has just arrived. A webhook
+  // carries one or the other, never both.
+  recordDelivery(parseStatuses(req.body));
+
   const inbound = parseWebhook(req.body);
   webhookStats.messagesHandled += inbound.length;
   for (const msg of inbound) {
@@ -276,6 +336,29 @@ whatsappRouter.post('/webhook', (req: Request, res: Response) => {
     void processInbound(msg);
   }
 });
+
+/**
+ * Files Meta's verdict on messages already sent.
+ *
+ * A failure here is not the same animal as a failed send: the Graph API took
+ * the message, said yes, and only afterwards did Meta find there was nobody to
+ * give it to. Logged with the number, because the number is the fault - a
+ * card addressed to a phone that is not on WhatsApp counts as `sent` for ever
+ * otherwise, and a shop reads "11 sent, 0 failed" while an associate waits
+ * for a job that was never going to arrive.
+ */
+function recordDelivery(reports: DeliveryReport[]): void {
+  for (const r of reports) {
+    if (r.status === 'delivered') deliveryStats.delivered++;
+    else if (r.status === 'read') deliveryStats.read++;
+    else if (r.status === 'failed') {
+      deliveryStats.failed++;
+      deliveryStats.lastFailure = `+${r.phone}${r.reason ? ` — ${r.reason}` : ''}`;
+      deliveryStats.lastFailureAt = new Date().toISOString();
+      console.error(`[whatsapp] undelivered to +${r.phone}: ${r.reason || 'no reason given'}`);
+    }
+  }
+}
 
 /**
  * Turns a voice note into the words the agent will act on.
