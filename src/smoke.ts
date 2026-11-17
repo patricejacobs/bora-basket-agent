@@ -7419,6 +7419,77 @@ section('Backing up the trading record');
 console.log('');
 
 // Windows keeps the file locked while the handle is open, so close before deleting.
+// Last on purpose: it empties the database, so anything that ran after it
+// would be testing a shop that had just been erased out from under it.
+section('Starting the count again');
+{
+  const { wipeTradingData } = await import('./reset.ts');
+
+  // A shop mid-life: orders in every state, a basket, a customer, a chat.
+  const buyer = '5926109090';
+  repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam', contactPhone: buyer });
+  repo.logMessage(buyer, 'in', 'whatsapp', 'hello');
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+    )
+    .get() as unknown as { id: number }).id;
+  repo.setCartQty(buyer, sellable, 1, '');
+
+  db.prepare(
+    `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+       delivery_note, kind, subtotal, delivery_fee, total, payment_method, status, created_at)
+     VALUES ('ORD-00099', ?, 'Patrice', '26 Brickdam', ?, '', 'grocery',
+       2050, 500, 2550, 'cash_on_delivery', 'delivered', '2026-11-17T18:00:00Z')`,
+  ).run(buyer, buyer);
+  repo.recordEvent('ORD-00099', 'delivered', 'staff', '');
+
+  const productsBefore = repo.productCount();
+  const outletsBefore = repo.listOutlets().length;
+  const associatesBefore = repo.listAssociates().length;
+
+  const cleared = wipeTradingData();
+
+  /* --- what goes ------------------------------------------------------ */
+
+  check('the orders go', (db.prepare(`SELECT COUNT(*) AS n FROM orders`).get() as { n: number }).n === 0);
+  check('the trail goes with them', (db.prepare(`SELECT COUNT(*) AS n FROM order_events`).get() as { n: number }).n === 0);
+  check('the baskets go', (db.prepare(`SELECT COUNT(*) AS n FROM cart_items`).get() as { n: number }).n === 0);
+  check('the customers go', (db.prepare(`SELECT COUNT(*) AS n FROM customers`).get() as { n: number }).n === 0);
+  check('and everything said to them', (db.prepare(`SELECT COUNT(*) AS n FROM message_log`).get() as { n: number }).n === 0);
+  check('it reports what it removed', (cleared.orders ?? 0) > 0 && (cleared.customers ?? 0) > 0, JSON.stringify(cleared));
+
+  /* --- what stays ----------------------------------------------------- */
+
+  // How the shop works, not what it has done. A wipe that took these would
+  // leave a service that cannot trade at all.
+  check('the catalogue stays', repo.productCount() === productsBefore, `${repo.productCount()} of ${productsBefore}`);
+  check('the outlets stay', repo.listOutlets().length === outletsBefore);
+  check('the associates stay', repo.listAssociates().length === associatesBefore);
+
+  /* --- the count starts again ----------------------------------------- */
+
+  // All three sources, because nextOrderNumber takes the highest of the
+  // table's ids, SQLite's sequence and the numbers in the event trail.
+  // Clearing the orders alone would hand ORD-00100 to the first order of the
+  // new life, which is the opposite of what a reset is for.
+  repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam', contactPhone: buyer });
+  repo.confirmIdentity(buyer);
+  repo.setCartQty(buyer, sellable, 1, '');
+  const first = repo.placeOrder({
+    phone: buyer, customerName: 'Patrice', address: '26 Brickdam', contactPhone: buyer,
+    deliveryNote: '', paymentMethod: 'cash_on_delivery', location: null,
+  } as never);
+  check('the next order is ORD-00001', first.orderNo === 'ORD-00001', first.orderNo);
+
+  db.prepare(`DELETE FROM orders`).run();
+  db.prepare(`DELETE FROM order_events`).run();
+  db.prepare(`DELETE FROM sqlite_sequence WHERE name IN ('orders', 'order_events')`).run();
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+  db.prepare(`DELETE FROM cart_items WHERE phone = ?`).run(buyer);
+}
+
 db.close();
 for (const suffix of ['', '-wal', '-shm']) {
   try {
@@ -7427,6 +7498,7 @@ for (const suffix of ['', '-wal', '-shm']) {
     // A leftover scratch file is harmless; data/*.db is gitignored.
   }
 }
+
 
 if (failures.length === 0) {
   console.log(`All ${passed} checks passed.`);

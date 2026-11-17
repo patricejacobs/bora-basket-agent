@@ -225,6 +225,23 @@ export const config = {
     .filter(Boolean),
 
   /**
+   * Wipes the shop's trading data on the next boot. Empty means never.
+   *
+   * A token rather than a flag, and it must begin with `erase-`. Two reasons.
+   * A value like `true` or `1` is a thing somebody sets while debugging
+   * something else; `erase-` has to be typed on purpose. And the exact token
+   * is written down once it has been applied, so leaving the variable in place
+   * does nothing on the restarts that follow - a deploy, a crash, a plan
+   * change - and the only way to wipe again is to change it. Without that,
+   * a forgotten variable would erase a day's trading every time the service
+   * happened to restart.
+   *
+   * Date it, so the record says when and so the next one differs:
+   * `RESET_SHOP=erase-2026-11-17`.
+   */
+  resetShop: str('RESET_SHOP', '').trim(),
+
+  /**
    * Approved WhatsApp template names, used when a customer notification falls
    * outside the 24-hour service window. Leave unset and out-of-window updates
    * are skipped rather than failing.

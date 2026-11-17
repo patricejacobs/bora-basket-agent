@@ -242,6 +242,15 @@ CREATE TABLE IF NOT EXISTS message_log (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_message_log_phone ON message_log(phone);
+
+-- Facts about the database itself rather than about the shop's trade. Small
+-- on purpose: it exists so a one-shot operation can record that it has run,
+-- and so a restart - a deploy, a crash, a plan change - cannot run it again.
+CREATE TABLE IF NOT EXISTS meta (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `);
 
 /**

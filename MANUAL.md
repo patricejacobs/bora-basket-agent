@@ -760,6 +760,49 @@ Matching is on whole words, either way round, ignoring case and punctuation, so
 under *Diamondback Street* is not, because that is somewhere else entirely.
 It is the same test that keeps a pin's label from repeating the address.
 
+### Starting the count again
+
+A shop that has been testing in public ends up with a database full of
+rehearsals. `RESET_SHOP` clears the trading record on the next boot and starts
+the order numbers at `ORD-00001`.
+
+```
+RESET_SHOP=erase-2026-11-17
+```
+
+**Gone:** every order, its items and its event trail; baskets, parked baskets
+and parcel drafts; customers, saved addresses and pins; conversations; the
+message log; the unmet-demand record.
+
+**Kept:** the catalogue, the outlets and the delivery associates. Those are how
+the shop works, not what it has done — wiping them leaves a service that
+cannot trade.
+
+**It takes a snapshot before it deletes anything**, written to the backup
+directory under its own name, and names it in the log and in the message it
+sends to `STAFF_NUMBERS`.
+
+Three things make it safe to leave in the environment:
+
+**It needs a token, not a flag.** The value must begin with `erase-`.
+`RESET_SHOP=true` is refused and logged — that is a value somebody sets while
+debugging something else.
+
+**It runs once.** The token is written into the database once applied, and a
+boot that finds it already recorded does nothing. A variable left in place is
+harmless: a deploy, a crash or a plan change will not erase the day's trading.
+To wipe again, change the token — which is why dating it is the convention.
+
+**It cannot happen from a test.** The reset runs from the server's boot, never
+from the database module, so opening the database to run the suite, a
+walkthrough or the card gallery can never wipe a shop.
+
+One caveat with clearing the message log: WhatsApp's 24-hour window is measured
+from each number's last message *in*, so wiping it shuts the window for
+everyone. Staff, kitchens and associates are all unreachable until each sends
+the shop a message. The boot warning about unreachable associates will say so
+by name.
+
 ### Who moved an order
 
 Every status change is now recorded three ways, so "the restaurant never

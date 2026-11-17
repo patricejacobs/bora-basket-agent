@@ -20,6 +20,7 @@ import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats, deliveryStats } from './channels/whatsapp-send.ts';
 import { warnStaff } from './notifications.ts';
+import { applyScheduledReset } from './reset.ts';
 import { simulatorRouter } from './channels/simulator.ts';
 import { ensureImagesDirectory, imagesDirectory, refreshImages, imageCount } from './product-images.ts';
 
@@ -208,6 +209,12 @@ function warnAboutUnreachableAssociates(): void {
     ].join(String.fromCharCode(10)),
   ).catch(() => {});
 }
+
+// First of all, and before anything is served: a reset asked for by
+// RESET_SHOP. Ahead of the catalogue and the menus so the shop that comes up
+// is the one the wipe left behind, and so the snapshot it takes is of the
+// database as it was found.
+await applyScheduledReset();
 
 loadCatalogue();
 loadMenus();
