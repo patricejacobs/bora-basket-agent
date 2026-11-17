@@ -49,7 +49,16 @@ import { checkRange, describePin } from './location.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 export const isStaff = (phone: string): boolean => config.staffNumbers.includes(phone);
-export const isDriver = (phone: string): boolean => config.driverNumbers.includes(phone);
+/**
+ * The directory, not DRIVER_NUMBERS.
+ *
+ * Someone added to the shop's own list of associates now reaches the
+ * associate commands, and someone set `active = 0` stops reaching them. These
+ * used to be two unrelated lists, so a person could be in the directory,
+ * clocked on, and still be answered by the shopping agent - or, if their
+ * number happened to be a shop's, by the kitchen commands.
+ */
+export const isDriver = (phone: string): boolean => repo.isActiveAssociate(phone);
 
 /**
  * Moves an order and sets off everything that follows.

@@ -138,7 +138,7 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
   const order = repo.findOrder(orderNo);
   if (!order) return 0;
 
-  const told = order.driverPhone ? [order.driverPhone] : config.driverNumbers;
+  const told = order.driverPhone ? [order.driverPhone] : repo.associateNumbers();
   if (told.length === 0) return 0;
 
   const where = order.outlet?.name ?? 'the shop';
@@ -180,15 +180,19 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
   const order = repo.findOrder(orderNo);
   if (!order || order.kind !== 'parcel') return 'no_drivers';
 
-  if (config.driverNumbers.length === 0) {
-    console.warn(`[dispatch] ${orderNo} booked but DRIVER_NUMBERS is empty — nobody was offered it`);
+  // The directory, not the environment variable. A shop that has taken
+  // somebody off the road sets `active = 0` and they stop being offered work;
+  // a shop that has taken somebody on adds them, and they start.
+  const associates = repo.associateNumbers();
+  if (associates.length === 0) {
+    console.warn(`[dispatch] ${orderNo} booked but there are no active delivery associates — nobody was offered it`);
     return 'no_drivers';
   }
 
   const limit = config.maxJobsPerAssociate;
   const pool = only
-    ? config.driverNumbers.filter((phone) => phone === only.replace(/[^0-9]/g, ''))
-    : config.driverNumbers;
+    ? associates.filter((phone) => phone === only.replace(/[^0-9]/g, ''))
+    : associates;
   const free =
     limit > 0 ? pool.filter((phone) => repo.activeJobsFor(phone).length < limit) : pool;
   if (free.length === 0) return 'all_busy';
@@ -785,7 +789,7 @@ export async function tellTransferred(
  */
 export async function offerWaitingWork(phone: string): Promise<string> {
   const digits = phone.replace(/[^0-9]/g, '');
-  if (!digits || !config.driverNumbers.includes(digits)) return '';
+  if (!digits || !repo.isActiveAssociate(digits)) return '';
 
   const limit = config.maxJobsPerAssociate;
   if (limit > 0 && repo.activeJobsFor(digits).length >= limit) return '';
@@ -823,8 +827,9 @@ export async function dispatchToDrivers(
   const order = repo.findOrder(orderNo);
   if (!order) return 'no_drivers';
 
-  if (config.driverNumbers.length === 0) {
-    console.warn(`[dispatch] ${orderNo} is ready but DRIVER_NUMBERS is empty — no delivery associate was told`);
+  const associates = repo.associateNumbers();
+  if (associates.length === 0) {
+    console.warn(`[dispatch] ${orderNo} is ready but there are no active delivery associates — nobody was told`);
     return 'no_drivers';
   }
 
@@ -867,12 +872,12 @@ export async function dispatchToDrivers(
   // anyway means a card they cannot act on, and a tap that gets refused.
   const limit = config.maxJobsPerAssociate;
   const pool = only
-    ? config.driverNumbers.filter((phone) => phone === only.replace(/[^0-9]/g, ''))
-    : config.driverNumbers;
+    ? associates.filter((phone) => phone === only.replace(/[^0-9]/g, ''))
+    : associates;
   const free = limit > 0 ? pool.filter((phone) => repo.activeJobsFor(phone).length < limit) : pool;
 
   // Everybody is out. Its own outcome rather than folded into 'no_drivers',
-  // because the two are nothing alike: an empty DRIVER_NUMBERS is a shop that
+  // because the two are nothing alike: an empty directory is a shop that
   // cannot deliver at all and somebody must fix it, while everyone being busy
   // is an ordinary queue. Told they are the same thing, a kitchen rings a shop
   // that can do nothing about it, at the busiest moment of their day.

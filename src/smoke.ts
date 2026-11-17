@@ -3686,6 +3686,85 @@ section('How a food order says goodbye');
   check('every sign-off is reachable', seen.size === MEAL_SIGN_OFFS.length, String(seen.size));
 }
 
+section('The directory decides who gets work');
+{
+  const { dispatchToDrivers } = await import('./dispatch.ts');
+  const { isDriver } = await import('./staff.ts');
+  const { seedAssociatesFromDriverNumbers } = await import('./db/index.ts');
+  const { importAssociatesText } = await import('./catalog/import-associates.ts');
+
+  /* --- the environment variable is a seed, not the list --------------- */
+
+  // Every number in DRIVER_NUMBERS is written into the directory at boot, so
+  // a shop configured the old way loses nobody.
+  check(
+    'DRIVER_NUMBERS reaches the directory',
+    config.driverNumbers.every((p2) => repo.associateNumbers().includes(p2)),
+    JSON.stringify(repo.associateNumbers()),
+  );
+
+  // And is never applied twice. A name, a vehicle or a deliberate `active = 0`
+  // set through the shop must survive the next restart - otherwise an
+  // environment variable nobody has looked at for months quietly puts
+  // somebody back on the road.
+  const seeded = config.driverNumbers[0]!;
+  const before = repo.listAssociates().find((a) => a.phone === seeded);
+  repo.upsertAssociate({ phone: seeded, name: 'Named By The Shop', vehicle: 'GSS 9999', active: true });
+  check('a reboot adds nothing the second time', seedAssociatesFromDriverNumbers() === 0);
+  check(
+    'and leaves the name the shop gave',
+    repo.listAssociates().find((a) => a.phone === seeded)?.name === 'Named By The Shop',
+  );
+
+  /* --- somebody the shop added, and the variable never heard of ------- */
+
+  const wayne = '5926104242';
+  db.prepare(`DELETE FROM associates WHERE phone = ?`).run(wayne);
+  check('not in DRIVER_NUMBERS', !config.driverNumbers.includes(wayne));
+  check('and unknown before the shop adds them', !isDriver(wayne));
+
+  const added = importAssociatesText(`phone,name,vehicle,active\n${wayne},Wayne Jacobs,GSS 1234,1\n`);
+  check('the shop adds them to its own list', added.imported === 1, JSON.stringify(added.skipped));
+
+  // The bug this replaces: Wayne was in the directory, active and clocked on,
+  // and dispatch could not see him - every job went to whoever was named in
+  // an environment variable, because that variable WAS the pool. The log even
+  // said "nobody is clocked on" while he was standing there clocked on.
+  repo.setDuty(wayne, true);
+  check('he is on duty', repo.isOnDuty(wayne));
+  check('dispatch can reach him', repo.associateNumbers().includes(wayne), JSON.stringify(repo.associateNumbers()));
+  check('and the associate commands answer him', isDriver(wayne));
+
+  db.prepare(
+    `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+       delivery_note, kind, subtotal, delivery_fee, total, payment_method, status, created_at)
+     VALUES ('ORD-94001', '5926129920', 'Patrice', '26 Brickdam', '5926129920', '',
+       'grocery', 2050, 500, 2550, 'cash_on_delivery', 'ready', '2026-11-17T18:00:00Z')`,
+  ).run();
+  // Offered to him by name: the pool is filtered to one number, so 'sent'
+  // means he was in it and 'all_busy' means he was not.
+  check('a packed order is offered to him', (await dispatchToDrivers('ORD-94001', wayne)) === 'sent');
+
+  /* --- and taking somebody off the road ------------------------------- */
+
+  // One flag, not a deletion: their history, their cash and their name stay
+  // where they are.
+  repo.upsertAssociate({ phone: wayne, name: 'Wayne Jacobs', vehicle: 'GSS 1234', active: false });
+  check('an inactive associate is not in the pool', !repo.associateNumbers().includes(wayne));
+  check('is not answered as an associate', !isDriver(wayne));
+  check('and is offered nothing', (await dispatchToDrivers('ORD-94001', wayne)) === 'all_busy');
+  check('while the shop still has them on file', repo.listAssociates().some((a) => a.phone === wayne));
+
+  db.prepare(`DELETE FROM associates WHERE phone = ?`).run(wayne);
+  db.prepare(`DELETE FROM orders WHERE order_no = 'ORD-94001'`).run();
+  repo.upsertAssociate({
+    phone: seeded,
+    name: before?.name ?? '',
+    vehicle: before?.vehicle ?? '',
+    active: true,
+  });
+}
+
 section('A receipt at the door');
 {
   const { deliveredMessage, receiptLines } = await import('./notifications.ts');

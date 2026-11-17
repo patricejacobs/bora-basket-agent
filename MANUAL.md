@@ -122,6 +122,29 @@ record of hours worked.
 
 ## 3. For delivery associates
 
+### Who counts as one
+
+**The shop's own list of associates decides who gets offered work.** A number
+in that list, marked active, is offered jobs and gets the associate commands.
+A number that is not in it is a customer, and is answered by the shopping
+agent.
+
+Set `active = 0` and they stop being offered anything, keeping their name,
+their history and their cash on file. That is how somebody comes off the road.
+
+`DRIVER_NUMBERS` is a **seed, not the list**. Every number in it is written
+into the directory on the first boot that sees it, and then it is finished:
+later edits go to the directory. It is never applied twice, so a name or an
+`active = 0` set through the shop survives the next restart.
+
+Before this there were two lists that never met. Dispatch offered every job to
+`DRIVER_NUMBERS` and nothing else, so a shop could import its associates, see
+them listed, watch one clock on — and every job still went to whoever was
+named in an environment variable. Somebody in the directory and not in the
+variable was invisible: the log said *"nobody is clocked on"* while they stood
+there clocked on, and if their number happened to be a shop's, the router fell
+past them and answered with the kitchen commands.
+
 Send `help` to the shop number for this list.
 
 | Command | What it does |

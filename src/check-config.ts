@@ -299,15 +299,34 @@ try {
       if (row.n > 0) {
         add('ok', 'restaurants', dim(`${row.n} active kitchen(s)`));
 
-        const associates = numbers('DRIVER_NUMBERS');
-        if (associates.length === 0) {
+        // The directory is what dispatch reads; DRIVER_NUMBERS only seeds it
+        // at boot. Counting the variable answered the wrong question - a shop
+        // could have a full list of associates and a figure of zero here, or
+        // a figure of one and nobody who still works there.
+        const hasAssociates = (
+          db
+            .prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='associates'`)
+            .get() as { n: number }
+        ).n > 0;
+        const active = hasAssociates
+          ? (db.prepare(`SELECT COUNT(*) AS n FROM associates WHERE active = 1`).get() as { n: number }).n
+          : 0;
+        const seeds = numbers('DRIVER_NUMBERS');
+
+        if (active === 0 && seeds.length === 0) {
           add(
             'fail',
-            'DRIVER_NUMBERS',
-            'empty, but restaurants are set up — food will be cooked and no delivery associate will be sent to uplift it',
+            'delivery associates',
+            'none, but restaurants are set up — food will be cooked and no delivery associate will be sent to uplift it',
+          );
+        } else if (active === 0) {
+          add(
+            'warn',
+            'delivery associates',
+            `none active yet; ${seeds.length} will be seeded from DRIVER_NUMBERS on the next boot`,
           );
         } else {
-          add('ok', 'DRIVER_NUMBERS', dim(`${associates.length} delivery associate(s)`));
+          add('ok', 'delivery associates', dim(`${active} active`));
         }
 
         if (noNumber.n > 0) {

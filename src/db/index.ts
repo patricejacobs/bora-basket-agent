@@ -623,4 +623,46 @@ export const HOUSE_GROCERY_CODE = 'GROCERY';
   }
 }
 
+/**
+ * Every number in DRIVER_NUMBERS becomes a row in the associates table.
+ *
+ * The table is what dispatch reads now. Before this there were two lists that
+ * never met: a shop could import its associates, see them listed, watch one
+ * clock on - and every job still went to whoever was named in an environment
+ * variable, because that variable WAS the pool. Someone on the table and not
+ * in the variable was invisible; the log even said "nobody is clocked on"
+ * while they were standing there clocked on.
+ *
+ * So the variable is demoted to a seed. Anything in it is written into the
+ * table once, and from then on the table is edited the way everything else
+ * about an associate is edited.
+ *
+ * DO NOTHING, never an update: a name, a vehicle or a deliberate `active = 0`
+ * set through the shop must not be undone on the next restart by a value in
+ * an environment variable nobody has looked at for months.
+ *
+ * Here rather than in the server's boot, because smoke tests, the walkthroughs
+ * and the card gallery all open the database directly and must see the same
+ * shop the server does.
+ */
+export function seedAssociatesFromDriverNumbers(): number {
+  const seeded = db.prepare(
+    `INSERT INTO associates (phone, name, vehicle, active, updated_at)
+     VALUES (?, '', '', 1, ?) ON CONFLICT(phone) DO NOTHING`,
+  );
+  const now = new Date().toISOString();
+  let added = 0;
+  for (const phone of config.driverNumbers) {
+    added += Number(seeded.run(phone, now).changes);
+  }
+  return added;
+}
+
+{
+  const added = seedAssociatesFromDriverNumbers();
+  if (added > 0) {
+    console.log(`[db] migrated: ${added} delivery associate(s) seeded from DRIVER_NUMBERS`);
+  }
+}
+
 export const nowIso = (): string => new Date().toISOString();

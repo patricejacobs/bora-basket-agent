@@ -2211,6 +2211,33 @@ export function listAssociates(): Associate[] {
     .all() as unknown as Associate[];
 }
 
+/**
+ * Who can be offered a job: every active associate, by number.
+ *
+ * The one list dispatch works from. It used to be the DRIVER_NUMBERS
+ * environment variable, which meant the directory a shop could actually edit -
+ * names, vehicles, who is still working here - had no bearing on who got sent
+ * anything. DRIVER_NUMBERS now seeds this table at boot and does nothing else.
+ *
+ * `active = 0` is how somebody stops being offered work without their history,
+ * their cash or their name being deleted, so it is the whole filter.
+ */
+export function associateNumbers(): string[] {
+  return (
+    db.prepare(`SELECT phone FROM associates WHERE active = 1 ORDER BY phone ASC`).all() as
+      unknown as { phone: string }[]
+  ).map((a) => a.phone);
+}
+
+/** Whether this number is an associate who may be sent work. */
+export function isActiveAssociate(phone: string): boolean {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return false;
+  return (
+    db.prepare(`SELECT 1 FROM associates WHERE phone = ? AND active = 1`).get(digits) !== undefined
+  );
+}
+
 export function upsertAssociate(a: {
   phone: string;
   name: string;

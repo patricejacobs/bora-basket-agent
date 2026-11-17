@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
@@ -260,7 +260,10 @@ app.get('/health', (_req: Request, res: Response) => {
       simulatorEnabled: config.enableSimulator,
       // A count, never the numbers — enough to confirm dispatch is wired up.
       staffNumbers: config.staffNumbers.length,
-      driverNumbers: config.driverNumbers.length,
+      // Active associates in the directory, which is who dispatch can reach.
+      // DRIVER_NUMBERS only seeds it, so its length answers a question nobody
+      // is asking once the shop has edited its own list.
+      driverNumbers: associateNumbers().length,
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,
