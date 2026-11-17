@@ -342,11 +342,6 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           description:
             "True only when the customer has shared a location pin for the RECIPIENT during this order. Leave it out if the pin on file is the customer's own from a previous delivery — the delivery associate is then told there is no pin and rings instead, which is right, because the saved pin is the buyer's door and not where this one goes.",
         },
-        without_pin: {
-          type: 'boolean',
-          description:
-            'Only true when the customer has been asked for a pin and has said they cannot send one, and their address has been saved in words. The order is then flagged for the delivery associate to ring on arrival. Never set it merely to avoid waiting for a pin.',
-        },
         payment_method: {
           type: 'string',
           // Only what the shop can actually take, so an unsupported method
@@ -1332,24 +1327,27 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           "Cannot place the order yet — still need the customer's name. Ask who the delivery is for, then call save_customer_details.",
         );
       }
-      // A delivery service with no pin is a delivery associate phoning from the road. The
-      // rule is enforced here rather than left to the prompt, because this is
-      // the one failure that cannot be recovered after the van leaves.
+      // Somewhere to go. A pin or an address in words - either is an answer,
+      // and only having neither is a refusal.
       //
-      // There is nobody here to take an order by hand, so refusing outright -
-      // which is what this did, while promising a staff member who does not
-      // exist - simply lost it. Two conditions instead: the customer must have
-      // been asked and said no, and there must be an address to read out on
-      // the phone.
-      const withoutPin = input.without_pin === true;
-      if (!customer.location && !withoutPin) {
-        return fail(
-          'Cannot place the order — no location pin has been shared. Call request_location and wait for the pin to arrive. Only if the customer says they cannot send one at all: save the address in words with save_customer_details, tell them the delivery associate will ring them on arrival, then call place_order again with without_pin true.',
-        );
-      }
+      // This used to demand the pin and accept an address solely as a
+      // concession, unlocked by a `without_pin` flag the model could set once
+      // the customer had been asked and said no. Somebody who simply typed
+      // their address was asked for a pin anyway, again, and the order did not
+      // exist until they produced one - so the kitchen had not heard of it and
+      // the customer was answering the same question twice.
+      //
+      // It also disagreed with the card that gets driven from, where a written
+      // address BEATS a pin and the pin is not even printed beside it. The
+      // shop cannot hold both positions. An address is what the customer meant
+      // to say; the pin is where they happened to be standing.
+      //
+      // The pin is still worth asking for and the prompt still asks, because
+      // it is the only thing the delivery radius can be measured against. It
+      // is a question now, not a gate.
       if (!customer.location && !(customer.address ?? '').trim()) {
         return fail(
-          'Cannot place the order with neither a pin nor a written address — the delivery associate would have nowhere to go and nothing to read out on the phone. Ask where it is going, save it with save_customer_details, then try again.',
+          'Cannot place the order with neither a pin nor a written address — the delivery associate would have nowhere to go and nothing to read out on the phone. Ask where it is going, save it with save_customer_details, or call request_location, then try again.',
         );
       }
       // Outside the delivery area. Refused here for the same reason a missing

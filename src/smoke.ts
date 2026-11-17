@@ -308,10 +308,20 @@ section('Checkout');
   const details = call('get_customer_details');
   check('saves customer details', details.name === 'Ada Lovelace' && !!details.address);
 
-  // Name and notes but nowhere to drive to: checkout must still refuse.
+  // A name and an address, and no pin. Checkout gets as far as the identity
+  // read-back, which is the next gate rather than the address one: an address
+  // in words is somewhere to drive to, and used to be refused here until the
+  // customer had been asked for a pin and said they could not send one.
   const noPin = call('place_order', { payment_method: 'cash_on_delivery' });
-  check('blocks checkout with no location pin', typeof noPin.error === 'string', JSON.stringify(noPin).slice(0, 90));
-  check('the block names the fix', String(noPin.error).includes('request_location'), noPin.error);
+  check('an address is enough to get past the address check', !/location pin/i.test(String(noPin.error)), noPin.error);
+  check('the next thing asked for is the read-back', /confirm_identity/.test(String(noPin.error)), noPin.error);
+
+  // Nowhere at all, which is the refusal that remains.
+  db.prepare(`UPDATE customers SET address = '' WHERE phone = ?`).run(PHONE);
+  const nowhere = call('place_order', { payment_method: 'cash_on_delivery' });
+  check('nowhere to go is still refused', typeof nowhere.error === 'string', JSON.stringify(nowhere).slice(0, 90));
+  check('and the refusal offers both ways out', /request_location/.test(String(nowhere.error)) && /written address/i.test(String(nowhere.error)), nowhere.error);
+  call('save_customer_details', { name: 'Ada Lovelace', address: '12 Main Street, Georgetown' });
 
   repo.saveLocationPin(PHONE, { latitude: 6.80714, longitude: -58.15536, label: 'Stabroek Market' });
   call('confirm_identity');
@@ -3765,6 +3775,83 @@ section('The directory decides who gets work');
   });
 }
 
+section('An address is an answer');
+{
+  const { TOOL_DEFS, executeTool } = await import('./agent/tools.ts');
+  const { dropLines } = await import('./dispatch.ts');
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+
+  const buyer = '5926107373';
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+    )
+    .get() as unknown as { id: number }).id;
+
+  const order = (): { order_number?: string; error?: string } => {
+    repo.setCartQty(buyer, sellable, 1, '');
+    return JSON.parse(
+      executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
+        phone: buyer,
+        outbound: [] as never[],
+      } as never),
+    ) as { order_number?: string; error?: string };
+  };
+
+  /* --- neither is still a refusal ------------------------------------- */
+
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+  repo.saveCustomer(buyer, { name: 'Patrice', contactPhone: buyer });
+  repo.confirmIdentity(buyer);
+  const nowhere = order();
+  check('with nowhere to go, no order', typeof nowhere.error === 'string', JSON.stringify(nowhere).slice(0, 140));
+  check(
+    'and the refusal offers both ways out',
+    /written address/i.test(nowhere.error ?? '') && /request_location/.test(nowhere.error ?? ''),
+    nowhere.error,
+  );
+
+  /* --- an address alone is enough, first time ------------------------- */
+
+  // What went wrong before: somebody typed their address and was asked for a
+  // pin anyway, because the address only counted once they had been asked and
+  // said they could not send one. The order did not exist until then, so the
+  // kitchen had not heard of it either.
+  repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
+  const written = order();
+  check('an address alone places the order', typeof written.order_number === 'string', JSON.stringify(written).slice(0, 180));
+
+  const placed = repo.findOrder(written.order_number ?? '')!;
+  check('with no pin on it', placed.location === null);
+  check('and the address it was given', placed.address === '26 Brickdam, Georgetown', placed.address);
+
+  // The associate is told, which is what makes the written address workable:
+  // they ring rather than navigate.
+  const card = dropLines(placed).join('\n');
+  check('the card warns there is no pin', /NO PIN/.test(card), card);
+  check('and prints the address to go on', card.includes('26 Brickdam, Georgetown'), card);
+
+  /* --- the ceremony is gone ------------------------------------------- */
+
+  // An input the model can set that changes nothing is worse than no input:
+  // it reads as a rule, and it was the rule that caused this.
+  const def = TOOL_DEFS.find((t) => t.name === 'place_order');
+  const props = ((def?.input_schema ?? {}) as { properties?: Record<string, unknown> }).properties ?? {};
+  check('place_order no longer takes without_pin', !('without_pin' in props), JSON.stringify(Object.keys(props)));
+  check('and nothing in the prompt asks for it', !/without_pin/.test(SYSTEM_PROMPT));
+
+  // A pin is still the better answer where there is one, and still what the
+  // delivery area is measured against.
+  repo.saveLocationPin(buyer, { latitude: 6.8013, longitude: -58.1551, label: 'Kitty' });
+  const pinned = order();
+  check('a pin still places an order', typeof pinned.order_number === 'string', JSON.stringify(pinned).slice(0, 140));
+  check('and is saved on it', repo.findOrder(pinned.order_number ?? '')!.location !== null);
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+}
+
 section('Accepted is not delivered');
 {
   const { parseStatuses } = await import('./channels/whatsapp.ts');
@@ -6201,8 +6288,8 @@ section('The address, once');
         payment_method: 'cash_on_delivery',
         delivery_address: '26 Brickdam, Georgetown',
         // Order 93's own shape: an address in words and no pin, which is the
-        // case where the written line is all the card has.
-        without_pin: true,
+        // case where the written line is all the card has. No flag to unlock
+        // it any more - the address is the answer.
         // The schema forbids this in as many words. A prompt is a request,
         // not a guard, so the guard is in the code.
         delivery_note: '26 Brickdam, Georgetown',

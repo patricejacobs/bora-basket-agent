@@ -265,10 +265,27 @@ address. Every pin request says so:
 > Not where you are now? Drag the map, or search for the place, before you send
 > it.
 
-**If they cannot send a pin at all**, the order still goes through on a written
-address, and the associate's card leads with `⚠️ NO PIN — ring before you set
-off`. The honest cost: a written address cannot be checked against the delivery
-radius.
+**An address in words is an answer, not a concession.** Either a pin or a
+written address places an order; only having neither refuses one. The
+associate's card then leads with `⚠️ NO PIN — ring before you set off`, which
+is what makes a written address workable — they ring rather than navigate.
+
+It used to demand the pin. An address counted only once the customer had been
+asked and said they could not send one, which the agent unlocked with a
+`without_pin` flag. So somebody who simply typed where they lived was asked
+for a pin again, and the order did not exist until they produced one — meaning
+the kitchen had not heard of it either, and the customer was answering the
+same question twice at the last step.
+
+It also disagreed with the card that gets driven from, where a written address
+**beats** a pin and the pin is not printed beside it. The shop cannot hold
+both positions.
+
+A pin is still asked for, and still worth having: it is the only thing the
+delivery radius can be measured against, and two taps from the customer. It is
+a question now, not a gate. The honest cost of an address-only order is that
+nobody can tell whether it is inside the delivery area until an associate is
+reading the card.
 
 **If they paste a Google Maps link instead**, it is read. So is a plus code
 (`865RXM2G+MC`, or a short `XM2G+MC` near the shop) and bare coordinates. This
