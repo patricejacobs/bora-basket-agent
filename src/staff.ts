@@ -5,7 +5,7 @@
  * twenty orders wants the same words to do the same thing every time, instantly
  * and at no cost per message. Conversation is the wrong tool for a work queue.
  */
-import { config, money } from './config.ts';
+import { config, money, dutyLimits } from './config.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus, warnStaff } from './notifications.ts';
 import { sendLocationRequest, sendText } from './channels/whatsapp-send.ts';
@@ -1198,7 +1198,7 @@ export async function handleDriverMessage(
       [
         `📍 Got it${location.label ? ` — ${location.label}` : ''}.`,
         ...(capped
-          ? [`🛑 You have reached ${config.dutyHoursPerDay} hours in the last 24 and are off duty.`]
+          ? [`🛑 You have reached ${dutyLimits().maxPerDay} hours in the last 24 and are off duty.`]
           : wasOff
             ? ['You are on duty.']
             : []),
@@ -1227,7 +1227,7 @@ export async function handleDriverMessage(
         [
           `🛑 You have worked ${Math.floor(repo.hoursWorkedToday(phone))} hours in the last 24.`,
           '',
-          `The limit is ${config.dutyHoursPerDay}. You can clock on again from ${when}.`,
+          `The limit is ${dutyLimits().maxPerDay}. You can clock on again from ${when}.`,
         ].join(String.fromCharCode(10)),
       );
     }
@@ -1245,7 +1245,7 @@ export async function handleDriverMessage(
         text: [
           `🛵 You are on duty${who?.name ? `, ${who.name.split(' ')[0]}` : ''}. Jobs will come to you.`,
           '',
-          `You will be clocked off automatically after ${config.dutyHours} hours, so send *on* again tomorrow.`,
+          `You will be clocked off automatically after ${dutyLimits().lapseHours} hours, so send *on* again tomorrow.`,
         ].join(String.fromCharCode(10)),
         buttons: [{ id: 'duty_off', title: 'Clock off', command: 'clock off' }],
       },

@@ -201,6 +201,35 @@ work more than twelve hours in any rolling twenty-four, however you split them.
 An order already in your hands is always yours to finish — the cap stops new
 work, it never strands a delivery.
 
+**A busy few days can lift both, with an end date.** In Render:
+
+```
+ASSOCIATE_HOURS_OVERRIDE=24
+ASSOCIATE_HOURS_OVERRIDE_UNTIL=2026-11-21
+```
+
+Round the clock through the end of the 21st, in Georgetown time, then twelve
+again on its own. Both limits move together — a rolling cap of 24 with a
+clock-in that still lapses at 12 just clocks somebody off at lunchtime and
+lets them clock straight back on.
+
+**The date is the point.** A cap lifted by hand is a cap somebody has to
+remember to put back, and nobody remembers on the Saturday of a busy week.
+This one expires whether anyone is watching or not, and says so at boot:
+
+```
+[duty] 24 hours a day until the end of 2026-11-21, then back to 12
+```
+
+`/health` reports `dutyHours` with the limits in force and the override if
+there is one.
+
+One thing to know before lifting it. The twelve-hour lapse is also what closes
+a shift somebody forgot to end. At 24 there is no automatic clock-off for a
+day, so an associate who forgets `off` stays on duty — and since the shop only
+takes orders while somebody is on duty, it will keep taking them. Worth a
+word with whoever is working those days.
+
 **Only yours to close.** You cannot deliver, return or close an order that is
 not with you. If somebody hands you their job, they send `<order> transfer` and
 choose you.

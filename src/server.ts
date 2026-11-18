@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
-import { config, assertWhatsAppConfigured, money } from './config.ts';
+import { config, assertWhatsAppConfigured, money, dutyLimits } from './config.ts';
 import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen, pendingHelpCount, onDutyCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
@@ -225,6 +225,19 @@ warnAboutUnreachableAssociates();
 
 // Customers who asked for a person while nobody was reachable. They were told
 // it was written down and somebody would come back to them; this is that.
+// The duty limits, said out loud at boot, because an override that nobody can
+// see is an override nobody remembers is on.
+{
+  const limits = dutyLimits();
+  if (limits.override) {
+    console.log(
+      `[duty] ${limits.override.hours} hours a day until the end of ${limits.override.until}, then back to ${config.dutyHoursPerDay}`,
+    );
+  } else {
+    console.log(`[duty] ${config.dutyHoursPerDay} hours a day, shifts lapsing after ${config.dutyHours}`);
+  }
+}
+
 void flushHelpRequests().catch((err) =>
   console.error('[notify] waiting help requests could not be flushed:', err),
 );
@@ -319,6 +332,8 @@ app.get('/health', (_req: Request, res: Response) => {
       pendingHelp: pendingHelpCount(),
       // On the road right now. 0 means orders are being refused.
       associatesOnDuty: onDutyCount(),
+      // The duty limits in force now, and the override if one is.
+      dutyHours: dutyLimits(),
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,

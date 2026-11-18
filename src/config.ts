@@ -317,6 +317,21 @@ export const config = {
    */
   dutyHoursPerDay: Math.max(0, num('ASSOCIATE_MAX_HOURS_PER_DAY', 12)),
   /**
+   * A busy few days, and the hours that go with them — with an end date.
+   *
+   * Both duty limits are raised to this figure until the date passes, and
+   * then they are not. The date is the point: a cap lifted by hand is a cap
+   * somebody has to remember to put back, and nobody remembers on the
+   * Saturday of a busy week. This expires whether anyone is paying attention
+   * or not.
+   *
+   * ASSOCIATE_HOURS_OVERRIDE=24 with
+   * ASSOCIATE_HOURS_OVERRIDE_UNTIL=2026-11-21 means round the clock through
+   * the end of the 21st, in the shop's own timezone, then back to twelve.
+   */
+  hoursOverride: Math.max(0, num('ASSOCIATE_HOURS_OVERRIDE', 0)),
+  hoursOverrideUntil: str('ASSOCIATE_HOURS_OVERRIDE_UNTIL', '').trim(),
+  /**
    * Whether a customer gets a four-digit code to read out at the door.
    *
    * Proof the right bag reached the right person, and - just as much - proof
@@ -423,6 +438,40 @@ export const config = {
     minorPerUnit,
   },
 } as const;
+
+/**
+ * The duty limits in force right now.
+ *
+ * One function rather than reading the config in five places, because the
+ * override has to apply to both limits or it does nothing useful: a rolling
+ * cap of 24 hours with a clock-in that still lapses at 12 just means
+ * somebody is clocked off at lunchtime and allowed to clock on again.
+ *
+ * The date is compared as the shop's own calendar day, so "until the 21st"
+ * means through the end of the 21st in Georgetown and not 8pm on the 20th
+ * because the server is in London.
+ */
+export function dutyLimits(now = new Date()): {
+  /** How long a clock-in lasts before it lapses on its own. */
+  lapseHours: number;
+  /** The most an associate may work in any rolling 24 hours. 0 is no cap. */
+  maxPerDay: number;
+  /** Set while an override is in force, so it can be said out loud. */
+  override: { hours: number; until: string } | null;
+} {
+  const { hoursOverride, hoursOverrideUntil, dutyHours, dutyHoursPerDay } = config;
+  const normal = { lapseHours: dutyHours, maxPerDay: dutyHoursPerDay, override: null };
+  if (hoursOverride <= 0 || !hoursOverrideUntil) return normal;
+
+  const today = now.toLocaleDateString('en-CA', { timeZone: config.store.timezone });
+  if (today > hoursOverrideUntil) return normal;
+
+  return {
+    lapseHours: hoursOverride,
+    maxPerDay: hoursOverride,
+    override: { hours: hoursOverride, until: hoursOverrideUntil },
+  };
+}
 
 /** Format minor units for display, e.g. 125000 -> "$1,250". */
 export function money(minorUnits: number): string {

@@ -4013,6 +4013,71 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('A busy few days, with an end date');
+{
+  const { dutyLimits } = await import('./config.ts');
+
+  const set = (hours: number, until: string): void => {
+    (config as { hoursOverride: number }).hoursOverride = hours;
+    (config as { hoursOverrideUntil: string }).hoursOverrideUntil = until;
+  };
+  const normal = { hours: config.hoursOverride, until: config.hoursOverrideUntil };
+
+  /* --- unset, nothing changes ----------------------------------------- */
+
+  set(0, '');
+  check('with no override, the normal limits stand', dutyLimits().maxPerDay === config.dutyHoursPerDay);
+  check('and shifts lapse as usual', dutyLimits().lapseHours === config.dutyHours);
+  check('with nothing to say about it', dutyLimits().override === null);
+
+  /* --- in force -------------------------------------------------------- */
+
+  // Both limits, or it does nothing useful: a rolling cap of 24 hours with a
+  // clock-in that still lapses at 12 just clocks somebody off at lunchtime
+  // and lets them clock on again.
+  const today = new Date();
+  const inThreeDays = new Date(today.getTime() + 3 * 24 * 3600_000)
+    .toLocaleDateString('en-CA', { timeZone: config.store.timezone });
+  set(24, inThreeDays);
+  check('the cap is raised', dutyLimits().maxPerDay === 24, String(dutyLimits().maxPerDay));
+  check('and so is the lapse', dutyLimits().lapseHours === 24, String(dutyLimits().lapseHours));
+  check('and it says so, with its end date', dutyLimits().override?.until === inThreeDays, JSON.stringify(dutyLimits().override));
+
+  // A rider can now work past twelve, which is the whole point.
+  const rider = config.driverNumbers[0]!;
+  db.prepare(`DELETE FROM associate_shifts WHERE phone = ?`).run(rider);
+  const on = new Date(Date.now() - 18 * 3600_000);
+  db.prepare(`INSERT INTO associate_shifts (phone, started_at, ended_at) VALUES (?, ?, '')`).run(rider, on.toISOString());
+  db.prepare(
+    `INSERT INTO associates (phone, name, vehicle, active, on_duty_at, updated_at)
+     VALUES (?, '', '', 1, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET on_duty_at = excluded.on_duty_at, active = 1`,
+  ).run(rider, on.toISOString(), on.toISOString());
+  check('eighteen hours in, still on duty', repo.isOnDuty(rider), String(repo.hoursWorkedToday(rider)));
+
+  /* --- and when the date passes ---------------------------------------- */
+
+  // The reason it carries a date at all: a cap lifted by hand is a cap
+  // somebody has to remember to put back, and nobody remembers on the
+  // Saturday of a busy week.
+  const yesterday = new Date(Date.now() - 24 * 3600_000)
+    .toLocaleDateString('en-CA', { timeZone: config.store.timezone });
+  set(24, yesterday);
+  check('the override expires on its own', dutyLimits().override === null, JSON.stringify(dutyLimits()));
+  check('the cap is back', dutyLimits().maxPerDay === config.dutyHoursPerDay, String(dutyLimits().maxPerDay));
+  check('and the same rider is off duty again', !repo.isOnDuty(rider), String(repo.hoursWorkedToday(rider)));
+
+  // Through the END of the day named, not from its start - a shop told
+  // "until the 21st" that stops at midnight on the 20th has lost a day.
+  const todayHere = new Date().toLocaleDateString('en-CA', { timeZone: config.store.timezone });
+  set(24, todayHere);
+  check('the last day still counts', dutyLimits().maxPerDay === 24, JSON.stringify(dutyLimits()));
+
+  set(normal.hours, normal.until);
+  db.prepare(`DELETE FROM associate_shifts WHERE phone = ?`).run(rider);
+  repo.setDuty(rider, true);
+}
+
 section('No one on the road, no orders taken');
 {
   const { executeTool } = await import('./agent/tools.ts');

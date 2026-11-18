@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { db, nowIso, HOUSE_GROCERY_CODE } from './index.ts';
-import { config } from '../config.ts';
+import { config, dutyLimits } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
@@ -2302,8 +2302,9 @@ function effectiveShifts(
     )
     .all(phone.replace(/[^0-9]/g, '')) as unknown as { startedAt: string; endedAt: string }[];
 
-  const lapseMs = config.dutyHours * 3600_000;
-  const limitMs = config.dutyHoursPerDay > 0 ? config.dutyHoursPerDay * 3600_000 : Infinity;
+  const { lapseHours, maxPerDay } = dutyLimits(now);
+  const lapseMs = lapseHours * 3600_000;
+  const limitMs = maxPerDay > 0 ? maxPerDay * 3600_000 : Infinity;
   const windowStart = now.getTime() - 24 * 3600_000;
 
   const out: { from: number; to: number }[] = [];
@@ -2353,7 +2354,7 @@ export function hoursWorkedToday(phone: string, now = new Date()): number {
  * capped.
  */
 export function canWorkAgainAt(phone: string, now = new Date()): Date | null {
-  const limit = config.dutyHoursPerDay;
+  const limit = dutyLimits(now).maxPerDay;
   if (limit <= 0 || hoursWorkedToday(phone, now) < limit) return null;
 
   const shifts = effectiveShifts(phone, now);
@@ -2385,7 +2386,7 @@ export function onDutySince(phone: string, now = new Date()): string {
 
   const since = new Date(row.at).getTime();
   if (!Number.isFinite(since)) return '';
-  const lapsed = now.getTime() - since > config.dutyHours * 3600_000;
+  const lapsed = now.getTime() - since > dutyLimits(now).lapseHours * 3600_000;
   return lapsed ? '' : row.at;
 }
 
@@ -2411,7 +2412,7 @@ export function anyoneOnDuty(now = new Date()): boolean {
 export function isOnDuty(phone: string, now = new Date()): boolean {
   if (onDutySince(phone, now) === '') return false;
 
-  const limit = config.dutyHoursPerDay;
+  const limit = dutyLimits(now).maxPerDay;
   if (limit <= 0) return true;
   if (hoursWorkedToday(phone, now) < limit) return true;
 
