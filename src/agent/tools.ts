@@ -14,6 +14,7 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
+import { findZone, zoneCount, describeZone } from '../zones.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
 const chr10 = String.fromCharCode(10);
@@ -356,6 +357,32 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
       },
       required: ['payment_method'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'delivery_zone',
+    description:
+      "What the delivery costs, by where it is going. Call it as soon as you have an area or an address, BEFORE quoting any delivery charge or total. Two steps, on purpose: call it with `text` to find out which place the shop thinks they mean, read that place back to them in your own words, and only once they have agreed call it again with `place` and `confirmed` true. Never quote a delivery figure you have not confirmed this way — a price the customer did not agree to is one the delivery associate has to argue about at their gate.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: {
+          type: 'string',
+          description:
+            'What the customer said about where they are — an area, a village, a whole address. Spelling does not matter; the shop matches on how a name sounds.',
+        },
+        place: {
+          type: 'string',
+          description:
+            'The place name EXACTLY as the shop gave it back to you, when confirming. Not the customer\'s spelling.',
+        },
+        confirmed: {
+          type: 'boolean',
+          description:
+            'True only when the customer has been told the place by name and has agreed it is right. Never true on the same turn you first looked it up.',
+        },
+      },
       additionalProperties: false,
     },
   },
@@ -1475,6 +1502,90 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       } catch (err) {
         return fail(err instanceof Error ? err.message : 'Could not place the order.');
       }
+    }
+
+    /**
+     * The delivery price, and the question that has to come before it.
+     *
+     * Two calls rather than one, and the shape of the tool is what enforces
+     * it: looking a place up tells the model what to ASK, and nothing is
+     * stored. Only a second call carrying `confirmed` sets the zone, and only
+     * then is there a figure to say out loud.
+     *
+     * The reason is not politeness. Spelling is matched on sound, so the shop
+     * will cheerfully read "Metin Meer Zorg" as Meten-Meer-Zorg and charge
+     * $4,000 — and two villages called Golden Grove sit $800 apart on
+     * different corridors. A quote nobody agreed to is a quote the delivery
+     * associate has to defend at a gate, with the order already in the bag.
+     */
+    case 'delivery_zone': {
+      if (zoneCount() === 0) {
+        return ok({
+          priced: false,
+          note: `This shop has no zone tariff, so delivery is the flat ${money(config.store.deliveryFee)}. Nothing to confirm — carry on.`,
+        });
+      }
+
+      const confirming = input.confirmed === true;
+      const place = asString(input.place).trim();
+
+      if (confirming) {
+        if (!place) {
+          return fail('To confirm a zone, pass `place` exactly as the shop gave it to you.');
+        }
+        const known = findZone(place);
+        if (known.kind !== 'found') {
+          return fail(
+            `"${place}" is not a place in the tariff. Look it up with \`text\` first and use the name the shop gives back.`,
+          );
+        }
+        repo.setDeliveryZone(ctx.phone, known.match.place);
+        return ok({
+          confirmed: true,
+          place: known.match.place,
+          zone: known.match.zone,
+          delivery_fee: money(known.match.fee),
+          say: `Delivery to ${known.match.place} is ${money(known.match.fee)}.`,
+          next: 'Now you may quote it. It is already in the cart total.',
+        });
+      }
+
+      const text = asString(input.text).trim();
+      if (!text) return fail('Pass `text` — whatever the customer said about where they are.');
+
+      const found = findZone(text);
+
+      if (found.kind === 'unknown') {
+        return ok({
+          priced: false,
+          matched: null,
+          note: `Nothing in the tariff is close to "${text}". Ask which village or area it is, in their own words — do not guess, and do not quote a delivery charge yet.`,
+        });
+      }
+
+      if (found.kind === 'ambiguous') {
+        return ok({
+          priced: false,
+          // Said as a question, with the prices, because the difference
+          // between them is the whole reason this is being asked.
+          ask: found.candidates.map((c) => `${c.place} (${describeZone(c)})`),
+          note: `More than one place fits "${text}" and they are not the same price. Ask which one, naming them. Quote nothing until they answer.`,
+        });
+      }
+
+      const m = found.match;
+      return ok({
+        priced: true,
+        matched: m.place,
+        zone: m.zone,
+        // Deliberately NOT called the delivery fee here. It is what the fee
+        // WOULD be, and handing the model a field called `delivery_fee`
+        // before the place is agreed is how it ends up in a sentence.
+        would_be: money(m.fee),
+        spelling: m.exact ? 'as they wrote it' : 'a near spelling, matched on sound',
+        say: `Read the place back and get a yes: "that's ${m.place}, is that right?"`,
+        next: `Say nothing about the price yet. When they agree, call delivery_zone again with place "${m.place}" and confirmed true.`,
+      });
     }
 
     case 'parcel_status': {

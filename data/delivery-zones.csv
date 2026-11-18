@@ -1,0 +1,215 @@
+# A draft delivery tariff for the four corridors out of Georgetown.
+#
+# WRITTEN FROM GENERAL KNOWLEDGE, NOT FROM A SURVEY. Expect missing villages,
+# a few that are really housing schemes inside a bigger village, and some
+# spellings that are not how people write them locally. Correct it freely -
+# that is what this file is for. Nothing reads it yet.
+#
+# place  - what a customer might write in their address. Matched on whole
+#          words, either way round, LONGEST MATCH WINS, so an address in
+#          Golden Grove is not priced as Grove.
+# zone   - a label, so the receipt and the associate's card can name it
+# fee    - what the customer pays for delivery, in dollars
+#
+# The west side is priced from the bridge, not from the map. Vreed-en-Hoop is
+# five kilometres from Stabroek and twenty-five by road.
+#
+# TWO VILLAGES SHARE A NAME on different corridors - Golden Grove and
+# Friendship. They carry their corridor here, and an address saying only
+# "Golden Grove" has to be asked about or pinned.
+place,zone,fee
+
+# ---------------------------------------------------------------- Georgetown
+Georgetown,Georgetown,500
+Kingston,Georgetown,500
+Cummingsburg,Georgetown,500
+Robbstown,Georgetown,500
+Lacytown,Georgetown,500
+Bourda,Georgetown,500
+Stabroek,Georgetown,500
+Werk-en-Rust,Georgetown,500
+Wortmanville,Georgetown,500
+Charlestown,Georgetown,500
+Albouystown,Georgetown,500
+La Penitence,Georgetown,500
+East La Penitence,Georgetown,500
+Ruimveldt,Georgetown,500
+South Ruimveldt,Georgetown,500
+South Ruimveldt Park,Georgetown,500
+South Ruimveldt Gardens,Georgetown,500
+Tucville,Georgetown,500
+Guyhoc Park,Georgetown,500
+Festival City,Georgetown,500
+North Ruimveldt,Georgetown,500
+Meadow Brook,Georgetown,500
+Meadow Brook Gardens,Georgetown,500
+Meadow Bank,Georgetown,500
+Alberttown,Georgetown,500
+Queenstown,Georgetown,500
+Newtown,Georgetown,500
+Kitty,Georgetown,500
+Campbellville,Georgetown,500
+Subryanville,Georgetown,500
+Bel Air,Georgetown,500
+Bel Air Park,Georgetown,500
+Bel Air Gardens,Georgetown,500
+Bel Air Springs,Georgetown,500
+Prashad Nagar,Georgetown,500
+Lamaha Gardens,Georgetown,500
+Lamaha Springs,Georgetown,500
+Thomas Lands,Georgetown,500
+Eve Leary,Georgetown,500
+Rahaman's Park,Greater Georgetown,800
+Sophia,Greater Georgetown,800
+Cummings Lodge,Greater Georgetown,800
+Turkeyen,Greater Georgetown,800
+Liliendaal,Greater Georgetown,800
+Pattensen,Greater Georgetown,800
+
+# ------------------------------------------- East Coast Demerara, going east
+Industry,East Coast near,1000
+Goedverwagting,East Coast near,1000
+Ogle,East Coast near,1000
+Sparendaam,East Coast near,1000
+Plaisance,East Coast near,1000
+Better Hope,East Coast near,1000
+La Bonne Intention,East Coast near,1000
+Beterverwagting,East Coast near,1200
+Vryheid's Lust,East Coast near,1200
+Montrose,East Coast near,1200
+Le Ressouvenir,East Coast near,1200
+Chateau Margot,East Coast near,1200
+Triumph,East Coast near,1200
+Mon Repos,East Coast near,1200
+Success,East Coast near,1200
+Good Hope,East Coast,1800
+Lusignan,East Coast,1800
+Annandale,East Coast,1800
+Bachelor's Adventure,East Coast,1800
+Buxton,East Coast,1800
+Friendship East Coast,East Coast,1800
+Vigilance,East Coast,1800
+Strathspey,East Coast,1800
+Foulis,East Coast,2000
+Felicity,East Coast,2000
+Bladen Hall,East Coast,2200
+Enmore,East Coast,2200
+Non Pareil,East Coast,2200
+Enterprise,East Coast,2200
+Melanie Damishana,East Coast,2200
+Hope,East Coast far,2800
+Hope Lowlands,East Coast far,2800
+Paradise,East Coast far,2800
+Golden Grove East Coast,East Coast far,2800
+Nabaclis,East Coast far,2800
+Haslington,East Coast far,2800
+Victoria,East Coast far,2800
+Cove and John,East Coast far,3000
+Ann's Grove,East Coast far,3000
+Two Friends,East Coast far,3000
+Dochfour,East Coast far,3200
+Clonbrook,East Coast far,3200
+Belfield,East Coast far,3200
+Bee Hive,East Coast far,3200
+Unity,East Coast far,3200
+Lancaster,East Coast far,3500
+Fairfield,East Coast far,3500
+Greenfield,East Coast far,3500
+Enterprise Gardens,East Coast far,3500
+Cane Grove,East Coast far,3500
+Mahaica,East Coast far,3500
+Mahaicony,Outer,5000
+
+# -------------------------------------------- East Bank Demerara, going south
+Agricola,East Bank near,800
+McDoom,East Bank near,800
+Houston,East Bank near,800
+Rome,East Bank near,1000
+Eccles,East Bank near,1200
+Eccles New Scheme,East Bank near,1200
+Nandy Park,East Bank near,1200
+Republic Park,East Bank near,1200
+Bagotstown,East Bank near,1200
+Peter's Hall,East Bank near,1200
+Providence,East Bank near,1200
+Mocha,East Bank,1600
+Mocha Arcadia,East Bank,1600
+Barnwell,East Bank,1600
+Prospect,East Bank,1600
+Herstelling,East Bank,1600
+Farm,East Bank,1800
+Little Diamond,East Bank,1800
+Diamond,East Bank,1800
+Great Diamond,East Bank,1800
+Covent Garden,East Bank,2000
+Grove,East Bank,2000
+Golden Grove East Bank,East Bank,2000
+Friendship East Bank,East Bank,2200
+Garden of Eden,East Bank,2200
+Sarah Johanna,East Bank,2200
+Caledonia,East Bank,2400
+Supply,East Bank,2400
+New Hope,East Bank,2600
+Land of Canaan,East Bank far,2800
+Craig,East Bank far,2800
+Soesdyke,East Bank far,3200
+Timehri,East Bank far,3800
+Madewini,Highway,4000
+Dora,Highway,4500
+Kuru Kururu,Highway,4500
+Loo Creek,Highway,4500
+Yarrowkabra,Highway,4500
+Long Creek,Highway,4500
+Moblissa,Highway,5000
+
+# ------------------------------- West Bank Demerara, over the bridge and south
+Vreed-en-Hoop,West Bank near,2500
+Stanleytown,West Bank near,2500
+Pouderoyen,West Bank near,2500
+Klien Pouderoyen,West Bank near,2500
+Malgre Tout,West Bank near,2500
+Meer Zorg,West Bank near,2600
+Versailles,West Bank near,2800
+Schoonord,West Bank near,2800
+Goed Fortuin,West Bank near,2800
+La Grange,West Bank,3000
+Nismes,West Bank,3000
+Bagotville,West Bank,3000
+Toevlugt,West Bank,3200
+Patentia,West Bank,3200
+Vive-la-Force,West Bank,3200
+Wales,West Bank,3500
+Belle Vue,West Bank,3500
+Free and Easy,West Bank far,4000
+Goed Intent,West Bank far,4000
+Sisters,West Bank far,4000
+Canal Number One,West Bank far,4500
+Canal Number Two,West Bank far,4500
+
+# ------------------------------------------ West Coast Demerara, going west
+Crane,West Coast near,3000
+Nouvelle Flanders,West Coast near,3000
+Blankenburg,West Coast near,3000
+Windsor Forest,West Coast near,3200
+La Jalousie,West Coast near,3200
+Den Amstel,West Coast near,3200
+Fellowship,West Coast near,3200
+Hague,West Coast,3500
+Hague Back,West Coast,3500
+Cornelia Ida,West Coast,3500
+Anna Catherina,West Coast,3500
+Leonora,West Coast,3500
+Stewartville,West Coast,3800
+Edinburgh,West Coast,3800
+Uitvlugt,West Coast,3800
+Meten-Meer-Zorg,West Coast,4000
+Zeeburg,West Coast,4000
+De Kinderen,West Coast,4000
+Philadelphia,West Coast far,4200
+Tuschen,West Coast far,4200
+Zeelugt,West Coast far,4200
+Vergenoegen,West Coast far,4500
+Naamryck,West Coast far,4500
+Greenwich Park,West Coast far,4800
+Hydronie,West Coast far,4800
+Parika,West Coast far,5000

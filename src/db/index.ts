@@ -276,6 +276,15 @@ addColumnIfMissing('customers', 'identity_confirmed_at', "TEXT");
 // The number the delivery associate should call. Usually the WhatsApp number, but not
 // always: people order from a work phone, or want the household number rung.
 addColumnIfMissing('customers', 'contact_phone', "TEXT");
+// The delivery zone the customer has AGREED to, by name.
+//
+// The name and not the fee, so a price changed in the tariff reprices the
+// next order instead of leaving a figure nobody charges any more - the same
+// rule the cart follows for menu options.
+addColumnIfMissing('customers', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
+// And what the order was actually charged under, kept on the order so a
+// receipt a month old still says where it went.
+addColumnIfMissing('orders', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
 // A publicly reachable HTTPS image for the product. WhatsApp fetches the URL
 // itself, so nothing is stored here but the address.

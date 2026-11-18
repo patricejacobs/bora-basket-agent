@@ -384,6 +384,15 @@ export const config = {
     timezone: str('STORE_TIMEZONE', 'America/Guyana'),
     deliveryAreas: str('DELIVERY_AREAS', 'local delivery area'),
     /**
+     * The delivery tariff: a CSV of place, zone and fee, read on every boot.
+     *
+     * A file rather than an environment variable because it is a hundred and
+     * eighty lines of village names that the shop will keep editing, and
+     * because a price list belongs where the catalogue lives. Unset, or
+     * missing, and delivery stays at the flat DELIVERY_FEE.
+     */
+    zonesPath: str('ZONES_PATH', './data/delivery-zones.csv'),
+    /**
      * The geofence every location pin is checked against: where the shop is,
      * and how far it will drive. `DELIVERY_AREAS` above is the same fact in
      * words for customers to read; this is the one a computer can check.

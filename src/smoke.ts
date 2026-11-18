@@ -3930,6 +3930,163 @@ section('Accepted is not delivered');
   db.prepare(`DELETE FROM associates WHERE phone = ?`).run(unseen);
 }
 
+section('What a delivery costs, by where it goes');
+{
+  const { findZone, soundalike, loadZones, zoneCount } = await import('./zones.ts');
+  const { executeTool } = await import('./agent/tools.ts');
+
+  check('the tariff is loaded', zoneCount() > 100, String(zoneCount()));
+
+  const fee = (text: string): string => {
+    const r = findZone(text);
+    return r.kind === 'found' ? `${r.match.place}=${r.match.fee}` : r.kind;
+  };
+
+  /* --- the name as written -------------------------------------------- */
+
+  check('a place in an address is found', fee('Lot 4 Section C, Diamond') === 'Diamond=1800', fee('Lot 4 Section C, Diamond'));
+  check('and the area on its own', fee('Kitty') === 'Kitty=500', fee('Kitty'));
+
+  // The trap from the doorstep line, in a tariff: whole words only.
+  check('a longer word is not the village', fee('Diamondback Street') === 'unknown', fee('Diamondback Street'));
+  check('unless the village is also named', fee('Diamondback Street, Kitty') === 'Kitty=500', fee('Diamondback Street, Kitty'));
+
+  // Longest match wins, or a village is priced as the shorter name inside it.
+  check('Golden Grove is not Grove', fee('Golden Grove East Bank') === 'Golden Grove East Bank=2000', fee('Golden Grove East Bank'));
+  check('Good Hope is not Hope', fee('Lot 9 Good Hope') === 'Good Hope=1800', fee('Lot 9 Good Hope'));
+  check('Cane Grove is not Grove', fee('Cane Grove') === 'Cane Grove=3500', fee('Cane Grove'));
+
+  /* --- spelling is not what they are being asked ---------------------- */
+
+  // Matched on sound, so v/w/f are one letter, oe/ou/oo are u, and a doubled
+  // letter is a single one.
+  check('fred en hup', soundalike('Vreed-en-Hoop') === 'fred en hup', soundalike('Vreed-en-Hoop'));
+
+  for (const [typed, expected] of [
+    ['Diamon', 'Diamond=1800'],
+    ['Dimond', 'Diamond=1800'],
+    ['Pouderoyan', 'Pouderoyen=2500'],
+    ['Powderoyen', 'Pouderoyen=2500'],
+    ['Freed en Hoop', 'Vreed-en-Hoop=2500'],
+    ['Vreedenhoop', 'Vreed-en-Hoop=2500'],
+    ['Monrepos', 'Mon Repos=1200'],
+    ['Mon Repose', 'Mon Repos=1200'],
+    ['Beterverwaging', 'Beterverwagting=1200'],
+    ['Hazlington', 'Haslington=2800'],
+    ['Enmoor', 'Enmore=2200'],
+    ['Leanora', 'Leonora=3500'],
+    ['Uitvlucht', 'Uitvlugt=3800'],
+    ['Fergenoegen', 'Vergenoegen=4500'],
+  ] as [string, string][]) {
+    check(`"${typed}" is understood`, fee(`Lot 12 ${typed}`) === expected, `${typed} -> ${fee(`Lot 12 ${typed}`)}`);
+  }
+
+  // The one that mattered most: an exact match on a SHORTER name must not
+  // beat a near match on a longer, more specific one. Meer Zorg is spelled
+  // perfectly inside "Metin Meer Zorg" and is $1,400 cheaper.
+  check(
+    'the more specific village wins over the better-spelled one',
+    fee('Metin Meer Zorg') === 'Meten-Meer-Zorg=4000',
+    fee('Metin Meer Zorg'),
+  );
+
+  /* --- when it must ask ----------------------------------------------- */
+
+  // Two villages, one name, on different corridors and $800 apart. Nothing
+  // can be quoted from the name alone.
+  const golden = findZone('Golden Grove');
+  check('Golden Grove alone is a question', golden.kind === 'ambiguous', golden.kind);
+  check(
+    'and both corridors are offered',
+    golden.kind === 'ambiguous' && golden.candidates.length === 2,
+    JSON.stringify(golden),
+  );
+  check('somewhere not in the tariff is unknown', fee('Linden') === 'unknown', fee('Linden'));
+  check('and so is nonsense', fee('asdfgh') === 'unknown', fee('asdfgh'));
+
+  /* --- the tool will not price what was not agreed -------------------- */
+
+  const buyer = '5926106161';
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+  const call = (args: Record<string, unknown>): Record<string, unknown> =>
+    JSON.parse(executeTool('delivery_zone', args, { phone: buyer, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  const looked = call({ text: 'lot 4 diamon' });
+  check('a lookup finds the place', looked.matched === 'Diamond', JSON.stringify(looked));
+  check('it says to read the name back', /is that right/i.test(String(looked.say)), String(looked.say));
+  // The figure is handed over under a name the model cannot read as a fact.
+  check('the figure is only what it WOULD be', typeof looked.would_be === 'string' && !('delivery_fee' in looked), JSON.stringify(looked));
+  check('and nothing is agreed yet', repo.getCustomer(buyer).deliveryZone === '', repo.getCustomer(buyer).deliveryZone);
+
+  const asked = call({ text: 'Golden Grove' });
+  check('an ambiguous place is returned as a question', Array.isArray(asked.ask), JSON.stringify(asked));
+  check('with the prices in it', JSON.stringify(asked.ask).includes('2,000') && JSON.stringify(asked.ask).includes('2,800'), JSON.stringify(asked.ask));
+  check('and prices nothing', asked.priced === false, JSON.stringify(asked));
+
+  // A spelling the shop never offered cannot be confirmed into existence.
+  const made_up = call({ place: 'Diamondville', confirmed: true });
+  check('a place the shop did not name is refused', typeof made_up.error === 'string', JSON.stringify(made_up));
+  check('and still nothing is agreed', repo.getCustomer(buyer).deliveryZone === '');
+
+  const agreed = call({ place: 'Diamond', confirmed: true });
+  check('confirming sets the zone', repo.getCustomer(buyer).deliveryZone === 'Diamond', repo.getCustomer(buyer).deliveryZone);
+  check('and gives the figure to quote', String(agreed.delivery_fee).includes('1,800'), JSON.stringify(agreed));
+
+  /* --- and then the cart charges it ----------------------------------- */
+
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+    )
+    .get() as unknown as { id: number }).id;
+  repo.saveCustomer(buyer, { name: 'Patrice', address: 'Lot 4 Section C, Diamond', contactPhone: buyer });
+  repo.confirmIdentity(buyer);
+  repo.setCartQty(buyer, sellable, 1, '');
+  check('the cart is priced to the zone', repo.getCart(buyer).deliveryFee === 1800, String(repo.getCart(buyer).deliveryFee));
+
+  const placed = JSON.parse(
+    executeTool('place_order', { payment_method: 'cash_on_delivery' }, { phone: buyer, outbound: [] as never[] } as never),
+  ) as { order_number?: string };
+  const order = repo.findOrder(placed.order_number ?? '')!;
+  check('the order is charged it', order.deliveryFee === 1800, String(order.deliveryFee));
+  // Kept on the order, so a tariff edited next month does not rewrite what
+  // this delivery cost.
+  check('and remembers the zone it was charged under', order.deliveryZone === 'Diamond', order.deliveryZone);
+
+  const { receiptLines } = await import('./notifications.ts');
+  const receipt = receiptLines(order, 'en').join(String.fromCharCode(10));
+  check('the receipt names the zone', receipt.includes('Delivery Diamond'), receipt);
+
+  /* --- free delivery is alive again ----------------------------------- */
+
+  // It used to be tested AFTER the outlet branch, so it stopped applying the
+  // day groceries became a shop: every order has an outlet since then, and
+  // FREE_DELIVERY_OVER was set, quoted in the prompt, and silently dead.
+  if (config.store.freeDeliveryOver > 0) {
+    check(
+      'a big enough order travels free, zone or no zone',
+      repo.calcDeliveryFee(config.store.freeDeliveryOver, null, 'Diamond') === 0,
+      String(repo.calcDeliveryFee(config.store.freeDeliveryOver, null, 'Diamond')),
+    );
+  }
+  check('and a small one pays the zone', repo.calcDeliveryFee(1000, null, 'Diamond') === 1800, String(repo.calcDeliveryFee(1000, null, 'Diamond')));
+  check('with no zone it is the flat fee', repo.calcDeliveryFee(1000, null, '') === config.store.deliveryFee);
+
+  /* --- a shop with no tariff is untouched ----------------------------- */
+
+  const saved = (await import('./zones.ts')).zones();
+  loadZones('place,zone,fee\n');
+  check('no tariff, no zone pricing', repo.calcDeliveryFee(1000, null, 'Diamond') === config.store.deliveryFee);
+  const none = call({ text: 'Diamond' });
+  check('and the tool says so plainly', none.priced === false && /flat/.test(String(none.note)), JSON.stringify(none));
+  loadZones(['place,zone,fee', ...saved.map((z) => `${z.place},${z.zone},${z.fee}`)].join(String.fromCharCode(10)));
+  check('the tariff is back', zoneCount() === saved.length, `${zoneCount()} of ${saved.length}`);
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+}
+
 section('The cash, and what it is made of');
 {
   const { dropLines } = await import('./dispatch.ts');

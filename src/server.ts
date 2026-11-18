@@ -21,6 +21,7 @@ import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats, deliveryStats } from './channels/whatsapp-send.ts';
 import { warnStaff } from './notifications.ts';
 import { applyScheduledReset } from './reset.ts';
+import { loadZonesFromDisk, zoneCount } from './zones.ts';
 import { simulatorRouter } from './channels/simulator.ts';
 import { ensureImagesDirectory, imagesDirectory, refreshImages, imageCount } from './product-images.ts';
 
@@ -216,6 +217,7 @@ function warnAboutUnreachableAssociates(): void {
 // database as it was found.
 await applyScheduledReset();
 
+loadZonesFromDisk();
 loadCatalogue();
 loadMenus();
 loadAssociates();
@@ -305,6 +307,8 @@ app.get('/health', (_req: Request, res: Response) => {
       // DRIVER_NUMBERS only seeds it, so its length answers a question nobody
       // is asking once the shop has edited its own list.
       driverNumbers: associateNumbers().length,
+      // Places in the delivery tariff. 0 means every delivery is the flat fee.
+      deliveryZones: zoneCount(),
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,

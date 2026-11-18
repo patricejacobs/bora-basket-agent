@@ -402,7 +402,13 @@ export function receiptLines(order: repo.OrderRecord, lang: Language): string[] 
     ...(order.deliveryFee > 0
       ? [
           `${t('receipt_goods', lang)} ${money(order.subtotal)}`,
-          `${t('receipt_delivery', lang)} ${money(order.deliveryFee)}`,
+          // Named, where the order was charged under a zone. A delivery
+          // charge is the line a customer queries, and "Delivery $1,800" says
+          // nothing about why; "Delivery to Diamond $1,800" answers the
+          // question before it is asked.
+          order.deliveryZone
+            ? `${t('receipt_delivery', lang)} ${order.deliveryZone} ${money(order.deliveryFee)}`
+            : `${t('receipt_delivery', lang)} ${money(order.deliveryFee)}`,
         ]
       : []),
     `*${t('receipt_total', lang)} ${money(order.total)}*${method ? ` — ${method}` : ''}`,

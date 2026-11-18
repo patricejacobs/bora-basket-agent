@@ -4,6 +4,7 @@ import { config } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
+import { zoneFeeFor } from '../zones.ts';
 
 export type { LocationPin, SavedPin };
 
@@ -109,6 +110,14 @@ export type Customer = {
   contactPhone: string | null;
   /** Where deliveries go. Null until the customer has shared a pin. */
   location: SavedPin | null;
+  /**
+   * The delivery zone this customer has AGREED to, by name, or '' if none.
+   *
+   * Set only after the place has been read back and confirmed, which is why
+   * it is stored at all: a fee worked out from an address nobody checked is a
+   * figure the shop would have to defend at a door.
+   */
+  deliveryZone: string;
 };
 
 /**
@@ -481,22 +490,26 @@ type CustomerRow = {
   longitude: number | null;
   location_label: string | null;
   location_pinned_at: string | null;
+  delivery_zone: string | null;
 };
 
 const CUSTOMER_COLUMNS =
-  'phone, name, address, contact_phone, latitude, longitude, location_label, location_pinned_at';
+  'phone, name, address, contact_phone, latitude, longitude, location_label, location_pinned_at, delivery_zone';
 
 export function getCustomer(phone: string): Customer {
   const row = db
     .prepare(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE phone = ?`)
     .get(phone) as CustomerRow | undefined;
-  if (!row) return { phone, name: null, address: null, contactPhone: null, location: null };
+  if (!row) {
+    return { phone, name: null, address: null, contactPhone: null, location: null, deliveryZone: '' };
+  }
   return {
     phone: row.phone,
     name: row.name,
     address: row.address,
     contactPhone: row.contact_phone,
     location: pinFromRow(row),
+    deliveryZone: row.delivery_zone ?? '',
   };
 }
 
@@ -565,7 +578,30 @@ export function saveCustomer(
        contact_phone = excluded.contact_phone, updated_at = excluded.updated_at`,
   ).run(phone, name, address, contactPhone, nowIso(), nowIso());
   // The pin is untouched by this write — it is saved from the channel, not here.
-  return { phone, name: name ?? null, address: address ?? null, contactPhone, location: existing.location };
+  return {
+    phone,
+    name: name ?? null,
+    address: address ?? null,
+    contactPhone,
+    location: existing.location,
+    deliveryZone: existing.deliveryZone,
+  };
+}
+
+/**
+ * Records the delivery zone the customer has just agreed to.
+ *
+ * Separate from `saveCustomer` on purpose. An address can be taken down from
+ * anything the customer says; a zone is a PRICE, and the only thing that may
+ * set it is the customer saying yes to the place being read back to them.
+ */
+export function setDeliveryZone(phone: string, place: string): void {
+  db.prepare(
+    `INSERT INTO customers (phone, delivery_zone, created_at, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET delivery_zone = excluded.delivery_zone,
+       updated_at = excluded.updated_at`,
+  ).run(phone, place, nowIso(), nowIso());
 }
 
 /* --------------------------------------------------------------------- cart */
@@ -577,12 +613,31 @@ export function saveCustomer(
  * orders: the delivery associate still has to go and collect, and giving that away on a
  * large food order means paying to deliver it.
  */
-export function calcDeliveryFee(subtotal: number, outlet?: Outlet | null): number {
+export function calcDeliveryFee(
+  subtotal: number,
+  outlet?: Outlet | null,
+  /** The zone the customer has agreed to, by name. '' when none has been. */
+  zonePlace = '',
+): number {
   if (subtotal <= 0) return 0;
   const { deliveryFee, freeDeliveryOver } = config.store;
 
-  if (outlet) return outlet.deliveryFee ?? deliveryFee;
+  // Free delivery is tested first now, and for every kind of order.
+  //
+  // It used to come after the outlet branch, which meant it stopped applying
+  // the day the grocery became a shop: every order has an outlet since then,
+  // so FREE_DELIVERY_OVER was set, quoted in the prompt, and silently dead.
   if (freeDeliveryOver > 0 && subtotal >= freeDeliveryOver) return 0;
+
+  // The agreed zone beats everything. It is the only figure the customer has
+  // actually said yes to, and it is what the shop will be held to.
+  if (zonePlace) {
+    const priced = zoneFeeFor(zonePlace);
+    if (priced) return priced.fee;
+  }
+
+  // A kitchen that sets its own fee, then the shop's flat rate.
+  if (outlet && outlet.deliveryFee !== null) return outlet.deliveryFee;
   return deliveryFee;
 }
 
@@ -629,7 +684,9 @@ export function getCart(phone: string): CartSummary {
 
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
   const itemCount = lines.reduce((sum, l) => sum + l.qty, 0);
-  const deliveryFee = calcDeliveryFee(subtotal, outlet);
+  // Priced to where it is going, as soon as the customer has agreed to where
+  // that is - so the total they see while shopping is the total they pay.
+  const deliveryFee = calcDeliveryFee(subtotal, outlet, getCustomer(phone).deliveryZone);
   return { lines, itemCount, subtotal, deliveryFee, total: subtotal + deliveryFee, outlet };
 }
 
@@ -823,8 +880,8 @@ export function placeOrder(args: {
             latitude, longitude, location_label,
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
             kind, delivery_code, recipient_name, recipient_phone, recipient_pin,
-            subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            delivery_zone, subtotal, delivery_fee, total, payment_method, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -865,6 +922,9 @@ export function placeOrder(args: {
         (args.recipientName ?? '').trim(),
         (args.recipientPhone ?? '').replace(/[^0-9]/g, ''),
         args.recipientPinShared ? 1 : 0,
+        // The zone it was charged under, copied onto the row. A tariff edited
+        // next month must not rewrite what this delivery cost.
+        getCustomer(args.phone).deliveryZone,
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -1197,6 +1257,8 @@ export type OrderRecord = {
   subtotal: number;
   /** What was charged to bring them. `total` is the two added up. */
   deliveryFee: number;
+  /** The zone it was charged under, by name, or '' if it was a flat fee. */
+  deliveryZone: string;
   total: number;
   /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
   paymentMethod: string;
@@ -1302,6 +1364,7 @@ function hydrateOrder(row: {
   // money was made of. Null-guarded for rows written before the columns.
   subtotal: number | null;
   delivery_fee: number | null;
+  delivery_zone: string | null;
   payment_method: string | null;
   total: number;
   status: string;
@@ -1315,6 +1378,7 @@ function hydrateOrder(row: {
     address: row.address,
     contactPhone: row.contact_phone || row.phone,
     deliveryNote: row.delivery_note,
+    deliveryZone: row.delivery_zone ?? '',
     total: row.total,
     status: row.status as OrderStatus,
     placedAt: row.created_at,

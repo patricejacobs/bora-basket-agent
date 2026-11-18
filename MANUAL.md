@@ -305,6 +305,82 @@ difference is about 1.2 km, which is the wrong end of a runway.
 **Ordering for somebody else** is normal. The agent takes the receiver's name
 and number, and the associate's card names both people separately.
 
+### What a delivery costs
+
+Delivery is priced by the village or area it goes to, from a tariff the shop
+keeps in `data/delivery-zones.csv` — place, zone, fee, one row each. Edit it
+and restart; nothing else to set. No tariff, and every delivery stays at the
+flat `DELIVERY_FEE`.
+
+```
+Diamond,East Bank,1800
+Vreed-en-Hoop,West Bank near,2500
+Meten-Meer-Zorg,West Coast,4000
+```
+
+**Zones, not kilometres.** Vreed-en-Hoop is five kilometres from Stabroek
+across the water and twenty-five by road. Straight-line distance under-prices
+exactly the trips that cost most, and the west side is priced from the bridge.
+
+**The place is confirmed before the price is said.** The agent looks up what
+the customer wrote, reads the matched name back — *"that's Diamond on the East
+Bank, is that right?"* — and only then is the figure quotable. The tool will
+not hand over a fee until that has happened, and will not accept a place name
+the shop never offered.
+
+**Spelling is not what the customer is being asked about.** Names are matched
+on how they sound, so all of these reach the same village:
+
+```
+Diamon · Dimond · Daimond          → Diamond
+Pouderoyan · Powderoyen            → Pouderoyen
+Freed en Hoop · Vreedenhoop        → Vreed-en-Hoop
+Monrepos · Mon Repose              → Mon Repos
+Hazlington · Haslinton             → Haslington
+Fergenoegen · Vergenugen           → Vergenoegen
+```
+
+`v`, `w` and `f` are one sound; `oe`, `ou` and `oo` are all `u`; `ij`, `ei`
+and `y` are `i`; doubled letters collapse and a trailing `e` is silent. So
+*Vreed-en-Hoop* and *Freed en Hoop* are the same word — `fred en hup`.
+
+**Three things it refuses to guess at.**
+
+*A longer word is not a village.* `Diamondback Street` is not Diamond, because
+matching is on whole words. Written as one word, though — `Vreedenhoop` — it
+still lands, but only for names that have a space in them.
+
+*The more specific village wins.* `Metin Meer Zorg` is spelled one letter off
+Meten-Meer-Zorg and contains Meer Zorg perfectly — a different village $1,400
+cheaper. A name accounting for more of what the customer wrote beats a
+better-spelled shorter one, because a quietly cheap quote is the worst
+outcome: nobody questions it.
+
+*Two villages share a name.* Golden Grove is on the East Bank and the East
+Coast, $800 apart, and Friendship likewise. The agent is given both with their
+prices and has to ask.
+
+**What the customer agreed is what the order is charged.** The zone is saved
+against them by name, never as a figure, so a price changed in the tariff
+reprices the next order rather than leaving one nobody charges. The order keeps
+the zone it was charged under, so a month-old receipt still says where it
+went:
+
+```
+Goods $3,200
+Delivery Diamond $1,800
+*Total $5,000* — paid in cash
+```
+
+**Free delivery works again.** `FREE_DELIVERY_OVER` is now tested before
+anything else and for every kind of order. It used to be checked after the
+outlet branch, which meant it stopped applying the day the grocery became a
+shop — every order has an outlet since then, so it was set, quoted in the
+prompt, and silently dead.
+
+`/health` reports `deliveryZones` — how many places are priced. Zero means the
+flat fee.
+
 ### Status messages
 
 | | |
