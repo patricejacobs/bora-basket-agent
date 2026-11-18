@@ -14,7 +14,7 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
-import { findZone, zoneCount, describeZone } from '../zones.ts';
+import { findZone, zoneCount, describeZone, zoneFeeFor } from '../zones.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
 const chr10 = String.fromCharCode(10);
@@ -1568,14 +1568,27 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             `"${place}" is not a place in the tariff. Look it up with \`text\` first and use the name the shop gives back.`,
           );
         }
-        repo.setDeliveryZone(ctx.phone, known.match.place);
+        // A parcel's zone belongs to the parcel, not to the customer.
+        //
+        // A parcel goes where the customer is not. Writing the recipient's
+        // zone onto the customer record would price their own shopping next
+        // week as if they lived at the far end of a delivery they paid for
+        // once - and nobody would connect the two.
+        const forParcel = repo.getService(ctx.phone) === 'parcel';
+        if (forParcel) repo.setParcelZone(ctx.phone, known.match.place);
+        else repo.setDeliveryZone(ctx.phone, known.match.place);
+
         return ok({
           confirmed: true,
           place: known.match.place,
           zone: known.match.zone,
           delivery_fee: money(known.match.fee),
-          say: `Delivery to ${known.match.place} is ${money(known.match.fee)}.`,
-          next: 'Now you may quote it. It is already in the cart total.',
+          say: forParcel
+            ? `Delivery to ${known.match.place} is ${money(known.match.fee)}.`
+            : `Delivery to ${known.match.place} is ${money(known.match.fee)}.`,
+          next: forParcel
+            ? 'Now you may quote it. create_parcel_job will charge it.'
+            : 'Now you may quote it. It is already in the cart total.',
         });
       }
 
@@ -1704,10 +1717,18 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return `${p.name}, ${p.address}, +${p.phone}`;
       };
 
+      const zoneHeld = draft.zone ? zoneFeeFor(draft.zone) : null;
+
       return ok({
         sender: half(draft.sender),
         recipient: half(draft.recipient),
         contents: draft.contents || 'not said yet',
+        ...(zoneHeld
+          ? { delivery_fee: money(zoneHeld.fee), priced_by: `${zoneHeld.place} (${zoneHeld.zone})` }
+          : {
+              delivery_fee:
+                "not agreed yet — confirm the recipient's area with delivery_zone",
+            }),
         pickup_pin: draft.pickup ? `on file${draft.pickup.label ? ` (${draft.pickup.label})` : ''}` : 'not yet',
         destination_pin: draft.destination
           ? `on file${draft.destination.label ? ` (${draft.destination.label})` : ''}`
@@ -1796,19 +1817,34 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         );
       }
 
-      // Two pins give a distance to charge by. Anything less does not, so the
-      // fee is the flat base rate and is described as such.
+      // The agreed zone first, then distance, then nothing.
+      //
+      // A parcel used to be priced only by the distance between two pins -
+      // which needs two pins, and since an address alone became enough to
+      // book one, most parcels have fewer than two. So they went out
+      // unpriced, and ORD-00007 was booked with the customer told only that
+      // the associate would confirm the cost at the uplift.
+      //
+      // The zone is the better answer anyway, and it is already agreed: the
+      // recipient's address is read back during booking, and that read-back
+      // is where a zone comes from. It needs no pins, and it is the same
+      // tariff every other delivery is priced from.
+      const zoned = held.zone ? zoneFeeFor(held.zone) : null;
+
       const quote =
         draft.pickup && draft.destination
           ? quoteParcel(draft.pickup, draft.destination)
           : flatParcelQuote();
+      // Still refused on distance where both pins exist, zone or no zone: a
+      // tariff that happens to name a village thirty kilometres away does not
+      // make the trip possible.
       if ('tooFar' in quote) {
         return fail(
           `${formatDistance(quote.distanceKm)} is beyond the ${quote.limitKm} km we cover. Do not book it — offer to pass it to staff instead.`,
         );
       }
 
-      const fee = quote.priced ? quote.fee : 0;
+      const fee = zoned ? zoned.fee : quote.priced ? quote.fee : 0;
       // Every detail from this booking, and nothing from the customer record.
       //
       // A name or number saved from a past delivery is a different
@@ -1850,12 +1886,18 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         booked: true,
         job_number: job.orderNo,
         distance: formatDistance(quote.distanceKm),
-        ...(quote.priced
-          ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
-          : {
-              fee: 'to be confirmed',
-              note: 'Tell them the delivery associate will confirm the cost with them before it is uplifted. Do not quote a figure.',
-            }),
+        ...(zoned
+          ? {
+              fee: money(zoned.fee),
+              priced_by: `${zoned.place} (${zoned.zone})`,
+              payment: 'Cash, collected on delivery.',
+            }
+          : quote.priced
+            ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
+            : {
+                fee: 'to be confirmed',
+                note: 'Tell them the delivery associate will confirm the cost with them before it is uplifted. Do not quote a figure.',
+              }),
         next: 'Give them the job number and what happens next: a delivery associate uplifts it, then delivers. No time promise.',
       });
     }

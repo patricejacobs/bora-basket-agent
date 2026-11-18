@@ -349,6 +349,26 @@ costs a tap instead of a paragraph.
 parcel is going, so naming the area in it — *"that's Diamond on the East Bank,
 is that right?"* — confirms the person and the delivery zone with one yes.
 
+**A parcel is priced from the same tariff as everything else**, by the
+recipient's zone. It used to be costed only by the distance between two pins —
+which needs two pins, and since an address alone became enough to book one,
+most parcels have fewer than two. Those went out unpriced, the customer told
+only that the associate would confirm the cost at the uplift. ORD-00007 was
+one of them.
+
+The zone needs no pins and is already agreed in the read-back above. Where
+both pins happen to exist, the distance limit still refuses a trip that is too
+far — a tariff naming a village thirty kilometres away does not make the
+journey possible.
+
+**The parcel's zone is kept on the parcel, not on the customer.** A parcel
+goes where the customer is not, so a zone confirmed while sending something to
+Diamond must not price their own shopping next week as if they lived there.
+
+With no agreed zone and no `PARCEL_FEE_BASE`, a parcel is still taken and
+still unpriced — the associate agrees the cost at the pickup, which is the
+behaviour that was there before.
+
 **Nothing is asked for twice.** Each half is stored as it arrives, and a
 partial answer keeps what was already given: correcting a telephone number
 does not lose an address that was right. `parcel_status` reads both halves

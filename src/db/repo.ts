@@ -2007,6 +2007,14 @@ export type ParcelDraft = {
   recipient: ParcelParty;
   /** What is in it, once they have said. */
   contents: string;
+  /**
+   * The zone this parcel is priced under: the recipient's, by name.
+   *
+   * On the draft and not on the customer, because a parcel goes where the
+   * customer is not. A zone confirmed while sending something to Diamond
+   * would otherwise price their own shopping as if they lived there.
+   */
+  zone: string;
 };
 
 const NOBODY: ParcelParty = { name: '', address: '', phone: '' };
@@ -2027,10 +2035,18 @@ export function getParcelDraft(phone: string): ParcelDraft {
         recipient_address: string | null;
         recipient_phone: string | null;
         contents: string | null;
+        zone: string | null;
       }
     | undefined;
   if (!row) {
-    return { pickup: null, destination: null, sender: NOBODY, recipient: NOBODY, contents: '' };
+    return {
+      pickup: null,
+      destination: null,
+      sender: NOBODY,
+      recipient: NOBODY,
+      contents: '',
+      zone: '',
+    };
   }
 
   return {
@@ -2045,6 +2061,7 @@ export function getParcelDraft(phone: string): ParcelDraft {
       phone: row.recipient_phone ?? '',
     },
     contents: row.contents ?? '',
+    zone: row.zone ?? '',
     pickup:
       row.pickup_lat !== null && row.pickup_lng !== null
         ? { latitude: row.pickup_lat, longitude: row.pickup_lng, label: row.pickup_label ?? '' }
@@ -2122,6 +2139,14 @@ export function saveParcelParty(
       WHERE phone = ?`,
   ).run(next.name, next.address, next.phone, nowIso(), phone);
   return next;
+}
+
+/** The zone the parcel is priced under, once the customer has agreed it. */
+export function setParcelZone(phone: string, place: string): void {
+  db.prepare(
+    `INSERT INTO parcel_drafts (phone, zone, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET zone = excluded.zone, updated_at = excluded.updated_at`,
+  ).run(phone, place, nowIso());
 }
 
 /** What is in the parcel, kept with the rest of the draft. */

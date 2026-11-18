@@ -4005,6 +4005,77 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('A parcel is priced like any other delivery');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+
+  const booker = '5926104141';
+  repo.clearParcelDraft(booker);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
+  repo.setService(booker, 'parcel');
+  const call = (tool: string, args: Record<string, unknown>): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: booker, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  // Both halves, as the booking flow collects them.
+  call('parcel_party', { side: 'sender', name: 'Patrice', address: '26 Brickdam, Georgetown', phone: '5926129920' });
+  call('parcel_party', { side: 'sender', confirmed: true });
+  call('parcel_party', { side: 'recipient', name: 'Marcia', address: 'Lot 9, Diamond, East Bank', phone: '5926100077' });
+  call('parcel_party', { side: 'recipient', confirmed: true });
+
+  /* --- before the area is agreed, there is no price ------------------- */
+
+  const early = call('parcel_status', {});
+  check('nothing is priced until the area is agreed', /not agreed yet/.test(String(early.delivery_fee)), JSON.stringify(early.delivery_fee));
+
+  /* --- the recipient's area is what prices it ------------------------- */
+
+  call('delivery_zone', { text: 'Lot 9, Diamond, East Bank' });
+  call('delivery_zone', { place: 'Diamond', confirmed: true });
+
+  // On the parcel, never on the customer. A parcel goes where the customer is
+  // not, so the recipient's zone must not price their own shopping next week.
+  check('the zone is kept on the parcel', repo.getParcelDraft(booker).zone === 'Diamond', repo.getParcelDraft(booker).zone);
+  check('and not on the customer', repo.getCustomer(booker).deliveryZone === '', repo.getCustomer(booker).deliveryZone);
+
+  const priced = call('parcel_status', {});
+  check('and now there is a price', String(priced.delivery_fee).includes('1,800'), JSON.stringify(priced.delivery_fee));
+  check('with the place it came from', String(priced.priced_by).includes('Diamond'), String(priced.priced_by));
+
+  /* --- and the booking charges it ------------------------------------- */
+
+  // ORD-00007 went out unpriced: a parcel was costed only by the distance
+  // between two pins, and since an address alone became enough to book one,
+  // most parcels have fewer than two pins.
+  const booked = call('create_parcel_job', { contents: 'documents in an envelope' });
+  const no = String(booked.job_number ?? '');
+  check('the parcel books', no.startsWith('ORD-'), JSON.stringify(booked).slice(0, 160));
+  check('with a fee, not a promise to confirm one', String(booked.fee).includes('1,800'), JSON.stringify(booked.fee));
+  check('and says what priced it', String(booked.priced_by).includes('Diamond'), String(booked.priced_by));
+  check('no "to be confirmed"', !/to be confirmed/.test(JSON.stringify(booked)), JSON.stringify(booked).slice(0, 200));
+
+  const job = repo.findOrder(no)!;
+  check('the order carries the fee', job.total === 1800, String(job.total));
+
+  /* --- a parcel with no agreed area still goes, unpriced -------------- */
+
+  // The old behaviour, which has to survive: the shop has no parcel pricing
+  // configured, so without a zone there is no figure anybody here knows.
+  repo.clearParcelDraft(booker);
+  call('parcel_party', { side: 'sender', name: 'Patrice', address: '26 Brickdam', phone: '5926129920' });
+  call('parcel_party', { side: 'recipient', name: 'Joe', address: 'somewhere out by the creek', phone: '5926100088' });
+  const vague = call('create_parcel_job', { contents: 'a box of books' });
+  const no2 = String(vague.job_number ?? '');
+  if (config.parcel.baseFee <= 0) {
+    check('an unpriced parcel is still taken', no2.startsWith('ORD-'), JSON.stringify(vague).slice(0, 160));
+    check('and says the associate will agree it', /associate will confirm/i.test(String(vague.note)), String(vague.note));
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no2);
+  }
+
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  repo.clearParcelDraft(booker);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
+}
+
 section('What a delivery costs, by where it goes');
 {
   const { findZone, soundalike, loadZones, zoneCount } = await import('./zones.ts');

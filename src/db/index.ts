@@ -297,6 +297,12 @@ for (const side of ['sender', 'recipient'] as const) {
   }
 }
 addColumnIfMissing('parcel_drafts', 'contents', "TEXT NOT NULL DEFAULT ''");
+// And the zone the parcel is priced under, which is the RECIPIENT's.
+//
+// Kept on the draft rather than on the customer. A parcel goes where the
+// customer is not, so a zone confirmed while booking one to Diamond must not
+// price their own groceries next week as if they lived there.
+addColumnIfMissing('parcel_drafts', 'zone', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
 // A publicly reachable HTTPS image for the product. WhatsApp fetches the URL
 // itself, so nothing is stored here but the address.
