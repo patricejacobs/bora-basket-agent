@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen, pendingHelpCount } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen, pendingHelpCount, onDutyCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
@@ -317,6 +317,8 @@ app.get('/health', (_req: Request, res: Response) => {
       deliveryZones: zoneCount(),
       // Customers who asked for a person and are still waiting to be passed on.
       pendingHelp: pendingHelpCount(),
+      // On the road right now. 0 means orders are being refused.
+      associatesOnDuty: onDutyCount(),
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,

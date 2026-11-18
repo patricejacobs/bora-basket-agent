@@ -53,6 +53,14 @@ const { parseWebhook, chunkText, verifySignature } = await import('./channels/wh
 const { splitReply, typingDelayMs } = await import('./agent/pacing.ts');
 const { available } = await import('./availability.ts');
 
+// Somebody on the road, as a trading shop has.
+//
+// Orders are refused outright when no delivery associate is on duty - there
+// is no point taking one nobody can deliver - so a suite that places orders
+// has to look like a shop that is open for business. The sections that test
+// duty itself clock people on and off around this.
+for (const phone of config.driverNumbers) repo.setDuty(phone, true);
+
 let passed = 0;
 const failures: string[] = [];
 
@@ -4003,6 +4011,84 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
   repo.clearParcelDraft(booker);
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
+}
+
+section('No one on the road, no orders taken');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { buildTimeContext } = await import('./agent/context.ts');
+
+  const buyer = '5926102020';
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+    )
+    .get() as unknown as { id: number }).id;
+
+  const tryToOrder = (): Record<string, unknown> => {
+    repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
+    repo.confirmIdentity(buyer);
+    repo.setCartQty(buyer, sellable, 1, '');
+    return JSON.parse(
+      executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
+        phone: buyer,
+        outbound: [] as never[],
+      } as never),
+    ) as Record<string, unknown>;
+  };
+
+  /* --- with somebody out ---------------------------------------------- */
+
+  const everyone = repo.associateNumbers();
+  for (const p2 of everyone) repo.setDuty(p2, true);
+  check('somebody is on duty', repo.anyoneOnDuty(), String(repo.onDutyCount()));
+  const taken = tryToOrder();
+  check('an order is taken', typeof taken.order_number === 'string', JSON.stringify(taken).slice(0, 120));
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
+
+  /* --- with nobody out ------------------------------------------------ */
+
+  // Food packed for a counter: an order taken with nobody on the road sits at
+  // `ready` while the customer waits and nobody can tell them why.
+  for (const p2 of everyone) repo.setDuty(p2, false);
+  check('nobody is on duty', !repo.anyoneOnDuty(), String(repo.onDutyCount()));
+
+  const refused = tryToOrder();
+  check('the order is refused', typeof refused.error === 'string', JSON.stringify(refused).slice(0, 120));
+  check('for the right reason', /no delivery associate is on duty/i.test(String(refused.error)), String(refused.error));
+  // Politely, and with no promise about when - the shop does not know when
+  // somebody will clock on any more than the customer does.
+  check('told kindly', /kindly/i.test(String(refused.error)), String(refused.error));
+  check('with no promise of when', /Do not say when/.test(String(refused.error)), String(refused.error));
+  check('and their list is kept', /park_cart/.test(String(refused.error)), String(refused.error));
+
+  // A parcel too: a sender waiting at a door for an uplift nobody can make is
+  // worse than a customer waiting for groceries.
+  repo.setService(buyer, 'parcel');
+  const parcel = JSON.parse(
+    executeTool('create_parcel_job', { contents: 'a box' }, { phone: buyer, outbound: [] as never[] } as never),
+  ) as Record<string, unknown>;
+  check('a parcel is refused too', /no delivery associate is on duty/i.test(String(parcel.error)), String(parcel.error).slice(0, 110));
+  repo.setService(buyer, 'grocery');
+
+  /* --- and the agent is told before they shop ------------------------- */
+
+  // At checkout is too late. Somebody who has shopped for ten minutes and is
+  // only then told nothing can be delivered has wasted their evening.
+  const told = buildTimeContext();
+  check('the agent is warned every turn', /NO DELIVERY ASSOCIATE IS ON DUTY/.test(told), told.slice(0, 200));
+  check('and told to say so before they shop', /before they start shopping/.test(told), told.slice(0, 300));
+
+  /* --- somebody clocks on --------------------------------------------- */
+
+  for (const p2 of everyone) repo.setDuty(p2, true);
+  check('and trading resumes', repo.anyoneOnDuty());
+  const again = tryToOrder();
+  check('orders are taken again', typeof again.order_number === 'string', JSON.stringify(again).slice(0, 120));
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
 }
 
 section('Asking for a person, when there is nobody to ask');

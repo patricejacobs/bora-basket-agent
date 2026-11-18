@@ -1377,6 +1377,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         );
       }
 
+      // Nobody on the road, so nothing can be delivered.
+      //
+      // Refused here and not left to the prompt, because this is the one
+      // refusal that costs nothing to get right and a great deal to get
+      // wrong: an order taken with no associate on duty is food packed for a
+      // counter, sitting at `ready` while the customer waits and nobody can
+      // tell them why. The shop being open is a different fact - it can be
+      // wide open with nobody out.
+      if (!repo.anyoneOnDuty()) {
+        return fail(
+          'Cannot place the order — no delivery associate is on duty, so nothing can be delivered right now. Tell them kindly: there is nobody out on deliveries at the moment, so you cannot get an order to them just yet. Do not say when, you do not know. Offer to hold their list with park_cart and invite them to message again.',
+        );
+      }
+
       const customer = repo.getIdentity(ctx.phone);
       if (!customer.name) {
         return fail(
@@ -1748,6 +1762,15 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     case 'create_parcel_job': {
       const wrong = requireService(ctx.phone, 'parcel');
       if (wrong) return fail(wrong);
+
+      // Same rule as a delivery: a parcel nobody can uplift is a promise the
+      // shop cannot keep, and a sender waiting at a door is worse than a
+      // customer waiting for groceries.
+      if (!repo.anyoneOnDuty()) {
+        return fail(
+          'Cannot book the parcel — no delivery associate is on duty, so nothing can be uplifted right now. Tell them kindly, say nothing about when, and invite them to message again.',
+        );
+      }
 
       const contents = asString(input.contents) || repo.getParcelDraft(ctx.phone).contents;
 

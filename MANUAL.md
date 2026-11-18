@@ -349,6 +349,46 @@ notification was fired off without waiting for an answer. A shop with no staff
 number told its customers their number had gone to the manager while the log
 said nobody had been told.
 
+### Nobody on the road
+
+**With no delivery associate on duty, no order is taken.** The shop can be
+wide open and still have no way to get anything to anybody, and an order taken
+then is food packed for a counter: it sits at *ready* while the customer waits
+and nobody can tell them why.
+
+The associate is told every turn, before the customer starts shopping:
+
+```
+NO DELIVERY ASSOCIATE IS ON DUTY — nothing can be delivered right now,
+and you must not place an order. Say so before they start shopping,
+kindly and without blame... Do not say when, because you do not know.
+```
+
+Said early on purpose. Somebody who shops for ten minutes and is only then
+told nothing can be delivered has wasted their evening.
+
+And refused in the code as well, for groceries and parcels alike, so it cannot
+be talked past:
+
+```
+Cannot place the order — no delivery associate is on duty...
+Offer to hold their list with park_cart and invite them to message again.
+```
+
+**Three things it will not do:** blame anyone, promise when somebody will clock
+on, or throw the list away. `park_cart` keeps the shopping so that one `on`
+from an associate is all it takes to finish.
+
+Duty means what it means everywhere else: clocked on with `on`, not
+deactivated, and inside the twelve-hour cap. A shift that has run out is not
+duty. `/health` reports `associatesOnDuty` — zero means orders are being
+refused.
+
+An order already placed is unaffected. Dispatch still offers a cooked order to
+everyone when nobody is clocked on, which is a safety net for work already
+taken, not a contradiction: duty decides whether to accept an order, that
+decides how hard to try for one already accepted.
+
 ### Ordering
 
 The agent asks for a name, a location pin and a number to ring on arrival.

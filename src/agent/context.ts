@@ -33,6 +33,15 @@ export function buildTimeContext(): string {
     `${CONTEXT_MARKER} — the customer cannot see this]`,
     `Local time: ${localTime()} — ${partOfDay()}.`,
   ];
+  // Nobody on the road. First, and before the hours, because it is the one
+  // thing that stops an order being worth taking: the shop can be wide open
+  // and still have no way to get anything to anybody.
+  if (!repo.anyoneOnDuty()) {
+    lines.push(
+      'NO DELIVERY ASSOCIATE IS ON DUTY — nothing can be delivered right now, and you must not place an order. Say so before they start shopping, kindly and without blame: there is nobody out on deliveries at the moment, so you cannot get an order to them just yet. Do not say when, because you do not know. Invite them to message again and you will check. If they have already shopped, do not place it — tell them the same thing and offer to hold the list, which park_cart does.',
+    );
+  }
+
   const status = shopStatus();
   if (status.state === 'closed') {
     // Framed around deliveries, not shutters. "We're closed" reads as go away,

@@ -2389,6 +2389,25 @@ export function onDutySince(phone: string, now = new Date()): string {
   return lapsed ? '' : row.at;
 }
 
+/**
+ * Whether anybody is on the road right now.
+ *
+ * The question behind it is whether the shop can deliver at all. An order
+ * taken with nobody out is food packed for a counter: it sits at `ready`
+ * until somebody clocks on, and the customer waits without being told why.
+ *
+ * Counted from the directory, so somebody deactivated is not counted however
+ * recently they clocked on, and the twelve-hour cap applies as everywhere
+ * else - a shift that has run out is not duty.
+ */
+export function onDutyCount(now = new Date()): number {
+  return associateNumbers().filter((phone) => isOnDuty(phone, now)).length;
+}
+
+export function anyoneOnDuty(now = new Date()): boolean {
+  return onDutyCount(now) > 0;
+}
+
 export function isOnDuty(phone: string, now = new Date()): boolean {
   if (onDutySince(phone, now) === '') return false;
 
