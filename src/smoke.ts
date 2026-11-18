@@ -4005,6 +4005,33 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('The customer associate, with no name');
+{
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+
+  check('it knows what it is', /customer associate at /.test(SYSTEM_PROMPT));
+  // The rider's title was taken; this is the other half of the pair.
+  check('and is told the riders are the other associates', /delivery associates ride/i.test(SYSTEM_PROMPT));
+  check('all three services, not just groceries', /Groceries, restaurant food and parcels/.test(SYSTEM_PROMPT));
+
+  /* --- no name, and none to be invented ------------------------------- */
+
+  check('it is told it has no name', /You have no name, and you never invent one/.test(SYSTEM_PROMPT));
+  check('nor borrows a name from the staff', /never borrow a staff member/i.test(SYSTEM_PROMPT));
+  check('nor signs off with one', /never sign off with one/i.test(SYSTEM_PROMPT));
+  // The placeholder that used to stand where a name would go.
+  check('no name placeholder survives anywhere', !/AGENT_NAME/.test(SYSTEM_PROMPT));
+
+  /* --- human in manner, honest when asked ----------------------------- */
+
+  // Warmth is not a licence to lie about what it is. A customer who asks
+  // directly gets a straight answer and then their order, not a speech.
+  check('it writes like somebody who works there', /like a person who works there/.test(SYSTEM_PROMPT));
+  check('with no persona or catchphrase', /no persona, no catchphrase/.test(SYSTEM_PROMPT));
+  check('and answers plainly if asked what it is', /automated associate/.test(SYSTEM_PROMPT));
+  check('without claiming to be a person', /Do not claim to be a person/.test(SYSTEM_PROMPT));
+}
+
 section('A parcel is priced like any other delivery');
 {
   const { executeTool } = await import('./agent/tools.ts');
