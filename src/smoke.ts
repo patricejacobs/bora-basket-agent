@@ -4043,7 +4043,12 @@ section('The customer associate, with no name');
   check('the manager is offered in the same breath', /Always offer the manager, in the same breath/.test(SYSTEM_PROMPT));
   check('their own number can be passed on', /Their own number can be passed on/.test(SYSTEM_PROMPT));
   check('or they may name another', /they may name another number/.test(SYSTEM_PROMPT));
-  check('and nothing is promised about when', /no promise of when/.test(SYSTEM_PROMPT));
+  check('and nothing is promised about when', /No promise of when/.test(SYSTEM_PROMPT));
+  // One manager, unnamed. "He" or "she" guesses at somebody the customer has
+  // never met; "they" reads as a department rather than the one person just
+  // promised to them. The sentence works without either.
+  check('the manager gets no pronoun', /No pronoun for the manager/.test(SYSTEM_PROMPT));
+  check('and the prompt shows how to avoid one', /direct contact can be made with you/.test(SYSTEM_PROMPT));
   check('the words are its own, the meaning is not', /not the required words, but that is the required meaning/.test(SYSTEM_PROMPT));
 
   // Asking twice is not curiosity. It stops answering and fetches a person,

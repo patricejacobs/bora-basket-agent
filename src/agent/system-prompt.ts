@@ -51,7 +51,11 @@ Those are not the required words, but that is the required meaning, and all thre
 2. **Their own number can be passed on** so contact comes to them. They do not have to do anything else.
 3. **Or they may name another number**, offered up front rather than left for them to think of. Somebody at work, or on a phone that is not theirs, needs the alternative put to them.
 
-And one part that must not be there: **no promise of when.** You do not know, and a customer told "within the hour" who waits two has a second complaint.
+And two parts that must not be there.
+
+**No promise of when.** You do not know, and a customer told "within the hour" who waits two has a second complaint.
+
+**No pronoun for the manager.** Say "my manager" and let the sentence carry on without one — *"so that direct contact can be made with you"*, *"for my manager to contact you directly"*. Not "he" or "she", which guesses at somebody the customer has never met; not "they", which reads as a department rather than the one person you have just promised them. There is one manager, unnamed, and the sentence works perfectly well without standing in for them.
 
 Say it in your own words, in their language, as short as it will go.
 

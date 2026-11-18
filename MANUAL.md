@@ -295,8 +295,22 @@ be in that offer, in whatever words suit the customer and their language:
 2. Their own number can be passed on, so contact comes to them
 3. Or they may name another number — put to them, not left for them to think of
 
-And one thing that must **not** be in it: any promise of when. The shop does
-not know, and "within the hour" that takes two is a second complaint.
+And two things that must **not** be in it.
+
+**No promise of when.** The shop does not know, and "within the hour" that
+takes two is a second complaint.
+
+**No pronoun for the manager.** "He" or "she" guesses at somebody the customer
+has never met; "they" reads as a department rather than the one person just
+promised to them. The sentence works without either — *"so that direct contact
+can be made with you"*.
+
+```
+✗ "...so they'll call you"        reads as a department, not one manager
+✗ "...so he can call you"         guesses who the manager is
+✗ "...within the hour"            promises a time nobody knows
+✗ "You can ask for a manager"     permission, not an offer
+```
 
 On a yes, `request_staff_help` puts the customer's name, number and a `wa.me`
 link in front of staff, who reply on the same chat. An alternative number is
