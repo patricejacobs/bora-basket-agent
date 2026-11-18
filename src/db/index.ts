@@ -321,6 +321,15 @@ addColumnIfMissing('customers', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
 // And what the order was actually charged under, kept on the order so a
 // receipt a month old still says where it went.
 addColumnIfMissing('orders', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
+// When the customer asked for it, and in whose words.
+//
+// Two columns because they answer different questions. The timestamp is what
+// a shop sorts and schedules by; the words are what the customer actually
+// said, and "before six" or "after I finish work" is not a point in time
+// however hard you squint at it. The associate reads the words; the shop
+// works from the time.
+addColumnIfMissing('orders', 'deliver_at', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'deliver_note', "TEXT NOT NULL DEFAULT ''");
 // The two parties to a parcel, held while they are being collected.
 //
 // A parcel needs two names, two addresses and two numbers, and nobody gives

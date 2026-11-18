@@ -3,7 +3,7 @@ import { t, type Language } from './language.ts';
 import { languageFor } from './services.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
-import { nextActions, CANCEL_REASONS, describeAge } from './order-status.ts';
+import { nextActions, CANCEL_REASONS, describeAge, wantedBy } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin } from './location.ts';
 
@@ -68,6 +68,9 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     order.total > 0
       ? `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`
       : '*Fee not set* — the associate agrees it with the sender at the pickup',
+    // When it is wanted, on the desk's copy too. It is the one fact that
+    // changes what to do with the order right now rather than later.
+    ...(wantedBy(order) ? [wantedBy(order)] : []),
     ...(isParcel && order.pickup
       ? ['', `Uplift from: ${order.pickup.address || 'pin below'}`, `Sender ${order.customerName} +${order.contactPhone || order.phone}`]
       : []),

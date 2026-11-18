@@ -15,7 +15,7 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
-import { acceptButton, nextActions } from './order-status.ts';
+import { acceptButton, nextActions, wantedBy } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import {
   checkRange,
@@ -312,6 +312,7 @@ export function pickingTicket(order: repo.OrderRecord): string {
     // What the goods come to, not the order total. The delivery fee is not
     // theirs to collect and not theirs to be asked about.
     `Goods total ${money(goods)}`,
+    ...(wantedBy(order) ? [wantedBy(order)] : []),
     `Ordered ${new Date(order.placedAt).toLocaleTimeString('en-GB', {
       timeZone: config.store.timezone,
       hour: 'numeric',
@@ -371,7 +372,8 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
         ...itemLines(order),
         '',
         `Food total ${money(order.items.reduce((sum, i) => sum + i.lineTotal, 0))}`,
-        `Ordered ${new Date(order.placedAt).toLocaleTimeString('en-GB', {
+        ...(wantedBy(order) ? [wantedBy(order)] : []),
+    `Ordered ${new Date(order.placedAt).toLocaleTimeString('en-GB', {
           timeZone: config.store.timezone,
           hour: 'numeric',
           minute: '2-digit',
@@ -613,6 +615,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
       // "ring" beside a second number is how the wrong one gets dialled.
       ? [`*Ordered by:* ${order.customerName}`, `📞 ${dial(ordererPhone)}`, '']
       : []),
+    ...(wantedBy(order) ? [wantedBy(order), ''] : []),
     `*Deliver to:* ${receiverName}`,
     ...(written ? [written] : []),
     // What the customer said about finding the door. It was going to staff

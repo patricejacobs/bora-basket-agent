@@ -395,6 +395,16 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           enum: config.paymentMethods.map((m) => `${m}_on_delivery`),
           description: 'How the customer will pay the delivery associate.',
         },
+        deliver_at: {
+          type: 'string',
+          description:
+            "When the customer asked for it, as a full ISO timestamp in the shop's timezone, e.g. \"2026-11-18T17:00:00-04:00\". Work it out from what they said and the local time you were given. Leave it out when they want it as soon as possible — never guess at a time they did not ask for.",
+        },
+        deliver_note: {
+          type: 'string',
+          description:
+            'Their own words about the time — "before 6", "after work", "any time this evening". Pass it alongside deliver_at whenever they said something rather than named a clock time, because "before six" is not a point in time and the associate needs to read what they actually said. Under 60 characters.',
+        },
         delivery_note: {
           type: 'string',
           description:
@@ -1652,6 +1662,36 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // the model not to do this; this is what happens when it does anyway.
       const deliveryNote = saysTheSamePlace(deliveryAddress, noteAsked) ? '' : noteAsked;
 
+      // When they asked for it, checked rather than trusted.
+      //
+      // A time in the past is the commonest way this goes wrong: a customer
+      // says "five o'clock" at six, and the shop would file an order wanted
+      // an hour ago and sort it to the front of the queue for ever.
+      const wantedRaw = asString(input.deliver_at).trim();
+      const wantedNote = asString(input.deliver_note).trim().slice(0, 60);
+      let deliverAt = '';
+      if (wantedRaw) {
+        const at = new Date(wantedRaw);
+        if (Number.isNaN(at.getTime())) {
+          return fail(
+            'deliver_at is not a time I can read. Pass a full ISO timestamp, or leave it out and say it in deliver_note instead.',
+          );
+        }
+        // Five minutes of slack, for the gap between them saying it and you
+        // writing it down.
+        if (at.getTime() < Date.now() - 5 * 60_000) {
+          return fail(
+            'That time has already passed. Ask whether they meant later today or tomorrow — do not file an order wanted in the past.',
+          );
+        }
+        if (at.getTime() > Date.now() + 7 * 24 * 3600_000) {
+          return fail(
+            'That is more than a week out, which this shop does not take. Say so plainly and offer the nearest day it will take.',
+          );
+        }
+        deliverAt = at.toISOString();
+      }
+
       try {
         const order = repo.placeOrder({
           phone: ctx.phone,
@@ -1668,6 +1708,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           address: deliveryAddress,
           contactPhone: customer.contactPhone ?? ctx.phone,
           deliveryNote,
+          deliverAt,
+          deliverNote: wantedNote,
           paymentMethod,
           location: customer.location,
           recipientName: asString(input.recipient_name),

@@ -4013,6 +4013,94 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('When the customer wants it');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { pickingTicket, dropLines } = await import('./dispatch.ts');
+  const { wantedBy } = await import('./order-status.ts');
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+
+  const buyer = '5926109999';
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+         AND (track_stock = 0 OR stock >= 1) LIMIT 1`,
+    )
+    .get() as unknown as { id: number }).id;
+
+  const order = (args: Record<string, unknown>): Record<string, unknown> => {
+    repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
+    repo.confirmIdentity(buyer);
+    repo.setCartQty(buyer, sellable, 1, '');
+    return JSON.parse(
+      executeTool('place_order', { payment_method: 'cash_on_delivery', ...args }, {
+        phone: buyer,
+        outbound: [] as never[],
+      } as never),
+    ) as Record<string, unknown>;
+  };
+
+  /* --- as soon as possible is still the normal case -------------------- */
+
+  const asap = order({});
+  const plain = repo.findOrder(String(asap.order_number ?? ''))!;
+  check('an order with no time asked for keeps none', plain.deliverAt === '' && plain.deliverNote === '', JSON.stringify([plain.deliverAt, plain.deliverNote]));
+  check('and its cards say nothing about timing', wantedBy(plain) === '', wantedBy(plain));
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(plain.orderNo);
+
+  /* --- a time, and the words that came with it ------------------------- */
+
+  const at = new Date(Date.now() + 3 * 3600_000);
+  const timed = order({ deliver_at: at.toISOString(), deliver_note: 'after 5pm' });
+  const held = repo.findOrder(String(timed.order_number ?? ''))!;
+  check('the time is kept', held.deliverAt === at.toISOString(), held.deliverAt);
+  // Both halves. "Before six" is not a point in time, and a card showing
+  // 18:00 has lost the half of it that matters.
+  check('and their own words with it', held.deliverNote === 'after 5pm', held.deliverNote);
+
+  const line = wantedBy(held);
+  check('the line leads with what they said', /Wanted after 5pm/.test(line), line);
+  check('and puts the clock time in brackets', /\(/.test(line), line);
+
+  /* --- it reaches the people doing the work ---------------------------- */
+
+  // The picker, so a bag is not packed five hours early and left to warm.
+  check('the picking ticket carries it', pickingTicket(held).includes('after 5pm'), pickingTicket(held));
+  // And the person at the door.
+  check("the associate's card carries it", dropLines(held).join(' ').includes('after 5pm'), dropLines(held).join(' '));
+
+  /* --- what will not be accepted --------------------------------------- */
+
+  // The commonest way this goes wrong: somebody says "five o'clock" at six,
+  // and an order wanted an hour ago sorts to the front of the queue for ever.
+  const gone = order({ deliver_at: new Date(Date.now() - 3600_000).toISOString() });
+  check('a time that has passed is refused', typeof gone.error === 'string', JSON.stringify(gone).slice(0, 100));
+  check('and asks which day they meant', /later today or tomorrow/.test(String(gone.error)), String(gone.error));
+
+  const far = order({ deliver_at: new Date(Date.now() + 30 * 24 * 3600_000).toISOString() });
+  check('a month out is refused', /more than a week/.test(String(far.error)), String(far.error));
+
+  const nonsense = order({ deliver_at: 'sometime after lunch' });
+  check('and so is something that is not a time', /not a time I can read/.test(String(nonsense.error)), String(nonsense.error));
+  // A customer who says "after lunch" is not refused - that belongs in the
+  // note, where it is read rather than parsed.
+  const worded = order({ deliver_note: 'after lunch' });
+  check('but their words alone are fine', typeof worded.order_number === 'string', JSON.stringify(worded).slice(0, 100));
+  const only = repo.findOrder(String(worded.order_number ?? ''))!;
+  check('with no invented clock time', only.deliverAt === '' && only.deliverNote === 'after lunch', JSON.stringify([only.deliverAt, only.deliverNote]));
+  check('and the card still says it', wantedBy(only).includes('after lunch'), wantedBy(only));
+
+  /* --- and the agent is told to ask ------------------------------------ */
+
+  check('the prompt tells it to ask on a grocery order', /On a grocery order, ask/.test(SYSTEM_PROMPT));
+  check('not on restaurant food', /Restaurant food is cooked to order/.test(SYSTEM_PROMPT));
+  // Aiming is not promising. The shop does not know what the road will do.
+  check('and never to promise the time', /Do not promise it/.test(SYSTEM_PROMPT));
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+}
+
 section('Shopping by number');
 {
   const { executeTool } = await import('./agent/tools.ts');

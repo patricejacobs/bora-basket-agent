@@ -870,6 +870,17 @@ export function placeOrder(args: {
   recipientPhone?: string;
   /** True only when the buyer shared a pin for the RECIPIENT during this order. */
   recipientPinShared?: boolean;
+  /**
+   * When the customer asked for it, ISO, or absent for as soon as possible.
+   *
+   * Held on the order and not acted on by a scheduler: the shop decides when
+   * to pack, and a grocery order packed five hours early is a bag of warm
+   * milk. What the time does is tell the people doing the work when it is
+   * wanted.
+   */
+  deliverAt?: string;
+  /** Their own words about it — "before 6", "after work". */
+  deliverNote?: string;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
@@ -905,8 +916,9 @@ export function placeOrder(args: {
             latitude, longitude, location_label,
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
             kind, delivery_code, recipient_name, recipient_phone, recipient_pin,
-            delivery_zone, subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            delivery_zone, deliver_at, deliver_note,
+            subtotal, delivery_fee, total, payment_method, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       )
       .run(
         orderNo,
@@ -950,6 +962,8 @@ export function placeOrder(args: {
         // The zone it was charged under, copied onto the row. A tariff edited
         // next month must not rewrite what this delivery cost.
         getCustomer(args.phone).deliveryZone,
+        args.deliverAt ?? '',
+        args.deliverNote ?? '',
         cart.subtotal,
         cart.deliveryFee,
         cart.total,
@@ -1284,6 +1298,12 @@ export type OrderRecord = {
   deliveryFee: number;
   /** The zone it was charged under, by name, or '' if it was a flat fee. */
   deliveryZone: string;
+  /**
+   * When the customer asked for it, ISO, or '' for as soon as it is ready.
+   */
+  deliverAt: string;
+  /** Their own words about the time — "before 6", "after work". */
+  deliverNote: string;
   total: number;
   /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
   paymentMethod: string;
@@ -1390,6 +1410,8 @@ function hydrateOrder(row: {
   subtotal: number | null;
   delivery_fee: number | null;
   delivery_zone: string | null;
+  deliver_at: string | null;
+  deliver_note: string | null;
   payment_method: string | null;
   total: number;
   status: string;
@@ -1404,6 +1426,8 @@ function hydrateOrder(row: {
     contactPhone: row.contact_phone || row.phone,
     deliveryNote: row.delivery_note,
     deliveryZone: row.delivery_zone ?? '',
+    deliverAt: row.deliver_at ?? '',
+    deliverNote: row.deliver_note ?? '',
     total: row.total,
     status: row.status as OrderStatus,
     placedAt: row.created_at,

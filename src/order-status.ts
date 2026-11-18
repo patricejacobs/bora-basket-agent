@@ -1,3 +1,4 @@
+import { config } from './config.ts';
 /**
  * Order lifecycle vocabulary, shared by the staff commands and the notifier.
  *
@@ -481,4 +482,30 @@ export function nextActions(
       // Delivered and cancelled orders are finished; nothing to offer.
       return [];
   }
+}
+
+/** Just the fields `wantedBy` needs, so this module stays free of repo. */
+type OrderLike = { deliverAt: string; deliverNote: string };
+
+/**
+ * When the customer asked for it, said the way they said it.
+ *
+ * Their own words first, because "before six" is not a time and turning it
+ * into 18:00 on a card loses the half of it that matters. The clock time
+ * follows in brackets where there is one, since that is what somebody
+ * planning a round actually sorts by.
+ */
+export function wantedBy(order: OrderLike): string {
+  if (!order.deliverAt && !order.deliverNote) return '';
+  const clock = order.deliverAt
+    ? new Date(order.deliverAt).toLocaleString('en-GB', {
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: config.store.timezone,
+      })
+    : '';
+  if (order.deliverNote && clock) return `🕒 *Wanted ${order.deliverNote}* (${clock})`;
+  return `🕒 *Wanted ${order.deliverNote || clock}*`;
 }

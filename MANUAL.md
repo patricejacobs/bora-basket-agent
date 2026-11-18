@@ -473,6 +473,50 @@ A shop that invents a category of its own keeps it. Anything not in the list
 sorts after the eleven, alphabetically among themselves, rather than being
 hidden or forced into an order nobody gave it.
 
+### When the customer wants it
+
+**On a grocery order the shop asks**, once the basket is settled and before it
+is placed:
+
+> When would you like it? I can send it as soon as it's packed, or hold it for
+> a time that suits you.
+
+Most say now. Somebody at work until five, or wanting it before the children
+are home, has no way to say so unless asked — and a bag left with a neighbour
+because nobody was in is how a customer is lost for good.
+
+**Both halves are kept: the time, and their own words.**
+
+```
+🕒 *Wanted after 5pm* (Wed 5:00 pm)
+```
+
+Their words lead, because *"before six"* is not a point in time and a card
+showing `18:00` has lost the half that matters. The clock time follows in
+brackets, since that is what a round is planned by. Somebody who only says
+"after lunch" gets exactly that, with no invented clock time beside it.
+
+It reaches **the picker**, so a bag is not packed five hours early and left to
+warm, **the dispatch desk**, and **the associate's card** at the door.
+
+**What is refused:** a time that has already passed — *"ask whether they meant
+later today or tomorrow"* — anything more than a week out, and anything that
+is not a readable time. That last one is not a refusal of the customer: "after
+lunch" belongs in the note, where it is read rather than parsed.
+
+**Nothing is promised.** The shop aims for the time; it does not know what the
+road will do, and *"I'll make sure it's there at five"* is a promise nobody
+authorised. It is said back once in the confirmation and then left alone — a
+shop that keeps mentioning the time sounds like one that might miss it.
+
+**Groceries only.** Restaurant food is cooked to order and goes when it is
+ready; holding it means cold food. A parcel is uplifted when an associate
+takes it.
+
+**No scheduler runs this.** The time tells the people doing the work when it
+is wanted; the grocery decides when to pack, which is the only way a bag of
+milk arrives cold rather than warm.
+
 ### Nobody on the road
 
 **With no delivery associate on duty, no order is taken.** The shop can be
