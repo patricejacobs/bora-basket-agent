@@ -4594,6 +4594,47 @@ section('A receipt at the door');
     msg,
   );
 
+  /* --- dated when it was handed over ----------------------------------- */
+
+  // A receipt is dated when the money changed hands, which on a delivery is
+  // the doorstep. It used to carry the time the order was placed: one placed
+  // at ten to eight and delivered at half past nine said 7:50, which is
+  // neither when they paid nor when they got it.
+  const placedLong = '2026-11-18T10:50:00.000Z';
+  const droppedAt = '2026-11-18T13:30:00.000Z';
+  db.prepare(`UPDATE orders SET created_at = ? WHERE order_no = ?`).run(placedLong, order.orderNo);
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(order.orderNo);
+  db.prepare(
+    `INSERT INTO order_events (order_no, at, event, actor, actor_name, detail)
+     VALUES (?, ?, 'delivered', '', '', '')`,
+  ).run(order.orderNo, droppedAt);
+
+  const stamp = (iso: string): string =>
+    new Date(iso).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: config.store.timezone,
+    });
+
+  const dated = receiptLines(repo.findOrder(order.orderNo)!, 'en').join(String.fromCharCode(10));
+  check('the receipt is dated at the doorstep', dated.includes(stamp(droppedAt)), dated.split(String.fromCharCode(10))[0]);
+  check('and not when the order was placed', !dated.includes(stamp(placedLong)), dated.split(String.fromCharCode(10))[0]);
+  check('read from the trail, which cannot be overwritten', repo.deliveredAt(order.orderNo) === droppedAt, repo.deliveredAt(order.orderNo));
+
+  // A parcel that came back and went out again was delivered the second time.
+  db.prepare(
+    `INSERT INTO order_events (order_no, at, event, actor, actor_name, detail)
+     VALUES (?, '2026-11-19T14:00:00.000Z', 'delivered', '', '', '')`,
+  ).run(order.orderNo);
+  check('a second attempt is the one that counts', repo.deliveredAt(order.orderNo) === '2026-11-19T14:00:00.000Z', repo.deliveredAt(order.orderNo));
+
+  // And one still on the road has only its own time to go on.
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(order.orderNo);
+  check('undelivered falls back to the order time', receiptLines(repo.findOrder(order.orderNo)!, 'en').join('').includes(stamp(placedLong)));
+
   /* --- a charge that was never made is not a line ---------------------- */
 
   // "Goods $3,200" above "Total $3,200" is the same figure twice, and

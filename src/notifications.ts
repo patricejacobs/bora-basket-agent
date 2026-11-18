@@ -377,9 +377,18 @@ export function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
 export function receiptLines(order: repo.OrderRecord, lang: Language): string[] {
   const isParcel = order.kind === 'parcel';
 
-  // The order's own time, in the shop's timezone rather than the server's.
+  // The time it was HANDED OVER, not the time it was ordered.
+  //
+  // A receipt is dated when the money changed hands, which on a delivery is
+  // the doorstep - and the gap matters: an order placed at ten to eight and
+  // delivered at half past nine carried a receipt saying 7:50, which is
+  // neither when they paid nor when they got it.
+  //
+  // Falls back to the order's own time, so a receipt rendered before delivery
+  // - a gallery, a test, a reprint of something still on the road - still
+  // says something true rather than nothing.
   const when = (() => {
-    const at = new Date(order.placedAt);
+    const at = new Date(repo.deliveredAt(order.orderNo) || order.placedAt);
     if (Number.isNaN(at.getTime())) return '';
     return at.toLocaleString('en-GB', {
       day: 'numeric',

@@ -3139,6 +3139,30 @@ export function recordEvent(
   ).run(orderNo, nowIso(), event, digits, who?.name ?? '', detail);
 }
 
+/**
+ * When the order was actually handed over, from the trail.
+ *
+ * Read from `order_events` rather than kept on the order, because the trail
+ * is the thing that cannot be overwritten: `updated_at` moves on every status
+ * change, so an order touched afterwards - a correction, a note - would carry
+ * a delivery time that is simply the last time anybody typed about it.
+ *
+ * The LAST delivered event, not the first. A returned parcel redelivered the
+ * next day was delivered then, not on the attempt that came back.
+ *
+ * Empty when it has not been delivered, which is the caller's cue to use the
+ * order's own time instead.
+ */
+export function deliveredAt(orderNo: string): string {
+  const row = db
+    .prepare(
+      `SELECT at FROM order_events
+        WHERE order_no = ? AND event = 'delivered' ORDER BY id DESC LIMIT 1`,
+    )
+    .get(orderNo) as { at: string } | undefined;
+  return row?.at ?? '';
+}
+
 /** Everything that happened to one order, oldest first. */
 export function orderHistory(orderNo: string): OrderEvent[] {
   return db

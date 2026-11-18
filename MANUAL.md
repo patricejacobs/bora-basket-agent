@@ -1256,7 +1256,7 @@ actually did, and the wish is drawn from a pool for that kind of order.
 Order ORD-00042 delivered.          ← it arrived
 Delivery code: confirmed.
 
-🧾 *Receipt* — 17 Nov, 16:47        ← the receipt
+🧾 *Receipt* — 17 Nov, 16:47        ← the receipt, dated at the doorstep
 
 1 x Goat Curry — $2,700
 1 x Plain Rice _Large_ — $500
@@ -1268,6 +1268,17 @@ Delivery $500
 Thank you for ordering from A Taste of Guyana!   ← thanks, by kind
 Enjoy your meal, see you next time! 👋           ← one of seven wishes
 ```
+
+**The time on it is the time of delivery**, not the time the order was placed.
+A receipt is dated when the money changed hands, which on a delivery is the
+doorstep: an order placed at ten to eight and delivered at half past nine used
+to carry a receipt saying 7:50, which is neither when they paid nor when they
+got it.
+
+It is read from the order's own trail rather than kept on the order, because
+the trail cannot be overwritten — `updated_at` moves on every status change,
+so an order touched afterwards would be dated the last time anybody typed
+about it. A parcel that came back and went out again is dated the second time.
 
 **The delivery line first, then the receipt.** The line a customer is waiting
 for is the one saying it arrived; a receipt is what you are handed afterwards,
