@@ -4119,7 +4119,7 @@ section('Shopping by number');
   check('the aisles come back numbered', list[0]?.number === 1, JSON.stringify(list.slice(0, 2)));
   check('in shopping order', list[0]?.name === 'Fresh Produce', String(list[0]?.name));
   check('with how many are in each', typeof list[0]?.items === 'number', JSON.stringify(list[0]));
-  check('and the model is told to send it as it stands', /numbered list/.test(String(cats.say)), String(cats.say));
+  check('and the model is told to send it as it stands', /exactly as they are/.test(String(cats.say)), String(cats.say));
 
 
   /* --- a number means the aisle at that position ----------------------- */
@@ -4136,8 +4136,20 @@ section('Shopping by number');
   // In brackets on the message, which sets a shelf apart from the numbered
   // aisle list at a glance. The ref itself stays a bare letter, so what the
   // customer types is what the shop resolves.
-  check('shown in brackets', /\(a\) /.test(String(aisle.say)), String(aisle.say));
+  // Written by the shop, not assembled by the model from parts. Asking for
+  // "(a) Name — price (unit)" is a request, and the brackets came and went
+  // with it.
+  const lines = aisle.lines as string[];
+  check('the lines come written out', Array.isArray(lines) && lines.length === items.length, JSON.stringify(lines?.slice(0, 2)));
+  check('with the letter in brackets', /^\(a\) /.test(lines[0] ?? ''), String(lines[0]));
+  check('the name, the price and the size', /— \$[0-9,]+ \(/.test(lines[0] ?? ''), String(lines[0]));
+  check('and the model is told to send them as they are', /exactly as they are/.test(String(aisle.say)), String(aisle.say));
   check('while the ref stays a bare letter', items[0]?.ref === 'a', String(items[0]?.ref));
+
+  // The aisle list the same way, numbered by the shop.
+  const aisleLines = (call('list_categories').lines as string[]) ?? [];
+  check('the aisles come written out too', /^1\. Fresh Produce$/.test(aisleLines[0] ?? ''), String(aisleLines[0]));
+  check('without prices or products', aisleLines.every((l) => !l.includes('$')), JSON.stringify(aisleLines.slice(0, 2)));
   check('with the price and the size', Boolean(items[0]?.price && items[0]?.unit), JSON.stringify(items[0]));
 
   // The way out, on the screen rather than remembered.

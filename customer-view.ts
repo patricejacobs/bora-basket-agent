@@ -70,8 +70,6 @@ const beat = (what: string): void => {
   realLog('');
   realLog(`${' '.repeat(10)}· · · ${what} · · ·`);
 };
-const numbered = (rows: { number: number; name: string }[]): string =>
-  rows.map((r) => `${r.number}. ${r.name}`).join(nl);
 
 /* ------------------------------------------------------------------ hello */
 
@@ -79,20 +77,18 @@ shop('Good afternoon! 👋 I can get your groceries, food from a restaurant, or 
 them('groceries');
 
 const aisles = (): string =>
-  ['What are we getting today?', '', numbered(call('list_categories').categories as { number: number; name: string }[]), '', 'Reply with a number.'].join(nl);
+  ['What are we getting today?', '', (call('list_categories').lines as string[]).join(nl), '', 'Reply with a number.'].join(nl);
 shop(aisles());
 
 /* ----------------------------------------------------------- an aisle */
 
 them('3');
 const dairy = call('browse_category', { category: '3' });
-const priced = (rows: { ref: string; name: string; unit: string; price: string }[]): string =>
-  rows.map((r) => `(${r.ref}) ${r.name} — ${r.price} (${r.unit})`).join(nl);
 shop(
   [
     `*${String(dairy.category)}*`,
     '',
-    priced(dairy.items as { ref: string; name: string; unit: string; price: string }[]),
+    (dairy.lines as string[]).join(nl),
     '',
     'Put the quantity beside the letter, like *a x2, d x1* — or type *categories* to see the aisles again.',
   ].join(nl),
@@ -115,8 +111,7 @@ shop(aisles());
 
 them('1');
 const produce = call('browse_category', { category: '1' });
-const rows = produce.items as { ref: string; name: string; unit: string; price: string }[];
-shop([`*${String(produce.category)}*`, '', priced(rows.slice(0, 6)), '…'].join(nl));
+shop([`*${String(produce.category)}*`, '', (produce.lines as string[]).slice(0, 6).join(nl), '…'].join(nl));
 
 them('a x2 and k x3');
 const second = call('add_picks', { picks: [{ ref: 'a', quantity: 2 }, { ref: 'k', quantity: 3 }] });

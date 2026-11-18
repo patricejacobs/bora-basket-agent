@@ -398,6 +398,13 @@ Reply with a number.                Put the quantity beside the letter,
                                     *categories* for the aisles again.
 ```
 
+**The shop writes the lines; the agent sends them.** It used to hand back a
+letter, a name, a price and a unit with a sentence asking for
+`(a) Name — price (unit)` — and a request is all that was, so the brackets
+came and went. Formatting a list is the shop's job: the labels are what the
+customer is about to type back, and a list that looks different every time it
+is opened is one nobody learns to read.
+
 **Aisles are numbered; items are lettered, in brackets.** Both were numbered to begin with,
 and it went wrong in the obvious way: once an aisle was open, `1` meant the
 first product — and `1` is also exactly what somebody types when they want the

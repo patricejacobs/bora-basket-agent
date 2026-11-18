@@ -861,8 +861,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       );
 
       return ok({
+        // Written out for the same reason as a shelf: the order and the
+        // numbering are the shop's, and they are what the customer is about
+        // to answer with.
+        lines: cats.map((c, i) => `${i + 1}. ${c.category}`),
         categories: cats.map((c, i) => ({ number: i + 1, name: c.category, items: c.count })),
-        say: 'Send it as a numbered list, one aisle per line, in this order. No prices, no products yet.',
+        say: 'Send the `lines` exactly as they are, one aisle per line. Do not renumber them, reorder them or add prices or products.',
         next: 'Tell them to reply with a number. When they do, call browse_category with it.',
       });
     }
@@ -914,6 +918,21 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // Numbered here rather than left to the model, so the numbers it
         // sends are the numbers the shop will resolve. A list renumbered in
         // the retelling is a customer ordering the wrong thing.
+        // The lines, written out, not the parts to build them from.
+        //
+        // The shop used to hand back a letter, a name, a price and a unit,
+        // with a sentence asking for "(a) Name — price (unit)". That is a
+        // request, and the brackets came and went with it. Formatting a list
+        // is the shop's job: a letter that is sometimes in brackets and
+        // sometimes not is a list that looks different every time it is
+        // opened, and the labels are what the customer is about to type back.
+        lines: items.map((p, i) => {
+          const label = itemLabel(i + 1);
+          const note = available(p) ? '' : ` — _${availabilityLabel(p)}_`;
+          return `(${label}) ${p.name} — ${money(p.price)} (${p.unit})${note}`;
+        }),
+        // Still itemised, for talking about one of them - "the milk is $780"
+        // - but never for rebuilding the list.
         items: items.map((p, i) => ({
           // A letter, not a number. Aisles are numbered; items are lettered,
           // so "1" always means an aisle and "a" always means a thing on a
@@ -925,9 +944,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           price: money(p.price),
           ...(available(p) ? {} : { note: availabilityLabel(p) }),
         })),
-        // The letter in brackets, which sets it apart from the numbered aisle
-        // list at a glance and from the price that follows it.
-        say: `Send it as a lettered list, one item per line, the letter in brackets: "(a) ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the letter, the name, the price and the size.`,
+        say: `Send *${name}* as the heading, then the \`lines\` exactly as they are, one per line. Do not reletter them, reorder them, reword them, add to them or leave any out.`,
         // The way back, said on the list itself rather than left to be
         // guessed. Somebody in the wrong aisle with no visible way out
         // scrolls up hunting for the last message, or gives up.
