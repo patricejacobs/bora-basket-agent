@@ -18,7 +18,7 @@ export const GROCERY_CATEGORIES = [
   'Dairy & Eggs',
   'Bread & Bakery',
   'Rice, Peas & Pasta',
-  'Básico de Cocina',
+  'Cooking Basics',
   'Flour, Sugar & Baking',
   'Tinned Food',
   'Drinks & Snacks',
@@ -35,12 +35,15 @@ export const GROCERY_CATEGORIES = [
  * kitchen, which this code has made before.
  */
 export const CATEGORY_RENAMES: Record<string, string> = {
-  // The shop's own name is Spanish and so is this aisle. Kept as one name
-  // rather than translated per customer: a category is a shelf in a
-  // particular shop, and the agent says what is on it in whatever language
-  // the customer is writing.
-  'Cooking & Seasoning': 'Básico de Cocina',
-  'Cooking Essentials': 'Básico de Cocina',
+  // Every aisle is named in English, including this one, which was briefly
+  // Básico de Cocina after the shop's own Spanish name. One Spanish label
+  // among ten English ones reads as an oversight rather than a choice, and
+  // the agent translates what it says about an aisle anyway - so the name in
+  // the data is the shop's working language and the customer still hears
+  // their own.
+  'Básico de Cocina': 'Cooking Basics',
+  'Cooking & Seasoning': 'Cooking Basics',
+  'Cooking Essentials': 'Cooking Basics',
   'Meat & Poultry': 'Meat, Fish & Poultry',
   'Fish & Seafood': 'Meat, Fish & Poultry',
   Bakery: 'Bread & Bakery',

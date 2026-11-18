@@ -389,7 +389,7 @@ Eleven, in the order somebody shops rather than by first letter:
 | 3 | Dairy & Eggs | 5 |
 | 4 | Bread & Bakery | 3 |
 | 5 | Rice, Peas & Pasta | 8 |
-| 6 | Básico de Cocina | 9 |
+| 6 | Cooking Basics | 9 |
 | 7 | Flour, Sugar & Baking | 4 |
 | 8 | Tinned Food | 4 |
 | 9 | Drinks & Snacks | 9 |
@@ -403,9 +403,11 @@ held two or three items, and three of them overlapped — flour and sugar under
 *Rice & Grains*, all of it dry store, so a customer hunting flour could
 reasonably try any of the three.
 
-**Básico de Cocina** keeps its Spanish name as one name, not translated per
-customer: an aisle is a shelf in a particular shop, and the agent describes
-what is on it in whatever language the customer is writing.
+**Every aisle is named in English**, including Cooking Basics, which was
+briefly Básico de Cocina after the shop's own Spanish name. One Spanish label
+among ten English ones reads as an oversight rather than a choice — and the
+agent translates what it says about an aisle anyway, so the name in the data
+is the shop's working language while the customer still hears their own.
 
 **A menu is not a set of aisles.** The rename touches products belonging to a
 grocery and nothing else — the roti shop has a *Snacks* category of its own,

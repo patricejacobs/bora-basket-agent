@@ -4055,7 +4055,7 @@ section('The grocery aisles, in shopping order');
       )
       .get(old) as { n: number }).n;
 
-  for (const old of ['Baking', 'Beverages', 'Canned & Packaged', 'Rice & Grains', 'Cooking Essentials', 'Cooking & Seasoning', 'Fish & Seafood', 'Meat & Poultry', 'Personal Care']) {
+  for (const old of ['Baking', 'Beverages', 'Canned & Packaged', 'Rice & Grains', 'Cooking Essentials', 'Cooking & Seasoning', 'Básico de Cocina', 'Fish & Seafood', 'Meat & Poultry', 'Personal Care']) {
     check(`nothing is left under "${old}"`, seeded(old) === 0, `${seeded(old)} still there`);
   }
 
@@ -4073,9 +4073,10 @@ section('The grocery aisles, in shopping order');
   check('flour and sugar are their own aisle', inAisle('All Purpose Flour') === 'Flour, Sugar & Baking', inAisle('All Purpose Flour'));
   check('soap joins the household goods', inAisle('Bath Soap') === 'Household & Personal Care', inAisle('Bath Soap'));
   check('and the baby things stay their own', inAisle('Baby Wipes') === 'Baby', inAisle('Baby Wipes'));
-  // The shop's own name is Spanish, and so is this aisle.
-  check('the cooking basics are Básico de Cocina', inAisle('Curry Powder') === 'Básico de Cocina', inAisle('Curry Powder'));
-  check('oil and salt with them', inAisle('Table Salt') === 'Básico de Cocina', inAisle('Table Salt'));
+  // Every aisle is named in English, this one included.
+  check('the seasonings are Cooking Basics', inAisle('Curry Powder') === 'Cooking Basics', inAisle('Curry Powder'));
+  check('oil and salt with them', inAisle('Table Salt') === 'Cooking Basics', inAisle('Table Salt'));
+  check('and no aisle is left in another language', repo.listCategories(grocery.id).every((c) => !/[áéíóúñ]/i.test(c.category)), JSON.stringify(names));
 
   /* --- the kitchen is not a set of aisles ------------------------------ */
 
