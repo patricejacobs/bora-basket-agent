@@ -4013,6 +4013,93 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('Shopping by number');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+
+  const shopper = '5926101010';
+  repo.setService(shopper, 'grocery');
+  repo.clearCart(shopper);
+  const call = (tool: string, args: Record<string, unknown> = {}): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: shopper, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  /* --- the aisles, numbered by the shop -------------------------------- */
+
+  const cats = call('list_categories');
+  const list = cats.categories as { number: number; name: string; items: number }[];
+  check('the aisles come back numbered', list[0]?.number === 1, JSON.stringify(list.slice(0, 2)));
+  check('in shopping order', list[0]?.name === 'Fresh Produce', String(list[0]?.name));
+  check('with how many are in each', typeof list[0]?.items === 'number', JSON.stringify(list[0]));
+  check('and the model is told to send it as it stands', /numbered list/.test(String(cats.say)), String(cats.say));
+
+  /* --- a number means the aisle at that position ----------------------- */
+
+  const aisle = call('browse_category', { category: '1' });
+  check('a number opens that aisle', aisle.category === 'Fresh Produce', String(aisle.category));
+  const items = aisle.items as { number: number; name: string; price: string; unit: string }[];
+  check('everything in it is listed', items.length > 5, String(items.length));
+  check('numbered from one', items[0]?.number === 1 && items[1]?.number === 2, JSON.stringify(items.slice(0, 2)));
+  check('with the price and the size', Boolean(items[0]?.price && items[0]?.unit), JSON.stringify(items[0]));
+  // Alphabetical, so the same aisle looks the same every time it is opened.
+  check('in a stable order', items.map((i) => i.name).join('|') === [...items.map((i) => i.name)].sort((a, b) => a.localeCompare(b)).join('|'), JSON.stringify(items.map((i) => i.name)));
+
+  // By name as well, because somebody who knows what they want says "dairy".
+  const byName = call('browse_category', { category: 'Dairy & Eggs' });
+  check('an aisle can be opened by name', byName.category === 'Dairy & Eggs', String(byName.category));
+
+  /* --- what they pick, resolved by the shop ---------------------------- */
+
+  const dairy = byName.items as { number: number; name: string }[];
+  const third = dairy[2]!.name;
+  const first = dairy[0]!.name;
+
+  const added = call('add_by_number', { picks: [{ number: 3, quantity: 1 }, { number: 1, quantity: 2 }] });
+  const got = added.added as { number: number; name: string; quantity: number }[];
+  check('the numbers resolve to the right products', got[0]?.name === third && got[1]?.name === first, JSON.stringify(got));
+  check('and the quantities stick', got[0]?.quantity === 1 && got[1]?.quantity === 2, JSON.stringify(got));
+  check('the basket says what is in it', String((added.cart as { subtotal: string }).subtotal).startsWith('$'), JSON.stringify(added.cart));
+
+  /* --- a number that was never on the list ----------------------------- */
+
+  // Asked rather than guessed. A number off the end is a typo or a different
+  // list, and either way putting something in the bag is the wrong answer.
+  const over = call('add_by_number', { picks: [{ number: 40 }] });
+  const refused = over.could_not_add as { number: number; reason: string }[];
+  check('a number off the end is refused', refused?.[0]?.number === 40, JSON.stringify(over));
+  check('and says how far the list went', /only went up to/.test(String(refused?.[0]?.reason)), String(refused?.[0]?.reason));
+  check('nothing was added for it', (over.added as unknown[]).length === 0, JSON.stringify(over.added));
+
+  /* --- the same number means different things, safely ------------------ */
+
+  // After the aisles, 1 is an aisle. After an aisle, 1 is a product. The
+  // shop knows which list was last on the screen; the model is not asked to.
+  call('list_categories');
+  const tooSoon = call('add_by_number', { picks: [{ number: 1 }] });
+  check('a product number is refused while aisles are showing', typeof tooSoon.error === 'string', JSON.stringify(tooSoon).slice(0, 120));
+  check('and says to show an aisle first', /browse_category first/.test(String(tooSoon.error)), String(tooSoon.error));
+
+  const notAnAisle = call('browse_category', { category: '99' });
+  check('an aisle number off the end is refused too', typeof notAnAisle.error === 'string', String(notAnAisle.error).slice(0, 90));
+
+  /* --- an aisle nobody has ---------------------------------------------- */
+
+  const nonsense = call('browse_category', { category: 'Fireworks' });
+  check('an invented aisle is refused', typeof nonsense.error === 'string', String(nonsense.error).slice(0, 80));
+  check('and the real ones are named', /Fresh Produce/.test(String(nonsense.error)), String(nonsense.error).slice(0, 120));
+
+  /* --- and the flow is written where the model will read it ------------ */
+
+  check('the prompt opens with the aisles', /Reply with a number/.test(SYSTEM_PROMPT));
+  check('tells it never to resolve numbers itself', /only the shop can resolve/.test(SYSTEM_PROMPT));
+  // Numbers are the easy path, not the only one.
+  check('and that typing what you want still works', /not trapped in it/i.test(SYSTEM_PROMPT));
+
+  repo.clearCart(shopper);
+  db.prepare(`DELETE FROM numbered_lists WHERE phone = ?`).run(shopper);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(shopper);
+}
+
 section('The grocery aisles, in shopping order');
 {
   const { GROCERY_CATEGORIES, categoryRank, inShoppingOrder } = await import('./categories.ts');

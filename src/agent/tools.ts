@@ -98,6 +98,51 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'browse_category',
+    description:
+      "Everything in one aisle, numbered, so the customer can answer with numbers and quantities. Call it when they pick an aisle from the list, by its number or its name. The numbering is remembered: their next reply can be \"1 x2, 4 x1\" or \"two of the first one\" and `add_by_number` resolves it.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: "The aisle name, or the number it had in the list you just sent — \"3\" is as good as \"Dairy & Eggs\".",
+        },
+      },
+      required: ['category'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_by_number',
+    description:
+      "Add items the customer picked by number from the aisle you last showed them. Use it for any reply that refers to the list by position — \"1 x2, 4\", \"two of number 3\", \"the first and the last\". For anything named rather than numbered, use add_items_to_cart.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        picks: {
+          type: 'array',
+          description: 'One entry per line of the list they referred to.',
+          items: {
+            type: 'object',
+            properties: {
+              number: { type: 'integer', description: 'The number as it appeared in the list.' },
+              quantity: { type: 'integer', description: 'How many. Defaults to 1.' },
+              options: {
+                type: 'string',
+                description: 'For a menu item that needs a choice, e.g. "Large". Leave out for groceries.',
+              },
+            },
+            required: ['number'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['picks'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'search_products',
     description:
       "Search for items by name, keyword, or category. Searches the chosen outlet's menu when one is chosen, and the grocery catalogue otherwise. Always call this before claiming an item is or is not available — never guess at products, prices, or stock.",
@@ -791,7 +836,147 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (cats.length === 0) {
         return fail('This shop has nothing in it. No products have been imported for it yet.');
       }
-      return ok({ categories: cats });
+
+      // Numbered by the shop, and written down, so the number the customer
+      // answers with is the number the shop will resolve. A list renumbered
+      // in the retelling sends somebody to the wrong aisle.
+      repo.rememberNumberedList(
+        ctx.phone,
+        'category',
+        cats.map((c) => ({ value: c.category, label: c.category })),
+      );
+
+      return ok({
+        categories: cats.map((c, i) => ({ number: i + 1, name: c.category, items: c.count })),
+        say: 'Send it as a numbered list, one aisle per line, in this order. No prices, no products yet.',
+        next: 'Tell them to reply with a number. When they do, call browse_category with it.',
+      });
+    }
+
+    /**
+     * One aisle, numbered.
+     *
+     * The numbering is the interface. WhatsApp gives three reply buttons and
+     * eleven aisles, so buttons were never going to carry this; a numbered
+     * list costs nothing, fits any length, and lets somebody answer three
+     * lines of it in one message - "1 x2, 4, 9 x3" - which is how a person
+     * writes a shopping list anyway.
+     */
+    case 'browse_category': {
+      const scope = browsingScope(ctx.phone);
+      if (scope === null) return fail(NO_SHOP_SELECTED);
+
+      const asked = asString(input.category).trim();
+      if (!asked) return fail('category is required — the aisle name or the number it had.');
+
+      // A number means the aisle at that position in the list just sent.
+      let name = asked;
+      if (/^[0-9]+$/.test(asked)) {
+        const pick = repo.numberedPick(ctx.phone, Number(asked));
+        if (!pick || pick.kind !== 'category') {
+          return fail(
+            `There is no aisle ${asked} on the list they were last shown. Call list_categories again and send it before taking a number.`,
+          );
+        }
+        name = pick.value;
+      }
+
+      const items = repo.productsInCategory(scope, name);
+      if (items.length === 0) {
+        const aisles = repo.listCategories(scope).map((c) => c.category);
+        return fail(
+          `Nothing is filed under "${name}". The aisles are: ${aisles.join(', ')}. Do not invent one.`,
+        );
+      }
+
+      repo.rememberNumberedList(
+        ctx.phone,
+        'product',
+        items.map((p) => ({ value: p.sku, label: p.name })),
+      );
+
+      return ok({
+        category: name,
+        // Numbered here rather than left to the model, so the numbers it
+        // sends are the numbers the shop will resolve. A list renumbered in
+        // the retelling is a customer ordering the wrong thing.
+        items: items.map((p, i) => ({
+          number: i + 1,
+          name: p.name,
+          unit: p.unit,
+          price: money(p.price),
+          ...(available(p) ? {} : { note: availabilityLabel(p) }),
+        })),
+        say: `Send it as a numbered list, one item per line: "1. ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the number, the name, the price and the size.`,
+        next: 'Then tell them to put the quantity beside the number — "1 x2, 4 x1" — and that they can say "categories" to see the aisles again.',
+      });
+    }
+
+    /**
+     * What they picked, by position.
+     *
+     * Resolved against the list the shop sent rather than against anything
+     * the model remembers, because the two can disagree: a model that
+     * renumbers a list while retelling it would add the wrong item with
+     * complete confidence, and the customer would not find out until a bag
+     * arrived.
+     */
+    case 'add_by_number': {
+      const scope = browsingScope(ctx.phone);
+      if (scope === null) return fail(NO_SHOP_SELECTED);
+
+      const picks = Array.isArray(input.picks) ? (input.picks as Record<string, unknown>[]) : [];
+      if (picks.length === 0) return fail('picks is required — the numbers they gave.');
+
+      const shown = repo.numberedList(ctx.phone);
+      if (shown.length === 0 || shown[0]!.kind !== 'product') {
+        return fail(
+          'No aisle has been shown yet, so a number means nothing. Call browse_category first, send the list, and let them answer it.',
+        );
+      }
+
+      const added: Record<string, unknown>[] = [];
+      const refused: Record<string, unknown>[] = [];
+
+      for (const raw of picks) {
+        const n = asInt(raw.number);
+        const qty = Math.max(1, asInt(raw.quantity) ?? 1);
+        if (n === null) {
+          refused.push({ pick: raw, reason: 'no number given' });
+          continue;
+        }
+        const pick = repo.numberedPick(ctx.phone, n);
+        if (!pick || pick.kind !== 'product') {
+          refused.push({
+            number: n,
+            reason: `the list only went up to ${shown.length}. Ask which one they meant rather than guessing.`,
+          });
+          continue;
+        }
+        const product = repo.getProductBySku(pick.value);
+        if (!product) {
+          refused.push({ number: n, reason: 'that product is no longer in the catalogue' });
+          continue;
+        }
+        const refusal = refuseQty(product, qty);
+        if (refusal) {
+          refused.push({ number: n, name: product.name, reason: refusal });
+          continue;
+        }
+        repo.setCartQty(ctx.phone, product.id, repo.getCartQty(ctx.phone, product.id, asString(raw.options)) + qty, asString(raw.options));
+        added.push({ number: n, name: product.name, quantity: qty });
+      }
+
+      const cart = repo.getCart(ctx.phone);
+      return ok({
+        added,
+        ...(refused.length > 0 ? { could_not_add: refused } : {}),
+        cart: {
+          items: cart.lines.map((l) => `${l.qty} x ${l.product.name}`),
+          subtotal: money(cart.subtotal),
+        },
+        next: 'Say what went in, in one short line. Then offer the aisles again or ask whether that is everything — do not list the whole cart back unless they ask.',
+      });
     }
 
     case 'search_products': {

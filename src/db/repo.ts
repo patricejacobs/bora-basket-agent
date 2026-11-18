@@ -166,6 +166,23 @@ export function listCategories(outletId?: number | null): { category: string; co
   return inShoppingOrder(rows);
 }
 
+/**
+ * Everything in one aisle, in the order a shelf would hold it.
+ *
+ * Name order rather than price or popularity: a customer reading a numbered
+ * list is scanning for a word, and the same aisle looks the same every time
+ * they open it. Sold-out items stay on the list and are marked - a shop that
+ * silently hides what it has run out of looks like a shop that never had it.
+ */
+export function productsInCategory(outletId: number | null, category: string): Product[] {
+  const scoped = outletId !== null;
+  const sql = `SELECT *, ${PRODUCT_COLUMNS} FROM products
+     WHERE active = 1 AND category = ? COLLATE NOCASE${scoped ? ' AND outlet_id = ?' : ''}
+     ORDER BY name COLLATE NOCASE ASC`;
+  const rows = scoped ? db.prepare(sql).all(category, outletId) : db.prepare(sql).all(category);
+  return rows as unknown as Product[];
+}
+
 export function getProductBySku(sku: string): Product | null {
   const row = db
     .prepare(
@@ -2147,6 +2164,51 @@ export function saveParcelParty(
       WHERE phone = ?`,
   ).run(next.name, next.address, next.phone, nowIso(), phone);
   return next;
+}
+
+/* ----------------------------------------------- lists the customer picks from */
+
+export type NumberedPick = { position: number; kind: 'category' | 'product'; value: string; label: string };
+
+/**
+ * Remembers the list just put on the customer's screen.
+ *
+ * Numbering is the cheapest interface WhatsApp has - no buttons to run out
+ * of, no list message to approve, and a customer can answer three of them in
+ * one line. What it needs is a memory: "3" means the third aisle or the third
+ * product depending on what was last sent, and the shop is the only one of
+ * the two that can be sure which.
+ *
+ * Replaces whatever was there. Only the newest list is being read from, and
+ * keeping the previous one invites answering it by accident a turn later.
+ */
+export function rememberNumberedList(
+  phone: string,
+  kind: 'category' | 'product',
+  items: { value: string; label: string }[],
+): void {
+  db.prepare(`DELETE FROM numbered_lists WHERE phone = ?`).run(phone);
+  const add = db.prepare(
+    `INSERT INTO numbered_lists (phone, position, kind, value, label, shown_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const at = nowIso();
+  items.forEach((item, i) => add.run(phone, i + 1, kind, item.value, item.label, at));
+}
+
+/** What the customer's number refers to, or null if there is no such line. */
+export function numberedPick(phone: string, position: number): NumberedPick | null {
+  const row = db
+    .prepare(`SELECT position, kind, value, label FROM numbered_lists WHERE phone = ? AND position = ?`)
+    .get(phone, position) as NumberedPick | undefined;
+  return row ?? null;
+}
+
+/** The whole list, for telling somebody what their number could have been. */
+export function numberedList(phone: string): NumberedPick[] {
+  return db
+    .prepare(`SELECT position, kind, value, label FROM numbered_lists WHERE phone = ? ORDER BY position ASC`)
+    .all(phone) as unknown as NumberedPick[];
 }
 
 /* ------------------------------------------------------- asking for a person */

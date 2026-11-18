@@ -378,6 +378,54 @@ notification was fired off without waiting for an answer. A shop with no staff
 number told its customers their number had gone to the manager while the log
 said nobody had been told.
 
+### Shopping by number
+
+Somebody who says they want to shop, and has not named anything, gets the
+aisles — not a question about what they are after. They came to see what is
+there.
+
+```
+What are we getting today?          *Fresh Produce*
+
+ 1. Fresh Produce                    1. Bananas — $420 (per kg)
+ 2. Meat, Fish & Poultry             2. Bora — $320 (bundle)
+ 3. Dairy & Eggs            →        3. Callaloo — $280 (bundle)
+ ...                                 ...
+11. Baby                            12. Watermelon — $1,200 (each)
+
+Reply with a number.                Put the quantity beside the number,
+                                    like *1 x2, 4 x1*.
+```
+
+Then `1 x2, 4 x1, 11 x3` puts two bananas, a kilo of carrots and three kilos
+of tomatoes in the basket. An aisle can be opened by name as well — *"dairy"*
+— and a reply can mix the two: *"3 x1 and 2 of number 1"*.
+
+**The shop numbers the list and the shop resolves the numbers.** The agent is
+never asked which product a number meant. A list renumbered while retelling it
+puts the wrong thing in somebody's bag, and they find out when it arrives — so
+the numbering is written down when the list is sent, replaced each time, and
+read back when they answer.
+
+That is also what lets the same number mean different things safely: after the
+aisles, `1` is Fresh Produce; after an aisle, `1` is Bananas.
+
+**A number that was never on the list is asked about, not guessed at:**
+
+```
+"and number 40"
+→ the list only went up to 5. Ask which one they meant.
+```
+
+**Nobody is trapped in it.** Numbers are the easy path, not the only one.
+Somebody who types *"2 lb chicken and a bread"* gets that, without being sent
+back to a list, and *"categories"* brings the aisles back.
+
+Why numbers rather than buttons: WhatsApp allows three reply buttons, and
+there are eleven aisles and twelve things in Fresh Produce. A numbered list
+costs nothing, fits any length, and lets somebody answer three lines of it in
+one message — which is how a person writes a shopping list anyway.
+
 ### The grocery aisles
 
 Eleven, in the order somebody shops rather than by first letter:

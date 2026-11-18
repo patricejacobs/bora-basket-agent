@@ -264,6 +264,24 @@ CREATE TABLE IF NOT EXISTS help_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_help_pending ON help_requests(delivered_at);
 
+-- The last numbered list a customer was shown.
+--
+-- "3" means nothing on its own. A customer picks from a list of aisles and
+-- then from a list of products, and both are numbered from one, so the shop
+-- has to know which list was on the screen when they answered. Rewritten
+-- every time a list is sent, because only the newest one is being read.
+CREATE TABLE IF NOT EXISTS numbered_lists (
+  phone     TEXT NOT NULL,
+  position  INTEGER NOT NULL,
+  /** 'category' or 'product' — what a number means right now. */
+  kind      TEXT NOT NULL,
+  /** The category name, or the product SKU. */
+  value     TEXT NOT NULL,
+  label     TEXT NOT NULL DEFAULT '',
+  shown_at  TEXT NOT NULL,
+  PRIMARY KEY (phone, position)
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key        TEXT PRIMARY KEY,
   value      TEXT NOT NULL,
