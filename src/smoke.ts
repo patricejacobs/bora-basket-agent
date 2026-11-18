@@ -4133,6 +4133,11 @@ section('Shopping by number');
   // types when they want the first aisle.
   check('lettered from a', items[0]?.ref === 'a' && items[1]?.ref === 'b', JSON.stringify(items.slice(0, 2)));
   check('and never numbered', items.every((i) => !/^[0-9]/.test(i.ref)), JSON.stringify(items.map((i) => i.ref)));
+  // In brackets on the message, which sets a shelf apart from the numbered
+  // aisle list at a glance. The ref itself stays a bare letter, so what the
+  // customer types is what the shop resolves.
+  check('shown in brackets', /\(a\) /.test(String(aisle.say)), String(aisle.say));
+  check('while the ref stays a bare letter', items[0]?.ref === 'a', String(items[0]?.ref));
   check('with the price and the size', Boolean(items[0]?.price && items[0]?.unit), JSON.stringify(items[0]));
 
   // The way out, on the screen rather than remembered.

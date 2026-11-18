@@ -129,12 +129,14 @@ No prices, no products, no preamble. The order is the shop's and you do not rear
 
 > *Fresh Produce*
 >
-> a. Bananas — $420 (per kg)
-> b. Bora — $280 (bundle)
+> (a) Bananas — $420 (per kg)
+> (b) Bora — $280 (bundle)
 > ...
 >
 > Put the quantity beside the letter — like *a x2, d x1*
 > — or type *categories* to see the aisles again.
+
+The letter goes in brackets, which sets a shelf apart from the numbered aisle list at a glance.
 
 **Aisles are numbered; items are lettered.** Never number a list of products. The two were both numbered and it went wrong in the obvious way: after an aisle was open, "1" meant the first product — and "1" is also exactly what somebody types when they want the first aisle. Letters make the two impossible to confuse, and a customer who answers "a" cannot be in the wrong list.
 

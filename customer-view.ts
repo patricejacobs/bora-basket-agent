@@ -87,7 +87,7 @@ shop(aisles());
 them('3');
 const dairy = call('browse_category', { category: '3' });
 const priced = (rows: { ref: string; name: string; unit: string; price: string }[]): string =>
-  rows.map((r) => `${r.ref}. ${r.name} — ${r.price} (${r.unit})`).join(nl);
+  rows.map((r) => `(${r.ref}) ${r.name} — ${r.price} (${r.unit})`).join(nl);
 shop(
   [
     `*${String(dairy.category)}*`,

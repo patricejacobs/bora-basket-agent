@@ -387,18 +387,18 @@ there.
 ```
 What are we getting today?          *Fresh Produce*
 
- 1. Fresh Produce                    a. Bananas — $420 (per kg)
- 2. Meat, Fish & Poultry             b. Bora — $320 (bundle)
- 3. Dairy & Eggs            →        c. Callaloo — $280 (bundle)
+ 1. Fresh Produce                   (a) Bananas — $420 (per kg)
+ 2. Meat, Fish & Poultry            (b) Bora — $320 (bundle)
+ 3. Dairy & Eggs            →       (c) Callaloo — $280 (bundle)
  ...                                 ...
-11. Baby                             l. Watermelon — $1,200 (each)
+11. Baby                            (l) Watermelon — $1,200 (each)
 
 Reply with a number.                Put the quantity beside the letter,
                                     like *a x2, d x1* — or type
                                     *categories* for the aisles again.
 ```
 
-**Aisles are numbered; items are lettered.** Both were numbered to begin with,
+**Aisles are numbered; items are lettered, in brackets.** Both were numbered to begin with,
 and it went wrong in the obvious way: once an aisle was open, `1` meant the
 first product — and `1` is also exactly what somebody types when they want the
 first aisle. The shop could tell which list was last on the screen; the

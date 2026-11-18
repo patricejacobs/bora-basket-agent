@@ -925,7 +925,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           price: money(p.price),
           ...(available(p) ? {} : { note: availabilityLabel(p) }),
         })),
-        say: `Send it as a lettered list, one item per line: "a. ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the letter, the name, the price and the size.`,
+        // The letter in brackets, which sets it apart from the numbered aisle
+        // list at a glance and from the price that follows it.
+        say: `Send it as a lettered list, one item per line, the letter in brackets: "(a) ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the letter, the name, the price and the size.`,
         // The way back, said on the list itself rather than left to be
         // guessed. Somebody in the wrong aisle with no visible way out
         // scrolls up hunting for the last message, or gives up.
