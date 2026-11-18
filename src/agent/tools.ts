@@ -908,7 +908,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           ...(available(p) ? {} : { note: availabilityLabel(p) }),
         })),
         say: `Send it as a numbered list, one item per line: "1. ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the number, the name, the price and the size.`,
-        next: 'Then tell them to put the quantity beside the number — "1 x2, 4 x1" — and that they can say "categories" to see the aisles again.',
+        // The way back, said on the list itself rather than left to be
+        // guessed. Somebody in the wrong aisle with no visible way out
+        // scrolls up hunting for the last message, or gives up.
+        next: 'End the list with both: how to answer it — "Put the quantity beside the number, like *1 x2, 4 x1*" — and how to get out of it: "or type *categories* to see the aisles again". Say the second one every time you send an aisle.',
       });
     }
 
@@ -975,7 +978,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           items: cart.lines.map((l) => `${l.qty} x ${l.product.name}`),
           subtotal: money(cart.subtotal),
         },
-        next: 'Say what went in, in one short line. Then offer the aisles again or ask whether that is everything — do not list the whole cart back unless they ask.',
+        next: 'Say what went in, in one short line. Then ask whether that is everything, and remind them they can type *categories* for the aisles. Do not list the whole cart back unless they ask.',
       });
     }
 

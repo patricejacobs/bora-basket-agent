@@ -394,8 +394,14 @@ What are we getting today?          *Fresh Produce*
 11. Baby                            12. Watermelon — $1,200 (each)
 
 Reply with a number.                Put the quantity beside the number,
-                                    like *1 x2, 4 x1*.
+                                    like *1 x2, 4 x1* — or type
+                                    *categories* for the aisles again.
 ```
+
+**Every aisle says how to get out of it.** Somebody who opened the wrong one,
+or has finished with the right one, needs the way back on the screen rather
+than remembered — and it is said again after something is added, when they are
+asked whether that is everything.
 
 Then `1 x2, 4 x1, 11 x3` puts two bananas, a kilo of carrots and three kilos
 of tomatoes in the basket. An aisle can be opened by name as well — *"dairy"*

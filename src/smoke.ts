@@ -4033,6 +4033,7 @@ section('Shopping by number');
   check('with how many are in each', typeof list[0]?.items === 'number', JSON.stringify(list[0]));
   check('and the model is told to send it as it stands', /numbered list/.test(String(cats.say)), String(cats.say));
 
+
   /* --- a number means the aisle at that position ----------------------- */
 
   const aisle = call('browse_category', { category: '1' });
@@ -4041,6 +4042,11 @@ section('Shopping by number');
   check('everything in it is listed', items.length > 5, String(items.length));
   check('numbered from one', items[0]?.number === 1 && items[1]?.number === 2, JSON.stringify(items.slice(0, 2)));
   check('with the price and the size', Boolean(items[0]?.price && items[0]?.unit), JSON.stringify(items[0]));
+
+  // The way out, on the screen rather than remembered.
+  const footer = String(aisle.next);
+  check('an aisle says how to get back to the list', /type \*categories\*/.test(footer), footer);
+  check('and to say it every time', /every time you send an aisle/.test(footer), footer);
   // Alphabetical, so the same aisle looks the same every time it is opened.
   check('in a stable order', items.map((i) => i.name).join('|') === [...items.map((i) => i.name)].sort((a, b) => a.localeCompare(b)).join('|'), JSON.stringify(items.map((i) => i.name)));
 

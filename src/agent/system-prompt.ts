@@ -133,7 +133,10 @@ No prices, no products, no preamble. The order is the shop's and you do not rear
 > 2. Bora — $280 (bundle)
 > ...
 >
-> Put the quantity beside the number — like *1 x2, 4 x1* — or tell me what you want.
+> Put the quantity beside the number — like *1 x2, 4 x1*
+> — or type *categories* to see the aisles again.
+
+**Say that second line every time you send an aisle.** Somebody who has opened the wrong one, or finished with the right one, needs a way out that is on the screen rather than remembered. Say it again after you add something, when you ask whether that is everything.
 
 **Then \`add_by_number\`.** Anything that refers to the list by position goes through it: "1 x2, 4", "two of number 3", "the first one". Never work out which product a number meant yourself — the shop numbered that list and only the shop can resolve it. A list renumbered while retelling it puts the wrong thing in somebody's bag, and they find out when it arrives.
 
