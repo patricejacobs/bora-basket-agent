@@ -86,20 +86,20 @@ shop(aisles());
 
 them('3');
 const dairy = call('browse_category', { category: '3' });
-const priced = (rows: { number: number; name: string; unit: string; price: string }[]): string =>
-  rows.map((r) => `${r.number}. ${r.name} — ${r.price} (${r.unit})`).join(nl);
+const priced = (rows: { ref: string; name: string; unit: string; price: string }[]): string =>
+  rows.map((r) => `${r.ref}. ${r.name} — ${r.price} (${r.unit})`).join(nl);
 shop(
   [
     `*${String(dairy.category)}*`,
     '',
-    priced(dairy.items as { number: number; name: string; unit: string; price: string }[]),
+    priced(dairy.items as { ref: string; name: string; unit: string; price: string }[]),
     '',
-    'Put the quantity beside the number, like *1 x2, 4 x1* — or type *categories* to see the aisles again.',
+    'Put the quantity beside the letter, like *a x2, d x1* — or type *categories* to see the aisles again.',
   ].join(nl),
 );
 
-them('3 x2, 2 x1');
-const first = call('add_by_number', { picks: [{ number: 3, quantity: 2 }, { number: 2, quantity: 1 }] });
+them('c x2, b x1');
+const first = call('add_picks', { picks: [{ ref: 'c', quantity: 2 }, { ref: 'b', quantity: 1 }] });
 shop(
   `In: ${(first.added as { name: string; quantity: number }[]).map((g) => `${g.quantity} x ${g.name}`).join(', ')}. That's ${String((first.cart as { subtotal: string }).subtotal)} so far.` +
     nl + nl + 'Anything else, or type *categories* for the aisles?',
@@ -107,19 +107,19 @@ shop(
 
 /* --------------------------------------- back to the aisles, by name of it */
 
-// The way out, which is why the line is on every aisle: after a product list
-// a bare number means a product, so somebody wanting another aisle needs the
-// word. Typing "1" here would have been read as Cheddar Cheese.
+// The way out, which is why the line is on every aisle. Items are lettered
+// and aisles numbered, so a stray "1" can no longer be read as the first
+// product - but a customer still needs to be told how to get back.
 them('categories');
 shop(aisles());
 
 them('1');
 const produce = call('browse_category', { category: '1' });
-const rows = produce.items as { number: number; name: string; unit: string; price: string }[];
+const rows = produce.items as { ref: string; name: string; unit: string; price: string }[];
 shop([`*${String(produce.category)}*`, '', priced(rows.slice(0, 6)), '…'].join(nl));
 
-them('1 x2 and 11 x3');
-const second = call('add_by_number', { picks: [{ number: 1, quantity: 2 }, { number: 11, quantity: 3 }] });
+them('a x2 and k x3');
+const second = call('add_picks', { picks: [{ ref: 'a', quantity: 2 }, { ref: 'k', quantity: 3 }] });
 shop(`${(second.added as { name: string; quantity: number }[]).map((g) => `${g.quantity} x ${g.name}`).join(' and ')} added.${nl}${nl}That everything?`);
 
 /* ------------------------------------------------------ who and where */

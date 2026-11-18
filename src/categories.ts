@@ -72,3 +72,39 @@ export function inShoppingOrder<T extends { category: string }>(rows: T[]): T[] 
     (a, b) => categoryRank(a.category) - categoryRank(b.category) || a.category.localeCompare(b.category),
   );
 }
+
+/* --------------------------------------------- labelling a list of items */
+
+/**
+ * The label an item carries in a list: a, b, c.
+ *
+ * Letters for items and numbers for aisles, so the two can never be confused.
+ * They were both numbered, and after an aisle had been opened a bare "1"
+ * meant the first product - while a customer who wanted a different aisle was
+ * also reaching for "1". The shop could tell which list was last on the
+ * screen; the customer could not, and "1" is exactly what somebody types when
+ * they mean the first thing they can see.
+ *
+ * Past z it doubles up - aa, ab - which no aisle here needs, the largest
+ * being twelve, but a shop that imports a catalogue of its own will.
+ */
+export function itemLabel(position: number): string {
+  if (position < 1) return '';
+  let n = position;
+  let out = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(97 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+
+/** The position a label refers to, or null if it is not a label at all. */
+export function labelPosition(label: string): number | null {
+  const clean = label.trim().toLowerCase().replace(/[^a-z]/g, '');
+  if (!clean) return null;
+  let n = 0;
+  for (const ch of clean) n = n * 26 + (ch.charCodeAt(0) - 96);
+  return n > 0 ? n : null;
+}

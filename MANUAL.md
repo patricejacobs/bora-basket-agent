@@ -387,50 +387,59 @@ there.
 ```
 What are we getting today?          *Fresh Produce*
 
- 1. Fresh Produce                    1. Bananas — $420 (per kg)
- 2. Meat, Fish & Poultry             2. Bora — $320 (bundle)
- 3. Dairy & Eggs            →        3. Callaloo — $280 (bundle)
+ 1. Fresh Produce                    a. Bananas — $420 (per kg)
+ 2. Meat, Fish & Poultry             b. Bora — $320 (bundle)
+ 3. Dairy & Eggs            →        c. Callaloo — $280 (bundle)
  ...                                 ...
-11. Baby                            12. Watermelon — $1,200 (each)
+11. Baby                             l. Watermelon — $1,200 (each)
 
-Reply with a number.                Put the quantity beside the number,
-                                    like *1 x2, 4 x1* — or type
+Reply with a number.                Put the quantity beside the letter,
+                                    like *a x2, d x1* — or type
                                     *categories* for the aisles again.
 ```
+
+**Aisles are numbered; items are lettered.** Both were numbered to begin with,
+and it went wrong in the obvious way: once an aisle was open, `1` meant the
+first product — and `1` is also exactly what somebody types when they want the
+first aisle. The shop could tell which list was last on the screen; the
+customer could not. Letters make the two impossible to confuse.
+
+Past `z` the letters double up — `aa`, `ab` — which no aisle here needs, the
+largest being twelve, but a shop importing a catalogue of its own will.
+
+Somebody who types `3 x2` at a lettered list is not corrected. It resolves to
+the third item, because they have said exactly what they want.
 
 **Every aisle says how to get out of it.** Somebody who opened the wrong one,
 or has finished with the right one, needs the way back on the screen rather
 than remembered — and it is said again after something is added, when they are
 asked whether that is everything.
 
-Then `1 x2, 4 x1, 11 x3` puts two bananas, a kilo of carrots and three kilos
-of tomatoes in the basket. An aisle can be opened by name as well — *"dairy"*
+Then `a x2, d x1, k x3` puts two bananas, a kilo of carrots and three kilos of
+tomatoes in the basket. An aisle can be opened by name as well — *"dairy"*
 — and a reply can mix the two: *"3 x1 and 2 of number 1"*.
 
-**The shop numbers the list and the shop resolves the numbers.** The agent is
-never asked which product a number meant. A list renumbered while retelling it
+**The shop labels the list and the shop resolves the labels.** The agent is
+never asked which product a letter meant. A list relettered while retelling it
 puts the wrong thing in somebody's bag, and they find out when it arrives — so
-the numbering is written down when the list is sent, replaced each time, and
+the labelling is written down when the list is sent, replaced each time, and
 read back when they answer.
 
-That is also what lets the same number mean different things safely: after the
-aisles, `1` is Fresh Produce; after an aisle, `1` is Bananas.
-
-**A number that was never on the list is asked about, not guessed at:**
+**A letter that was never on the list is asked about, not guessed at:**
 
 ```
-"and number 40"
-→ the list only went up to 5. Ask which one they meant.
+"and z"
+→ the list only went up to e. Ask which one they meant.
 ```
 
 **Nobody is trapped in it.** Numbers are the easy path, not the only one.
 Somebody who types *"2 lb chicken and a bread"* gets that, without being sent
 back to a list, and *"categories"* brings the aisles back.
 
-Why numbers rather than buttons: WhatsApp allows three reply buttons, and
-there are eleven aisles and twelve things in Fresh Produce. A numbered list
-costs nothing, fits any length, and lets somebody answer three lines of it in
-one message — which is how a person writes a shopping list anyway.
+Why a list rather than buttons: WhatsApp allows three reply buttons, and there
+are eleven aisles and twelve things in Fresh Produce. A written list costs
+nothing, fits any length, and lets somebody answer three lines of it in one
+message — which is how a person writes a shopping list anyway.
 
 ### The grocery aisles
 

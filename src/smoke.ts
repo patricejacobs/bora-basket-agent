@@ -4126,13 +4126,18 @@ section('Shopping by number');
 
   const aisle = call('browse_category', { category: '1' });
   check('a number opens that aisle', aisle.category === 'Fresh Produce', String(aisle.category));
-  const items = aisle.items as { number: number; name: string; price: string; unit: string }[];
+  const items = aisle.items as { ref: string; name: string; price: string; unit: string }[];
   check('everything in it is listed', items.length > 5, String(items.length));
-  check('numbered from one', items[0]?.number === 1 && items[1]?.number === 2, JSON.stringify(items.slice(0, 2)));
+  // Letters for items, numbers for aisles. Both were numbered, and after an
+  // aisle was open "1" meant the first product - which is also what somebody
+  // types when they want the first aisle.
+  check('lettered from a', items[0]?.ref === 'a' && items[1]?.ref === 'b', JSON.stringify(items.slice(0, 2)));
+  check('and never numbered', items.every((i) => !/^[0-9]/.test(i.ref)), JSON.stringify(items.map((i) => i.ref)));
   check('with the price and the size', Boolean(items[0]?.price && items[0]?.unit), JSON.stringify(items[0]));
 
   // The way out, on the screen rather than remembered.
   const footer = String(aisle.next);
+  check('the list says to put the quantity by the letter', /beside the letter/.test(footer), footer);
   check('an aisle says how to get back to the list', /type \*categories\*/.test(footer), footer);
   check('and to say it every time', /every time you send an aisle/.test(footer), footer);
   // Alphabetical, so the same aisle looks the same every time it is opened.
@@ -4144,13 +4149,13 @@ section('Shopping by number');
 
   /* --- what they pick, resolved by the shop ---------------------------- */
 
-  const dairy = byName.items as { number: number; name: string }[];
+  const dairy = byName.items as { ref: string; name: string }[];
   const third = dairy[2]!.name;
   const first = dairy[0]!.name;
 
-  const added = call('add_by_number', { picks: [{ number: 3, quantity: 1 }, { number: 1, quantity: 2 }] });
-  const got = added.added as { number: number; name: string; quantity: number }[];
-  check('the numbers resolve to the right products', got[0]?.name === third && got[1]?.name === first, JSON.stringify(got));
+  const added = call('add_picks', { picks: [{ ref: 'c', quantity: 1 }, { ref: 'a', quantity: 2 }] });
+  const got = added.added as { ref: string; name: string; quantity: number }[];
+  check('the letters resolve to the right products', got[0]?.name === third && got[1]?.name === first, JSON.stringify(got));
   check('and the quantities stick', got[0]?.quantity === 1 && got[1]?.quantity === 2, JSON.stringify(got));
   check('the basket says what is in it', String((added.cart as { subtotal: string }).subtotal).startsWith('$'), JSON.stringify(added.cart));
 
@@ -4158,10 +4163,14 @@ section('Shopping by number');
 
   // Asked rather than guessed. A number off the end is a typo or a different
   // list, and either way putting something in the bag is the wrong answer.
-  const over = call('add_by_number', { picks: [{ number: 40 }] });
-  const refused = over.could_not_add as { number: number; reason: string }[];
-  check('a number off the end is refused', refused?.[0]?.number === 40, JSON.stringify(over));
+  const over = call('add_picks', { picks: [{ ref: 'z' }] });
+  const refused = over.could_not_add as { ref: string; reason: string }[];
+  check('a letter off the end is refused', refused?.[0]?.ref === 'z', JSON.stringify(over));
   check('and says how far the list went', /only went up to/.test(String(refused?.[0]?.reason)), String(refused?.[0]?.reason));
+  // Somebody who types a number at a lettered list has still said what they
+  // want, so it resolves rather than being corrected.
+  const numeric = call('add_picks', { picks: [{ ref: '3', quantity: 1 }] });
+  check('a number typed anyway still works', (numeric.added as { name: string }[])[0]?.name === third, JSON.stringify(numeric.added));
   check('nothing was added for it', (over.added as unknown[]).length === 0, JSON.stringify(over.added));
 
   /* --- the same number means different things, safely ------------------ */
@@ -4169,8 +4178,8 @@ section('Shopping by number');
   // After the aisles, 1 is an aisle. After an aisle, 1 is a product. The
   // shop knows which list was last on the screen; the model is not asked to.
   call('list_categories');
-  const tooSoon = call('add_by_number', { picks: [{ number: 1 }] });
-  check('a product number is refused while aisles are showing', typeof tooSoon.error === 'string', JSON.stringify(tooSoon).slice(0, 120));
+  const tooSoon = call('add_picks', { picks: [{ ref: 'a' }] });
+  check('a product letter is refused while aisles are showing', typeof tooSoon.error === 'string', JSON.stringify(tooSoon).slice(0, 120));
   check('and says to show an aisle first', /browse_category first/.test(String(tooSoon.error)), String(tooSoon.error));
 
   const notAnAisle = call('browse_category', { category: '99' });
@@ -4185,6 +4194,8 @@ section('Shopping by number');
   /* --- and the flow is written where the model will read it ------------ */
 
   check('the prompt opens with the aisles', /Reply with a number/.test(SYSTEM_PROMPT));
+  check('aisles numbered, items lettered', /Aisles are numbered; items are lettered/.test(SYSTEM_PROMPT));
+  check('and never a numbered product list', /Never number a list of products/.test(SYSTEM_PROMPT));
   check('tells it never to resolve numbers itself', /only the shop can resolve/.test(SYSTEM_PROMPT));
   // Numbers are the easy path, not the only one.
   check('and that typing what you want still works', /not trapped in it/i.test(SYSTEM_PROMPT));

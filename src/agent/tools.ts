@@ -15,6 +15,7 @@ import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { findZone, zoneCount, describeZone, zoneFeeFor } from '../zones.ts';
+import { itemLabel, labelPosition } from '../categories.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
 const chr10 = String.fromCharCode(10);
@@ -114,9 +115,9 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'add_by_number',
+    name: 'add_picks',
     description:
-      "Add items the customer picked by number from the aisle you last showed them. Use it for any reply that refers to the list by position — \"1 x2, 4\", \"two of number 3\", \"the first and the last\". For anything named rather than numbered, use add_items_to_cart.",
+      "Add items the customer picked by letter from the aisle you last showed them. Use it for any reply that refers to that list — \"a x2, d\", \"two of b\", \"the first and the last\". For anything named rather than lettered, use add_items_to_cart.",
     input_schema: {
       type: 'object',
       properties: {
@@ -126,14 +127,17 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           items: {
             type: 'object',
             properties: {
-              number: { type: 'integer', description: 'The number as it appeared in the list.' },
+              ref: {
+                type: 'string',
+                description: 'The letter as it appeared in the list — "a", "d", "aa".',
+              },
               quantity: { type: 'integer', description: 'How many. Defaults to 1.' },
               options: {
                 type: 'string',
                 description: 'For a menu item that needs a choice, e.g. "Large". Leave out for groceries.',
               },
             },
-            required: ['number'],
+            required: ['ref'],
             additionalProperties: false,
           },
         },
@@ -911,17 +915,21 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // sends are the numbers the shop will resolve. A list renumbered in
         // the retelling is a customer ordering the wrong thing.
         items: items.map((p, i) => ({
-          number: i + 1,
+          // A letter, not a number. Aisles are numbered; items are lettered,
+          // so "1" always means an aisle and "a" always means a thing on a
+          // shelf - and a customer who types the first thing they can see
+          // cannot land in the wrong list.
+          ref: itemLabel(i + 1),
           name: p.name,
           unit: p.unit,
           price: money(p.price),
           ...(available(p) ? {} : { note: availabilityLabel(p) }),
         })),
-        say: `Send it as a numbered list, one item per line: "1. ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the number, the name, the price and the size.`,
+        say: `Send it as a lettered list, one item per line: "a. ${items[0]!.name} — ${money(items[0]!.price)} (${items[0]!.unit})". Keep it to the letter, the name, the price and the size.`,
         // The way back, said on the list itself rather than left to be
         // guessed. Somebody in the wrong aisle with no visible way out
         // scrolls up hunting for the last message, or gives up.
-        next: 'End the list with both: how to answer it — "Put the quantity beside the number, like *1 x2, 4 x1*" — and how to get out of it: "or type *categories* to see the aisles again". Say the second one every time you send an aisle.',
+        next: 'End the list with both: how to answer it — "Put the quantity beside the letter, like *a x2, d x1*" — and how to get out of it: "or type *categories* to see the aisles again". Say the second one every time you send an aisle.',
       });
     }
 
@@ -934,17 +942,17 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * complete confidence, and the customer would not find out until a bag
      * arrived.
      */
-    case 'add_by_number': {
+    case 'add_picks': {
       const scope = browsingScope(ctx.phone);
       if (scope === null) return fail(NO_SHOP_SELECTED);
 
       const picks = Array.isArray(input.picks) ? (input.picks as Record<string, unknown>[]) : [];
-      if (picks.length === 0) return fail('picks is required — the numbers they gave.');
+      if (picks.length === 0) return fail('picks is required — the letters they gave.');
 
       const shown = repo.numberedList(ctx.phone);
       if (shown.length === 0 || shown[0]!.kind !== 'product') {
         return fail(
-          'No aisle has been shown yet, so a number means nothing. Call browse_category first, send the list, and let them answer it.',
+          'No aisle has been shown yet, so a letter means nothing. Call browse_category first, send the list, and let them answer it.',
         );
       }
 
@@ -952,32 +960,37 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const refused: Record<string, unknown>[] = [];
 
       for (const raw of picks) {
-        const n = asInt(raw.number);
+        const ref = asString(raw.ref).trim();
         const qty = Math.max(1, asInt(raw.quantity) ?? 1);
-        if (n === null) {
-          refused.push({ pick: raw, reason: 'no number given' });
+        // A letter, or a number from somebody who typed one anyway. Both are
+        // resolved against the same list rather than one of them being
+        // refused on principle - a customer who writes "3 x2" when the list
+        // says "c" has told you exactly what they want.
+        const at = /^[0-9]+$/.test(ref) ? Number(ref) : labelPosition(ref);
+        if (at === null) {
+          refused.push({ ref, reason: 'not a letter from the list' });
           continue;
         }
-        const pick = repo.numberedPick(ctx.phone, n);
+        const pick = repo.numberedPick(ctx.phone, at);
         if (!pick || pick.kind !== 'product') {
           refused.push({
-            number: n,
-            reason: `the list only went up to ${shown.length}. Ask which one they meant rather than guessing.`,
+            ref,
+            reason: `the list only went up to ${itemLabel(shown.length)}. Ask which one they meant rather than guessing.`,
           });
           continue;
         }
         const product = repo.getProductBySku(pick.value);
         if (!product) {
-          refused.push({ number: n, reason: 'that product is no longer in the catalogue' });
+          refused.push({ ref, reason: 'that product is no longer in the catalogue' });
           continue;
         }
         const refusal = refuseQty(product, qty);
         if (refusal) {
-          refused.push({ number: n, name: product.name, reason: refusal });
+          refused.push({ ref, name: product.name, reason: refusal });
           continue;
         }
         repo.setCartQty(ctx.phone, product.id, repo.getCartQty(ctx.phone, product.id, asString(raw.options)) + qty, asString(raw.options));
-        added.push({ number: n, name: product.name, quantity: qty });
+        added.push({ ref, name: product.name, quantity: qty });
       }
 
       const cart = repo.getCart(ctx.phone);
