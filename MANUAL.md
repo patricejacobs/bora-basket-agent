@@ -1022,6 +1022,11 @@ To see every card for all three kinds of business side by side, run
 prints what they hand to WhatsApp, so it is the message rather than a
 description of one.
 
+And for the other side of it — what the customer sees, from hello to the
+receipt — run `node customer-view.ts`. One grocery order: shopping by number,
+a delivery asked for after five, and every status message as it arrives. Both
+scripts work on a throwaway database and cannot touch real trading data.
+
 **The number does not need to be staff.** This is the part worth knowing if you
 set this up before: a grocery is reached through its own record, so whoever
 holds that number can Confirm and Cancel without being on `STAFF_NUMBERS` — and
