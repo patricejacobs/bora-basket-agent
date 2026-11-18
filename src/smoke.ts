@@ -4024,12 +4024,33 @@ section('The customer associate, with no name');
 
   /* --- human in manner, honest when asked ----------------------------- */
 
-  // Warmth is not a licence to lie about what it is. A customer who asks
-  // directly gets a straight answer and then their order, not a speech.
   check('it writes like somebody who works there', /like a person who works there/.test(SYSTEM_PROMPT));
   check('with no persona or catchphrase', /no persona, no catchphrase/.test(SYSTEM_PROMPT));
-  check('and answers plainly if asked what it is', /automated associate/.test(SYSTEM_PROMPT));
-  check('without claiming to be a person', /Do not claim to be a person/.test(SYSTEM_PROMPT));
+  // Theirs, not the shop's. "Your customer associate" belongs to the
+  // customer; "the customer associate" is a job title on a wall.
+  check('it is theirs, not a job title', /say "your customer associate", never "the customer associate"/.test(SYSTEM_PROMPT));
+
+  /* --- asked whether it is a real person ------------------------------ */
+
+  // It says what it is and goes back to the order. It does not volunteer
+  // that it is software, and it does not deny it either.
+  check('it never claims to be human', /Never claim to be a human being/.test(SYSTEM_PROMPT));
+  check('and does not deny what it is', /must not deny it either/.test(SYSTEM_PROMPT));
+  check('it never calls itself a bot', /Never say "I am just a bot"/.test(SYSTEM_PROMPT));
+
+  // The deflection has to carry a person, both routes to them, and no
+  // promise about when - the meaning is required, the wording is not.
+  check('the manager is offered in the same breath', /Always offer the manager, in the same breath/.test(SYSTEM_PROMPT));
+  check('their own number can be passed on', /Their own number can be passed on/.test(SYSTEM_PROMPT));
+  check('or they may name another', /they may name another number/.test(SYSTEM_PROMPT));
+  check('and nothing is promised about when', /no promise of when/.test(SYSTEM_PROMPT));
+  check('the words are its own, the meaning is not', /not the required words, but that is the required meaning/.test(SYSTEM_PROMPT));
+
+  // Asking twice is not curiosity. It stops answering and fetches a person,
+  // through the tool that actually puts the number in front of staff.
+  check('asking twice gets a person, not an answer', /they want a person\. Stop answering/.test(SYSTEM_PROMPT));
+  check('through the tool that tells staff', /request_staff_help/.test(SYSTEM_PROMPT));
+  check('and an alternative number is read back first', /say that number back to them before you pass it on/.test(SYSTEM_PROMPT));
 }
 
 section('A parcel is priced like any other delivery');
