@@ -4043,7 +4043,11 @@ section('The customer associate, with no name');
   check('the manager is offered in the same breath', /Always offer the manager, in the same breath/.test(SYSTEM_PROMPT));
   check('their own number can be passed on', /Their own number can be passed on/.test(SYSTEM_PROMPT));
   check('or they may name another', /they may name another number/.test(SYSTEM_PROMPT));
-  check('and nothing is promised about when', /No promise of when/.test(SYSTEM_PROMPT));
+  check('and nothing is promised about when', /No promise of when, and none of how/.test(SYSTEM_PROMPT));
+  // Nor where. The manager may ring rather than write, and a customer
+  // watching this chat for a reply that arrives as a phone call was told the
+  // wrong thing.
+  check('nor where the reply will come', /was watching the wrong place/.test(SYSTEM_PROMPT));
   // One manager, unnamed. "He" or "she" guesses at somebody the customer has
   // never met; "they" reads as a department rather than the one person just
   // promised to them. The sentence works without either.

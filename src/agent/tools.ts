@@ -481,7 +481,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'request_staff_help',
     description:
-      "Hand this conversation to a person. Use it for the 'Other' service, and any time a customer needs something you cannot do — a complaint, a refund, a change to a placed order. Summarise what they want; staff get it with their number and pick it up on this same chat.",
+      "Hand this conversation to a person. Use it for the 'Other' service, and any time a customer needs something you cannot do — a complaint, a refund, a change to a placed order. Summarise what they want; staff get it with their number and decide for themselves whether to write or ring, so tell the customer it has been passed on and nothing about how or when.",
     input_schema: {
       type: 'object',
       properties: {
@@ -1960,7 +1960,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       return ok({
         passed_on: true,
-        next: 'Confirm it has gone to the team and that they will reply here. Do not promise when — you do not know.',
+        next: 'Say only that it has been passed on. Not when, and not where — the manager may ring rather than write, and a customer watching this chat for a reply that comes as a phone call has been told the wrong thing.',
       });
     }
 

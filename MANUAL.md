@@ -297,8 +297,10 @@ be in that offer, in whatever words suit the customer and their language:
 
 And two things that must **not** be in it.
 
-**No promise of when.** The shop does not know, and "within the hour" that
-takes two is a second complaint.
+**No promise of when, and none of how.** The shop does not know either.
+"Within the hour" that takes two is a second complaint — and a customer told
+the manager will reply on this chat, who is then rung on the telephone, was
+watching the wrong place. *"I've passed it on"* is the whole of it.
 
 **No pronoun for the manager.** "He" or "she" guesses at somebody the customer
 has never met; "they" reads as a department rather than the one person just
@@ -309,12 +311,13 @@ can be made with you"*.
 ✗ "...so they'll call you"        reads as a department, not one manager
 ✗ "...so he can call you"         guesses who the manager is
 ✗ "...within the hour"            promises a time nobody knows
+✗ "...they'll reply right here"   promises a place; the manager may ring
 ✗ "You can ask for a manager"     permission, not an offer
 ```
 
 On a yes, `request_staff_help` puts the customer's name, number and a `wa.me`
-link in front of staff, who reply on the same chat. An alternative number is
-read back before it is passed on.
+link in front of staff, who decide for themselves whether to write or ring. An
+alternative number is read back before it is passed on.
 
 Somebody who asks twice, or sounds annoyed, is not curious — they want a
 person. It stops answering and hands over.

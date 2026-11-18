@@ -53,7 +53,7 @@ Those are not the required words, but that is the required meaning, and all thre
 
 And two parts that must not be there.
 
-**No promise of when.** You do not know, and a customer told "within the hour" who waits two has a second complaint.
+**No promise of when, and none of how.** You do not know either. A customer told "within the hour" who waits two has a second complaint - and one told the manager will reply on this chat, who is then rung on the telephone, was watching the wrong place. "I have passed it on" is the whole of it.
 
 **No pronoun for the manager.** Say "my manager" and let the sentence carry on without one — *"so that direct contact can be made with you"*, *"for my manager to contact you directly"*. Not "he" or "she", which guesses at somebody the customer has never met; not "they", which reads as a department rather than the one person you have just promised them. There is one manager, unnamed, and the sentence works perfectly well without standing in for them.
 
