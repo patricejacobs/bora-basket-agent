@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.ts';
+import { CATEGORY_RENAMES } from '../categories.ts';
 
 const dir = path.dirname(path.resolve(config.databasePath));
 fs.mkdirSync(dir, { recursive: true });
@@ -698,6 +699,54 @@ export const HOUSE_GROCERY_CODE = 'GROCERY';
  * and the card gallery all open the database directly and must see the same
  * shop the server does.
  */
+/**
+ * The grocery aisles, renamed and reordered.
+ *
+ * Scoped to grocery products, never to a menu: the roti shop has a Snacks
+ * category of its own, and a blanket rename would have re-labelled its food
+ * as "Drinks & Snacks". Having an outlet is not the same as being a kitchen,
+ * and this code has made that mistake before.
+ *
+ * Idempotent by construction - a second run finds nothing left under the old
+ * names and changes nothing.
+ */
+{
+  const grocery = db
+    .prepare(`SELECT id FROM outlets WHERE kind = 'grocery'`)
+    .all() as unknown as { id: number }[];
+
+  if (grocery.length > 0) {
+    const ids = grocery.map((g) => g.id);
+    const holes = ids.map(() => '?').join(',');
+    let moved = 0;
+
+    for (const [from, to] of Object.entries(CATEGORY_RENAMES)) {
+      moved += Number(
+        db
+          .prepare(
+            `UPDATE products SET category = ?
+              WHERE category = ? AND outlet_id IN (${holes})`,
+          )
+          .run(to, from, ...ids).changes,
+      );
+    }
+
+    // Pasta leaves the tins it was filed with. It has always had its own SKU
+    // prefix, which is the only reason this can be done without guessing.
+    moved += Number(
+      db
+        .prepare(
+          `UPDATE products SET category = 'Rice, Peas & Pasta'
+            WHERE sku LIKE 'PAS-%' AND category <> 'Rice, Peas & Pasta'
+              AND outlet_id IN (${holes})`,
+        )
+        .run(...ids).changes,
+    );
+
+    if (moved > 0) console.log(`[db] migrated: ${moved} product(s) into the new grocery aisles`);
+  }
+}
+
 export function seedAssociatesFromDriverNumbers(): number {
   const seeded = db.prepare(
     `INSERT INTO associates (phone, name, vehicle, active, updated_at)

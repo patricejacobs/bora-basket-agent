@@ -378,6 +378,45 @@ notification was fired off without waiting for an answer. A shop with no staff
 number told its customers their number had gone to the manager while the log
 said nobody had been told.
 
+### The grocery aisles
+
+Eleven, in the order somebody shops rather than by first letter:
+
+| | Aisle | |
+|---|---|---|
+| 1 | Fresh Produce | 12 |
+| 2 | Meat, Fish & Poultry | 8 |
+| 3 | Dairy & Eggs | 5 |
+| 4 | Bread & Bakery | 3 |
+| 5 | Rice, Peas & Pasta | 8 |
+| 6 | Básico de Cocina | 9 |
+| 7 | Flour, Sugar & Baking | 4 |
+| 8 | Tinned Food | 4 |
+| 9 | Drinks & Snacks | 9 |
+| 10 | Household & Personal Care | 8 |
+| 11 | Baby | 2 |
+
+They came out of the import alphabetically before, which opened the list with
+*Baby, Bakery, Baking* and buried fresh produce in the middle. Four aisles
+held two or three items, and three of them overlapped — flour and sugar under
+*Baking*, oil and salt under *Cooking Essentials*, rice and split peas under
+*Rice & Grains*, all of it dry store, so a customer hunting flour could
+reasonably try any of the three.
+
+**Básico de Cocina** keeps its Spanish name as one name, not translated per
+customer: an aisle is a shelf in a particular shop, and the agent describes
+what is on it in whatever language the customer is writing.
+
+**A menu is not a set of aisles.** The rename touches products belonging to a
+grocery and nothing else — the roti shop has a *Snacks* category of its own,
+and a rename by name alone would have re-labelled its food as *Drinks &
+Snacks*. Restaurant categories keep their own alphabetical order, after the
+grocery ones.
+
+A shop that invents a category of its own keeps it. Anything not in the list
+sorts after the eleven, alphabetically among themselves, rather than being
+hidden or forced into an order nobody gave it.
+
 ### Nobody on the road
 
 **With no delivery associate on duty, no order is taken.** The shop can be

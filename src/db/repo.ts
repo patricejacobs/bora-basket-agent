@@ -5,6 +5,7 @@ import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
 import { zoneFeeFor } from '../zones.ts';
+import { inShoppingOrder } from '../categories.ts';
 
 export type { LocationPin, SavedPin };
 
@@ -153,9 +154,16 @@ function pinFromRow(row: {
 export function listCategories(outletId?: number | null): { category: string; count: number }[] {
   const scoped = outletId !== undefined && outletId !== null;
   const sql = `SELECT category, COUNT(*) AS count FROM products
-       WHERE active = 1${scoped ? ' AND outlet_id = ?' : ''} GROUP BY category ORDER BY category`;
-  const rows = scoped ? db.prepare(sql).all(outletId) : db.prepare(sql).all();
-  return rows as { category: string; count: number }[];
+       WHERE active = 1${scoped ? ' AND outlet_id = ?' : ''} GROUP BY category`;
+  const rows = (scoped ? db.prepare(sql).all(outletId) : db.prepare(sql).all()) as {
+    category: string;
+    count: number;
+  }[];
+  // Shopping order rather than alphabetical, which opened the list with Baby,
+  // Bakery and Baking and put fresh produce in the middle. A kitchen's own
+  // categories are not in that list and keep their alphabetical order after
+  // it, which is right: a menu is not a set of aisles.
+  return inShoppingOrder(rows);
 }
 
 export function getProductBySku(sku: string): Product | null {

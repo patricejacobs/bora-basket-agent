@@ -4013,6 +4013,95 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('The grocery aisles, in shopping order');
+{
+  const { GROCERY_CATEGORIES, categoryRank, inShoppingOrder } = await import('./categories.ts');
+
+  const grocery = repo.listOutlets('grocery')[0];
+  const kitchen = repo.listOutlets('restaurant')[0];
+  check('there is a grocery to have aisles', Boolean(grocery));
+  if (!grocery) throw new Error('no grocery');
+
+  const aisles = repo.listCategories(grocery.id);
+  const names = aisles.map((a) => a.category);
+
+  /* --- the order is the shopping order -------------------------------- */
+
+  // Alphabetical opened the list with Baby, Bakery and Baking, and put fresh
+  // produce in the middle.
+  check('fresh produce comes first', names[0] === 'Fresh Produce', JSON.stringify(names.slice(0, 3)));
+  // Only the shop's own aisles. This suite invents products of its own in
+  // categories like "General", which are real to the shop that has them and
+  // sort after the known ones.
+  const known = names.filter((n) => (GROCERY_CATEGORIES as readonly string[]).includes(n));
+  check('baby comes last of the aisles', known[known.length - 1] === 'Baby', JSON.stringify(known.slice(-2)));
+  check(
+    'and the rest follow the stated order',
+    names.every((n, i) => i === 0 || categoryRank(names[i - 1]!) <= categoryRank(n)),
+    JSON.stringify(names),
+  );
+  check('which is not alphabetical', JSON.stringify(known) !== JSON.stringify([...known].sort()), JSON.stringify(known));
+
+  /* --- the old names are gone from the catalogue ----------------------- */
+
+  // Asked of the catalogue rather than the aisle list, because a test fixture
+  // may well have invented a "Bakery" of its own a thousand lines ago.
+  const seeded = (old: string): number =>
+    (db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM products
+          WHERE category = ? AND active = 1 AND sku NOT LIKE 'TOG-%'
+            AND sku IN (SELECT sku FROM products WHERE sku GLOB '[A-Z][A-Z][A-Z]-[0-9][0-9][0-9]')`,
+      )
+      .get(old) as { n: number }).n;
+
+  for (const old of ['Baking', 'Beverages', 'Canned & Packaged', 'Rice & Grains', 'Cooking Essentials', 'Cooking & Seasoning', 'Fish & Seafood', 'Meat & Poultry', 'Personal Care']) {
+    check(`nothing is left under "${old}"`, seeded(old) === 0, `${seeded(old)} still there`);
+  }
+
+  /* --- what moved ------------------------------------------------------ */
+
+  const inAisle = (name: string): string =>
+    (db.prepare(`SELECT category FROM products WHERE name = ? AND active = 1`).get(name) as { category: string } | undefined)?.category ?? '(gone)';
+
+  check('fresh fish joins the meat', inAisle('Snapper') === 'Meat, Fish & Poultry', inAisle('Snapper'));
+  check('and so does the chicken', inAisle('Whole Chicken') === 'Meat, Fish & Poultry', inAisle('Whole Chicken'));
+  // Pasta had its own SKU prefix, which is the only reason it could be moved
+  // out of the tins without guessing.
+  check('pasta leaves the tins', inAisle('Spaghetti') === 'Rice, Peas & Pasta', inAisle('Spaghetti'));
+  check('the tins keep the tinned food', inAisle('Corned Beef') === 'Tinned Food', inAisle('Corned Beef'));
+  check('flour and sugar are their own aisle', inAisle('All Purpose Flour') === 'Flour, Sugar & Baking', inAisle('All Purpose Flour'));
+  check('soap joins the household goods', inAisle('Bath Soap') === 'Household & Personal Care', inAisle('Bath Soap'));
+  check('and the baby things stay their own', inAisle('Baby Wipes') === 'Baby', inAisle('Baby Wipes'));
+  // The shop's own name is Spanish, and so is this aisle.
+  check('the cooking basics are Básico de Cocina', inAisle('Curry Powder') === 'Básico de Cocina', inAisle('Curry Powder'));
+  check('oil and salt with them', inAisle('Table Salt') === 'Básico de Cocina', inAisle('Table Salt'));
+
+  /* --- the kitchen is not a set of aisles ------------------------------ */
+
+  // The trap: the roti shop has a Snacks category of its own, so a rename by
+  // name alone would have re-labelled its food as "Drinks & Snacks". Having
+  // an outlet is not the same as being a kitchen, and this code has made
+  // that mistake before.
+  if (kitchen) {
+    const menu = repo.listCategories(kitchen.id).map((c) => c.category);
+    check('the kitchen keeps its own Snacks', menu.includes('Snacks'), JSON.stringify(menu));
+    check('and none of the grocery aisles', !menu.some((m) => (GROCERY_CATEGORIES as readonly string[]).includes(m)), JSON.stringify(menu));
+  }
+
+  /* --- a shop that invents its own ------------------------------------- */
+
+  // Sorted after the known ones rather than hidden or forced into an order
+  // nobody gave them.
+  const mixed = inShoppingOrder([
+    { category: 'Zebra Food' },
+    { category: 'Baby' },
+    { category: 'Apple Things' },
+    { category: 'Fresh Produce' },
+  ]).map((r) => r.category);
+  check('unknown aisles sort last, alphabetically', JSON.stringify(mixed) === JSON.stringify(['Fresh Produce', 'Baby', 'Apple Things', 'Zebra Food']), JSON.stringify(mixed));
+}
+
 section('A busy few days, with an end date');
 {
   const { dutyLimits } = await import('./config.ts');
