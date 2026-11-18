@@ -305,6 +305,68 @@ difference is about 1.2 km, which is the wrong end of a runway.
 **Ordering for somebody else** is normal. The agent takes the receiver's name
 and number, and the associate's card names both people separately.
 
+### Booking a parcel, one end at a time
+
+A parcel needs six facts — two names, two addresses, two telephone numbers —
+and nobody gives six facts in one message. So it is collected in halves, with
+a button to start each, and each half is written down the moment the customer
+agrees it.
+
+```
++----------------------------------------------+
+| Parcel delivery it is. 📦                    |
+|                                              |
+| I need two sets of details — who it comes    |
+| from, and who it goes to.                    |
+|                                              |
+| Start with the sender?                       |
+|----------------------------------------------|
+| [ Sender details ]  [ Recipient details ]    |
++----------------------------------------------+
+```
+
+Whichever they tap, that half is asked for in one numbered message — name,
+address, telephone number — and read straight back:
+
+```
+| Got it:                                      |
+|                                              |
+| *From:* Patrice Jacobs                       |
+| 26 Brickdam, Georgetown                      |
+| 📞 +5926129920                               |
+|                                              |
+| Is that right?                               |
+|----------------------------------------------|
+| [ Yes, correct ]  [ Change it ]              |
+```
+
+**A button cannot collect text.** WhatsApp reply buttons send back a label and
+nothing else, so the customer still types the three lines. What the buttons
+buy is that nobody wonders whose details are being asked for, and a mistake
+costs a tap instead of a paragraph.
+
+**The recipient's read-back settles the price too.** Their address is where the
+parcel is going, so naming the area in it — *"that's Diamond on the East Bank,
+is that right?"* — confirms the person and the delivery zone with one yes.
+
+**Nothing is asked for twice.** Each half is stored as it arrives, and a
+partial answer keeps what was already given: correcting a telephone number
+does not lose an address that was right. `parcel_status` reads both halves
+back at any point, which is what makes a gap in the conversation survivable:
+
+```
+sender    : Patrice Jacobs, 26 Brickdam, Georgetown, +5926129920
+recipient : Marcia Persaud, Lot 9, Diamond, East Bank, +5926100077
+contents  : not said yet
+```
+
+**And the booking repeats none of it.** `create_parcel_job` reads what was
+agreed, so the six facts are never retyped — a name typed a second time from
+memory is exactly how a parcel reaches the wrong door.
+
+A half cannot be confirmed before it is complete; the tool says which of the
+three is missing and refuses.
+
 ### What a delivery costs
 
 Delivery is priced by the village or area it goes to, from a tariff the shop

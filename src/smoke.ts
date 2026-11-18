@@ -3930,6 +3930,81 @@ section('Accepted is not delivered');
   db.prepare(`DELETE FROM associates WHERE phone = ?`).run(unseen);
 }
 
+section('A parcel, one end at a time');
+{
+  const { executeTool, TOOL_DEFS } = await import('./agent/tools.ts');
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+
+  const booker = '5926105050';
+  repo.clearParcelDraft(booker);
+  repo.setService(booker, 'parcel');
+  const call = (tool: string, args: Record<string, unknown>): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: booker, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  /* --- the flow is described where the model will read it ------------- */
+
+  check('the prompt opens with a choice of ends', /Sender details/.test(SYSTEM_PROMPT));
+  check('and says to read each half back', /Yes, correct/.test(SYSTEM_PROMPT));
+  check('the button tool is still there to do it', TOOL_DEFS.some((t) => t.name === 'send_buttons'));
+
+  /* --- a half arrives in pieces --------------------------------------- */
+
+  // Nobody gives three facts in one message every time, and asking again for
+  // what was already given is how a booking is lost at the fourth question.
+  const partial = call('parcel_party', { side: 'sender', name: 'Patrice Jacobs' });
+  check('what is given is kept', (partial.have as Record<string, string>).name === 'Patrice Jacobs', JSON.stringify(partial));
+  check('and it says only what is still missing', /address and phone/.test(String(partial.note)), String(partial.note));
+
+  const rest = call('parcel_party', { side: 'sender', address: '26 Brickdam, Georgetown', phone: '592 612 9920' });
+  check('the name is not lost by the second call', (rest.have as Record<string, string>).name === 'Patrice Jacobs', JSON.stringify(rest));
+  check('the number is digits only', (rest.have as Record<string, string>).phone === '5926129920', JSON.stringify(rest));
+  check('and the half is read back as the shop prints it', /\*From:\* Patrice Jacobs/.test(String(rest.read_back)), String(rest.read_back));
+
+  /* --- agreeing it, and only then ------------------------------------- */
+
+  const early = call('parcel_party', { side: 'recipient', confirmed: true });
+  check('an empty half cannot be confirmed', typeof early.error === 'string', JSON.stringify(early));
+  check('and it names what is missing', /name, address, phone/.test(String(early.error)), String(early.error));
+
+  const agreed = call('parcel_party', { side: 'sender', confirmed: true });
+  check('the sender is agreed', agreed.confirmed === 'sender', JSON.stringify(agreed));
+  check('and it points at the other end', /Now the recipient/.test(String(agreed.next)), String(agreed.next));
+
+  call('parcel_party', {
+    side: 'recipient',
+    name: 'Marcia Persaud',
+    address: 'Lot 9, Diamond, East Bank',
+    phone: '5926100077',
+  });
+  const both = call('parcel_party', { side: 'recipient', confirmed: true });
+  check('both ends agreed moves on to the contents', /what is in the parcel/i.test(String(both.next)), String(both.next));
+
+  /* --- and nothing is asked for twice --------------------------------- */
+
+  const status = call('parcel_status', {});
+  check('the status names the sender', String(status.sender).includes('Patrice Jacobs'), JSON.stringify(status.sender));
+  check('and the recipient', String(status.recipient).includes('Marcia Persaud'), JSON.stringify(status.recipient));
+
+  // The whole point of storing the halves: the booking call does not make the
+  // model retype six facts it has already confirmed, where one of them could
+  // come back subtly different.
+  repo.saveLocationPin(booker, { latitude: 6.8101, longitude: -58.1575, label: 'Brickdam' });
+  const booked = call('create_parcel_job', { contents: 'documents in an envelope' });
+  const no = String(booked.job_number ?? booked.order_number ?? '');
+  check('the parcel books with no details repeated', no.startsWith('ORD-'), JSON.stringify(booked).slice(0, 200));
+
+  const job = repo.findOrder(no)!;
+  check('the sender came from the draft', job.customerName === 'Patrice Jacobs', job.customerName);
+  check('the recipient too', job.recipientName === 'Marcia Persaud', job.recipientName);
+  check('and their number', job.recipientPhone === '5926100077', job.recipientPhone);
+  check('the uplift address as agreed', job.pickup?.address === '26 Brickdam, Georgetown', JSON.stringify(job.pickup));
+  check('and the drop', job.address === 'Lot 9, Diamond, East Bank', job.address);
+
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  repo.clearParcelDraft(booker);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
+}
+
 section('What a delivery costs, by where it goes');
 {
   const { findZone, soundalike, loadZones, zoneCount } = await import('./zones.ts');

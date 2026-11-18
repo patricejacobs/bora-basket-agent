@@ -1989,10 +1989,27 @@ export function deactivateOutletMenu(outletId: number): number {
 
 /* ---------------------------------------------------------- parcel drafts */
 
+/** One end of a parcel: who, where, and the number to ring. */
+export type ParcelParty = { name: string; address: string; phone: string };
+
 export type ParcelDraft = {
   pickup: { latitude: number; longitude: number; label: string } | null;
   destination: { latitude: number; longitude: number; label: string } | null;
+  /**
+   * The two parties, as far as they have been agreed.
+   *
+   * Written down a half at a time, each only once the customer has had it read
+   * back and said yes. Six facts arrive across several messages and a parcel
+   * sent to the wrong half of them is a journey nobody can undo, so the
+   * conversation is allowed to wander and the draft is not.
+   */
+  sender: ParcelParty;
+  recipient: ParcelParty;
+  /** What is in it, once they have said. */
+  contents: string;
 };
+
+const NOBODY: ParcelParty = { name: '', address: '', phone: '' };
 
 export function getParcelDraft(phone: string): ParcelDraft {
   const row = db.prepare(`SELECT * FROM parcel_drafts WHERE phone = ?`).get(phone) as
@@ -2003,11 +2020,31 @@ export function getParcelDraft(phone: string): ParcelDraft {
         dest_lat: number | null;
         dest_lng: number | null;
         dest_label: string;
+        sender_name: string | null;
+        sender_address: string | null;
+        sender_phone: string | null;
+        recipient_name: string | null;
+        recipient_address: string | null;
+        recipient_phone: string | null;
+        contents: string | null;
       }
     | undefined;
-  if (!row) return { pickup: null, destination: null };
+  if (!row) {
+    return { pickup: null, destination: null, sender: NOBODY, recipient: NOBODY, contents: '' };
+  }
 
   return {
+    sender: {
+      name: row.sender_name ?? '',
+      address: row.sender_address ?? '',
+      phone: row.sender_phone ?? '',
+    },
+    recipient: {
+      name: row.recipient_name ?? '',
+      address: row.recipient_address ?? '',
+      phone: row.recipient_phone ?? '',
+    },
+    contents: row.contents ?? '',
     pickup:
       row.pickup_lat !== null && row.pickup_lng !== null
         ? { latitude: row.pickup_lat, longitude: row.pickup_lng, label: row.pickup_label ?? '' }
@@ -2052,6 +2089,47 @@ export function addParcelPin(
     ).run(pin.latitude, pin.longitude, pin.label ?? '', nowIso(), phone);
   }
   return target;
+}
+
+/**
+ * Writes down one end of a parcel, once the customer has agreed it.
+ *
+ * One side at a time, and only what was given - a blank field leaves what was
+ * there rather than erasing it, so correcting a telephone number does not lose
+ * the address that was already right.
+ */
+export function saveParcelParty(
+  phone: string,
+  side: 'sender' | 'recipient',
+  party: { name?: string; address?: string; phone?: string },
+): ParcelParty {
+  db.prepare(
+    `INSERT INTO parcel_drafts (phone, updated_at) VALUES (?, ?) ON CONFLICT(phone) DO NOTHING`,
+  ).run(phone, nowIso());
+
+  const had = getParcelDraft(phone)[side];
+  const next: ParcelParty = {
+    name: (party.name ?? '').trim() || had.name,
+    address: (party.address ?? '').trim() || had.address,
+    // Digits only, because that is how a number arrives on a webhook and how
+    // the associate's card dials it.
+    phone: (party.phone ?? '').replace(/[^0-9]/g, '') || had.phone,
+  };
+
+  db.prepare(
+    `UPDATE parcel_drafts
+        SET ${side}_name = ?, ${side}_address = ?, ${side}_phone = ?, updated_at = ?
+      WHERE phone = ?`,
+  ).run(next.name, next.address, next.phone, nowIso(), phone);
+  return next;
+}
+
+/** What is in the parcel, kept with the rest of the draft. */
+export function saveParcelContents(phone: string, contents: string): void {
+  db.prepare(
+    `INSERT INTO parcel_drafts (phone, contents, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET contents = excluded.contents, updated_at = excluded.updated_at`,
+  ).run(phone, contents.trim(), nowIso());
 }
 
 export function clearParcelDraft(phone: string): void {

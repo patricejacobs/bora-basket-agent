@@ -387,6 +387,35 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'parcel_party',
+    description:
+      "Writes down one end of a parcel - the sender or the recipient - once the customer has AGREED it. Call it with `side` and whatever of the name, address and telephone number they gave. It reads the half back for you to show them; call it again with `confirmed` true once they have said it is right. Nothing is booked until both ends are confirmed, so this is how the six facts a parcel needs get collected without asking twice.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        side: {
+          type: 'string',
+          enum: ['sender', 'recipient'],
+          description: 'Which end of the journey this is.',
+        },
+        name: { type: 'string', description: 'Their name, as they gave it.' },
+        address: {
+          type: 'string',
+          description:
+            'Where the parcel is collected from, or delivered to, in words. The address only - no telephone number and no instructions.',
+        },
+        phone: { type: 'string', description: 'Their telephone number, digits only.' },
+        confirmed: {
+          type: 'boolean',
+          description:
+            'True only once this half has been read back to the customer and they have agreed it. Never on the same turn you first wrote it down.',
+        },
+      },
+      required: ['side'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'parcel_status',
     description:
       'Check what you already have for the parcel being arranged: which pins are on file, how far apart they are, and the fee if one can be quoted. Call this before asking the customer for anything, so you do not ask twice.',
@@ -1588,6 +1617,76 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       });
     }
 
+    /**
+     * One end of a parcel, written down and then agreed.
+     *
+     * A parcel needs six facts - two names, two addresses, two numbers - and
+     * nobody gives six facts in one message. They used to live in the model's
+     * context until `create_parcel_job` was called, which meant a
+     * conversation that wandered, or a reply an hour later, started again.
+     *
+     * Each half is stored the moment it arrives and marked agreed only when
+     * the customer has had it read back. The reason for the second step is
+     * that a parcel is the one order where getting a name wrong cannot be
+     * undone by apologising: it has already gone somewhere.
+     */
+    case 'parcel_party': {
+      const side = asString(input.side) === 'recipient' ? 'recipient' : 'sender';
+      const draft = repo.getParcelDraft(ctx.phone);
+      const other = side === 'sender' ? 'recipient' : 'sender';
+
+      if (input.confirmed === true) {
+        const held = draft[side];
+        const missing = (['name', 'address', 'phone'] as const).filter((f) => !held[f]);
+        if (missing.length > 0) {
+          return fail(
+            `Nothing to confirm yet for the ${side} — still missing ${missing.join(', ')}. Ask for it, save it, then confirm.`,
+          );
+        }
+        repo.saveParcelParty(ctx.phone, side, {});
+        const both = repo.getParcelDraft(ctx.phone);
+        const ready = (['name', 'address', 'phone'] as const).every((f) => both[other][f]);
+        return ok({
+          confirmed: side,
+          sender: both.sender,
+          recipient: both.recipient,
+          next: ready
+            ? 'Both ends are agreed. Ask what is in the parcel, then call create_parcel_job.'
+            : `Now the ${other}. Ask for their name, address and telephone number in one message.`,
+        });
+      }
+
+      const saved = repo.saveParcelParty(ctx.phone, side, {
+        name: asString(input.name),
+        address: asString(input.address),
+        phone: asString(input.phone),
+      });
+      const missing = (['name', 'address', 'phone'] as const).filter((f) => !saved[f]);
+
+      if (missing.length > 0) {
+        return ok({
+          side,
+          have: saved,
+          note: `Still need the ${side}'s ${missing.join(' and ')}. Ask for just that - do not ask again for what is already here.`,
+        });
+      }
+
+      return ok({
+        side,
+        have: saved,
+        // Read back as the shop will print it, so what the customer agrees to
+        // is what the delivery associate ends up holding.
+        read_back: [
+          side === 'sender' ? '*From:*' : '*To:*',
+          saved.name,
+          saved.address,
+          `📞 +${saved.phone}`,
+        ].join(' '),
+        say: `Show them the three lines and ask "is that right?" with a Yes and a Change it button.`,
+        next: `When they say yes, call parcel_party again with side "${side}" and confirmed true.`,
+      });
+    }
+
     case 'parcel_status': {
       const wrong = requireService(ctx.phone, 'parcel');
       if (wrong) return fail(wrong);
@@ -1595,7 +1694,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const draft = repo.getParcelDraft(ctx.phone);
       const quote = draft.pickup && draft.destination ? quoteParcel(draft.pickup, draft.destination) : null;
 
+      // Both halves, so nothing already agreed gets asked for twice. The
+      // commonest way to lose a parcel booking is to make somebody repeat
+      // themselves at the fourth question.
+      const half = (p: repo.ParcelParty): string => {
+        const missing = (['name', 'address', 'phone'] as const).filter((f) => !p[f]);
+        if (missing.length === 3) return 'nothing yet';
+        if (missing.length > 0) return `${p.name || 'unnamed'} — still needs ${missing.join(' and ')}`;
+        return `${p.name}, ${p.address}, +${p.phone}`;
+      };
+
       return ok({
+        sender: half(draft.sender),
+        recipient: half(draft.recipient),
+        contents: draft.contents || 'not said yet',
         pickup_pin: draft.pickup ? `on file${draft.pickup.label ? ` (${draft.pickup.label})` : ''}` : 'not yet',
         destination_pin: draft.destination
           ? `on file${draft.destination.label ? ` (${draft.destination.label})` : ''}`
@@ -1616,7 +1728,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const wrong = requireService(ctx.phone, 'parcel');
       if (wrong) return fail(wrong);
 
-      const contents = asString(input.contents);
+      const contents = asString(input.contents) || repo.getParcelDraft(ctx.phone).contents;
 
       // What is inside is checked first, before any question of who or where.
       //
@@ -1627,10 +1739,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const allowed = checkContents(contents);
       if (!allowed.allowed) return fail(allowed.reason);
 
-      const senderName = asString(input.sender_name);
-      const senderPhone = asString(input.sender_phone).replace(/[^0-9+]/g, '');
-      const recipientName = asString(input.recipient_name);
-      const recipientPhone = asString(input.recipient_phone).replace(/[^0-9+]/g, '');
+      // Whatever was agreed earlier stands in for what is not passed here.
+      //
+      // The two halves were collected and confirmed one at a time through
+      // `parcel_party`, so making the model repeat all six facts in this call
+      // is both pointless and a chance to get one of them wrong - and a name
+      // retyped from memory is exactly the sort of thing that sends a parcel
+      // to the wrong door.
+      const held = repo.getParcelDraft(ctx.phone);
+      const senderName = asString(input.sender_name) || held.sender.name;
+      const senderPhone =
+        asString(input.sender_phone).replace(/[^0-9+]/g, '') || held.sender.phone;
+      const recipientName = asString(input.recipient_name) || held.recipient.name;
+      const recipientPhone =
+        asString(input.recipient_phone).replace(/[^0-9+]/g, '') || held.recipient.phone;
 
       // Both ends are asked for and neither is assumed.
       //
@@ -1655,8 +1777,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       }
 
       const draft = repo.getParcelDraft(ctx.phone);
-      const pickupNote = asString(input.pickup_note);
-      const destinationNote = asString(input.destination_note);
+      const pickupNote = asString(input.pickup_note) || held.sender.address;
+      const destinationNote = asString(input.destination_note) || held.recipient.address;
 
       // Each end needs a pin or an address in words. A pin is better and is
       // asked for first, but somebody booking a parcel is often standing at

@@ -285,6 +285,18 @@ addColumnIfMissing('customers', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
 // And what the order was actually charged under, kept on the order so a
 // receipt a month old still says where it went.
 addColumnIfMissing('orders', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
+// The two parties to a parcel, held while they are being collected.
+//
+// A parcel needs two names, two addresses and two numbers, and nobody gives
+// all six in one message. Each half is written down the moment the customer
+// agrees it is right, so a conversation that wanders - or a reply that
+// arrives an hour later - never asks for the same thing twice.
+for (const side of ['sender', 'recipient'] as const) {
+  for (const field of ['name', 'address', 'phone'] as const) {
+    addColumnIfMissing('parcel_drafts', `${side}_${field}`, "TEXT NOT NULL DEFAULT ''");
+  }
+}
+addColumnIfMissing('parcel_drafts', 'contents', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'contact_phone', "TEXT NOT NULL DEFAULT ''");
 // A publicly reachable HTTPS image for the product. WhatsApp fetches the URL
 // itself, so nothing is stored here but the address.
