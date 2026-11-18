@@ -322,8 +322,32 @@ alternative number is read back before it is passed on.
 Somebody who asks twice, or sounds annoyed, is not curious — they want a
 person. It stops answering and hands over.
 
-**This needs `STAFF_NUMBERS` set.** With it empty the request is logged and
-nobody is told, so a customer is promised contact that never comes.
+**And if there is nobody to pass it to, it says so.** With `STAFF_NUMBERS`
+empty the agent does not claim the request has gone. It says it has been
+written down and somebody will come back to them — which is true, because it
+is written down:
+
+```
+"passed_on": false,  "written_down": true
+```
+
+Every request is recorded before anybody is told, and marked delivered only
+when staff have actually received it. At the next boot, any that are still
+waiting are sent — with their age attached, so a complaint from three days ago
+is not answered as if it arrived this minute:
+
+```
+[notify] 2 customer(s) who asked for a person have been passed on
+```
+
+So setting `STAFF_NUMBERS` for the first time does not just fix the next
+request; it delivers the ones already waiting. `/health` reports
+`pendingHelp` — how many customers are still owed a person.
+
+It used to report every request as passed on regardless, because the
+notification was fired off without waiting for an answer. A shop with no staff
+number told its customers their number had gone to the manager while the log
+said nobody had been told.
 
 ### Ordering
 

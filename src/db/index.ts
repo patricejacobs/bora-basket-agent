@@ -246,6 +246,23 @@ CREATE INDEX IF NOT EXISTS idx_message_log_phone ON message_log(phone);
 -- Facts about the database itself rather than about the shop's trade. Small
 -- on purpose: it exists so a one-shot operation can record that it has run,
 -- and so a restart - a deploy, a crash, a plan change - cannot run it again.
+-- A customer asking for a person, written down before anybody is told.
+--
+-- The telling can fail: there may be no staff number configured, or WhatsApp
+-- may refuse the message. Recording it first is what makes "someone will come
+-- back to you" true rather than a hope - the request survives the failure and
+-- is delivered when there is somebody to deliver it to.
+CREATE TABLE IF NOT EXISTS help_requests (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone        TEXT NOT NULL,
+  summary      TEXT NOT NULL,
+  urgent       INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL,
+  /** Empty until staff have actually received it. */
+  delivered_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_help_pending ON help_requests(delivered_at);
+
 CREATE TABLE IF NOT EXISTS meta (
   key        TEXT PRIMARY KEY,
   value      TEXT NOT NULL,

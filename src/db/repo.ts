@@ -2141,6 +2141,69 @@ export function saveParcelParty(
   return next;
 }
 
+/* ------------------------------------------------------- asking for a person */
+
+export type HelpRequest = {
+  id: number;
+  phone: string;
+  summary: string;
+  urgent: boolean;
+  createdAt: string;
+};
+
+/**
+ * Writes down a customer's request for a person, before anyone is told.
+ *
+ * Recorded first and delivered second, because the delivery is the part that
+ * fails: no staff number configured, a shut 24-hour window, a refused send.
+ * The shop used to report every request as passed on regardless - the
+ * notification was fired off without waiting for the answer - so a customer
+ * was told their number had gone to the manager while the log said nobody had
+ * been told. This is what makes the promise true.
+ */
+export function recordHelpRequest(phone: string, summary: string, urgent: boolean): number {
+  const row = db
+    .prepare(
+      `INSERT INTO help_requests (phone, summary, urgent, created_at)
+       VALUES (?, ?, ?, ?) RETURNING id`,
+    )
+    .get(phone, summary.slice(0, 800), urgent ? 1 : 0, nowIso()) as { id: number };
+  return row.id;
+}
+
+export function markHelpDelivered(id: number): void {
+  db.prepare(`UPDATE help_requests SET delivered_at = ? WHERE id = ? AND delivered_at = ''`).run(
+    nowIso(),
+    id,
+  );
+}
+
+/** Requests nobody has received yet, oldest first. */
+export function pendingHelpRequests(limit = 20): HelpRequest[] {
+  return (
+    db
+      .prepare(
+        `SELECT id, phone, summary, urgent, created_at AS createdAt
+           FROM help_requests WHERE delivered_at = '' ORDER BY id ASC LIMIT ?`,
+      )
+      .all(limit) as unknown as {
+        id: number;
+        phone: string;
+        summary: string;
+        urgent: number;
+        createdAt: string;
+      }[]
+  ).map((r) => ({ ...r, urgent: Boolean(r.urgent) }));
+}
+
+export function pendingHelpCount(): number {
+  return (
+    db.prepare(`SELECT COUNT(*) AS n FROM help_requests WHERE delivered_at = ''`).get() as {
+      n: number;
+    }
+  ).n;
+}
+
 /** The zone the parcel is priced under, once the customer has agreed it. */
 export function setParcelZone(phone: string, place: string): void {
   db.prepare(

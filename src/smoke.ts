@@ -4005,6 +4005,66 @@ section('A parcel, one end at a time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
 }
 
+section('Asking for a person, when there is nobody to ask');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { flushHelpRequests } = await import('./notifications.ts');
+
+  const caller = '5926103030';
+  db.prepare(`DELETE FROM help_requests WHERE phone = ?`).run(caller);
+  repo.saveCustomer(caller, { name: 'Patrice', address: '26 Brickdam', contactPhone: caller });
+  const ask = (): Record<string, unknown> =>
+    JSON.parse(
+      executeTool(
+        'request_staff_help',
+        { summary: 'Wants the manager to make direct contact.', urgency: 'normal' },
+        { phone: caller, outbound: [] as never[] } as never,
+      ),
+    ) as Record<string, unknown>;
+
+  /* --- with staff configured ------------------------------------------ */
+
+  check('this shop has a staff number', config.staffNumbers.length > 0);
+  const sent = ask();
+  check('the request is passed on', sent.passed_on === true, JSON.stringify(sent));
+  check('and the agent is told to promise neither when nor where', /Not when, and not where/.test(String(sent.next)), String(sent.next));
+
+  /* --- with nobody to tell -------------------------------------------- */
+
+  // The shop used to say "passed on" regardless, because the notification was
+  // fired off without waiting for an answer. A customer was told their number
+  // had gone to the manager while the log said nobody had been told.
+  const real = [...config.staffNumbers];
+  (config as { staffNumbers: string[] }).staffNumbers = [];
+
+  const pendingBefore = repo.pendingHelpCount();
+  const nobody = ask();
+  check('it does not claim to have passed it on', nobody.passed_on === false, JSON.stringify(nobody));
+  check('it says it was written down instead', nobody.written_down === true, JSON.stringify(nobody));
+  check(
+    'and tells the agent not to say it has gone',
+    /do not say it has been passed on/i.test(String(nobody.next)),
+    String(nobody.next),
+  );
+  // Which makes "somebody will come back to you" true rather than a hope.
+  check('the request is kept', repo.pendingHelpCount() === pendingBefore + 1, `${repo.pendingHelpCount()} vs ${pendingBefore}`);
+  check('with what they wanted', repo.pendingHelpRequests().some((r) => r.phone === caller), JSON.stringify(repo.pendingHelpRequests().slice(0, 2)));
+
+  // Nothing can be sent while there is nobody to send it to.
+  check('and flushing does nothing yet', (await flushHelpRequests()) === 0);
+
+  /* --- and when a staff number is finally set ------------------------- */
+
+  (config as { staffNumbers: string[] }).staffNumbers = real;
+  const flushed = await flushHelpRequests();
+  check('the waiting request goes out', flushed >= 1, String(flushed));
+  check('and is not sent twice', (await flushHelpRequests()) === 0);
+  check('nothing is left waiting', repo.pendingHelpRequests().every((r) => r.phone !== caller));
+
+  db.prepare(`DELETE FROM help_requests WHERE phone = ?`).run(caller);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(caller);
+}
+
 section('The customer associate, with no name');
 {
   const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');

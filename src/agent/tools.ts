@@ -1954,13 +1954,42 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!summary) return fail('summary is required — say what the customer needs.');
 
       const urgent = asString(input.urgency).toLowerCase() === 'urgent';
-      void notifyStaffOfRequest(ctx.phone, summary, urgent).catch((err) =>
-        console.error('[tools] staff help request failed:', err),
-      );
+
+      // Written down first, so the request survives a failure to deliver it.
+      const id = repo.recordHelpRequest(ctx.phone, summary, urgent);
+
+      // Whether there is anybody to tell is known without sending anything,
+      // and it is the case that actually happens: a shop that has not set
+      // STAFF_NUMBERS.
+      //
+      // This tool used to report `passed_on: true` whatever became of the
+      // notification - it was fired off without waiting - so such a shop told
+      // the customer their number had gone to the manager while the log said
+      // nobody had been told. The shop saying something untrue is worse than
+      // the setting being missing.
+      const somebodyToTell = config.staffNumbers.length > 0;
+
+      // Still fire-and-forget, because the reply to the customer must not wait
+      // on a Graph API round trip. The record is what closes the gap: it is
+      // marked delivered only when the send actually succeeds, so one that
+      // fails stays pending and goes out with the rest at the next boot.
+      void notifyStaffOfRequest(ctx.phone, summary, urgent)
+        .then((told) => {
+          if (told === 'sent') repo.markHelpDelivered(id);
+        })
+        .catch((err) => console.error('[tools] staff help request failed:', err));
+
+      if (somebodyToTell) {
+        return ok({
+          passed_on: true,
+          next: 'Say only that it has been passed on. Not when, and not where — the manager may ring rather than write, and a customer watching this chat for a reply that comes as a phone call has been told the wrong thing.',
+        });
+      }
 
       return ok({
-        passed_on: true,
-        next: 'Say only that it has been passed on. Not when, and not where — the manager may ring rather than write, and a customer watching this chat for a reply that comes as a phone call has been told the wrong thing.',
+        passed_on: false,
+        written_down: true,
+        next: 'Nobody could be reached just now, so do not say it has been passed on. Say it is written down and somebody will come back to them — that much is true, the request is saved and goes out the moment there is somebody to send it to. Still no promise of when. Do not explain why, do not mention settings, and do not apologise more than once.',
       });
     }
 

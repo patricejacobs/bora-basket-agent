@@ -3,7 +3,7 @@ import { t, type Language } from './language.ts';
 import { languageFor } from './services.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
-import { nextActions, CANCEL_REASONS } from './order-status.ts';
+import { nextActions, CANCEL_REASONS, describeAge } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin } from './location.ts';
 
@@ -175,6 +175,41 @@ function cancelledMessage(order: repo.OrderRecord): string {
  * now "a staff member will follow up" went nowhere. Staff get the customer's
  * number as a tappable link so replying is one tap from the alert.
  */
+/**
+ * Sends every request for a person that nobody has received yet.
+ *
+ * Called at boot. A shop that has just set STAFF_NUMBERS for the first time
+ * has customers waiting who were told, truthfully, that their request was
+ * written down and somebody would come back to them - this is the somebody
+ * coming back. Without it that promise expires quietly and the customer is
+ * left worse off than if they had been refused.
+ */
+export async function flushHelpRequests(): Promise<number> {
+  if (config.staffNumbers.length === 0) return 0;
+
+  const waiting = repo.pendingHelpRequests();
+  if (waiting.length === 0) return 0;
+
+  let sent = 0;
+  for (const r of waiting) {
+    // Said plainly as old, because a complaint from three days ago read as if
+    // it arrived this minute is answered in the wrong tone entirely.
+    const aged = `${r.summary}
+
+(asked for a person ${describeAge(r.createdAt)}, and nobody was reachable at the time)`;
+    const told = await notifyStaffOfRequest(r.phone, aged, r.urgent).catch((err) => {
+      console.error('[notify] a waiting help request could not be sent:', err);
+      return 'no_staff' as const;
+    });
+    if (told === 'sent') {
+      repo.markHelpDelivered(r.id);
+      sent++;
+    }
+  }
+  if (sent > 0) console.log(`[notify] ${sent} customer(s) who asked for a person have been passed on`);
+  return sent;
+}
+
 export async function notifyStaffOfRequest(
   phone: string,
   summary: string,

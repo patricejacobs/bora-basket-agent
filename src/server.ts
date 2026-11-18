@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money } from './config.ts';
-import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen, pendingHelpCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
@@ -19,7 +19,7 @@ import {
 import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats, deliveryStats } from './channels/whatsapp-send.ts';
-import { warnStaff } from './notifications.ts';
+import { warnStaff, flushHelpRequests } from './notifications.ts';
 import { applyScheduledReset } from './reset.ts';
 import { loadZonesFromDisk, zoneCount } from './zones.ts';
 import { simulatorRouter } from './channels/simulator.ts';
@@ -222,6 +222,12 @@ loadCatalogue();
 loadMenus();
 loadAssociates();
 warnAboutUnreachableAssociates();
+
+// Customers who asked for a person while nobody was reachable. They were told
+// it was written down and somebody would come back to them; this is that.
+void flushHelpRequests().catch((err) =>
+  console.error('[notify] waiting help requests could not be flushed:', err),
+);
 startStallWatch();
 startBackupSchedule();
 
@@ -309,6 +315,8 @@ app.get('/health', (_req: Request, res: Response) => {
       driverNumbers: associateNumbers().length,
       // Places in the delivery tariff. 0 means every delivery is the flat fee.
       deliveryZones: zoneCount(),
+      // Customers who asked for a person and are still waiting to be passed on.
+      pendingHelp: pendingHelpCount(),
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,
