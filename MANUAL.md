@@ -378,6 +378,35 @@ notification was fired off without waiting for an answer. A shop with no staff
 number told its customers their number had gone to the manager while the log
 said nobody had been told.
 
+### The same as last time
+
+A weekly shop is the same rice and the same milk, so a regular is offered
+theirs rather than walked through the aisles. Anything like *"the usual"*,
+*"same as last week"*, *"same again"* fills the basket from their last order.
+
+**It will not pretend.** Three things are reported before the customer agrees
+to anything:
+
+- what is **no longer available**, named rather than quietly dropped
+- what **costs more than last time**, with the old price and the new
+- the **basket and its total**, read back for them to change
+
+A customer who said yes to "the usual" and was then charged more for it was
+not told the truth, and a bag that arrives short of the milk they thought they
+had ordered is worse than being told at the time.
+
+**It will not double a half-shopped basket** either. Somebody who has already
+started and then says "and the usual" is asked whether to keep what they have,
+start again, or set it aside — mixing two shops into one basket silently is
+how somebody is charged twice for rice.
+
+Nothing is ordered by repeating; it fills the basket and stops.
+
+The prompt had promised this for months — *"greet a regular by name and offer
+their usual order rather than starting from scratch"* — with no tool that
+could do it. The agent could read a past order out and then had to walk them
+through the aisles anyway.
+
 ### Shopping by number
 
 Somebody who says they want to shop, and has not named anything, gets the
@@ -1056,6 +1085,39 @@ The dispatch desk's own alert follows the same rule: 🛒 and "Picking takes
 about 20 minutes" for a grocery, 🍽️ and "Kitchen reckons about 20 minutes" for
 a kitchen. It used to say the kitchen line over a bag of shopping, because
 having a shop and being cooked were once the same fact.
+
+### Photographs
+
+`show_product_photo` works and the catalogue has none, which is the single
+cheapest thing that would make the shop feel finished.
+
+**Photos live on disk.** Drop `RIC-001.jpg` into the images folder and it is
+live — no CDN, no upload, no restart. A URL in the catalogue CSV wins where
+there is one; the folder is the fallback.
+
+```
+npm run photos:wanted
+```
+
+prints what is still missing, aisle by aisle in the order somebody walks the
+shop, with the filename to save each one under — and writes the same list to
+`data/photos-wanted.csv` for carrying on a phone.
+
+```
+npm run photos:find
+```
+
+looks for matches on Open Food Facts, which is an open database of **branded
+packaged goods**. That is the catch: this shop sells bora, callaloo, plantain,
+snapper and tennis rolls, and a database of packaged brands does not hold a
+photograph of them. A whole-catalogue run found nothing it would apply.
+
+It does hold some — a Tennis Roll, a callaloo — that the scorer rated too low
+to propose. Every candidate is now written to `data/photo-candidates.csv`
+whatever it scored, so a person can see the near-misses and accept the right
+ones. The bar for applying a photo automatically is unchanged: a wrong photo
+is worse than none, and a customer shown a ketchup bottle for tomatoes trusts
+nothing else on the screen.
 
 To see every card for all three kinds of business side by side, run
 `node cards-gallery.ts`. It drives the real notify and dispatch functions and

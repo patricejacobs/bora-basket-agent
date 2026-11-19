@@ -1485,6 +1485,55 @@ function hydrateOrder(row: {
   };
 }
 
+/**
+ * The lines of a past order, as the shop would need to buy them again.
+ *
+ * Carries the SKU and what each line cost at the time, which the hydrated
+ * order deliberately does not: a receipt is about what happened, and this is
+ * about doing it again. The old price is what lets a customer be told their
+ * usual has gone up, rather than finding out at the door.
+ */
+export function orderLines(
+  orderNo: string,
+): { sku: string; name: string; qty: number; options: string; wasUnitPrice: number }[] {
+  const row = db.prepare(`SELECT id FROM orders WHERE order_no = ?`).get(orderNo) as
+    | { id: number }
+    | undefined;
+  if (!row) return [];
+  return db
+    .prepare(
+      `SELECT sku, name, qty, options, unit_price AS wasUnitPrice
+         FROM order_items WHERE order_id = ? ORDER BY id ASC`,
+    )
+    .all(row.id) as unknown as {
+    sku: string;
+    name: string;
+    qty: number;
+    options: string;
+    wasUnitPrice: number;
+  }[];
+}
+
+/**
+ * The order a customer most likely means by "the same as last time".
+ *
+ * The newest one that actually had items in it and was not cancelled -
+ * cancelled is the one order nobody means by "the usual", and a parcel has
+ * nothing to put in a basket.
+ */
+export function lastRepeatableOrder(phone: string): string {
+  const row = db
+    .prepare(
+      `SELECT o.order_no AS orderNo
+         FROM orders o
+        WHERE o.phone = ? AND o.status <> 'cancelled' AND o.kind <> 'parcel'
+          AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id)
+        ORDER BY o.id DESC LIMIT 1`,
+    )
+    .get(phone) as { orderNo: string } | undefined;
+  return row?.orderNo ?? '';
+}
+
 /** Accepts "ORD-00007", "ord-7" or plain "7" — dispatchers will not type the padding. */
 export function findOrder(reference: string): OrderRecord | null {
   const digits = reference.replace(/[^0-9]/g, '');

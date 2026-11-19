@@ -559,6 +559,22 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'repeat_last_order',
+    description:
+      "Fill the basket with what they bought last time. Use it the moment a returning customer says anything like \"the usual\", \"same as last week\", \"same again\" — and offer it to a regular before walking them through the aisles. It reports what is no longer available and anything whose price has changed, so you can say both before they agree. The cart must be empty.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        order_number: {
+          type: 'string',
+          description:
+            "A particular past order, e.g. 'ORD-00007' or '7'. Omit for their last one, which is what they almost always mean.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'list_recent_orders',
     description:
       "Look up this customer's own recent orders, with where each one has got to. Call this whenever they ask about an order — 'where is my order', 'has it left yet', 'did it go through' — and when they want to reorder the same items. Never answer from memory: a status can change between messages.",
@@ -2275,6 +2291,107 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         passed_on: false,
         written_down: true,
         next: 'Nobody could be reached just now, so do not say it has been passed on. Say it is written down and somebody will come back to them — that much is true, the request is saved and goes out the moment there is somebody to send it to. Still no promise of when. Do not explain why, do not mention settings, and do not apologise more than once.',
+      });
+    }
+
+    /**
+     * Last week's shopping, back in the basket.
+     *
+     * Groceries are the same rice and the same milk every week, and the shop
+     * already knew it: the prompt has told the agent for months to "greet a
+     * regular by name and offer their usual order rather than starting from
+     * scratch" - with no tool that could do it. The agent could read a past
+     * order out and then had to walk the customer through the aisles anyway.
+     *
+     * What it will not do is pretend. A product withdrawn since, sold out, or
+     * short of stock is named rather than quietly dropped, and a price that
+     * has moved is reported, because the one thing worse than a basket
+     * missing an item is a basket the customer believes is complete.
+     */
+    case 'repeat_last_order': {
+      const asked = asString(input.order_number).trim();
+      const orderNo = asked
+        ? repo.findOrder(asked)?.orderNo ?? ''
+        : repo.lastRepeatableOrder(ctx.phone);
+
+      if (!orderNo) {
+        return fail(
+          asked
+            ? `No order ${asked} to repeat.`
+            : 'They have no past order to repeat. Offer the aisles instead, with list_categories.',
+        );
+      }
+
+      const past = repo.findOrder(orderNo);
+      if (!past || past.phone !== ctx.phone) {
+        return fail(`${orderNo} is not theirs to repeat.`);
+      }
+
+      const lines = repo.orderLines(orderNo);
+      if (lines.length === 0) {
+        return fail(`${orderNo} has nothing in it to repeat — a parcel, most likely.`);
+      }
+
+      // An existing basket is not quietly doubled. Somebody who has already
+      // started shopping and then says "and the usual" means both, and the
+      // only honest way to get there is to ask.
+      const existing = repo.getCart(ctx.phone);
+      if (existing.lines.length > 0) {
+        return fail(
+          'Their basket is not empty, so repeating an order would mix two shops into one. Read back what is already in it and ask whether to keep that, start again (clear_cart), or set it aside (park_cart).',
+        );
+      }
+
+      const added: Record<string, unknown>[] = [];
+      const missing: Record<string, unknown>[] = [];
+      const dearer: Record<string, unknown>[] = [];
+
+      for (const line of lines) {
+        const product = repo.getProductBySku(line.sku);
+        if (!product) {
+          missing.push({ name: line.name, reason: 'not in the catalogue any more' });
+          continue;
+        }
+        const refusal = refuseQty(product, line.qty);
+        if (refusal) {
+          missing.push({ name: product.name, reason: refusal });
+          continue;
+        }
+        repo.setCartQty(ctx.phone, product.id, line.qty, line.options);
+        added.push({ name: product.name, quantity: line.qty });
+
+        // Said out loud rather than absorbed. A customer who agreed to "the
+        // usual" and is then charged more for it was not told the truth.
+        if (line.wasUnitPrice > 0 && product.price !== line.wasUnitPrice) {
+          dearer.push({
+            name: product.name,
+            was: money(line.wasUnitPrice),
+            now: money(product.price),
+          });
+        }
+      }
+
+      const cart = repo.getCart(ctx.phone);
+      if (cart.lines.length === 0) {
+        repo.clearCart(ctx.phone);
+        return fail(
+          `Nothing from ${orderNo} can be had today: ${missing.map((m) => `${String(m.name)} (${String(m.reason)})`).join('; ')}. Say so plainly and offer the aisles.`,
+        );
+      }
+
+      return ok({
+        repeated: orderNo,
+        when: describeAge(past.placedAt),
+        added,
+        ...(missing.length > 0 ? { could_not_add: missing } : {}),
+        ...(dearer.length > 0 ? { price_changed: dearer } : {}),
+        cart: {
+          items: cart.lines.map((l) => `${l.qty} x ${l.product.name}`),
+          subtotal: money(cart.subtotal),
+          total: money(cart.total),
+        },
+        say: 'Read the basket back as a short list with the total, and name anything that could not be added and anything that costs more than last time. Then ask whether to change anything before ordering.',
+        next: 'Nothing is ordered yet. Carry on as normal from here.',
       });
     }
 

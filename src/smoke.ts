@@ -8468,6 +8468,104 @@ section('Backing up the trading record');
 console.log('');
 
 // Windows keeps the file locked while the handle is open, so close before deleting.
+section('The same as last time');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+
+  for (const p2 of repo.associateNumbers()) repo.setDuty(p2, true);
+
+  const regular = '5926104545';
+  const call = (tool: string, args: Record<string, unknown> = {}): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: regular, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  const milk = 'REPEAT-MILK';
+  const rice = 'REPEAT-RICE';
+  for (const [sku, name, price] of [[milk, 'Repeat Milk', 800], [rice, 'Repeat Rice', 1900]] as [string, string, number][]) {
+    repo.upsertProduct({
+      sku, name, description: '', category: 'Dairy & Eggs', unit: 'each',
+      price, stock: 50, keywords: name.toLowerCase(), active: 1, trackStock: 1,
+    } as never);
+  }
+  const idOf = (sku: string): number => (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(sku) as { id: number }).id;
+
+  /* --- nothing to repeat yet ------------------------------------------- */
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(regular);
+  repo.clearCart(regular);
+  repo.setService(regular, 'grocery');
+  const nothing = call('repeat_last_order');
+  check('a first-time customer has nothing to repeat', typeof nothing.error === 'string', JSON.stringify(nothing).slice(0, 110));
+  check('and is pointed at the aisles instead', /list_categories/.test(String(nothing.error)), String(nothing.error));
+
+  /* --- last week's shop ------------------------------------------------ */
+
+  repo.saveCustomer(regular, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: regular });
+  repo.confirmIdentity(regular);
+  repo.setCartQty(regular, idOf(milk), 2, '');
+  repo.setCartQty(regular, idOf(rice), 1, '');
+  const lastWeek = JSON.parse(
+    executeTool('place_order', { payment_method: 'cash_on_delivery' }, { phone: regular, outbound: [] as never[] } as never),
+  ) as { order_number?: string; error?: string };
+  check('last week they ordered', typeof lastWeek.order_number === 'string', String(lastWeek.error).slice(0, 110));
+  repo.setOrderStatus(String(lastWeek.order_number), 'delivered');
+
+  const again = call('repeat_last_order');
+  check('the usual comes back', again.repeated === lastWeek.order_number, JSON.stringify(again).slice(0, 140));
+  const back = (again.added as { name: string; quantity: number }[]) ?? [];
+  check('with the same things', back.length === 2, JSON.stringify(back));
+  check('and the same quantities', back.find((b) => b.name === 'Repeat Milk')?.quantity === 2, JSON.stringify(back));
+  check('nothing is ordered by doing it', repo.recentOrders(regular, 5).filter((o) => o.status !== 'delivered').length === 0);
+
+  /* --- an honest basket ------------------------------------------------ */
+
+  repo.clearCart(regular);
+  // A price that moved is said out loud. A customer who agreed to "the usual"
+  // and is then charged more for it was not told the truth.
+  db.prepare(`UPDATE products SET price = 950 WHERE sku = ?`).run(milk);
+  // And something withdrawn since is named, not quietly dropped.
+  db.prepare(`UPDATE products SET active = 0 WHERE sku = ?`).run(rice);
+
+  const changed = call('repeat_last_order');
+  const dearer = (changed.price_changed as { name: string; was: string; now: string }[]) ?? [];
+  check('a price that moved is reported', dearer[0]?.name === 'Repeat Milk', JSON.stringify(changed.price_changed));
+  check('with what it was and what it is', /800/.test(dearer[0]?.was ?? '') && /950/.test(dearer[0]?.now ?? ''), JSON.stringify(dearer[0]));
+
+  const gone = (changed.could_not_add as { name: string; reason: string }[]) ?? [];
+  check('what is gone is named', gone[0]?.name === 'Repeat Rice', JSON.stringify(changed.could_not_add));
+  check('and the rest still goes in', (changed.added as unknown[]).length === 1, JSON.stringify(changed.added));
+  check('the agent is told to say both', /costs more than last time/.test(String(changed.say)), String(changed.say));
+
+  /* --- when none of it can be had -------------------------------------- */
+
+  db.prepare(`UPDATE products SET active = 0 WHERE sku = ?`).run(milk);
+  repo.clearCart(regular);
+  const hopeless = call('repeat_last_order');
+  check('a basket of nothing is refused, not sent', typeof hopeless.error === 'string', JSON.stringify(hopeless).slice(0, 110));
+  check('saying what cannot be had', /Repeat Milk/.test(String(hopeless.error)), String(hopeless.error).slice(0, 140));
+  check('and the cart is left empty', repo.getCart(regular).lines.length === 0);
+
+  /* --- it will not quietly double a basket ----------------------------- */
+
+  db.prepare(`UPDATE products SET active = 1, price = 800 WHERE sku IN (?, ?)`).run(milk, rice);
+  repo.setCartQty(regular, idOf(milk), 1, '');
+  const mixing = call('repeat_last_order');
+  check('a half-shopped basket is not doubled', typeof mixing.error === 'string', JSON.stringify(mixing).slice(0, 110));
+  check('and the ways out are offered', /park_cart/.test(String(mixing.error)) && /clear_cart/.test(String(mixing.error)), String(mixing.error));
+
+  /* --- and the promise the prompt was making is kept ------------------- */
+
+  // The prompt has told the agent for months to "offer their usual order
+  // rather than starting from scratch", with no tool that could do it.
+  check('the prompt names the tool now', /repeat_last_order/.test(SYSTEM_PROMPT));
+  check('and still says to offer it', /offer their usual order/.test(SYSTEM_PROMPT));
+
+  repo.clearCart(regular);
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(regular);
+  db.prepare(`DELETE FROM products WHERE sku IN (?, ?)`).run(milk, rice);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
+}
+
 section('What a dead order leaves on the shelf');
 {
   const { executeTool } = await import('./agent/tools.ts');

@@ -191,8 +191,34 @@ for (const [index, row] of needing.entries()) {
     .sort((a, b) => b.score - a.score)[0];
 
   const label = `${String(index + 1).padStart(3)}/${needing.length}  ${ourName.padEnd(28).slice(0, 28)}`;
-  if (!best || best.score < 0.35) {
-    console.log(`${dim(label)} ${dim('no usable match')}`);
+  // Everything the database offered is written down, whatever it scored.
+  //
+  // Anything under 0.35 used to be dropped on the floor - not applied, which
+  // is right, but not recorded either, which is not. A whole catalogue came
+  // back "no usable match" while the database did hold a Tennis Roll for the
+  // Tennis Rolls and a callaloo for the Callaloo: the scorer was wrong about
+  // them, and nobody could see that it was wrong, because the only trace was
+  // a grey line saying nothing had been found.
+  //
+  // The bar for APPLYING one is untouched. A wrong photo is worse than none,
+  // and 0.6 is still what it takes to be written into the catalogue without a
+  // person looking. This only means a person can look.
+  if (!best) {
+    console.log(`${dim(label)} ${dim('nothing came back')}`);
+  } else if (best.score < 0.35) {
+    proposals.push({
+      sku,
+      ourName,
+      theirName: best.name,
+      brand: best.brand,
+      imageUrl: best.imageUrl,
+      code: best.code,
+      score: best.score,
+    });
+    console.log(
+      `${dim(label)} ${dim(`${best.name.slice(0, 34)}  — too far off, written down anyway`)}` +
+        dim(`  ${best.score.toFixed(2)}`),
+    );
   } else {
     proposals.push({
       sku,
@@ -241,6 +267,9 @@ fs.writeFileSync(
 console.log('');
 console.log(`  ${proposals.length} candidate(s), ${green(String(accepted.length))} scored above ${ACCEPT_SCORE}`);
 console.log(`  written to ${dim(path.relative(process.cwd(), CANDIDATES))} — review before trusting them`);
+console.log(
+  dim('  the low-scoring ones are in there too: most are nonsense, a few are the right photo the scorer did not recognise'),
+);
 
 if (!apply) {
   console.log(`\n  Nothing changed. Re-run with ${green('--apply')} to write the accepted ones into the catalogue.\n`);
