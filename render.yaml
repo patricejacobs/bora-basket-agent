@@ -159,21 +159,23 @@ services:
       # BACKUP_TO defaults to the first STAFF_NUMBERS entry.
       - key: BACKUP_SEND_HOURS
         value: "24"
-      # How many jobs one associate may hold at once. Three, so a car booked
-      # while they are mid-delivery still reaches them: a busy associate is
-      # offered nothing, and with a cap of one a passenger waited in the road
-      # until a bag of groceries got to a door.
+      # How many jobs one associate may hold at once. 0 is no cap, which is
+      # what this shop runs on and what the two entries that used to be here
+      # disagreed about.
       #
-      # The price of raising it, stated plainly: the shop no longer knows that
-      # each associate is holding exactly one thing. Three open jobs is three
-      # chances to arrive cold. 1 is the strict rule, 0 switches the cap off.
+      # No cap means nothing is ever held back for being busy: a taxi booked
+      # while somebody is mid-delivery still reaches them, and two orders from
+      # one kitchen are one trip rather than a refusal. What it costs is the
+      # certainty — with a cap of 1 the shop knows each associate is holding
+      # exactly one thing, and without it that is whatever they have accepted.
       #
       # This file is the blueprint, not the running service. A value changed
       # here reaches the shop only if Render is syncing the blueprint —
       # otherwise it is the dashboard's copy that counts, and both should be
-      # set to the same thing. /health reports the figure in force.
+      # set to the same thing. /health reports the figure in force, which is
+      # the only way to tell them apart.
       - key: MAX_JOBS_PER_ASSOCIATE
-        value: "3"
+        value: "0"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES
