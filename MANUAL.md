@@ -1118,11 +1118,23 @@ Delivery Diamond $1,800
 *Total $5,000* — paid in cash
 ```
 
-**Free delivery works again.** `FREE_DELIVERY_OVER` is now tested before
-anything else and for every kind of order. It used to be checked after the
-outlet branch, which meant it stopped applying the day the grocery became a
-shop — every order has an outlet since then, so it was set, quoted in the
-prompt, and silently dead.
+**Free delivery is for groceries only, over $100,000.**
+
+`FREE_DELIVERY_OVER` waives the charge on a basket off the shop's own
+shelves, and on nothing else. A restaurant order is somebody else's food —
+the kitchen keeps the margin and the delivery is the only thing the shop
+earns on it, so giving that away on the biggest trips of the day is working
+for nothing. A parcel and a taxi have no goods at all: their fee *is* the
+job.
+
+It is tested before the zone, so a basket over the threshold is free wherever
+it is going. That is deliberate — at $100,000 the basket pays for the
+distance.
+
+**It also decides who earns reward points.** Points come off the delivery
+charge, so a free delivery earns nothing. At $100,000 that is a rare enough
+order not to matter; at the $10,000 this was set to before, every large
+grocery order would have earned a customer nothing at all.
 
 `/health` reports `deliveryZones` — how many places are priced. Zero means the
 flat fee.
@@ -1390,7 +1402,7 @@ from the business number the agent sends from. The agent cannot message itself.
 | `STORE_HOURS` | Mon-Sat 8am-8pm | `24 hours` for round the clock |
 | `STORE_TIMEZONE` | America/Guyana | Decides when "today" starts |
 | `DELIVERY_FEE` | 0 | Flat fee on shopping orders |
-| `FREE_DELIVERY_OVER` | 0 | Waives it above this subtotal |
+| `FREE_DELIVERY_OVER` | 0 | Waives it above this subtotal, **groceries only** |
 | `MIN_ORDER_TOTAL` | 0 | Smallest order accepted |
 | `PARCEL_FEE_BASE` | **0** | Flat part of a parcel fee. **At 0 every parcel books unpriced** — see below |
 | `PARCEL_FEE_PER_KM` | **0** | Per-kilometre part |

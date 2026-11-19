@@ -648,12 +648,25 @@ export function calcDeliveryFee(
   if (subtotal <= 0) return 0;
   const { deliveryFee, freeDeliveryOver } = config.store;
 
-  // Free delivery is tested first now, and for every kind of order.
+  // Free delivery is for GROCERIES, and only for groceries.
   //
-  // It used to come after the outlet branch, which meant it stopped applying
-  // the day the grocery became a shop: every order has an outlet since then,
-  // so FREE_DELIVERY_OVER was set, quoted in the prompt, and silently dead.
-  if (freeDeliveryOver > 0 && subtotal >= freeDeliveryOver) return 0;
+  // The shop's own shelves, where a big basket is worth carrying for nothing
+  // because the margin is the shop's. A restaurant order is somebody else's
+  // food: the kitchen keeps the margin and the delivery is the only thing the
+  // shop earns on, so giving it away on a large order means working for
+  // nothing on the biggest trips of the day. A parcel and a taxi have no
+  // goods at all — their fee IS the job.
+  //
+  // Tested before the zone, so a big enough grocery basket is free wherever
+  // it is going. That is deliberate: the threshold is high enough that the
+  // basket pays for the distance.
+  if (
+    freeDeliveryOver > 0 &&
+    subtotal >= freeDeliveryOver &&
+    outlet?.kind === 'grocery'
+  ) {
+    return 0;
+  }
 
   // The agreed zone beats everything. It is the only figure the customer has
   // actually said yes to, and it is what the shop will be held to.

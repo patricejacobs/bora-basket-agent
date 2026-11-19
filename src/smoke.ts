@@ -401,11 +401,22 @@ section('Checkout');
 
 section('Delivery fee rules');
 {
-  const free = repo.calcDeliveryFee(20000);
-  check('free over the threshold', free === 0, String(free));
-  const charged = repo.calcDeliveryFee(2000);
+  // Free delivery is the shop's own margin given away on its own shelves.
+  // A kitchen keeps the margin on its food, so the delivery is the only
+  // thing the shop earns on that order and it is never free.
+  const shelf = { kind: 'grocery', deliveryFee: null } as never;
+  const kitchen = { kind: 'restaurant', deliveryFee: null } as never;
+  const over = config.store.freeDeliveryOver;
+
+  check('a big grocery basket travels free', repo.calcDeliveryFee(over, shelf) === 0,
+    String(repo.calcDeliveryFee(over, shelf)));
+  check('the same money of restaurant food does not',
+    repo.calcDeliveryFee(over, kitchen) === 500, String(repo.calcDeliveryFee(over, kitchen)));
+  check('nor does an order from no shop at all',
+    repo.calcDeliveryFee(over, null) === 500, String(repo.calcDeliveryFee(over, null)));
+  const charged = repo.calcDeliveryFee(2000, shelf);
   check('charged under the threshold', charged === 500, String(charged));
-  check('no fee on an empty cart', repo.calcDeliveryFee(0) === 0);
+  check('no fee on an empty cart', repo.calcDeliveryFee(0, shelf) === 0);
 }
 
 /* ----------------------------------------------------------------- buttons */
@@ -4998,10 +5009,18 @@ section('What a delivery costs, by where it goes');
   // day groceries became a shop: every order has an outlet since then, and
   // FREE_DELIVERY_OVER was set, quoted in the prompt, and silently dead.
   if (config.store.freeDeliveryOver > 0) {
+    const shelf = { kind: 'grocery', deliveryFee: null } as never;
+    const kitchen = { kind: 'restaurant', deliveryFee: null } as never;
     check(
-      'a big enough order travels free, zone or no zone',
-      repo.calcDeliveryFee(config.store.freeDeliveryOver, null, 'Diamond') === 0,
-      String(repo.calcDeliveryFee(config.store.freeDeliveryOver, null, 'Diamond')),
+      'a big enough grocery basket travels free, zone or no zone',
+      repo.calcDeliveryFee(config.store.freeDeliveryOver, shelf, 'Diamond') === 0,
+      String(repo.calcDeliveryFee(config.store.freeDeliveryOver, shelf, 'Diamond')),
+    );
+    // The half that costs the shop money if it is wrong.
+    check(
+      'and the same from a kitchen still pays the zone',
+      repo.calcDeliveryFee(config.store.freeDeliveryOver, kitchen, 'Diamond') === 1800,
+      String(repo.calcDeliveryFee(config.store.freeDeliveryOver, kitchen, 'Diamond')),
     );
   }
   check('and a small one pays the zone', repo.calcDeliveryFee(1000, null, 'Diamond') === 1800, String(repo.calcDeliveryFee(1000, null, 'Diamond')));

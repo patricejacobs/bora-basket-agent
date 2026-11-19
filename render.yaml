@@ -236,8 +236,11 @@ services:
         value: "cash"
       - key: DELIVERY_FEE
         value: "500"
+      # Groceries only, and only off the shop's own shelves — a restaurant
+      # order is somebody else's food and the delivery is the only thing the
+      # shop earns on it. High enough that the basket pays for the distance.
       - key: FREE_DELIVERY_OVER
-        value: "10000"
+        value: "100000"
       - key: MIN_ORDER_TOTAL
         value: "1000"
       - key: CURRENCY_CODE

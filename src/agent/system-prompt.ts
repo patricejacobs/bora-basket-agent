@@ -12,7 +12,7 @@ function buildSystemPrompt(): string {
 
   const deliveryLine =
     store.freeDeliveryOver > 0
-      ? `${money(store.deliveryFee)} delivery, free on orders over ${money(store.freeDeliveryOver)}.`
+      ? `${money(store.deliveryFee)} delivery. Free on GROCERY orders over ${money(store.freeDeliveryOver)} — groceries only, never on restaurant food, a parcel or a taxi.`
       : `${money(store.deliveryFee)} delivery.`;
 
   // Never offer a method the shop cannot take: a customer told "card is fine"

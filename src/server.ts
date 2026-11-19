@@ -539,7 +539,9 @@ app.listen(config.port, () => {
   }
   console.log(
     `  delivery      ${money(config.store.deliveryFee)}` +
-      (config.store.freeDeliveryOver > 0 ? `, free over ${money(config.store.freeDeliveryOver)}` : ''),
+      (config.store.freeDeliveryOver > 0
+        ? `, free on groceries over ${money(config.store.freeDeliveryOver)}`
+        : ''),
   );
   console.log(`  model         ${config.anthropic.model} (effort: ${config.anthropic.effort})`);
   if (config.enableSimulator) {
