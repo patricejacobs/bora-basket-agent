@@ -364,6 +364,17 @@ addColumnIfMissing('customers', 'contact_phone', "TEXT");
 // next order instead of leaving a figure nobody charges any more - the same
 // rule the cart follows for menu options.
 addColumnIfMissing('customers', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
+// The delivery charge this customer has been shown and has agreed to.
+//
+// -1 means nothing has been quoted to them. Kept apart from the zone,
+// because the zone is a place and this is a figure: a parcel is priced from
+// both ends now, so the amount read back is not always the destination's own
+// fee, and the thing that must be honoured is the amount they heard.
+//
+// What it buys is one rule, enforced in code rather than asked of a model:
+// the shop never charges a delivery fee higher than the one the customer
+// agreed to.
+addColumnIfMissing('customers', 'fee_agreed', 'INTEGER NOT NULL DEFAULT -1');
 // And what the order was actually charged under, kept on the order so a
 // receipt a month old still says where it went.
 addColumnIfMissing('orders', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");

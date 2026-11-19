@@ -80,6 +80,15 @@ function section(title: string): void {
 
 const PHONE = '5926005555';
 const ctx: ToolContext = { phone: PHONE, outbound: [] };
+/**
+ * Stands in for the two-step read-back: this customer has been told the
+ * delivery charge their cart carries, and has agreed to it.
+ *
+ * Checkout refuses a fee nobody was quoted, which is the point of the guard
+ * and would otherwise make every section below a pricing test.
+ */
+const quoted = (p: string): void => repo.setFeeAgreed(p, repo.getCart(p).deliveryFee);
+
 const call = (name: string, input: unknown = {}): any =>
   JSON.parse(executeTool(name, input, ctx));
 
@@ -371,8 +380,19 @@ section('Checkout');
   );
 
   const stockBefore = call('get_product', { sku: 'RIC-001' }).stock_remaining;
+
+  // Nobody is charged a delivery fee they have not been told, so an order
+  // cannot be placed before one has been quoted and agreed. In a real
+  // conversation that is delivery_zone's two-step read-back; here it is the
+  // same record written directly, because this section is about checkout and
+  // not about pricing.
+  const unquoted = call('place_order', { payment_method: 'cash_on_delivery' });
+  check('an unquoted delivery charge is refused',
+    /has not been quoted/.test(String(unquoted.error)), String(unquoted.error).slice(0, 90));
+  repo.setFeeAgreed(PHONE, repo.getCart(PHONE).deliveryFee);
+
   const order = call('place_order', { payment_method: 'cash_on_delivery', delivery_note: 'Call on arrival' });
-  check('places the order', order.placed === true, JSON.stringify(order).slice(0, 160));
+  check('places the order once it has been', order.placed === true, JSON.stringify(order).slice(0, 160));
   // A shopping order off the shop's own shelves, so GRO. The prefix says
   // what the job is; the number is unique across all of them.
   check('returns an order number', /^GRO-\d{5}$/.test(order.order_number ?? ''), order.order_number);
@@ -946,11 +966,13 @@ section('Customer identity');
   // An order cannot be placed on an unconfirmed identity, however complete the details.
   idCall('add_to_cart', { sku: 'RIC-001', quantity: 2 });
   db.prepare(`UPDATE customers SET identity_confirmed_at = NULL WHERE phone = ?`).run(idPhone);
+  quoted(idPhone);
   const blocked = idCall('place_order', { payment_method: 'cash_on_delivery' });
   check('checkout blocked while unconfirmed', typeof blocked.error === 'string', JSON.stringify(blocked).slice(0, 90));
   check('the block explains what to do', String(blocked.error).includes('confirm_identity'), blocked.error);
 
   idCall('confirm_identity');
+  quoted(idPhone);
   const placed = idCall('place_order', { payment_method: 'cash_on_delivery' });
   check('checkout proceeds once confirmed', placed.placed === true, JSON.stringify(placed).slice(0, 90));
 
@@ -1142,12 +1164,14 @@ section('Location pins');
 
   // Checkout: a pin alone is not enough, and neither is a name alone.
   pinCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+  quoted(pinPhone);
   const noName = pinCall('place_order', { payment_method: 'cash_on_delivery' });
   check('still blocked without a name', typeof noName.error === 'string', JSON.stringify(noName).slice(0, 80));
 
   pinCall('save_customer_details', { name: 'Pin Tester' });
   check('name plus pin confirms identity', pinCall('get_customer_details').identity_confirmed === true);
 
+  quoted(pinPhone);
   const placed = pinCall('place_order', { payment_method: 'cash_on_delivery' });
   check('checkout completes with a pin', placed.placed === true, JSON.stringify(placed).slice(0, 120));
   // Deliberately NOT told where it is going any more. It was, and the model
@@ -1301,6 +1325,7 @@ section('Delivery area');
   check('an out-of-area pin is flagged on read', typeof farView.location_pin?.outside_delivery_area === 'string', JSON.stringify(farView.location_pin));
   check('with the distance in words', String(farView.location_pin?.distance_from_shop).includes('km'), farView.location_pin?.distance_from_shop);
 
+  quoted(farPhone);
   const refused = farCall('place_order', { payment_method: 'cash_on_delivery' });
   check('checkout refuses an out-of-area pin', typeof refused.error === 'string', JSON.stringify(refused).slice(0, 120));
   check('the refusal says how far out it is', String(refused.error).includes('km from the shop'), refused.error);
@@ -1318,6 +1343,7 @@ section('Delivery area');
   repo.saveLocationPin(nearPhone, { ...nearby, label: 'Kitty' });
   nearCall('save_customer_details', { name: 'Near Customer' });
   nearCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+  quoted(nearPhone);
   const allowed = nearCall('place_order', { payment_method: 'cash_on_delivery' });
   check('an in-area pin still checks out', allowed.placed === true, JSON.stringify(allowed).slice(0, 120));
   check('the in-area agent view carries no warning', nearCall('get_customer_details').location_pin?.outside_delivery_area === undefined);
@@ -2045,6 +2071,7 @@ section('Restaurant ordering');
   repo.saveLocationPin(foodPhone, { latitude: 6.8071, longitude: -58.1553, label: 'Home' });
   repo.confirmIdentity(foodPhone);
 
+  quoted(foodPhone);
   const placed = food('place_order', { payment_method: 'cash_on_delivery' });
   check('a restaurant order can be placed', placed.placed === true, JSON.stringify(placed).slice(0, 160));
 
@@ -2244,6 +2271,7 @@ section('Kitchen and delivery associate commands');
     repo.saveCustomer(p2, { name: 'Trip Test', address: 'Somewhere' });
     repo.saveLocationPin(p2, { latitude: 6.807, longitude: -58.155, label: 'Home' });
     repo.confirmIdentity(p2);
+    quoted(p2);
     const placed2 = call2('place_order', { payment_method: 'cash_on_delivery' });
     const n = String(placed2.order_number);
     repo.setOrderStatus(n, 'ready');
@@ -2967,6 +2995,7 @@ section('Why an order was cancelled');
   repo.saveCustomer(cancelPhone, { name: 'Cancel Test', address: 'Somewhere' });
   repo.saveLocationPin(cancelPhone, { latitude: 6.807, longitude: -58.155, label: 'Home' });
   repo.confirmIdentity(cancelPhone);
+  quoted(cancelPhone);
   const made = cancelCall('place_order', { payment_method: 'cash_on_delivery' });
   const ref = String(Number(String(made.order_number).replace(/\D/g, '')));
   check('an order was placed to cancel', made.placed === true, JSON.stringify(made).slice(0, 80));
@@ -2996,6 +3025,7 @@ section('Why an order was cancelled');
   cancelCall('choose_outlet', { code: 'SSC' });
   cancelCall('add_to_cart', { sku: 'SSC-002', quantity: 2, choices: ['Small', 'Mild'] });
   repo.confirmIdentity(cancelPhone);
+  quoted(cancelPhone);
   const second = cancelCall('place_order', { payment_method: 'cash_on_delivery' });
   const ref2 = String(Number(String(second.order_number).replace(/\D/g, '')));
   await handleStaffMessage(`${ref2} cancel the cook did not turn up`, '5926497570');
@@ -3011,6 +3041,7 @@ section('Why an order was cancelled');
   cancelCall('choose_outlet', { code: 'SSC' });
   cancelCall('add_to_cart', { sku: 'SSC-005', quantity: 4, choices: ['Sweet Chilli'] });
   repo.confirmIdentity(cancelPhone);
+  quoted(cancelPhone);
   const third = cancelCall('place_order', { payment_method: 'cash_on_delivery' });
   const ref3 = String(Number(String(third.order_number).replace(/\D/g, '')));
   const kitchenAsked = await handleOutletMessage(ssc, `${ref3} cancel`);
@@ -3034,6 +3065,7 @@ section('Why an order was cancelled');
   repo.saveCustomer(ownPhone, { name: 'Own Order', address: 'Somewhere' });
   repo.saveLocationPin(ownPhone, { latitude: 6.807, longitude: -58.155, label: 'Home' });
   repo.confirmIdentity(ownPhone);
+  quoted(ownPhone);
   const mine = own('place_order', { payment_method: 'cash_on_delivery' });
   const mineRef = String(Number(String(mine.order_number).replace(/\D/g, '')));
 
@@ -3046,6 +3078,7 @@ section('Why an order was cancelled');
   // Once a kitchen has accepted, it is not the agent's to undo.
   own('add_to_cart', { sku: 'RIC-002', quantity: 2 });
   repo.confirmIdentity(ownPhone);
+  quoted(ownPhone);
   const cooking = own('place_order', { payment_method: 'cash_on_delivery' });
   const cookingRef = String(Number(String(cooking.order_number).replace(/\D/g, '')));
   repo.setOrderStatus(String(cooking.order_number), 'confirmed');
@@ -3149,6 +3182,7 @@ section('Orders that stop moving');
   repo.saveCustomer(stallPhone, { name: 'Stall Test', address: 'Somewhere' });
   repo.saveLocationPin(stallPhone, { latitude: 6.807, longitude: -58.155, label: 'Home' });
   repo.confirmIdentity(stallPhone);
+  quoted(stallPhone);
   const placed = stallCall('place_order', { payment_method: 'cash_on_delivery' });
   const no = String(placed.order_number);
   check('an order was placed to age', placed.placed === true, JSON.stringify(placed).slice(0, 80));
@@ -4031,6 +4065,7 @@ section('An address is an answer');
 
   const order = (): { order_number?: string; error?: string } => {
     repo.setCartQty(buyer, sellable, 1, '');
+    quoted(buyer);
     return JSON.parse(
       executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
         phone: buyer,
@@ -4264,6 +4299,7 @@ section('When the customer wants it');
     repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
     repo.confirmIdentity(buyer);
     repo.setCartQty(buyer, sellable, 1, '');
+    quoted(buyer);
     return JSON.parse(
       executeTool('place_order', { payment_method: 'cash_on_delivery', ...args }, {
         phone: buyer,
@@ -4626,6 +4662,7 @@ section('No one on the road, no orders taken');
     repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
     repo.confirmIdentity(buyer);
     repo.setCartQty(buyer, sellable, 1, '');
+    quoted(buyer);
     return JSON.parse(
       executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
         phone: buyer,
@@ -4990,6 +5027,7 @@ section('What a delivery costs, by where it goes');
   repo.setCartQty(buyer, sellable, 1, '');
   check('the cart is priced to the zone', repo.getCart(buyer).deliveryFee === 1800, String(repo.getCart(buyer).deliveryFee));
 
+  quoted(buyer);
   const placed = JSON.parse(
     executeTool('place_order', { payment_method: 'cash_on_delivery' }, { phone: buyer, outbound: [] as never[] } as never),
   ) as { order_number?: string };
@@ -7380,6 +7418,7 @@ section('One order, one address');
   repo.setCartQty(buyer, sellable(), 1, '');
 
   const ctx = { phone: buyer, outbound: [] as never[] };
+  quoted(buyer);
   const out = JSON.parse(
     executeTool(
       'place_order',
@@ -7504,6 +7543,7 @@ section('The address, once');
   repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
   repo.confirmIdentity(buyer);
   repo.setCartQty(buyer, sellable, 1, '');
+  quoted(buyer);
 
   const placed = JSON.parse(
     executeTool(
@@ -8894,6 +8934,7 @@ section('The same as last time');
   repo.confirmIdentity(regular);
   repo.setCartQty(regular, idOf(milk), 2, '');
   repo.setCartQty(regular, idOf(rice), 1, '');
+  quoted(regular);
   const lastWeek = JSON.parse(
     executeTool('place_order', { payment_method: 'cash_on_delivery' }, { phone: regular, outbound: [] as never[] } as never),
   ) as { order_number?: string; error?: string };
@@ -9074,6 +9115,18 @@ section('What a taxi driver is told about waiting');
   });
   const ride = repo.findOrder(booked.orderNo)!;
 
+  // Said by the shop itself the moment they choose Taxi, before a word is
+  // exchanged about where they are going. The one service with no price to
+  // quote has to say so, and a fixed line says it every time.
+  const { serviceOpening } = await import('./services.ts');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    check(`the taxi opening says who sets the fare (${lang})`,
+      serviceOpening('taxi', lang).split(String.fromCharCode(10)).length >= 3,
+      serviceOpening('taxi', lang));
+  }
+  check('and in plain words', /agreed between you and the driver/.test(serviceOpening('taxi', 'en')),
+    serviceOpening('taxi', 'en'));
+
   check('the offer card carries the rate', taxiOfferCard(ride).includes('Waiting'), taxiOfferCard(ride));
   check('so does the card once it is theirs', taxiPickupCard(ride).includes('Waiting'));
   check('and it states the rate without a free period',
@@ -9092,6 +9145,106 @@ section('What a taxi driver is told about waiting');
 
   db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(ride.orderNo);
   db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(ride.orderNo);
+}
+
+section('Nobody is charged a fee they were not told');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+
+  const shopper = '5927100001';
+  const ctx: ToolContext = { phone: shopper, outbound: [] };
+  const ask = (tool: string, args: Record<string, unknown> = {}): any =>
+    JSON.parse(executeTool(tool, args, ctx));
+
+  // Dear enough to clear the shop's minimum, so the only thing being tested
+  // here is the delivery charge.
+  const sellable = (db
+    .prepare(
+      `SELECT id FROM products WHERE active = 1 AND sold_out = 0
+        ORDER BY price DESC LIMIT 1`,
+    )
+    .get() as { id: number }).id;
+
+  repo.saveCustomer(shopper, { name: 'Quoted Shopper', address: 'Lot 3 Diamond', contactPhone: shopper });
+  repo.confirmIdentity(shopper);
+  repo.setCartQty(shopper, sellable, 4, '');
+  repo.setService(shopper, 'grocery');
+  db.prepare(`UPDATE customers SET fee_agreed = -1, delivery_zone = '' WHERE phone = ?`).run(shopper);
+
+  /* --- the guard ------------------------------------------------------- */
+
+  const unquoted = ask('place_order', { payment_method: 'cash_on_delivery' });
+  check('an unquoted delivery charge stops checkout',
+    /has not been quoted/.test(String(unquoted.error)), String(unquoted.error).slice(0, 80));
+  check('and it says how to fix it', /delivery_zone/.test(String(unquoted.error)));
+
+  // The two-step read-back is where a figure becomes agreed.
+  ask('delivery_zone', { text: 'Lot 3 Diamond' });
+  const confirmed = ask('delivery_zone', { place: 'Diamond', confirmed: true });
+  check('confirming quotes the charge', String(confirmed.delivery_fee) === money(1800), String(confirmed.delivery_fee));
+  check('and records it as agreed', repo.feeAgreed(shopper) === 1800, String(repo.feeAgreed(shopper)));
+
+  const placed = ask('place_order', { payment_method: 'cash_on_delivery' });
+  check('once told, the order goes through', placed.placed === true, JSON.stringify(placed).slice(0, 120));
+
+  /* --- a ceiling, not a price list -------------------------------------- */
+
+  // Charging LESS than agreed is fine: a basket that crossed the free
+  // delivery line, or a reward. The promise is that nobody pays MORE.
+  repo.setCartQty(shopper, sellable, 4, '');
+  repo.setFeeAgreed(shopper, 5000);
+  const cheaper = ask('place_order', { payment_method: 'cash_on_delivery' });
+  check('a cheaper delivery than agreed is allowed', cheaper.placed === true, JSON.stringify(cheaper).slice(0, 100));
+
+  // And a dearer one is not, however it got that way.
+  repo.setCartQty(shopper, sellable, 4, '');
+  repo.setFeeAgreed(shopper, 500);
+  const dearer = ask('place_order', { payment_method: 'cash_on_delivery' });
+  check('a dearer one is refused', /they agreed/.test(String(dearer.error)), String(dearer.error).slice(0, 90));
+  check('and the refusal names both figures',
+    String(dearer.error).includes(money(500)) && String(dearer.error).includes(money(1800)),
+    String(dearer.error).slice(0, 110));
+
+  /* --- the parcel case this rule was written for ------------------------ */
+
+  // Pricing a parcel from both ends made the fee fairer and made the
+  // read-back wrong: a sender in Parika heard "Diamond, $1,800" and would
+  // have been billed $6,300. The read-back quotes the journey now.
+  const sender = '5927100002';
+  const pctx: ToolContext = { phone: sender, outbound: [] };
+  const pask = (tool: string, args: Record<string, unknown> = {}): any =>
+    JSON.parse(executeTool(tool, args, pctx));
+  repo.clearParcelDraft(sender);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(sender);
+  repo.setService(sender, 'parcel');
+
+  pask('parcel_party', { side: 'sender', name: 'Ravi', address: 'Lot 2, Parika', phone: '5926100099' });
+  pask('parcel_party', { side: 'sender', confirmed: true });
+  pask('parcel_party', { side: 'recipient', name: 'Marcia', address: 'Lot 9, Diamond', phone: '5926100077' });
+  pask('parcel_party', { side: 'recipient', confirmed: true });
+  pask('delivery_zone', { text: 'Lot 9, Diamond' });
+  const parcelQuote = pask('delivery_zone', { place: 'Diamond', confirmed: true });
+
+  check('the parcel read-back quotes the whole journey',
+    String(parcelQuote.delivery_fee) === money(6300), String(parcelQuote.delivery_fee));
+  check('and names both ends', /Parika to Diamond/.test(String(parcelQuote.say)), String(parcelQuote.say));
+  check('so the figure they heard is the figure agreed', repo.feeAgreed(sender) === 6300, String(repo.feeAgreed(sender)));
+
+  const booked = pask('create_parcel_job', {
+    contents: 'a box', sender_name: 'Ravi', sender_phone: '5926100099',
+    recipient_name: 'Marcia', recipient_phone: '5926100077',
+    pickup_note: 'Lot 2, Parika', destination_note: 'Lot 9, Diamond',
+  });
+  check('and the booking charges exactly it', String(booked.fee) === money(6300), JSON.stringify(booked).slice(0, 140));
+
+  for (const no of repo.allOrders().filter((o) => o.phone === shopper || o.phone === sender).map((o) => o.orderNo)) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  for (const p of [shopper, sender]) {
+    db.prepare(`DELETE FROM customers WHERE phone = ?`).run(p);
+    repo.clearCart(p);
+  }
 }
 
 section('A parcel is priced from both ends');
@@ -9820,6 +9973,7 @@ section('What a dead order leaves on the shelf');
     repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
     repo.confirmIdentity(buyer);
     repo.setCartQty(buyer, id, qty, '');
+    quoted(buyer);
     const out = JSON.parse(
       executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
         phone: buyer,
@@ -9884,6 +10038,7 @@ section('What a dead order leaves on the shelf');
   repo.clearCart(buyer);
   repo.setService(buyer, 'grocery');
   repo.setCartQty(buyer, looseId, 5, '');
+  quoted(buyer);
   const fourth = JSON.parse(
     executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
       phone: buyer,

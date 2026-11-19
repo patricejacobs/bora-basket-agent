@@ -1051,6 +1051,42 @@ memory is exactly how a parcel reaches the wrong door.
 A half cannot be confirmed before it is complete; the tool says which of the
 three is missing and refuses.
 
+### Nobody is charged a fee they were not told
+
+**The shop never charges a delivery fee higher than the one the customer
+agreed.** Enforced in `place_order` and `create_parcel_job`, not asked of the
+model — a prompt is a request.
+
+| | |
+|---|---|
+| Nothing quoted | Checkout is **refused**, and says to call `delivery_zone` |
+| Charged **more** than agreed | **Refused**, naming both figures |
+| Charged **less** | Allowed — the promise is a ceiling, not a price list |
+| Charged nothing | No agreement needed |
+
+The figure becomes agreed at the **two-step read-back**: the shop matches the
+place, the agent reads it back, the customer says yes. That is also where a
+free-delivery basket or a reward is allowed to come in under the quote without
+anybody re-confirming.
+
+**A parcel quotes the whole journey, not the destination.** Pricing from both
+ends made the fee fairer and made the old read-back wrong: a sender in Parika
+heard *"Diamond, $1,800"* and would have been billed $6,300. The read-back now
+says:
+
+> Delivery from Parika to Diamond is $6,300.
+
+**A taxi has no fare to quote, so it says so before anything is booked.** The
+line is fixed text from the shop, sent the moment the customer chooses Taxi —
+not left to the model:
+
+```
+A car it is. 🚕 Where are we collecting you from, where are you going, and
+when? Tell me how many of you as well, and I will find you a car.
+
+The fare is agreed between you and the driver — we do not set it.
+```
+
 ### What a delivery costs
 
 Delivery is priced by the village or area it goes to, from a tariff the shop

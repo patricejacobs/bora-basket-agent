@@ -630,6 +630,30 @@ export function setDeliveryZone(phone: string, place: string): void {
   ).run(phone, place, nowIso(), nowIso());
 }
 
+/**
+ * Records the delivery charge the customer has just been told and agreed to.
+ *
+ * The figure, not the place. A parcel is priced from both ends, so what they
+ * heard is not always the destination's own fee — and what must be honoured
+ * is what they heard.
+ */
+export function setFeeAgreed(phone: string, fee: number): void {
+  db.prepare(
+    `INSERT INTO customers (phone, fee_agreed, created_at, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET fee_agreed = excluded.fee_agreed,
+       updated_at = excluded.updated_at`,
+  ).run(phone, Math.max(0, Math.round(fee)), nowIso(), nowIso());
+}
+
+/** What they agreed to pay for delivery, or -1 if nothing was ever quoted. */
+export function feeAgreed(phone: string): number {
+  const row = db
+    .prepare(`SELECT fee_agreed AS fee FROM customers WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as { fee: number } | undefined;
+  return row?.fee ?? -1;
+}
+
 /* --------------------------------------------------------------------- cart */
 
 /**

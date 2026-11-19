@@ -206,7 +206,10 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: 'we could not get to the address',
 
     opening_taxi:
-      'A car it is. 🚕 Where are we collecting you from, where are you going, and when? Tell me how many of you as well, and I will find you a car.',
+      'A car it is. 🚕 Where are we collecting you from, where are you going, and when? Tell me how many of you as well, and I will find you a car.' +
+      chr10 +
+      chr10 +
+      'The fare is agreed between you and the driver — we do not set it.',
     opening_grocery:
       'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
     opening_parcel:
@@ -318,7 +321,10 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: 'no pudimos llegar a la dirección',
 
     opening_taxi:
-      'Un coche. 🚕 ¿De dónde le recogemos, a dónde va y a qué hora? Dígame también cuántas personas son y le buscaré un coche.',
+      'Un coche. 🚕 ¿De dónde le recogemos, a dónde va y a qué hora? Dígame también cuántas personas son y le buscaré un coche.' +
+      chr10 +
+      chr10 +
+      'La tarifa se acuerda entre usted y el conductor — nosotros no la fijamos.',
     opening_grocery:
       'Supermercado entonces. Dígame qué necesita — escriba una lista, envíe una foto, o simplemente dígamelo.',
     opening_parcel:
@@ -425,7 +431,10 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: 'não conseguimos chegar ao endereço',
 
     opening_taxi:
-      'Um carro. 🚕 De onde o buscamos, para onde vai e a que horas? Diga-me também quantas pessoas são e vou procurar-lhe um carro.',
+      'Um carro. 🚕 De onde o buscamos, para onde vai e a que horas? Diga-me também quantas pessoas são e vou procurar-lhe um carro.' +
+      chr10 +
+      chr10 +
+      'A tarifa é combinada entre si e o motorista — não somos nós que a definimos.',
     opening_grocery:
       'Compras, então. Diga-me o que precisa — escreva uma lista, envie uma foto, ou diga por voz.',
     opening_parcel:
@@ -530,7 +539,10 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: '我们无法到达该地址',
 
     opening_taxi:
-      '好的，出租车。🚕 请问在哪里接您、去哪里、什么时间？也请告知几位乘客，我这就为您找车。',
+      '好的，出租车。🚕 请问在哪里接您、去哪里、什么时间？也请告知几位乘客，我这就为您找车。' +
+      chr10 +
+      chr10 +
+      '车费由您与司机商定，不由我们制定。',
     opening_grocery:
       '好的，超市代购。请告诉我您需要什么——可以打字列清单、发照片，或者直接说。',
     opening_parcel:

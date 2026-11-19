@@ -1714,6 +1714,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           "Cannot place the order yet — still need the customer's name. Ask who the delivery is for, then call save_customer_details.",
         );
       }
+
       // Somewhere to go. A pin or an address in words - either is an answer,
       // and only having neither is a refusal.
       //
@@ -1764,6 +1765,27 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       const cart = repo.getCart(ctx.phone);
       if (cart.lines.length === 0) return fail('The cart is empty.');
+
+      // Nobody is charged a delivery fee they have not been told.
+      //
+      // Last of the gates on purpose: a fee cannot be quoted for an address
+      // nobody has confirmed, so identity comes first and this comes after
+      // the cart is known to have something in it.
+      //
+      // The prompt has always asked for this, and a prompt is a request. What
+      // makes it true is here: the charge is compared with the figure the
+      // customer agreed when the place was read back to them, and anything
+      // higher is refused. Charging LESS is fine — a basket that crossed the
+      // free-delivery line, or a reward — because the promise is a ceiling
+      // and not a price list. A charge of nothing needs no agreement at all.
+      const agreed = repo.feeAgreed(ctx.phone);
+      if (cart.deliveryFee > 0 && (agreed < 0 || cart.deliveryFee > agreed)) {
+        return fail(
+          agreed < 0
+            ? `Cannot place the order — the delivery charge of ${money(cart.deliveryFee)} has not been quoted to them. Call delivery_zone with where it is going, read the place back, confirm it, and tell them the charge before placing anything.`
+            : `Cannot place the order — they agreed ${money(agreed)} for delivery and this order charges ${money(cart.deliveryFee)}. Tell them the new figure and confirm it with delivery_zone before placing it.`,
+        );
+      }
       const minimum = minimumFor(cart.outlet);
       if (minimum > 0 && cart.subtotal < minimum) {
         return fail(`Subtotal ${money(cart.subtotal)} is below the ${money(minimum)} minimum${cart.outlet ? ` for ${cart.outlet.name}` : ' order'}. Invite the customer to add more.`);
@@ -1942,17 +1964,32 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         if (forParcel) repo.setParcelZone(ctx.phone, known.match.place);
         else repo.setDeliveryZone(ctx.phone, known.match.place);
 
+        // The figure they are about to hear has to be the figure they will
+        // be charged. A parcel is priced from both ends, so a sender in
+        // Parika reading back "Diamond, $1,800" would have been billed
+        // $6,300 — the exact shape of complaint this read-back exists to
+        // prevent, introduced by the thing that made the pricing fairer.
+        const sender = forParcel ? repo.getParcelDraft(ctx.phone).sender.address : '';
+        const bothEnds = forParcel && sender ? fareBetween(sender, known.match.place) : null;
+        const charge = bothEnds ? bothEnds.fee : known.match.fee;
+
+        // Written down as agreed. place_order and create_parcel_job refuse to
+        // charge more than this, so the quote is a promise rather than a
+        // courtesy.
+        repo.setFeeAgreed(ctx.phone, charge);
+
         return ok({
           confirmed: true,
           place: known.match.place,
           zone: known.match.zone,
-          delivery_fee: money(known.match.fee),
-          say: forParcel
-            ? `Delivery to ${known.match.place} is ${money(known.match.fee)}.`
-            : `Delivery to ${known.match.place} is ${money(known.match.fee)}.`,
+          delivery_fee: money(charge),
+          ...(bothEnds ? { priced_by: bothEnds.explanation } : {}),
+          say: bothEnds
+            ? `Delivery from ${bothEnds.from.place} to ${bothEnds.to.place} is ${money(charge)}.`
+            : `Delivery to ${known.match.place} is ${money(charge)}.`,
           next: forParcel
-            ? 'Now you may quote it. create_parcel_job will charge it.'
-            : 'Now you may quote it. It is already in the cart total.',
+            ? 'Now you may quote it. create_parcel_job will charge exactly this and will refuse to charge more.'
+            : 'Now you may quote it. It is already in the cart total, and place_order will refuse to charge more.',
         });
       }
 
@@ -2344,6 +2381,19 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // is added on top of that agreed destination, never instead of it.
       const bothEnds = zoned ? fareBetween(pickupNote, zoned.place) : null;
       const fee = bothEnds ? bothEnds.fee : zoned ? zoned.fee : quote.priced ? quote.fee : 0;
+
+      // The same ceiling as a delivery. A parcel's fee is agreed when the
+      // destination is read back, and an unpriced parcel - the associate
+      // settling it at the pickup - charges nothing here and needs no
+      // agreement.
+      const agreedFee = repo.feeAgreed(ctx.phone);
+      if (fee > 0 && (agreedFee < 0 || fee > agreedFee)) {
+        return fail(
+          agreedFee < 0
+            ? `Cannot book it — ${money(fee)} has not been quoted to them. Call delivery_zone with the recipient's area, read it back, confirm it, and tell them the charge first.`
+            : `Cannot book it — they agreed ${money(agreedFee)} and this job charges ${money(fee)}. Tell them the new figure and confirm it with delivery_zone before booking.`,
+        );
+      }
       // Every detail from this booking, and nothing from the customer record.
       //
       // A name or number saved from a past delivery is a different
