@@ -8961,20 +8961,109 @@ section('What a taxi driver is told about waiting');
   const { waitingCharge, waitingLine } = await import('./taxi.ts');
   const { taxiOfferCard, taxiPickupCard } = await import('./dispatch.ts');
   const { customerStatusMessage } = await import('./notifications.ts');
+  const { handleDriverMessage } = await import('./staff.ts');
 
   /* --- the blocks ------------------------------------------------------ */
 
-  // Ten minutes free: a passenger locking a door has not kept a car waiting,
-  // and $800 for three minutes is a fare nobody pays twice.
-  check('the free minutes are free', waitingCharge(0) === 0 && waitingCharge(10) === 0);
-  check('a minute past them is a whole block', waitingCharge(11) === 800, String(waitingCharge(11)));
+  // No free period. Waiting is the car stopped at the passenger's request,
+  // with the driver in it and not earning, so the first minute costs a block.
+  check('nothing waited costs nothing', waitingCharge(0) === 0);
+  check('two minutes is a whole block', waitingCharge(2) === 800, String(waitingCharge(2)));
   // Any part of a block is a whole one — a driver at a kerb cannot bill by
   // the minute.
-  check('and so is the rest of it', waitingCharge(25) === 800 && waitingCharge(40) === 800,
-    `${waitingCharge(25)} / ${waitingCharge(40)}`);
-  check('the second block starts at forty-one', waitingCharge(41) === 1600, String(waitingCharge(41)));
-  check('and it keeps counting', waitingCharge(71) === 2400, String(waitingCharge(71)));
+  check('and so is thirty', waitingCharge(30) === 800, String(waitingCharge(30)));
+  check('the second block starts at thirty-one', waitingCharge(31) === 1600, String(waitingCharge(31)));
+  check('and it keeps counting', waitingCharge(61) === 2400, String(waitingCharge(61)));
   check('never below nothing', waitingCharge(-20) === 0);
+
+  /* --- two taps, not a number typed at the end ------------------------- */
+
+  const driver = '5926007070';
+  repo.upsertAssociate({ phone: driver, name: 'Wait Tester', vehicle: '', active: true });
+  repo.setDuty(driver, true);
+  const trip = repo.createTaxiJob({
+    phone: '5926100055', passengerName: 'A Passenger', passengerPhone: '5926100055',
+    pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+    destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '',
+  });
+  const n = String(Number(trip.orderNo.replace(/\D/g, '')));
+  await handleDriverMessage(`${n} confirm`, driver);
+  await handleDriverMessage(`${n} uplifted`, driver);
+
+  // Twelve minutes at the pharmacy, then eight at a gate. Twenty minutes is
+  // twenty minutes however it was split — totalled per trip, so two stops do
+  // not cost twice what one longer stop would.
+  const backdate = (minutes: number) =>
+    db.prepare(`UPDATE orders SET waiting_since = ? WHERE order_no = ?`).run(
+      new Date(Date.now() - minutes * 60_000).toISOString(), trip.orderNo);
+
+  await handleDriverMessage(`${n} waiting`, driver);
+  check('the clock is running', Boolean(repo.findOrder(trip.orderNo)?.waitingSince));
+  // Tapping again must not restart it and lose the minutes already run.
+  const firstStart = repo.findOrder(trip.orderNo)!.waitingSince;
+  await handleDriverMessage(`${n} waiting`, driver);
+  check('and tapping twice keeps the first time', repo.findOrder(trip.orderNo)?.waitingSince === firstStart);
+
+  backdate(12);
+  await handleDriverMessage(`${n} moving`, driver);
+  check('the first stop is counted', repo.findOrder(trip.orderNo)?.waitedMinutes === 12,
+    String(repo.findOrder(trip.orderNo)?.waitedMinutes));
+  check('and the clock is stopped', repo.findOrder(trip.orderNo)?.waitingSince === '');
+
+  await handleDriverMessage(`${n} waiting`, driver);
+  backdate(8);
+  await handleDriverMessage(`${n} moving`, driver);
+  check('the second is added to it', repo.findOrder(trip.orderNo)?.waitedMinutes === 20,
+    String(repo.findOrder(trip.orderNo)?.waitedMinutes));
+  check('two stops of twenty minutes are one block, not two',
+    waitingCharge(repo.findOrder(trip.orderNo)!.waitedMinutes) === 800,
+    String(waitingCharge(repo.findOrder(trip.orderNo)!.waitedMinutes)));
+
+  const closing = (await handleDriverMessage(`${n} delivered`, driver))[0]?.text ?? '';
+  check('the closing card says what it came to', /Waited 20 min in total/.test(closing), closing);
+  check('with the money beside it', closing.includes(money(800)), closing);
+
+  /* --- a clock nobody closed ------------------------------------------- */
+
+  const forgot = repo.createTaxiJob({
+    phone: '5926100056', passengerName: 'B Passenger', passengerPhone: '5926100056',
+    pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+    destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '',
+  });
+  const n2 = String(Number(forgot.orderNo.replace(/\D/g, '')));
+  await handleDriverMessage(`${n2} confirm`, driver);
+  await handleDriverMessage(`${n2} uplifted`, driver);
+  await handleDriverMessage(`${n2} waiting`, driver);
+  db.prepare(`UPDATE orders SET waiting_since = ? WHERE order_no = ?`).run(
+    new Date(Date.now() - 35 * 60_000).toISOString(), forgot.orderNo);
+  // A trip cannot end with a clock still running: the drop is the honest
+  // moment to close it, being when the car stopped being theirs to wait in.
+  await handleDriverMessage(`${n2} delivered`, driver);
+  const ended = repo.findOrder(forgot.orderNo)!;
+  check('a forgotten clock is closed at the drop', ended.waitingSince === '' && ended.waitedMinutes === 35,
+    `${ended.waitingSince} / ${ended.waitedMinutes}`);
+  check('and charged as two blocks', waitingCharge(ended.waitedMinutes) === 1600, String(waitingCharge(ended.waitedMinutes)));
+
+  /* --- and only a taxi, and only under way ------------------------------ */
+
+  const early = repo.createTaxiJob({
+    phone: '5926100057', passengerName: 'C Passenger', passengerPhone: '5926100057',
+    pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+    destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '',
+  });
+  const n3 = String(Number(early.orderNo.replace(/\D/g, '')));
+  await handleDriverMessage(`${n3} confirm`, driver);
+  const refused = (await handleDriverMessage(`${n3} waiting`, driver))[0]?.text ?? '';
+  check('there is nothing to wait for before the passenger is in',
+    /once the passenger is in the car/i.test(refused), refused);
+  check('and nothing was counted', repo.findOrder(early.orderNo)?.waitedMinutes === 0);
+
+  for (const no of [trip.orderNo, forgot.orderNo, early.orderNo]) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  repo.setDuty(driver, false);
+  db.prepare(`DELETE FROM associates WHERE phone = ?`).run(driver);
 
   /* --- who reads it ---------------------------------------------------- */
 
@@ -8987,7 +9076,8 @@ section('What a taxi driver is told about waiting');
 
   check('the offer card carries the rate', taxiOfferCard(ride).includes('Waiting'), taxiOfferCard(ride));
   check('so does the card once it is theirs', taxiPickupCard(ride).includes('Waiting'));
-  check('and it says the free minutes out loud', /First 10 min free/.test(waitingLine()), waitingLine());
+  check('and it states the rate without a free period',
+    /\$800 per 30 min/.test(waitingLine()) && !/free/.test(waitingLine()), waitingLine());
 
   // The shop sets no fare, so it must not publish half of one. A passenger
   // told the waiting rate will ask what the rest is, and there is no answer.

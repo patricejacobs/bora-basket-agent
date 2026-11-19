@@ -558,6 +558,17 @@ addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
 // wording on the customer's receipt. Two meanings, two columns, and no
 // exception to be forgotten.
 addColumnIfMissing('orders', 'safety_code', "TEXT NOT NULL DEFAULT ''");
+// Waiting on a taxi, in minutes, totalled across the whole trip.
+//
+// A passenger may stop twice - the pharmacy, then a gate - and twenty
+// minutes is twenty minutes however it was split. Totalling the trip also
+// removes the reason a driver would have to tap twice instead of once.
+//
+// waiting_since holds the open stop and is empty the rest of the time. It is
+// closed at the drop if the driver forgets, so a trip cannot end with a
+// clock still running.
+addColumnIfMissing('orders', 'waited_minutes', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('orders', 'waiting_since', "TEXT NOT NULL DEFAULT ''");
 // Which service the rated job was, copied onto the rating.
 //
 // The quiet period that stops a customer being asked too often is counted per

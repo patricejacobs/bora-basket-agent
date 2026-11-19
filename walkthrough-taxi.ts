@@ -103,14 +103,31 @@ rule('5. She is in the car');
 await show('Rider One', `${n} uplifted`);
 gets('Marcia', customerStatusMessage(live(), 'on_the_way'));
 
-rule('6. Dropped off');
+rule('6. She asks him to stop at the pharmacy');
+await show('Rider One', `${n} waiting`);
+// Twelve minutes later, by the clock the shop keeps.
+db.prepare(`UPDATE orders SET waiting_since = ? WHERE order_no = ?`).run(
+  new Date(Date.now() - 12 * 60_000).toISOString(),
+  job.orderNo,
+);
+await show('Rider One', `${n} moving`);
+
+rule('7. And again at her mother’s gate');
+await show('Rider One', `${n} waiting`);
+db.prepare(`UPDATE orders SET waiting_since = ? WHERE order_no = ?`).run(
+  new Date(Date.now() - 8 * 60_000).toISOString(),
+  job.orderNo,
+);
+await show('Rider One', `${n} moving`);
+
+rule('8. Dropped off');
 await show('Rider One', `${n} delivered`);
 gets('Marcia', customerStatusMessage(live(), 'delivered'));
 
-rule('7. Where it ended up');
+rule('9. Where it ended up');
 console.log(`  ${JSON.stringify({ kind: live().kind, status: live().status, total: live().total })}`);
 
-rule('8. A second trip — nobody at the pickup');
+rule('10. A second trip — nobody at the pickup');
 const second = repo.createTaxiJob({
   phone: PASSENGER,
   passengerName: 'Marcia Younge',

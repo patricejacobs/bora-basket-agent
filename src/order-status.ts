@@ -257,7 +257,7 @@ export type Audience = 'staff' | 'outlet' | 'driver';
  * taps as ids would feed it "option_1" instead of "Grocery shopping".
  */
 export function commandFromButtonId(id: string): string | null {
-  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode)_(\d+)$/.exec(id);
+  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move)_(\d+)$/.exec(id);
   if (simple) {
     const verb =
       simple[1] === 'otw'
@@ -381,6 +381,16 @@ export function nextActions(
      */
     selfAccepted?: boolean;
     /**
+     * This job can be put on hold at the kerb: a taxi, under way.
+     *
+     * Only a taxi, and only once the passenger is in it. There is nothing to
+     * wait for before that, and a delivery stopping on the road is not
+     * something anybody is charged for.
+     */
+    canWait?: boolean;
+    /** A stop is already open, so the one button that matters is Moving. */
+    waitingOpen?: boolean;
+    /**
      * This order belongs to a kitchen, so accepting it is theirs to do.
      *
      * The shop's own card drops Confirm when this is set. It is a courtesy
@@ -421,6 +431,11 @@ export function nextActions(
   const uplifted = act(`otw_${n}`, 'Uplifted', `${n} on the way`);
   const handedOver = act(`handover_${n}`, 'Uplifted', `${n} handover`);
   const delivered = act(`delivered_${n}`, 'Delivered', `${n} delivered`);
+  // A taxi stopping at the passenger's request, and moving off again. Two
+  // taps rather than a number typed at the end of a trip nobody can now
+  // remember the shape of.
+  const waiting = act(`wait_${n}`, 'Waiting', `${n} waiting`);
+  const moving = act(`move_${n}`, 'Moving', `${n} moving`);
   const cancel = act(`cancel_${n}`, 'Cancel', `${n} cancel`);
 
   // A kitchen only ever accepts, says the food is up, or hands it back. It never
@@ -470,8 +485,13 @@ export function nextActions(
       // path of least resistance - tapped out of habit, every drop unverified.
       // It appears on the wrong-code reply instead, which is when somebody
       // actually needs it.
-      case 'on_the_way':
-        return opts.codeExpected ? [] : [delivered];
+      case 'on_the_way': {
+        // One button while the car is stopped. Anything else on that card is
+        // a way to end the trip without closing the clock.
+        if (opts.waitingOpen) return [moving];
+        if (opts.codeExpected) return [];
+        return opts.canWait ? [waiting, delivered] : [delivered];
+      }
       default:
         return [];
     }

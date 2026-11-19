@@ -1406,6 +1406,9 @@ export type OrderRecord = {
   /** Points spent on this order, and what they took off it. 0 for most. */
   rewardPoints: number;
   rewardValue: number;
+  /** A taxi's waiting, totalled across the trip, and the stop still open. */
+  waitedMinutes: number;
+  waitingSince: string;
   /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
   paymentMethod: string;
   status: OrderStatus;
@@ -1517,6 +1520,8 @@ function hydrateOrder(row: {
   total: number;
   reward_points: number | null;
   reward_value: number | null;
+  waited_minutes: number | null;
+  waiting_since: string | null;
   status: string;
   created_at: string;
 }): OrderRecord {
@@ -1534,6 +1539,8 @@ function hydrateOrder(row: {
     total: row.total,
     rewardPoints: row.reward_points ?? 0,
     rewardValue: row.reward_value ?? 0,
+    waitedMinutes: row.waited_minutes ?? 0,
+    waitingSince: row.waiting_since ?? '',
     status: row.status as OrderStatus,
     placedAt: row.created_at,
     // An order's pin was fixed at checkout; `pinnedAt` on an order means the
@@ -2632,6 +2639,50 @@ export function lastDelivered(phone: string): OrderRecord | null {
     )
     .get(digits, digits) as Parameters<typeof hydrateOrder>[0] | undefined;
   return row ? hydrateOrder(row) : null;
+}
+
+/* ------------------------------------------------------------ taxi waiting */
+
+/**
+ * Starts the clock on a stop the passenger asked for.
+ *
+ * Idempotent: tapping it twice keeps the first time. A driver who taps again
+ * because nothing seemed to happen must not quietly restart their own clock
+ * and lose the minutes already run.
+ */
+export function startWaiting(orderNo: string): string {
+  const order = findOrder(orderNo);
+  if (!order || order.kind !== 'taxi') return '';
+  if (order.waitingSince) return order.waitingSince;
+
+  const now = nowIso();
+  db.prepare(`UPDATE orders SET waiting_since = ? WHERE order_no = ?`).run(now, orderNo);
+  recordEvent(orderNo, 'waiting', '', 'stopped at the passenger’s request');
+  return now;
+}
+
+/**
+ * Stops it, adding the minutes to the trip's total.
+ *
+ * Rounded DOWN. The figure decides money, and a driver who taps a few
+ * seconds late should not push a passenger into the next block — the
+ * rounding goes to the person who did not do the tapping.
+ */
+export function stopWaiting(orderNo: string, at = new Date()): { added: number; total: number } {
+  const order = findOrder(orderNo);
+  if (!order || !order.waitingSince) {
+    return { added: 0, total: order?.waitedMinutes ?? 0 };
+  }
+
+  const ms = at.getTime() - new Date(order.waitingSince).getTime();
+  const added = Number.isFinite(ms) ? Math.max(0, Math.floor(ms / 60_000)) : 0;
+  const total = order.waitedMinutes + added;
+
+  db.prepare(
+    `UPDATE orders SET waited_minutes = ?, waiting_since = '' WHERE order_no = ?`,
+  ).run(total, orderNo);
+  recordEvent(orderNo, 'moving', '', `${added} min waited, ${total} in total`);
+  return { added, total };
 }
 
 /* ---------------------------------------------------------------- rewards */

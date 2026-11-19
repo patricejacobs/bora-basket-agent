@@ -144,9 +144,12 @@ services:
       # shop quotes no fare, the driver agrees that with the passenger. This
       # is set so two drivers kept waiting the same twenty minutes do not
       # charge two different figures. It goes on the driver's card only.
-      # Part of a block counts as a whole one. Fee 0 removes the line.
+      #
+      # Waiting is the car stopped at the passenger's request AFTER pickup -
+      # a pharmacy, a gate - totalled across the trip. No free period, and
+      # part of a block counts as a whole one. Fee 0 removes it entirely.
       - key: TAXI_WAIT_FREE_MINUTES
-        value: "10"
+        value: "0"
       - key: TAXI_WAIT_BLOCK_MINUTES
         value: "30"
       - key: TAXI_WAIT_BLOCK_FEE

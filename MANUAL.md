@@ -1360,32 +1360,55 @@ until it has been collected.
 
 ### Waiting
 
-**$800 per 30 minutes, after 10 free.** Part of a block counts as a whole
-one — a driver sitting at a kerb cannot bill by the minute.
+**$800 per 30 minutes, and it starts once the passenger is in the car.**
 
-| Waited | Charge |
+Waiting is the car stopped at the passenger's request — the pharmacy, a gate,
+somebody running in for five minutes — not the time before pickup. There is no
+free period, and **part of a block counts as a whole one**: a driver who has
+stopped is a driver not earning.
+
+| Waited in total | Charge |
 |---|---|
-| up to 10 min | nothing |
-| 11–40 min | $800 |
-| 41–70 min | $1,600 |
-| 71–100 min | $2,400 |
+| 2 min | $800 |
+| 30 min | $800 |
+| 31 min | $1,600 |
+| 61 min | $2,400 |
 
-**It appears on the driver's card and in none of the passenger's messages:**
+**Two taps, no numbers.** The driver taps *Waiting* when the car stops and
+*Moving* when it goes again; the shop times it. While a stop is open, *Moving*
+is the only button on the card — anything else would be a way to end the trip
+with the clock still running.
 
 ```
-*Fare not set* — agree it with the passenger.
-⏱ *Waiting:* First 10 min free, then $800 per 30 min — part of a block counts as a whole one.
+Wayne ▸ 19 waiting
+Wayne ◂ ⏱ Waiting from 18:26. Tap when you move off.
+        ⏱ *Waiting:* $800 per 30 min — part of a block counts as a whole one.
+
+Wayne ▸ 19 moving
+Wayne ◂ ⏱ 12 min waited, 12 in total — *$800* so far.
 ```
 
-The shop sets this and not the fare, so that two drivers kept waiting the same
-twenty minutes do not charge two different figures. It is **not** quoted to
-the passenger: publishing half a fare — the waiting but not the fare it is
-added to — invites the obvious question, and the shop has no answer to it. The
-driver settles the whole thing in the car, as before.
+**Totalled across the trip, not per stop.** Twelve minutes at the pharmacy and
+eight at a gate is twenty minutes — one block, $800. Charging each stop its own
+block would make the same twenty minutes $1,600 and give a driver a reason to
+tap twice instead of once.
 
-`TAXI_WAIT_FREE_MINUTES`, `TAXI_WAIT_BLOCK_MINUTES` and
-`TAXI_WAIT_BLOCK_FEE` set it; a fee of `0` removes the line entirely, which is
-the shop saying waiting is the driver's business too.
+```
+Wayne ◂ TXI-00019 → *delivered*.
+        Customer notified.
+        ⏱ Waited 20 min in total — *$800* to add to the fare.
+```
+
+**A forgotten clock is closed at the drop.** A trip cannot end with one still
+running: the drop is when the car stopped being theirs to wait in.
+
+**Rounded down**, each stop. The figure decides money, so a driver tapping a
+few seconds late should not push a passenger into the next block.
+
+**The passenger is told none of this.** The shop sets no fare, so it must not
+publish half of one — the driver states the waiting rate when the fare is
+agreed. Nothing is charged before pickup, and waiting is refused on a trip
+that has not started.
 
 ### No fare, anywhere
 

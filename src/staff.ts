@@ -1891,6 +1891,51 @@ export async function handleDriverMessage(
   const order = repo.findOrder(ref[1] ?? '');
   if (!order) return reply(`No order ${ref[1]}. Send \`jobs\` to see what's waiting.`);
 
+  // Waiting is not a status. The trip is still on the way with the car
+  // standing still, so this is handled before the status machine rather than
+  // bolted onto a ladder it does not belong on.
+  const waitWord = /\b(waiting|wait|stopped|hold(ing)?)\b/i.test(trimmed);
+  const moveWord = /\b(moving|move|moved|going|off|resume[d]?)\b/i.test(trimmed);
+  if ((waitWord || moveWord) && order.kind === 'taxi') {
+    if (order.status !== 'on_the_way') {
+      return reply(
+        `${order.orderNo} is ${STATUS_LABEL[order.status]}. Waiting is charged once the passenger is in the car.`,
+      );
+    }
+    const { waitingCharge, waitingLine } = await import('./taxi.ts');
+
+    if (waitWord) {
+      const since = repo.startWaiting(order.orderNo);
+      const clock = new Date(since).toLocaleTimeString('en-GB', {
+        hour: '2-digit', minute: '2-digit', hour12: false, timeZone: config.store.timezone,
+      });
+      return [
+        {
+          kind: 'buttons',
+          text: [`⏱ Waiting from ${clock}. Tap when you move off.`, waitingLine()]
+            .filter(Boolean)
+            .join(chr10),
+          buttons: nextActions(order.orderNo, 'on_the_way', 'driver', {
+            canWait: true,
+            waitingOpen: true,
+          }),
+        },
+      ];
+    }
+
+    const { added, total } = repo.stopWaiting(order.orderNo);
+    if (added === 0 && !order.waitingSince) {
+      return reply(`${order.orderNo} was not waiting. Tap *Waiting* when you stop.`);
+    }
+    return [
+      {
+        kind: 'buttons',
+        text: `⏱ ${added} min waited, ${total} in total — *${money(waitingCharge(total))}* so far.`,
+        buttons: nextActions(order.orderNo, 'on_the_way', 'driver', { canWait: true }),
+      },
+    ];
+  }
+
   const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
   if (!matched) return reply(describeForDriver(order));
 
@@ -2113,6 +2158,13 @@ export async function handleDriverMessage(
     repo.saveAssociateLocation(phone, order.location, 'delivery');
   }
 
+  // A trip cannot end with a clock still running. The driver who forgets to
+  // tap Moving has it closed for them at the drop, which is the honest
+  // moment: that is when the car stopped being theirs to wait in.
+  if (order.kind === 'taxi' && order.waitingSince && (status === 'delivered' || status === 'returned')) {
+    repo.stopWaiting(order.orderNo);
+  }
+
   const { body, status: landed } = await applyStatus(order, status, 'driver', phone, text);
   // Read after the move, not before: the code is sent to the customer by the
   // very notification that `applyStatus` fires, so asked before it this would
@@ -2120,6 +2172,9 @@ export async function handleDriverMessage(
   const actions = nextActions(order.orderNo, landed, 'driver', {
     codeExpected: repo.deliveryCodeExpected(order.orderNo),
     selfAccepted,
+    // A taxi under way can be put on hold at the kerb.
+    canWait: order.kind === 'taxi',
+    waitingOpen: Boolean(repo.findOrder(order.orderNo)?.waitingSince),
   });
 
   // The food is in the bag and only the drop is left, so this message is the
@@ -2167,10 +2222,20 @@ export async function handleDriverMessage(
   // at the bottom of the chat where they come back to it.
   const out: OutboundMessage[] = [];
 
+  // What the waiting came to, on the card that ends the trip. The driver has
+  // a fare to agree and this is the figure they add to it, said once, at the
+  // moment they need it rather than at the moment it was counted.
+  const settledTaxi = fresh.kind === 'taxi' && (landed === 'delivered' || landed === 'returned');
+  const waitLine = await (async (): Promise<string> => {
+    if (!settledTaxi || fresh.waitedMinutes <= 0) return '';
+    const { waitingCharge } = await import('./taxi.ts');
+    return `${chr10}⏱ Waited ${fresh.waitedMinutes} min in total — *${money(waitingCharge(fresh.waitedMinutes))}* to add to the fare.`;
+  })();
+
   out.push(
     ...(actions.length > 0
-      ? ([{ kind: 'buttons', text: shown, buttons: actions }] as OutboundMessage[])
-      : reply(shown)),
+      ? ([{ kind: 'buttons', text: shown + waitLine, buttons: actions }] as OutboundMessage[])
+      : reply(shown + waitLine)),
   );
 
   return out;

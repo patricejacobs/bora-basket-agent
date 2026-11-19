@@ -310,7 +310,11 @@ export const config = {
    * too.
    */
   taxi: {
-    waitFreeMinutes: Math.max(0, num('TAXI_WAIT_FREE_MINUTES', 10)),
+    // No free period. Waiting is not a passenger locking a door any more -
+    // it is the car stopped at their request, with the driver in it and not
+    // earning. A two-minute stop costs a block, which is the rule as the
+    // shop set it.
+    waitFreeMinutes: Math.max(0, num('TAXI_WAIT_FREE_MINUTES', 0)),
     waitBlockMinutes: Math.max(0, num('TAXI_WAIT_BLOCK_MINUTES', 30)),
     waitBlockFee: Math.round(Math.max(0, num('TAXI_WAIT_BLOCK_FEE', 800)) * minorPerUnit),
   },

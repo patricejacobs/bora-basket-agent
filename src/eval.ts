@@ -158,8 +158,8 @@ const SCENARIOS: Scenario[] = [
     // the slope back to "delivery man". The judge takes the grammar.
     check: (t) => {
       const said = t.all;
-      const shorthand = /the associate/i.exec(said)?.[0];
-      const trade = /(driver|rider|delivery man|delivery guy|courier)/i.exec(said)?.[0];
+      const shorthand = /\bthe associate\b/i.exec(said)?.[0];
+      const trade = /\b(driver|rider|delivery man|delivery guy|courier)\b/i.exec(said)?.[0];
       if (trade) return `called them "${trade}"`;
       if (shorthand) return `shortened it to "${shorthand}"`;
       return null;
