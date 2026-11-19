@@ -9,7 +9,7 @@ import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
-import { balanceLines, valueOf, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
+import { balanceLines, usualDelivery, valueOf, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
 import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../services.ts';
 import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
@@ -2495,7 +2495,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         points,
         worth: value > 0 ? money(value) : money(0),
         can_use_now: value > 0,
-        lines: balanceLines(points, lang),
+        lines: balanceLines(points, lang, usualDelivery(ctx.phone)),
         rate: `Every ${money(10 * config.currency.minorPerUnit)} of delivery charges earns 1 point. ${REWARD_POINTS} points is ${money(REWARD_VALUE)} off an order.`,
         next:
           value > 0

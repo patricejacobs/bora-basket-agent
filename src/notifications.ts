@@ -620,13 +620,13 @@ export async function notifyCustomerOfStatus(
     if (status === 'delivered') {
       const earned = repo.pointsEarnedOn(order.orderNo);
       if (earned > 0) {
-        const { balanceLines } = await import('./rewards.ts');
+        const { balanceLines, usualDelivery } = await import('./rewards.ts');
         const nl = String.fromCharCode(10);
         await sendText(
           order.phone,
           [
             t('points_earned', lang, { points: String(earned) }),
-            ...balanceLines(repo.pointsBalance(order.phone), lang),
+            ...balanceLines(repo.pointsBalance(order.phone), lang, usualDelivery(order.phone)),
           ].join(nl),
         );
       }

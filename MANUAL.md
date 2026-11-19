@@ -140,16 +140,39 @@ order that then comes back is **given straight back**.
 
 ```
 ⭐ *+500 points* on this delivery.
-You have *1000 points*.
-That is *$500* off an order, whenever you want it — just say *use my points*.
+You have *1000 points* — that is *$500* off an order, whenever you want it.
+Just say *use my points*.
 ```
 
-Short of a reward they are told the distance, never just a number:
+**Short of a reward, the distance is counted in points, never in money still
+to spend.** The base is the delivery charge, so "spend $8,200 more" would
+read as *pay us more in fees* — and nobody can go and acquire points anyway.
+What they can do is order again, so the second line says that instead,
+priced from the zone already on their record:
 
 ```
-You have *50 points*.
-$9,500 more in delivery charges and you reach *1000 points*, worth $500.
+⭐ *+180 points* on this delivery.
+You have *180 points* — *820 to go* for $500 off.
+About 5 more deliveries to Diamond.
 ```
+
+**The deliveries line appears only when it is five or fewer.** Past that it
+stops being encouragement: a Georgetown customer two deliveries in is
+eighteen away, which is true and is not an advertisement. The points to go
+are always shown, so nothing is hidden — the shop just does not volunteer the
+harder number, and the line comes back as they get close:
+
+```
+You have *100 points* — *900 to go* for $500 off.
+
+...later...
+
+You have *800 points* — *200 to go* for $500 off.
+About 4 more deliveries to Georgetown.
+```
+
+Where the shop has never learned where somebody lives, the second line is
+left out rather than guessed at.
 
 **It is spent only when asked for.** Somebody saving for something must be
 able to buy a bag of rice without their $500 going on it. On the receipt it is

@@ -36,6 +36,8 @@
  */
 import { config, money } from './config.ts';
 import { t, type Language } from './language.ts';
+import { zoneFeeFor } from './zones.ts';
+import * as repo from './db/repo.ts';
 
 /** Delivery charges, in money, that earn one point. */
 export const PER_POINT = 10 * config.currency.minorPerUnit;
@@ -74,31 +76,76 @@ export function spendToNextReward(points: number): number {
 }
 
 /**
+ * The most deliveries the shop will put a number on.
+ *
+ * Past this it stops being encouragement. A Georgetown customer two
+ * deliveries in is eighteen away, which is true and is not an advertisement -
+ * so the distance in points is still shown, always, and the shop simply does
+ * not volunteer the harder number. Anybody who wants it can work it out.
+ */
+export const MAX_SHOWN_DELIVERIES = 5;
+
+/**
+ * What a delivery to this customer usually costs, or null.
+ *
+ * Their saved zone, priced from the tariff. Null where the shop has never
+ * learned where they live, or where the place is not in the tariff - and
+ * then the deliveries line is left out rather than guessed at.
+ */
+export function usualDelivery(phone: string): { zone: string; fee: number } | null {
+  const place = repo.getCustomer(phone).deliveryZone;
+  if (!place) return null;
+  const priced = zoneFeeFor(place);
+  return priced ? { zone: priced.place, fee: priced.fee } : null;
+}
+
+/**
  * What a customer is told about their points, whenever they ask.
  *
  * Two shapes, and the difference is the whole scheme: either there is
  * something to spend, or there is a distance left to go. Nobody is told "you
  * have 340 points" and left to work out what that is worth.
+ *
+ * The distance is counted in POINTS TO GO, never in money still to spend.
+ * The base is the delivery charge, so "spend $8,200 more" would read as "pay
+ * us more in fees" — and a customer cannot go and acquire points anyway.
+ * What they can do is order again, which is what the deliveries line says,
+ * priced from the zone already on their record.
  */
-export function balanceLines(points: number, lang: Language = 'en'): string[] {
+export function balanceLines(
+  points: number,
+  lang: Language = 'en',
+  /** Where they usually get deliveries, and what one costs. */
+  usual?: { zone: string; fee: number } | null,
+): string[] {
   const value = valueOf(points);
-  const lines = [t('points_balance', lang, { points: String(points) })];
 
   if (value > 0) {
-    lines.push(t('points_ready', lang, { value: money(value) }));
-    return lines;
+    return [
+      t('points_ready', lang, { points: String(points), value: money(value) }),
+      t('points_use_hint', lang),
+    ];
   }
 
-  // Short of the first reward. The target is what they are working towards,
-  // not what they have, because a number with no destination is not an
-  // incentive.
-  const target = (rewardsIn(points) + 1) * REWARD_POINTS;
-  lines.push(
-    t('points_progress', lang, {
-      spend: money(spendToNextReward(points)),
-      target: String(target),
+  const togo = REWARD_POINTS - (Math.max(0, points) % REWARD_POINTS);
+  const lines = [
+    t('points_to_go', lang, {
+      points: String(points),
+      togo: String(togo),
       value: money(REWARD_VALUE),
     }),
-  );
+  ];
+
+  // How many more deliveries that is, where the shop knows what one costs
+  // them and the answer is near enough to be worth saying.
+  const each = usual ? pointsFor(usual.fee) : 0;
+  if (each > 0) {
+    const trips = Math.ceil(togo / each);
+    if (trips === 1) lines.push(t('points_one_delivery', lang, { zone: usual!.zone }));
+    else if (trips <= MAX_SHOWN_DELIVERIES) {
+      lines.push(t('points_deliveries', lang, { n: String(trips), zone: usual!.zone }));
+    }
+  }
+
   return lines;
 }

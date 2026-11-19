@@ -8999,11 +8999,32 @@ section('Points come off the delivery charge');
 
   /* --- what the customer is told --------------------------------------- */
 
-  const short = balanceLines(700);
-  check('short of a reward, they are told how far', /700 points/.test(short[0] ?? '') && /1000 points/.test(short[1] ?? ''), short.join(' | '));
-  check('and never just handed a number', short.length === 2);
-  const ready = balanceLines(1200);
-  check('with one banked, they are told what it is worth', /\$500/.test(ready[1] ?? ''), ready.join(' | '));
+  // Counted in points to go, never in money still to spend: the base is the
+  // delivery charge, so "spend $3,000 more" reads as "pay us more in fees".
+  const short = balanceLines(700, 'en', { zone: 'Diamond', fee: 1800 });
+  check('short of a reward, they are told how far in points',
+    /700 points/.test(short[0] ?? '') && /300 to go/.test(short[0] ?? ''), short.join(' | '));
+  check('and never told to spend more', !/more in delivery/i.test(short.join(' ')), short.join(' | '));
+  check('with the distance put in deliveries they can picture',
+    /About 2 more deliveries to Diamond/.test(short[1] ?? ''), short.join(' | '));
+
+  // Past five it stops being encouragement. A town customer two deliveries
+  // in is eighteen away, which is true and is not an advertisement - so the
+  // points still show and the shop does not volunteer the harder number.
+  const townish = balanceLines(100, 'en', { zone: 'Georgetown', fee: 500 });
+  check('a long way off, the deliveries line is left out', townish.length === 1, townish.join(' | '));
+  check('but the points to go are still there', /900 to go/.test(townish[0] ?? ''), townish[0]);
+  const nearlyThere = balanceLines(800, 'en', { zone: 'Georgetown', fee: 500 });
+  check('and it comes back once they are close',
+    /About 4 more deliveries/.test(nearlyThere[1] ?? ''), nearlyThere.join(' | '));
+  check('one away reads as one delivery, not "1 deliveries"',
+    /About 1 more delivery to Parika/.test(balanceLines(500, 'en', { zone: 'Parika', fee: 5000 })[1] ?? ''),
+    balanceLines(500, 'en', { zone: 'Parika', fee: 5000 }).join(' | '));
+  // Nothing is guessed for somebody whose address the shop has never learned.
+  check('with no zone on file, nothing is invented', balanceLines(700, 'en', null).length === 1);
+
+  const ready = balanceLines(1200, 'en', { zone: 'Diamond', fee: 1800 });
+  check('with one banked, they are told what it is worth', /\$500/.test(ready[0] ?? ''), ready.join(' | '));
   check('and how to use it', /use my points/i.test(ready[1] ?? ''), ready[1]);
 
   const ctx: ToolContext = { phone: spender, outbound: [] };
