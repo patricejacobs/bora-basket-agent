@@ -19,6 +19,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fareBetween } from './zones.ts';
 
 const SOURCE = path.resolve('./data/delivery-zones.csv');
 const OUT = path.resolve('./data/zone-tariff-matrix.csv');
@@ -82,33 +83,16 @@ function readBands(): Band[] {
   return [...bands.values()];
 }
 
-/** True where two corridors are the same road for a while. */
-function sharedTrunk(a: Band, b: Band): number {
-  if (a.corridor === b.corridor) return Math.min(a.out, b.out);
-  // Georgetown is the hub: it is on the way to everywhere, so a journey from
-  // it is the difference and not the sum.
-  if (a.corridor === 'Georgetown' || b.corridor === 'Georgetown') {
-    return Math.min(a.out, b.out);
-  }
-  // Both sides of the river share the bridge and the run up to it. They part
-  // company at Vreed-en-Hoop, one going south and one going west.
-  const west = (c: string) => c.startsWith('West');
-  if (west(a.corridor) && west(b.corridor)) return BRIDGE;
-  // Everything else parts company in Georgetown itself - the East Coast road
-  // and the East Bank road leave town in different directions - so the fare
-  // is one leg in and one leg out.
-  return 0;
-}
-
 /**
- * What it should cost to carry something from one band to another.
+ * The fare, from the shop's own tariff code.
  *
- * Distance is the only thing in here. Not the time of day, not how hard the
- * road is, not whether anybody wants to come back from there empty.
+ * This file used to carry its own copy of the arithmetic, which is how a
+ * table and the prices it is meant to describe quietly stop agreeing. The
+ * rule lives in zones.ts now, where the parcel pricing reads it too.
  */
-export function fareBetween(a: Band, b: Band): number {
-  const trunk = sharedTrunk(a, b);
-  return BASE + Math.max(0, a.out - trunk) + Math.max(0, b.out - trunk);
+function fareFor(a: Band, b: Band): number {
+  const quoted = fareBetween(a.places[0]!, b.places[0]!);
+  return quoted ? quoted.fee : BASE;
 }
 
 const bands = readBands().sort(
@@ -126,7 +110,7 @@ const rows = [
         to.corridor,
         to.zone,
         to.fee,
-        fareBetween(from, to),
+        fareFor(from, to),
       ].join(','),
     ),
   ),
@@ -138,8 +122,8 @@ console.log(`${bands.length} bands, ${rows.length - 1} fares → ${OUT}`);
 console.log('');
 for (const band of bands) {
   const others = bands.filter((b) => b !== band);
-  const cheapest = Math.min(...others.map((b) => fareBetween(band, b)));
-  const dearest = Math.max(...others.map((b) => fareBetween(band, b)));
+  const cheapest = Math.min(...others.map((b) => fareFor(band, b)));
+  const dearest = Math.max(...others.map((b) => fareFor(band, b)));
   console.log(
     `${`${band.corridor} $${band.fee}`.padEnd(34)} own band $${BASE}` +
       `  ·  next $${cheapest}  ·  furthest $${dearest}` +

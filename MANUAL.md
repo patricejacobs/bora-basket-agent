@@ -1231,6 +1231,46 @@ Booking offers the job to **every free associate on duty**; the first to accept
 takes it, and the rest are told it has gone. That is the only broadcast in the
 whole flow.
 
+### What a parcel costs
+
+**Priced from both ends, once the destination has been agreed.**
+
+The tariff prices one journey — out of Georgetown — which is the right answer
+for a delivery, because the shop is always at one end of it. A parcel is a
+two-ended job the same table can only half-describe. Priced by its
+destination alone, a parcel collected in Parika and dropped in Diamond cost
+what a Diamond delivery costs, and nobody was paid for the seventy kilometres
+between.
+
+| | Same road | Different roads |
+|---|---|---|
+| **Fare** | the difference between the two bands | the sum — in to town and back out |
+
+The bridge is charged **once**: two places already across the river are
+priced from the crossing, not through it.
+
+| Parcel | Destination only | Both ends |
+|---|---|---|
+| Georgetown → Diamond | $1,800 | **$1,800** — identical |
+| Parika → Vergenoegen | $4,500 | **$1,000** — same coast, ten minutes |
+| Parika → Diamond | $1,800 | **$6,300** — 70 km |
+| Vreed-en-Hoop → Parika | $5,000 | **$3,000** — the bridge, once |
+| Parika → Georgetown | $500 | **$5,000** — a long trip for a town fare |
+
+**It reduces to the old figure whenever the pickup is in town**, which is most
+parcels. This is the same tariff asked a better question, not a second set of
+prices.
+
+**The destination must still be agreed first.** A zone is a price, and the
+only thing that may set one is the customer saying yes to the place read back
+to them — "Golden Grove" is two villages $800 apart. The pickup end is added
+on top of that agreed destination, never instead of it. Where the tariff does
+not recognise the pickup, the destination's own fee stands, exactly as before.
+
+**Deliveries and taxis are untouched.** A delivery has the shop at one end, so
+one number describes it. A taxi is quoted no fare at all: the driver agrees it
+with the passenger.
+
 ### What cannot be carried
 
 - Weapons or explosives

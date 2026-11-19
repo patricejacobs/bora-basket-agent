@@ -15,7 +15,7 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
-import { findZone, zoneCount, describeZone, zoneFeeFor } from '../zones.ts';
+import { findZone, zoneCount, describeZone, zoneFeeFor, fareBetween } from '../zones.ts';
 import { itemLabel, labelPosition } from '../categories.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
@@ -2180,17 +2180,25 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       };
 
       const zoneHeld = draft.zone ? zoneFeeFor(draft.zone) : null;
+      // The same two-ended figure the booking will use, so nobody is quoted
+      // one price and charged another - and on the same condition: the
+      // destination has to have been agreed first.
+      const bothEndsHeld = zoneHeld
+        ? fareBetween(draft.sender.address, zoneHeld.place)
+        : null;
 
       return ok({
         sender: half(draft.sender),
         recipient: half(draft.recipient),
         contents: draft.contents || 'not said yet',
-        ...(zoneHeld
-          ? { delivery_fee: money(zoneHeld.fee), priced_by: `${zoneHeld.place} (${zoneHeld.zone})` }
-          : {
-              delivery_fee:
-                "not agreed yet — confirm the recipient's area with delivery_zone",
-            }),
+        ...(bothEndsHeld
+          ? { delivery_fee: money(bothEndsHeld.fee), priced_by: bothEndsHeld.explanation }
+          : zoneHeld
+            ? { delivery_fee: money(zoneHeld.fee), priced_by: `${zoneHeld.place} (${zoneHeld.zone})` }
+            : {
+                delivery_fee:
+                  "not agreed yet — confirm the recipient's area with delivery_zone",
+              }),
         pickup_pin: draft.pickup ? `on file${draft.pickup.label ? ` (${draft.pickup.label})` : ''}` : 'not yet',
         destination_pin: draft.destination
           ? `on file${draft.destination.label ? ` (${draft.destination.label})` : ''}`
@@ -2315,7 +2323,27 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         );
       }
 
-      const fee = zoned ? zoned.fee : quote.priced ? quote.fee : 0;
+      // Priced from BOTH ends where the tariff knows them both.
+      //
+      // The zone alone prices one journey - out of Georgetown - which is the
+      // right answer for a delivery, because the shop is always at one end.
+      // A parcel is a two-ended job: priced by its destination alone, one
+      // collected in Parika and dropped in Diamond cost what a Diamond
+      // delivery costs, and nobody was paid for the seventy kilometres
+      // between. It cuts both ways - Parika to Vergenoegen, two villages on
+      // the same coast, was charged $4,500 for a ten-minute drive.
+      //
+      // Reduces to exactly the old figure whenever the pickup is in town,
+      // which is most of them, so this is the same tariff asked a better
+      // question rather than a second set of prices.
+      // Only once the destination has been AGREED. A zone is a price, and
+      // the one thing allowed to set it is the customer saying yes to the
+      // place read back to them - "Golden Grove" is two villages eight
+      // hundred dollars apart, and a quiet guess at the wrong one is a
+      // figure somebody will be argued with about at a gate. The pickup end
+      // is added on top of that agreed destination, never instead of it.
+      const bothEnds = zoned ? fareBetween(pickupNote, zoned.place) : null;
+      const fee = bothEnds ? bothEnds.fee : zoned ? zoned.fee : quote.priced ? quote.fee : 0;
       // Every detail from this booking, and nothing from the customer record.
       //
       // A name or number saved from a past delivery is a different
@@ -2357,18 +2385,27 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         booked: true,
         job_number: job.orderNo,
         distance: formatDistance(quote.distanceKm),
-        ...(zoned
+        ...(bothEnds
           ? {
-              fee: money(zoned.fee),
-              priced_by: `${zoned.place} (${zoned.zone})`,
+              fee: money(bothEnds.fee),
+              // Both ends named, because the figure only makes sense with
+              // both: a customer told "$6,300 to Diamond" will ask why, and
+              // "Parika to Diamond" is the answer.
+              priced_by: bothEnds.explanation,
               payment: 'Cash, collected on delivery.',
             }
-          : quote.priced
-            ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
-            : {
-                fee: 'to be confirmed',
-                note: 'Tell them the delivery associate will confirm the cost with them before it is uplifted. Do not quote a figure.',
-              }),
+          : zoned
+            ? {
+                fee: money(zoned.fee),
+                priced_by: `${zoned.place} (${zoned.zone})`,
+                payment: 'Cash, collected on delivery.',
+              }
+            : quote.priced
+              ? { fee: money(fee), payment: 'Cash, collected on delivery.' }
+              : {
+                  fee: 'to be confirmed',
+                  note: 'Tell them the delivery associate will confirm the cost with them before it is uplifted. Do not quote a figure.',
+                }),
         next: 'Give them the job number and what happens next: a delivery associate uplifts it, then delivers. No time promise.',
       });
     }

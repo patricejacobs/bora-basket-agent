@@ -362,3 +362,95 @@ export function zoneFeeFor(text: string): { place: string; zone: string; fee: nu
 export function describeZone(z: { zone: string; fee: number }): string {
   return `${z.zone} — ${money(z.fee)}`;
 }
+
+/* ------------------------------------------------- two-ended journeys */
+
+/**
+ * The cheapest fee in the tariff: a delivery that goes nowhere.
+ *
+ * Read from the file rather than written down, so a shop that reprices its
+ * own tariff reprices this with it. Every fare below is this plus the road.
+ */
+function baseFee(): number {
+  const fees = zones().map((z) => z.fee);
+  return fees.length > 0 ? Math.min(...fees) : config.store.deliveryFee;
+}
+
+/**
+ * What the river costs, read off the cheapest place on the far side.
+ *
+ * The west is priced from the bridge, not from the map: Vreed-en-Hoop is five
+ * kilometres from Stabroek and twenty-five by road. That crossing is inside
+ * every west-side fee, so a journey between two places that are both already
+ * over there must not be charged for it twice.
+ */
+function bridgeCost(): number {
+  const west = zones().filter((z) => z.corridor.startsWith('West'));
+  if (west.length === 0) return 0;
+  return Math.min(...west.map((z) => z.fee)) - baseFee();
+}
+
+/** What the two corridors share before they part company. */
+function sharedTrunk(a: Zone, b: Zone, base: number): number {
+  const outA = a.fee - base;
+  const outB = b.fee - base;
+  // Georgetown is the hub and is on the way to everywhere, so a journey from
+  // it is the difference between the two and not the sum.
+  if (a.corridor === b.corridor || a.corridor === 'Georgetown' || b.corridor === 'Georgetown') {
+    return Math.min(outA, outB);
+  }
+  // Both sides of the river share the bridge and the run up to it, parting
+  // at Vreed-en-Hoop — one going south, one going west.
+  if (a.corridor.startsWith('West') && b.corridor.startsWith('West')) return bridgeCost();
+  // Everything else parts company in Georgetown itself: one leg in, one out.
+  return 0;
+}
+
+export type Fare = {
+  fee: number;
+  from: { place: string; zone: string };
+  to: { place: string; zone: string };
+  /** Said plainly, for a read-back: "Parika to Diamond". */
+  explanation: string;
+};
+
+/**
+ * What it costs to carry something from one place to another.
+ *
+ * The tariff prices ONE journey — out of Georgetown — which is the right
+ * answer for a delivery, because the shop is always at one end of it. A
+ * parcel is a two-ended job the same table can only half-describe: priced by
+ * its destination alone, a parcel from Parika to Diamond costs what a
+ * Diamond delivery costs, and nobody is paid for the seventy kilometres in
+ * between.
+ *
+ * Strip the base off each end and what is left is the road out of town. Same
+ * corridor, the fare is the difference; different corridors, the sum, because
+ * you come into town and go back out. The bridge is charged once.
+ *
+ * It reduces to the tariff exactly whenever one end is Georgetown, which is
+ * every delivery the shop makes — so this is a generalisation of the existing
+ * prices, not a second set of them.
+ *
+ * Null when either end is not in the tariff: better no figure than one made
+ * up from half a journey.
+ */
+export function fareBetween(fromText: string, toText: string): Fare | null {
+  const from = findZone(fromText);
+  const to = findZone(toText);
+  if (from.kind !== 'found' || to.kind !== 'found') return null;
+
+  const base = baseFee();
+  const trunk = sharedTrunk(from.match, to.match, base);
+  const fee =
+    base +
+    Math.max(0, from.match.fee - base - trunk) +
+    Math.max(0, to.match.fee - base - trunk);
+
+  return {
+    fee,
+    from: { place: from.match.place, zone: from.match.zone },
+    to: { place: to.match.place, zone: to.match.zone },
+    explanation: `${from.match.place} to ${to.match.place}`,
+  };
+}

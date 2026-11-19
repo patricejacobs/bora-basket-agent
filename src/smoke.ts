@@ -8956,6 +8956,85 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('A parcel is priced from both ends');
+{
+  const { fareBetween } = await import('./zones.ts');
+  const { executeTool } = await import('./agent/tools.ts');
+
+  /* --- the rule itself -------------------------------------------------- */
+
+  // It reduces to the tariff whenever one end is Georgetown, which is every
+  // delivery the shop makes. That is the proof it is the same tariff asked a
+  // better question, and not a second set of prices.
+  check('out of town, it is the tariff exactly',
+    fareBetween('Georgetown', 'Diamond')?.fee === 1800, String(fareBetween('Georgetown', 'Diamond')?.fee));
+  check('and so is the far end of it',
+    fareBetween('Stabroek', 'Parika')?.fee === 5000, String(fareBetween('Stabroek', 'Parika')?.fee));
+
+  // Same road: the difference, not the sum. Two villages ten minutes apart
+  // were charged $4,500 because only the destination was priced.
+  check('along one corridor, the fare is the difference',
+    fareBetween('Parika', 'Vergenoegen')?.fee === 1000, String(fareBetween('Parika', 'Vergenoegen')?.fee));
+  // Different roads: in to town and back out.
+  check('across two, it is the sum',
+    fareBetween('Parika', 'Diamond')?.fee === 6300, String(fareBetween('Parika', 'Diamond')?.fee));
+  // The bridge is inside every west-side price and must not be paid twice.
+  check('the river is crossed once',
+    fareBetween('Vreed-en-Hoop', 'Parika')?.fee === 3000, String(fareBetween('Vreed-en-Hoop', 'Parika')?.fee));
+  check('a trip that goes nowhere is the base fare',
+    fareBetween('Kitty', 'Campbellville')?.fee === 500, String(fareBetween('Kitty', 'Campbellville')?.fee));
+  check('and it is the same both ways round',
+    fareBetween('Diamond', 'Mon Repos')?.fee === fareBetween('Mon Repos', 'Diamond')?.fee);
+  // Better no figure than one made up from half a journey.
+  check('an unknown end prices nothing', fareBetween('behind the blue gate', 'Diamond') === null);
+
+  /* --- and what a booking does with it ---------------------------------- */
+
+  const booker = '5926900001';
+  repo.clearParcelDraft(booker);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
+  repo.setService(booker, 'parcel');
+  const call = (tool: string, args: Record<string, unknown>): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: booker, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  call('parcel_party', { side: 'sender', name: 'Ravi', address: 'Lot 2, Parika', phone: '5926100088' });
+  call('parcel_party', { side: 'sender', confirmed: true });
+  call('parcel_party', { side: 'recipient', name: 'Marcia', address: 'Lot 9, Diamond, East Bank', phone: '5926100077' });
+  call('parcel_party', { side: 'recipient', confirmed: true });
+
+  // A zone is a price, and only the customer saying yes to the read-back may
+  // set one. Both addresses are on file and neither has been agreed, so
+  // there is still nothing to quote.
+  check('two typed addresses are not a price',
+    /not agreed yet/.test(String(call('parcel_status', {}).delivery_fee)),
+    String(call('parcel_status', {}).delivery_fee));
+
+  // Two steps, as the flow insists: look it up, read it back, then confirm.
+  // A zone set in one step is a price nobody agreed to.
+  call('delivery_zone', { text: 'Lot 9, Diamond, East Bank' });
+  call('delivery_zone', { place: 'Diamond', confirmed: true });
+  const quoted = call('parcel_status', {});
+  check('once the area is agreed, both ends count',
+    String(quoted.delivery_fee) === money(6300), String(quoted.delivery_fee));
+  check('and it says which two', /Parika to Diamond/.test(String(quoted.priced_by)), String(quoted.priced_by));
+
+  const booked = call('create_parcel_job', {
+    contents: 'a box of papers', sender_name: 'Ravi', sender_phone: '5926100088',
+    recipient_name: 'Marcia', recipient_phone: '5926100077',
+    pickup_note: 'Lot 2, Parika', destination_note: 'Lot 9, Diamond, East Bank',
+  });
+  check('the booking charges what was quoted', String(booked.fee) === money(6300), JSON.stringify(booked).slice(0, 160));
+  const job = repo.findOrder(String(booked.job_number));
+  check('and the job carries it', job?.total === 6300, String(job?.total));
+  // The seventy kilometres between the two ends used to be nobody's.
+  check('which is not the Diamond delivery fee', job?.total !== 1800);
+
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(job?.orderNo ?? '');
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(job?.orderNo ?? '');
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(booker);
+  repo.clearParcelDraft(booker);
+}
+
 section('Points come off the delivery charge');
 {
   const { pointsFor, rewardsIn, valueOf, spendToNextReward, balanceLines, REWARD_POINTS, REWARD_VALUE }
