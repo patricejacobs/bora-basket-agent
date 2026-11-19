@@ -426,6 +426,11 @@ Then `a x2, d x1, k x3` puts two bananas, a kilo of carrots and three kilos of
 tomatoes in the basket. An aisle can be opened by name as well — *"dairy"*
 — and a reply can mix the two: *"3 x1 and 2 of number 1"*.
 
+**A list goes stale after two hours.** Past that the aisle is sent again
+before a letter means anything. It used to last for ever: somebody who opened
+an aisle, wandered off and messaged three days later with "a" had an item put
+in their basket against a list nobody could still see.
+
 **The shop labels the list and the shop resolves the labels.** The agent is
 never asked which product a letter meant. A list relettered while retelling it
 puts the wrong thing in somebody's bag, and they find out when it arrives — so
@@ -532,6 +537,25 @@ takes it.
 **No scheduler runs this.** The time tells the people doing the work when it
 is wanted; the grocery decides when to pack, which is the only way a bag of
 milk arrives cold rather than warm.
+
+### A cancelled order goes back on the shelf
+
+Stock is taken at checkout and **put back when an order dies** — cancelled by
+anyone, or returned because nobody was at the door. A delivered order's stock
+stays sold.
+
+It only ever went down before. Nothing anywhere added it back, so every
+cancellation quietly removed stock the shop still had, compounding until an
+item read as sold out while sitting on the shelf.
+
+Done once per order, through a flag on the order rather than its status: an
+order can reach cancelled twice — a retried webhook, a second tap of a button
+that never greys out — and the second must not put the same four bottles of
+milk back again.
+
+Products that do not count stock are left alone, and a product deleted from
+the catalogue since finds nothing to credit, which is right: there is no shelf
+to put it back on.
 
 ### Nobody on the road
 

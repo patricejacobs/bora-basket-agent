@@ -4197,7 +4197,7 @@ section('Shopping by number');
   call('list_categories');
   const tooSoon = call('add_picks', { picks: [{ ref: 'a' }] });
   check('a product letter is refused while aisles are showing', typeof tooSoon.error === 'string', JSON.stringify(tooSoon).slice(0, 120));
-  check('and says to show an aisle first', /browse_category first/.test(String(tooSoon.error)), String(tooSoon.error));
+  check('and says to show an aisle first', /Call browse_category/.test(String(tooSoon.error)), String(tooSoon.error));
 
   const notAnAisle = call('browse_category', { category: '99' });
   check('an aisle number off the end is refused too', typeof notAnAisle.error === 'string', String(notAnAisle.error).slice(0, 90));
@@ -8468,6 +8468,187 @@ section('Backing up the trading record');
 console.log('');
 
 // Windows keeps the file locked while the handle is open, so close before deleting.
+section('What a dead order leaves on the shelf');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+
+  // Somebody on the road: no order can be placed otherwise, and an earlier
+  // section leaves them all clocked off.
+  for (const p2 of repo.associateNumbers()) repo.setDuty(p2, true);
+
+  const buyer = '5926107070';
+  const sku = 'AUDIT-STOCK-1';
+  repo.upsertProduct({
+    sku,
+    name: 'Audit Stock Milk',
+    description: '',
+    category: 'Dairy & Eggs',
+    unit: '1 L carton',
+    price: 500,
+    stock: 10,
+    keywords: 'audit stock milk',
+    active: 1,
+    trackStock: 1,
+  } as never);
+  const id = (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(sku) as { id: number }).id;
+  const shelf = (): number => (db.prepare(`SELECT stock FROM products WHERE id = ?`).get(id) as { stock: number }).stock;
+
+  const place = (qty: number): string => {
+    // A clean shopper every time. This suite leaves carts, chosen outlets and
+    // services on its phones, and a mixed cart or an unchosen service refuses
+    // the order - which would read here as "stock was not taken" and send
+    // somebody hunting the wrong bug.
+    repo.clearCart(buyer);
+    repo.setService(buyer, 'grocery');
+    repo.saveCustomer(buyer, { name: 'Patrice', address: '26 Brickdam, Georgetown', contactPhone: buyer });
+    repo.confirmIdentity(buyer);
+    repo.setCartQty(buyer, id, qty, '');
+    const out = JSON.parse(
+      executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
+        phone: buyer,
+        outbound: [] as never[],
+      } as never),
+    ) as { order_number?: string; error?: string };
+    check(`an order for ${qty} is placed`, typeof out.order_number === 'string', String(out.error).slice(0, 110));
+    return String(out.order_number ?? '');
+  };
+
+  /* --- a cancellation puts the goods back ------------------------------ */
+
+  // Stock only ever went down. It was taken at checkout and nothing anywhere
+  // added it back, so every cancelled order removed stock the shop still had
+  // - silently, compounding, until an item read as sold out while sitting on
+  // the shelf.
+  check('the shelf starts full', shelf() === 10, String(shelf()));
+  const first = place(4);
+  check('ordering takes it off', shelf() === 6, String(shelf()));
+
+  repo.setOrderStatus(first, 'cancelled');
+  check('cancelling puts it back', shelf() === 10, String(shelf()));
+
+  // Twice is not twice as much. An order can reach cancelled again - a
+  // retried webhook, a second tap of a button that never greys out.
+  repo.setOrderStatus(first, 'cancelled');
+  check('and cancelling again does nothing', shelf() === 10, String(shelf()));
+
+  /* --- so does a parcel that comes home -------------------------------- */
+
+  const second = place(3);
+  check('taken again', shelf() === 7, String(shelf()));
+  repo.setOrderStatus(second, 'returned');
+  check('a returned order is back on the shelf too', shelf() === 10, String(shelf()));
+
+  /* --- but a delivered one is gone ------------------------------------- */
+
+  const third = place(2);
+  repo.setOrderStatus(third, 'delivered');
+  check('what was delivered stays sold', shelf() === 8, String(shelf()));
+  // And cancelling after delivery does not conjure it back: the flag says
+  // the goods have not been returned, because they have not been.
+  repo.setOrderStatus(third, 'cancelled');
+  check('a cancellation after delivery returns it once, not never', shelf() === 10, String(shelf()));
+
+  /* --- an untracked product is left alone ------------------------------ */
+
+  const loose = 'AUDIT-STOCK-2';
+  repo.upsertProduct({
+    sku: loose,
+    name: 'Audit Loose Bananas',
+    description: '',
+    category: 'Fresh Produce',
+    unit: 'per kg',
+    price: 400,
+    stock: 0,
+    keywords: 'audit loose bananas',
+    active: 1,
+    trackStock: 0,
+  } as never);
+  const looseId = (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(loose) as { id: number }).id;
+  repo.clearCart(buyer);
+  repo.setService(buyer, 'grocery');
+  repo.setCartQty(buyer, looseId, 5, '');
+  const fourth = JSON.parse(
+    executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
+      phone: buyer,
+      outbound: [] as never[],
+    } as never),
+  ) as { order_number?: string };
+  repo.setOrderStatus(String(fourth.order_number ?? ''), 'cancelled');
+  check(
+    'a product that does not count stock is not credited',
+    (db.prepare(`SELECT stock FROM products WHERE id = ?`).get(looseId) as { stock: number }).stock === 0,
+  );
+
+  db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
+  db.prepare(`DELETE FROM products WHERE sku IN (?, ?)`).run(sku, loose);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+}
+
+section('A list nobody can still see');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { LIST_TTL_MS } = await import('./db/repo.ts');
+
+  const shopper = '5926106060';
+  repo.setService(shopper, 'grocery');
+  repo.clearCart(shopper);
+  const call = (tool: string, args: Record<string, unknown> = {}): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: shopper, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  call('browse_category', { category: 'Dairy & Eggs' });
+  const fresh = call('add_picks', { picks: [{ ref: 'a', quantity: 1 }] });
+  check('a letter works while the list is on screen', (fresh.added as unknown[]).length === 1, JSON.stringify(fresh).slice(0, 110));
+  repo.clearCart(shopper);
+
+  // Somebody who opened an aisle, wandered off and messaged days later had an
+  // item added against a list nobody could still see.
+  const old = new Date(Date.now() - LIST_TTL_MS - 60_000).toISOString();
+  db.prepare(`UPDATE numbered_lists SET shown_at = ? WHERE phone = ?`).run(old, shopper);
+
+  const stale = call('add_picks', { picks: [{ ref: 'a', quantity: 1 }] });
+  check('an old list no longer answers', typeof stale.error === 'string', JSON.stringify(stale).slice(0, 110));
+  check('and says why', /two hours old/.test(String(stale.error)), String(stale.error));
+  check('nothing was added', repo.getCart(shopper).lines.length === 0, JSON.stringify(repo.getCart(shopper).lines.length));
+
+  // The aisles go stale the same way, rather than one list outliving the other.
+  call('list_categories');
+  db.prepare(`UPDATE numbered_lists SET shown_at = ? WHERE phone = ?`).run(old, shopper);
+  const staleAisle = call('browse_category', { category: '1' });
+  check('an old aisle list does not answer either', typeof staleAisle.error === 'string', String(staleAisle.error).slice(0, 90));
+
+  // Sending it again is all it takes.
+  const sent = call('browse_category', { category: 'Dairy & Eggs' });
+  check('and sending it again fixes it', Array.isArray(sent.lines), JSON.stringify(sent).slice(0, 80));
+  const now = call('add_picks', { picks: [{ ref: 'b', quantity: 1 }] });
+  check('a letter answers the new list', (now.added as unknown[]).length === 1, JSON.stringify(now.added));
+
+  repo.clearCart(shopper);
+  db.prepare(`DELETE FROM numbered_lists WHERE phone = ?`).run(shopper);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(shopper);
+}
+
+section('A clean shop is clean');
+{
+  const { wipeTradingData } = await import('./reset.ts');
+
+  // help_requests and numbered_lists were added after reset.ts was written
+  // and never joined its list, so a wipe left a customer waiting for a person
+  // who no longer existed - and the next boot would have sent staff their
+  // name.
+  const ghost = '5926105959';
+  repo.recordHelpRequest(ghost, 'Wants the manager.', false);
+  repo.rememberNumberedList(ghost, 'category', [{ value: 'Fresh Produce', label: 'Fresh Produce' }]);
+  repo.saveCustomer(ghost, { name: 'Ghost', address: 'nowhere', contactPhone: ghost });
+
+  check('there is something to lose', repo.pendingHelpCount() > 0 && repo.numberedList(ghost).length > 0);
+
+  wipeTradingData();
+
+  check('the customers are gone', (db.prepare(`SELECT COUNT(*) AS n FROM customers`).get() as { n: number }).n === 0);
+  check('and so are the requests they left', repo.pendingHelpCount() === 0, String(repo.pendingHelpCount()));
+  check('and the lists they were reading', repo.numberedList(ghost).length === 0);
+}
+
 // Last on purpose: it empties the database, so anything that ran after it
 // would be testing a shop that had just been erased out from under it.
 section('Starting the count again');

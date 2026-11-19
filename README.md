@@ -121,7 +121,7 @@ everything else is optional.
 
 ```csv
 sku,name,description,category,unit,price,stock,keywords,active,image
-RIC-001,Karibee Parboiled Rice,Long grain parboiled,Rice & Grains,5 kg bag,1850,120,rice parboiled grain,1,https://cdn.example.com/rice.jpg
+RIC-001,Karibee Parboiled Rice,Long grain parboiled,"Rice, Peas & Pasta",5 kg bag,1850,120,rice parboiled grain,1,https://cdn.example.com/rice.jpg
 ```
 
 - **`keywords`** is what customers actually say about *this* product — a brand you carry, a

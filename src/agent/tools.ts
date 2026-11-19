@@ -101,7 +101,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'browse_category',
     description:
-      "Everything in one aisle, numbered, so the customer can answer with numbers and quantities. Call it when they pick an aisle from the list, by its number or its name. The numbering is remembered: their next reply can be \"1 x2, 4 x1\" or \"two of the first one\" and `add_by_number` resolves it.",
+      "Everything in one aisle, written out as `lines` with a letter in brackets against each item, so the customer can answer with letters and quantities. Call it when they pick an aisle from the list, by its number or its name. The lettering is remembered: their next reply can be \"a x2, d x1\" or \"two of the first one\" and `add_picks` resolves it.",
     input_schema: {
       type: 'object',
       properties: {
@@ -893,7 +893,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         const pick = repo.numberedPick(ctx.phone, Number(asked));
         if (!pick || pick.kind !== 'category') {
           return fail(
-            `There is no aisle ${asked} on the list they were last shown. Call list_categories again and send it before taking a number.`,
+            `There is no aisle ${asked} on their screen — either the last list was a shelf rather than the aisles, or it is more than two hours old. Call list_categories again and send it before taking a number.`,
           );
         }
         name = pick.value;
@@ -971,7 +971,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const shown = repo.numberedList(ctx.phone);
       if (shown.length === 0 || shown[0]!.kind !== 'product') {
         return fail(
-          'No aisle has been shown yet, so a letter means nothing. Call browse_category first, send the list, and let them answer it.',
+          'No aisle is on their screen, so a letter means nothing — either none has been shown, or the last one is more than two hours old. Call browse_category, send the list, and let them answer it.',
         );
       }
 

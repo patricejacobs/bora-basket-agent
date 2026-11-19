@@ -135,7 +135,7 @@ const stock = (sku: string, name: string, cat: string, unit: string, price: numb
   repo.upsertProduct({ sku, name, description: '', category: cat, unit, price, stock: 50, active: 1, keywords: name.toLowerCase(), outletId, trackStock: outletId === grocery.id ? 1 : 0 });
   return (db.prepare(`SELECT id FROM products WHERE sku = ?`).get(sku) as { id: number }).id;
 };
-const rice = stock('RIC-001', 'Karibee Parboiled Rice', 'Rice & Grains', '5 kg bag', 1850, grocery.id);
+const rice = stock('RIC-001', 'Karibee Parboiled Rice', 'Rice, Peas & Pasta', '5 kg bag', 1850, grocery.id);
 const oil = stock('OIL-002', 'Sunflower Cooking Oil', 'Cooking', '1.8 L', 1420, grocery.id);
 const roti = stock('TOG-001', 'Chicken Curry with Roti', 'Main Dishes', 'plate', 1850, kitchen.id);
 const chow = stock('TOG-002', 'Chicken Chow Mein', 'Main Dishes', 'plate', 1500, kitchen.id);

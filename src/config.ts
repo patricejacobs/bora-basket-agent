@@ -291,11 +291,19 @@ export const config = {
   /**
    * How many deliveries one associate may hold at once. 0 means no limit.
    *
-   * Off by default, because the obvious rule is wrong: several orders from one
-   * kitchen are collected in a single trip, and refusing the second would stop
-   * an associate doing exactly what they are standing there to do. A limit is
-   * only sensible once it can tell a second pickup across town from a second
-   * bag off the same counter.
+   * ONE by default, and 0 switches it off.
+   *
+   * The comment here used to say it was off by default, directly above a
+   * default of one - which cost a day of diagnosis, since a shop whose
+   * dispatch had silently stopped looked like it could not possibly be the
+   * cap. Say what the line below actually does.
+   *
+   * Whether one is the right number is a separate argument, and a good one:
+   * several orders from one kitchen are collected in a single trip, and
+   * refusing the second stops an associate doing exactly what they are
+   * standing there to do. A limit only earns its keep once it can tell a
+   * second pickup across town from a second bag off the same counter. Set
+   * MAX_JOBS_PER_ASSOCIATE=0 to take it off.
    */
   maxJobsPerAssociate: Math.max(0, num('MAX_JOBS_PER_ASSOCIATE', 1)),
   /**

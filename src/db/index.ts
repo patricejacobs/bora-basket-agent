@@ -329,6 +329,13 @@ addColumnIfMissing('orders', 'delivery_zone', "TEXT NOT NULL DEFAULT ''");
 // however hard you squint at it. The associate reads the words; the shop
 // works from the time.
 addColumnIfMissing('orders', 'deliver_at', "TEXT NOT NULL DEFAULT ''");
+// Whether this order's goods have been put back on the shelf.
+//
+// A flag and not an inference, because the question "has this been
+// restocked?" cannot be answered from the status: an order can reach
+// cancelled twice - a retried webhook, a second tap on the button - and the
+// second one must not put the same four bottles of milk back again.
+addColumnIfMissing('orders', 'stock_returned', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('orders', 'deliver_note', "TEXT NOT NULL DEFAULT ''");
 // The two parties to a parcel, held while they are being collected.
 //

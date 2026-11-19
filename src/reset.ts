@@ -42,6 +42,12 @@ const WIPED = [
   'parked_cart_items',
   'parcel_drafts',
   'menu_drafts',
+  // The list last on somebody's screen, which means nothing once the
+  // conversation it belonged to is gone.
+  'numbered_lists',
+  // Customers still waiting for a person. Left behind, the next boot would
+  // send staff a request naming somebody the wipe has just deleted.
+  'help_requests',
   // Who the shop knows, and everything said to them.
   'conversations',
   'customers',

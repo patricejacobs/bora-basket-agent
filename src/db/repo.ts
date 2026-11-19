@@ -2220,19 +2220,47 @@ export function rememberNumberedList(
   items.forEach((item, i) => add.run(phone, i + 1, kind, item.value, item.label, at));
 }
 
-/** What the customer's number refers to, or null if there is no such line. */
-export function numberedPick(phone: string, position: number): NumberedPick | null {
-  const row = db
-    .prepare(`SELECT position, kind, value, label FROM numbered_lists WHERE phone = ? AND position = ?`)
-    .get(phone, position) as NumberedPick | undefined;
-  return row ?? null;
+/**
+ * How long a list stays answerable.
+ *
+ * It used to be for ever. Somebody who opened an aisle, wandered off and
+ * messaged three days later with "a" had Cheddar Cheese put in their basket
+ * against a list nobody could still see - silently, and with complete
+ * confidence. Two hours is a shopping trip; past that the aisle is sent again
+ * before a letter means anything, which costs one message and cannot put the
+ * wrong thing in a bag.
+ */
+export const LIST_TTL_MS = 2 * 60 * 60 * 1000;
+
+function listIsFresh(shownAt: string, now = Date.now()): boolean {
+  const at = new Date(shownAt).getTime();
+  return Number.isFinite(at) && now - at <= LIST_TTL_MS;
 }
 
-/** The whole list, for telling somebody what their number could have been. */
+/** What the customer's letter or number refers to, while the list is fresh. */
+export function numberedPick(phone: string, position: number): NumberedPick | null {
+  const row = db
+    .prepare(
+      `SELECT position, kind, value, label, shown_at AS shownAt
+         FROM numbered_lists WHERE phone = ? AND position = ?`,
+    )
+    .get(phone, position) as (NumberedPick & { shownAt: string }) | undefined;
+  if (!row || !listIsFresh(row.shownAt)) return null;
+  return { position: row.position, kind: row.kind, value: row.value, label: row.label };
+}
+
+/** The whole list, for telling somebody what their letter could have been. */
 export function numberedList(phone: string): NumberedPick[] {
-  return db
-    .prepare(`SELECT position, kind, value, label FROM numbered_lists WHERE phone = ? ORDER BY position ASC`)
-    .all(phone) as unknown as NumberedPick[];
+  return (
+    db
+      .prepare(
+        `SELECT position, kind, value, label, shown_at AS shownAt
+           FROM numbered_lists WHERE phone = ? ORDER BY position ASC`,
+      )
+      .all(phone) as unknown as (NumberedPick & { shownAt: string })[]
+  )
+    .filter((r) => listIsFresh(r.shownAt))
+    .map((r) => ({ position: r.position, kind: r.kind, value: r.value, label: r.label }));
 }
 
 /* ------------------------------------------------------- asking for a person */
@@ -2842,6 +2870,66 @@ export function markHandedOver(orderNo: string): string {
   return now;
 }
 
+/**
+ * Puts a dead order's goods back on the shelf.
+ *
+ * Stock only ever went down. It was taken at checkout and nothing anywhere
+ * added it back, so every cancelled order and every parcel that came home
+ * removed stock the shop still had - silently, and compounding, until items
+ * read as sold out while sitting on the shelf. The catalogue drifted further
+ * from the room it describes with every week of trading.
+ *
+ * Idempotent through a flag on the order rather than through the status,
+ * because an order can arrive at cancelled twice - a retried webhook, a
+ * second tap of a button that never greys out - and the second arrival must
+ * not put the same four bottles of milk back a second time.
+ *
+ * Matched on SKU, which is what the order line carries. A product deleted
+ * from the catalogue since simply finds nothing to credit, which is right:
+ * there is no shelf to put it back on.
+ */
+export function returnStock(orderNo: string): number {
+  const order = db
+    .prepare(`SELECT id, stock_returned AS returned FROM orders WHERE order_no = ?`)
+    .get(orderNo) as { id: number; returned: number } | undefined;
+  if (!order || order.returned) return 0;
+
+  const lines = db
+    .prepare(`SELECT sku, qty FROM order_items WHERE order_id = ?`)
+    .all(order.id) as unknown as { sku: string; qty: number }[];
+
+  const credit = db.prepare(
+    `UPDATE products SET stock = stock + ?, updated_at = ?
+      WHERE sku = ? COLLATE NOCASE AND track_stock = 1`,
+  );
+
+  let put = 0;
+  db.exec('BEGIN');
+  try {
+    for (const line of lines) put += Number(credit.run(line.qty, nowIso(), line.sku).changes);
+    db.prepare(`UPDATE orders SET stock_returned = 1 WHERE id = ?`).run(order.id);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  if (put > 0) {
+    invalidateSearchIndex();
+    console.log(`[stock] ${orderNo} ${status(orderNo)} — ${put} line(s) back on the shelf`);
+  }
+  return put;
+}
+
+/** Just the status, for a log line that should not hydrate a whole order. */
+function status(orderNo: string): string {
+  return (
+    (db.prepare(`SELECT status FROM orders WHERE order_no = ?`).get(orderNo) as
+      | { status: string }
+      | undefined)?.status ?? 'gone'
+  );
+}
+
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   // The stall stamp is cleared with every move, so each stage gets its own
   // alarm. An order warned about while waiting for a delivery associate must be able to
@@ -2878,6 +2966,11 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
     keepReason ? 1 : 0,
     orderNo,
   );
+
+  // An order that ends without being handed over leaves goods the shop still
+  // owns. Done here rather than in each caller: there are three ways to
+  // cancel an order and one of them would have been forgotten.
+  if (status === 'cancelled' || status === 'returned') returnStock(orderNo);
 }
 
 /* ------------------------------------------------- an associate's number */
