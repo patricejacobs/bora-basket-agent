@@ -2587,12 +2587,18 @@ export type Rating = {
   answeredAt: string;
 };
 
-/** Writes down that the question went out. One row per order, ever. */
-export function recordRatingAsk(orderNo: string, phone: string): void {
+/**
+ * Writes down that the question went out. One row per order, ever.
+ *
+ * The kind is copied onto the row rather than read back off the order,
+ * because the quiet period is per service and has to keep working for a job
+ * that has since been archived or cleared.
+ */
+export function recordRatingAsk(orderNo: string, phone: string, kind = ''): void {
   db.prepare(
-    `INSERT INTO ratings (order_no, phone, asked_at) VALUES (?, ?, ?)
+    `INSERT INTO ratings (order_no, phone, kind, asked_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(order_no) DO NOTHING`,
-  ).run(orderNo, phone.replace(/[^0-9]/g, ''), nowIso());
+  ).run(orderNo, phone.replace(/[^0-9]/g, ''), kind, nowIso());
 }
 
 export function ratingFor(orderNo: string): Rating | null {
@@ -2606,11 +2612,27 @@ export function ratingFor(orderNo: string): Rating | null {
   return row ?? null;
 }
 
-/** When this customer was last asked anything, so they are not pestered. */
-export function lastRatingAsk(phone: string): string {
-  const row = db
-    .prepare(`SELECT MAX(asked_at) AS at FROM ratings WHERE phone = ?`)
-    .get(phone.replace(/[^0-9]/g, '')) as { at: string | null } | undefined;
+/**
+ * When this customer was last asked about THIS service.
+ *
+ * Per service, not per customer. A quiet period that covered everything meant
+ * a grocery order on Monday silenced the taxi on Thursday - and a ride is the
+ * one job where nobody from the shop ever sees the customer, so it is the
+ * last thing that should be silenced by a bag of rice.
+ *
+ * Passing no kind asks the old question, across everything, which is what a
+ * caller wants when it is checking whether this customer has ever been asked
+ * at all.
+ */
+export function lastRatingAsk(phone: string, kind = ''): string {
+  const digits = phone.replace(/[^0-9]/g, '');
+  const row = kind
+    ? (db
+        .prepare(`SELECT MAX(asked_at) AS at FROM ratings WHERE phone = ? AND kind = ?`)
+        .get(digits, kind) as { at: string | null } | undefined)
+    : (db
+        .prepare(`SELECT MAX(asked_at) AS at FROM ratings WHERE phone = ?`)
+        .get(digits) as { at: string | null } | undefined);
   return row?.at ?? '';
 }
 

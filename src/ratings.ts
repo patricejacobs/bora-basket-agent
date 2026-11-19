@@ -36,7 +36,18 @@ export const RATING_TTL_MS = 2 * 60 * 60 * 1000;
  */
 export const RATING_DIGIT_TTL_MS = 15 * 60 * 1000;
 
-/** The quietest a customer is left between questions. */
+/**
+ * The quietest a customer is left between questions, PER SERVICE.
+ *
+ * Counted per service rather than per customer. Somebody who shops weekly is
+ * still only asked about their shopping once a fortnight, but their taxi is
+ * asked about on its own account - the two have nothing to do with one
+ * another, and a ride is the only job where the shop never sees the customer.
+ *
+ * The cost, stated plainly: a customer who uses all four services inside a
+ * fortnight could be asked four times. That is the price of hearing about
+ * each of them.
+ */
 export const RATING_EVERY_DAYS = 14;
 
 /** At or below this, the shop asks what went wrong. */
@@ -61,7 +72,7 @@ export function shouldAsk(order: repo.OrderRecord, now = new Date()): boolean {
   if (order.status !== 'delivered') return false;
   if (repo.ratingFor(order.orderNo)) return false;
 
-  const last = repo.lastRatingAsk(order.phone);
+  const last = repo.lastRatingAsk(order.phone, order.kind);
   if (!last) return true;
   const quiet = RATING_EVERY_DAYS * 24 * 60 * 60 * 1000;
   return now.getTime() - new Date(last).getTime() >= quiet;

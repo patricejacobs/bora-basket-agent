@@ -534,6 +534,23 @@ addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
 // wording on the customer's receipt. Two meanings, two columns, and no
 // exception to be forgotten.
 addColumnIfMissing('orders', 'safety_code', "TEXT NOT NULL DEFAULT ''");
+// Which service the rated job was, copied onto the rating.
+//
+// The quiet period that stops a customer being asked too often is counted per
+// service: groceries on Monday must not silence a taxi on Thursday. Read off
+// the order it would stop working for a job that has been archived or
+// cleared, so it is written down here at the moment the question goes out.
+addColumnIfMissing('ratings', 'kind', "TEXT NOT NULL DEFAULT ''");
+// Ratings asked before the column existed know which order they belong to,
+// so the kind can be filled in from it. Without this every one of them would
+// match no service, the quiet period would read as "never asked" the first
+// time round, and every customer on the books would be asked once more than
+// they should be. Only touches rows that have no kind, so it is idempotent.
+db.prepare(
+  `UPDATE ratings
+      SET kind = COALESCE((SELECT o.kind FROM orders o WHERE o.order_no = ratings.order_no), '')
+    WHERE kind = ''`,
+).run();
 
 // When the money changed hands.
 //

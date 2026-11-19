@@ -140,9 +140,20 @@ no explanation is still worth knowing today.
 | Rule | Why |
 |---|---|
 | Asked once per order, ever | A second ask is nagging |
-| At most once a fortnight per customer | Somebody who orders weekly and is asked weekly mutes the shop |
+| At most once a fortnight **per service** | Somebody who orders weekly and is asked weekly mutes the shop — but their taxi is asked about on its own account |
 | Never on a cancelled or returned order | The shop already knows it went wrong |
 | Taxis and parcels too | A taxi is the one service where nobody from the shop sees the customer |
+
+**The fortnight is counted per service, not per customer.** Groceries on
+Monday must not silence a ride on Thursday: the two have nothing to do with
+one another, and a taxi is the only job where the shop never sees the person.
+The cost is that somebody using all four services inside a fortnight could be
+asked four times, which is the price of hearing about each of them.
+
+**A parcel's question goes to whoever booked it**, not to the recipient — the
+sender is the one the shop can message, and often the one who paid. You hear
+from the person who arranged it, not from the person who met the associate at
+the door.
 
 **A typed number works as well as a tap, but not for as long.** A tap can only
 have come from the list, so it counts for two hours. A bare `2` is the second

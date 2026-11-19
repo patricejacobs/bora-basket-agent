@@ -612,7 +612,7 @@ export async function notifyCustomerOfStatus(
       if (shouldAsk(fresh)) {
         const ask = ratingAsk(fresh);
         if (ask.kind === 'list' && (await sendList(order.phone, ask.text, ask.button, ask.rows))) {
-          repo.recordRatingAsk(fresh.orderNo, fresh.phone);
+          repo.recordRatingAsk(fresh.orderNo, fresh.phone, fresh.kind);
         }
       }
     }

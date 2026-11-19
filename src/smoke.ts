@@ -9154,7 +9154,7 @@ section('What the customer thought of it');
 
   /* --- a good one ends in one tap -------------------------------------- */
 
-  repo.recordRatingAsk(done.orderNo, rater);
+  repo.recordRatingAsk(done.orderNo, rater, done.kind);
   check('the question is live', Boolean(repo.pendingRating(rater, RATING_TTL_MS)));
   const good = await handleIncoming({ phone: rater, text: '⭐⭐⭐⭐⭐', channel: 'simulator' });
   check('five stars are recorded', repo.ratingFor(done.orderNo)?.stars === 5, String(repo.ratingFor(done.orderNo)?.stars));
@@ -9170,7 +9170,7 @@ section('What the customer thought of it');
   repo.saveCustomer(cross, { name: 'Ravi Persaud' });
   const bad = place('ORD-95003', 'delivered');
   db.prepare(`UPDATE orders SET phone = ?, customer_name = 'Ravi Persaud' WHERE order_no = ?`).run(cross, bad.orderNo);
-  repo.recordRatingAsk(bad.orderNo, cross);
+  repo.recordRatingAsk(bad.orderNo, cross, 'restaurant');
   const poor = await handleIncoming({ phone: cross, text: '⭐⭐', channel: 'simulator' });
   check('two stars are recorded', repo.ratingFor(bad.orderNo)?.stars === 2);
   check('and that one is asked what went wrong', /what went wrong/i.test(poor[0]?.text ?? ''), poor[0]?.text);
@@ -9194,7 +9194,7 @@ section('What the customer thought of it');
   repo.saveCustomer(later, { name: 'Tina Khan' });
   const old = place('ORD-95004', 'delivered');
   db.prepare(`UPDATE orders SET phone = ? WHERE order_no = ?`).run(later, old.orderNo);
-  repo.recordRatingAsk(old.orderNo, later);
+  repo.recordRatingAsk(old.orderNo, later, 'restaurant');
   db.prepare(`UPDATE ratings SET asked_at = ? WHERE order_no = ?`).run(
     new Date(Date.now() - (RATING_DIGIT_TTL_MS + 60_000)).toISOString(), old.orderNo);
   repo.setService(later, null);
@@ -9212,7 +9212,7 @@ section('What the customer thought of it');
   repo.saveCustomer(tapper, { name: 'Late Tapper' });
   const stale = place('ORD-95005', 'delivered');
   db.prepare(`UPDATE orders SET phone = ? WHERE order_no = ?`).run(tapper, stale.orderNo);
-  repo.recordRatingAsk(stale.orderNo, tapper);
+  repo.recordRatingAsk(stale.orderNo, tapper, 'restaurant');
   db.prepare(`UPDATE ratings SET asked_at = ? WHERE order_no = ?`).run(
     new Date(Date.now() - (RATING_DIGIT_TTL_MS + 60_000)).toISOString(), stale.orderNo);
   await handleIncoming({ phone: tapper, text: '⭐⭐⭐⭐', channel: 'simulator' });
@@ -9223,6 +9223,20 @@ section('What the customer thought of it');
   const again = place('ORD-95006', 'delivered');
   check('a customer asked today is not asked again tomorrow', shouldAsk(again) === false);
   check('and an order already rated is never asked twice', shouldAsk(done) === false);
+
+  // Per service, which is the point of counting it that way. The same
+  // customer, inside the same fortnight, taking a taxi: a bag of rice on
+  // Monday must not silence the one job where nobody from the shop ever sees
+  // them.
+  const theirRide = repo.createTaxiJob({
+    phone: rater, passengerName: 'Rita Khan', passengerPhone: rater,
+    pickup: null, pickupAddress: 'Lot 9 Kitty', destination: null,
+    destinationAddress: 'Diamond', note: '', wantedAt: '', wantedNote: '',
+  });
+  db.prepare(`UPDATE orders SET status = 'delivered' WHERE order_no = ?`).run(theirRide.orderNo);
+  check('but their taxi is still asked about', shouldAsk(repo.findOrder(theirRide.orderNo)!) === true);
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(theirRide.orderNo);
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(theirRide.orderNo);
 
   /* --- what the shop reads --------------------------------------------- */
 

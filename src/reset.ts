@@ -48,6 +48,11 @@ const WIPED = [
   // Customers still waiting for a person. Left behind, the next boot would
   // send staff a request naming somebody the wipe has just deleted.
   'help_requests',
+  // What customers thought of orders that no longer exist. Left behind, the
+  // ratings report would average stars against missing jobs, and a customer
+  // the wipe deleted would still be inside the quiet period that stops the
+  // shop asking them anything.
+  'ratings',
   // Who the shop knows, and everything said to them.
   'conversations',
   'customers',
