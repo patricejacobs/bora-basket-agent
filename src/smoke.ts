@@ -9187,6 +9187,42 @@ section('Nobody is charged a fee they were not told');
   const placed = ask('place_order', { payment_method: 'cash_on_delivery' });
   check('once told, the order goes through', placed.placed === true, JSON.stringify(placed).slice(0, 120));
 
+  /* --- a village the tariff has never heard of -------------------------- */
+
+  // The tariff knows 185 places and the country has more. Without a way to
+  // agree the flat fee, the quote guard would refuse these customers for
+  // ever and the only way out would be editing a CSV.
+  const stranger = '5927100003';
+  const sctx: ToolContext = { phone: stranger, outbound: [] };
+  const sask = (tool: string, args: Record<string, unknown> = {}): any =>
+    JSON.parse(executeTool(tool, args, sctx));
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(stranger);
+  repo.saveCustomer(stranger, { name: 'Far Flung', address: 'behind the blue gate', contactPhone: stranger });
+  repo.confirmIdentity(stranger);
+  repo.setService(stranger, 'grocery');
+  repo.setCartQty(stranger, sellable, 4, '');
+
+  const nowhere = sask('delivery_zone', { text: 'behind the blue gate' });
+  check('an unknown place prices nothing', nowhere.priced === false, JSON.stringify(nowhere).slice(0, 80));
+  // The figure THIS basket will be billed, which is the outlet's own fee
+  // where it sets one — not the shop's headline rate.
+  const willPay = repo.getCart(stranger).deliveryFee;
+  check('but it offers the charge they will actually pay',
+    String(nowhere.flat_fee) === money(willPay), `${nowhere.flat_fee} vs ${money(willPay)}`);
+
+  const flatAgreed = sask('delivery_zone', { confirmed: true });
+  check('which can be agreed with no place at all',
+    String(flatAgreed.delivery_fee) === money(willPay), JSON.stringify(flatAgreed).slice(0, 90));
+  check('and is written down as agreed', repo.feeAgreed(stranger) === willPay,
+    `${repo.feeAgreed(stranger)} vs ${willPay}`);
+  const strangerOrder = sask('place_order', { payment_method: 'cash_on_delivery' });
+  check('so their order is not stuck for ever', strangerOrder.placed === true,
+    JSON.stringify(strangerOrder).slice(0, 110));
+  // And no zone was invented for them — a place is a price, and nobody
+  // agreed to a place.
+  check('with no zone invented on their record', repo.getCustomer(stranger).deliveryZone === '',
+    repo.getCustomer(stranger).deliveryZone);
+
   /* --- a ceiling, not a price list -------------------------------------- */
 
   // Charging LESS than agreed is fine: a basket that crossed the free
@@ -9237,11 +9273,14 @@ section('Nobody is charged a fee they were not told');
   });
   check('and the booking charges exactly it', String(booked.fee) === money(6300), JSON.stringify(booked).slice(0, 140));
 
-  for (const no of repo.allOrders().filter((o) => o.phone === shopper || o.phone === sender).map((o) => o.orderNo)) {
+  for (const no of repo
+    .allOrders()
+    .filter((o) => o.phone === shopper || o.phone === sender || o.phone === stranger)
+    .map((o) => o.orderNo)) {
     db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
     db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
   }
-  for (const p of [shopper, sender]) {
+  for (const p of [shopper, sender, stranger]) {
     db.prepare(`DELETE FROM customers WHERE phone = ?`).run(p);
     repo.clearCart(p);
   }

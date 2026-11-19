@@ -1069,6 +1069,19 @@ place, the agent reads it back, the customer says yes. That is also where a
 free-delivery basket or a reward is allowed to come in under the quote without
 anybody re-confirming.
 
+**No pin is needed to price anything.** The tariff matches the words a
+customer types — "Lot 9, Diamond, East Bank" — against 185 place names, on
+sound as well as spelling. Coordinates play no part in a delivery charge. A
+pin is still worth asking for, because it is the only thing the delivery
+radius can be measured against and the only thing that becomes a map link on
+the associate's card, but it is not what sets the price.
+
+**A village the tariff has never heard of still gets a figure.** The shop has
+185 places and the country has more. When nothing matches, the agent tells
+them the standard charge their basket carries and confirms that instead —
+`delivery_zone` with `confirmed` true and no place. No zone is written to
+their record, because a place is a price and nobody agreed to a place.
+
 **A parcel quotes the whole journey, not the destination.** Pricing from both
 ends made the fee fairer and made the old read-back wrong: a sender in Parika
 heard *"Diamond, $1,800"* and would have been billed $6,300. The read-back now

@@ -912,6 +912,18 @@ const asInt = (v: unknown): number | null => {
  * Runs one tool call. Every failure is returned as a JSON `error` string rather
  * than thrown, so the model can read what went wrong and recover in-conversation.
  */
+/**
+ * The delivery charge for somebody the tariff cannot place.
+ *
+ * Their own cart's figure where they have one, because an outlet may set a
+ * fee of its own and the house rate would be a different number from the one
+ * they will be billed. The shop's flat rate otherwise — a parcel has no cart.
+ */
+function unmatchedFee(phone: string): number {
+  const cart = repo.getCart(phone);
+  return cart.lines.length > 0 ? cart.deliveryFee : config.store.deliveryFee;
+}
+
 export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): string {
   const input = (rawInput ?? {}) as Record<string, unknown>;
 
@@ -1945,8 +1957,26 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const place = asString(input.place).trim();
 
       if (confirming) {
+        // Confirming with no place is the customer agreeing the FLAT fee.
+        //
+        // The tariff knows 185 places and Guyana has more. Somebody whose
+        // village is not in it still pays something — the shop's flat rate —
+        // and that figure has to be agreeable, or the quote guard refuses
+        // their order for ever and the only way out is to edit a CSV.
         if (!place) {
-          return fail('To confirm a zone, pass `place` exactly as the shop gave it to you.');
+          // What THIS order will be charged, not the shop's headline rate.
+          // A kitchen may set its own delivery fee, and quoting the house
+          // figure to somebody whose basket carries the outlet's would be
+          // the same broken promise this guard exists to prevent.
+          const flat = unmatchedFee(ctx.phone);
+          repo.setFeeAgreed(ctx.phone, flat);
+          return ok({
+            confirmed: true,
+            place: null,
+            delivery_fee: money(flat),
+            say: `Delivery is ${money(flat)}.`,
+            next: 'They have agreed the standard charge. Nothing more to confirm — the order can be placed.',
+          });
         }
         const known = findZone(place);
         if (known.kind !== 'found') {
@@ -2002,7 +2032,8 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return ok({
           priced: false,
           matched: null,
-          note: `Nothing in the tariff is close to "${text}". Ask which village or area it is, in their own words — do not guess, and do not quote a delivery charge yet.`,
+          flat_fee: money(unmatchedFee(ctx.phone)),
+          note: `Nothing in the tariff is close to "${text}". Ask which village or area it is, in their own words — do not guess. If they say it again and it still does not match, tell them delivery is the standard ${money(unmatchedFee(ctx.phone))} and, once they agree, call delivery_zone with confirmed true and no place.`,
         });
       }
 
