@@ -6,6 +6,7 @@
  * and at no cost per message. Conversation is the wrong tool for a work queue.
  */
 import { config, money, dutyLimits } from './config.ts';
+import { savePhotoFor, skusWithLocalImages } from './product-images.ts';
 import * as repo from './db/repo.ts';
 import { notifyCustomerOfStatus, warnStaff } from './notifications.ts';
 import { sendLocationRequest, sendText } from './channels/whatsapp-send.ts';
@@ -389,6 +390,38 @@ async function applyStatus(
 }
 
 /**
+ * A photograph of a product, sent in from the shop floor.
+ *
+ * The SKU is checked against the catalogue before anything is written. A
+ * typo would otherwise leave a file nothing ever reads, and the shopkeeper
+ * would be standing in the aisle believing the job was done.
+ */
+function saveProductPhoto(sku: string, image: IncomingImage): string {
+  const product = repo.getProductBySku(sku);
+  if (!product) {
+    return [
+      `No product with SKU *${sku}*.`,
+      '',
+      'Check it against the list from `npm run photos:wanted`, or send the photo without a caption to add a menu instead.',
+    ].join(chr10);
+  }
+
+  const done = savePhotoFor(product.sku, image);
+  if (!done.saved) return `Could not save that: ${done.reason}.`;
+
+  const covered = repo.productCount();
+  const have = skusWithLocalImages().length;
+  return [
+    `${done.replaced ? '🔄 Replaced' : '📸 Saved'} the photo for *${product.name}* (${product.sku}).`,
+    '',
+    `${have} of ${covered} products now have one.`,
+    ...(config.publicBaseUrl
+      ? []
+      : ['', '⚠️ PUBLIC_BASE_URL is not set, so customers will not be shown it yet.']),
+  ].join(chr10);
+}
+
+/**
  * Where the delivery associates are, as well as anyone can know.
  *
  * WhatsApp gives a business a pin, not a track. Live location is a consumer
@@ -477,6 +510,8 @@ const HELP = [
   '`cash` — what each associate collected today',
   '`7 history` — everything that happened to order 7',
   '`backup` — the trading record, sent to you here',
+  '',
+  'Send a photo captioned `photo VEG-001` to give a product its picture',
   '',
   '`outlets` — the restaurants on the system',
   'Send a photo of a menu to add one (`new outlet` for how)',
@@ -632,9 +667,18 @@ export async function handleStaffMessage(
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
 
-  // A photograph from a staff member is a menu being onboarded. Nothing else in
-  // the dispatch queue takes a picture, so there is no ambiguity to resolve.
-  if (image) return handleMenuPhoto(phone, image);
+  // A photograph from a staff member is a menu being onboarded, unless the
+  // caption says which product it is of.
+  //
+  // The caption is the whole disambiguation, and it has to be, because the two
+  // are indistinguishable otherwise: a picture of a laminated menu and a
+  // picture of a bag of rice are both just a photo from the shop's own number.
+  // "photo VEG-001" is six characters and removes the guess entirely.
+  if (image) {
+    const forProduct = /^(?:photo|pic|picture|image)\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s*$/i.exec(trimmed);
+    if (forProduct) return reply(saveProductPhoto(forProduct[1]!, image));
+    return handleMenuPhoto(phone, image);
+  }
 
   // A pin from a staff member is where a delivery associate collects — they are standing
   // outside the restaurant, which is the whole reason this happens on a phone.

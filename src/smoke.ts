@@ -8468,6 +8468,76 @@ section('Backing up the trading record');
 console.log('');
 
 // Windows keeps the file locked while the handle is open, so close before deleting.
+section('A photo from the shop floor');
+{
+  const { handleStaffMessage } = await import('./staff.ts');
+  const { skusWithLocalImages, productImageUrl, imagesDirectory } = await import('./product-images.ts');
+  const fsx = await import('node:fs');
+  const pathx = await import('node:path');
+
+  const desk = config.staffNumbers[0]!;
+  const sku = 'PHOTO-TEST-1';
+  repo.upsertProduct({
+    sku, name: 'Photo Test Bora', description: '', category: 'Fresh Produce',
+    unit: 'bundle', price: 320, stock: 10, keywords: 'photo test bora', active: 1,
+  } as never);
+
+  // A one-pixel PNG, which is a real image as far as any of this is concerned.
+  const png = {
+    base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    mediaType: 'image/png',
+  };
+  const jpg = { base64: png.base64, mediaType: 'image/jpeg' };
+
+  const sent = async (text: string, image?: typeof png): Promise<string> =>
+    (await handleStaffMessage(text, desk, image as never))[0]?.text ?? '';
+
+  /* --- the caption is what makes it a product photo --------------------- */
+
+  const saved = await sent(`photo ${sku}`, png);
+  check('a captioned photo is saved', /Saved the photo/.test(saved), saved.slice(0, 110));
+  check('and names the product', saved.includes('Photo Test Bora'), saved.slice(0, 110));
+  check('it is on the shelf now', skusWithLocalImages().includes(sku.toLowerCase()), JSON.stringify(skusWithLocalImages().slice(0, 3)));
+  check('and the file is named after the SKU', fsx.existsSync(pathx.join(imagesDirectory(), `${sku}.png`)));
+
+  // Which is the whole point: the customer can now be shown it.
+  check(
+    'the product has a URL to send',
+    productImageUrl(sku, '').endsWith(`/images/${sku}.png`),
+    productImageUrl(sku, ''),
+  );
+
+  /* --- photographing it again replaces it ------------------------------- */
+
+  // A shopkeeper who photographs the tomatoes twice means the second one.
+  const twice = await sent(`photo ${sku}`, jpg);
+  check('a second photo replaces the first', /Replaced the photo/.test(twice), twice.slice(0, 90));
+  check('the old file is gone', !fsx.existsSync(pathx.join(imagesDirectory(), `${sku}.png`)));
+  check('and only one remains', fsx.existsSync(pathx.join(imagesDirectory(), `${sku}.jpg`)));
+
+  /* --- a typo does not leave a file nothing reads ----------------------- */
+
+  const typo = await sent('photo VEG-999', png);
+  check('an unknown SKU is refused', /No product with SKU/.test(typo), typo.slice(0, 90));
+  check('and says where to find the right one', /photos:wanted/.test(typo), typo.slice(0, 140));
+  check('nothing was written for it', !fsx.existsSync(pathx.join(imagesDirectory(), 'VEG-999.png')));
+
+  /* --- and a photo with no caption is still a menu ---------------------- */
+
+  // The two are indistinguishable without the caption: a laminated menu and a
+  // bag of rice are both just a photo from the shop's own number.
+  const menu = await sent('', png);
+  check('an uncaptioned photo is still a menu', !/Saved the photo|No product with SKU/.test(menu), menu.slice(0, 90));
+
+  /* --- and the shop is told how ----------------------------------------- */
+
+  const help = await sent('help');
+  check('the staff list says how to do it', /photo VEG-001/.test(help), help.slice(0, 200));
+
+  fsx.rmSync(pathx.join(imagesDirectory(), `${sku}.jpg`), { force: true });
+  db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
+}
+
 section('The same as last time');
 {
   const { executeTool } = await import('./agent/tools.ts');

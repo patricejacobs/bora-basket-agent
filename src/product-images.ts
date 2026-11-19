@@ -95,3 +95,63 @@ export function productImageUrl(sku: string, storedUrl: string): string {
 export function skusWithLocalImages(): string[] {
   return [...currentIndex().keys()];
 }
+
+/* ------------------------------------------------ putting one on the shelf */
+
+/** What WhatsApp sends, and what each becomes on disk. */
+const FROM_MEDIA_TYPE: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+export type PhotoSaved =
+  | { saved: true; file: string; replaced: boolean }
+  | { saved: false; reason: string };
+
+/**
+ * Saves a photograph sent in by the shop, named after the product.
+ *
+ * The folder lives on the host's persistent disk, which deploys cannot reach
+ * and git cannot write to - so without a way in, "drop RIC-001.jpg in the
+ * folder" meant nothing to anybody who did not have a shell on the server.
+ * Nobody is going to SSH into a host to upload a picture of callaloo.
+ *
+ * Replacing one is deliberate and is reported. A shopkeeper who photographs
+ * the tomatoes twice means the second one, and any other behaviour leaves
+ * them wondering which the customer is seeing.
+ */
+export function savePhotoFor(sku: string, image: { base64: string; mediaType: string }): PhotoSaved {
+  const clean = sku.trim();
+  if (!clean) return { saved: false, reason: 'no SKU given' };
+
+  const ext = FROM_MEDIA_TYPE[image.mediaType.toLowerCase()];
+  if (!ext) {
+    return { saved: false, reason: `${image.mediaType} is not a picture this can store` };
+  }
+
+  const bytes = Buffer.from(image.base64, 'base64');
+  if (bytes.length === 0) return { saved: false, reason: 'the photo arrived empty' };
+
+  ensureImagesDirectory();
+  const dir = imagesDirectory();
+
+  // Any other extension for the same SKU goes, or the folder ends up holding
+  // VEG-001.jpg and VEG-001.png and the index picks whichever it meets first.
+  let replaced = false;
+  for (const other of EXTENSIONS) {
+    const previous = path.join(dir, `${clean}${other}`);
+    if (fs.existsSync(previous)) {
+      fs.rmSync(previous);
+      replaced = true;
+    }
+  }
+
+  const file = `${clean}${ext}`;
+  fs.writeFileSync(path.join(dir, file), bytes);
+  // The index is rescanned on a timer; a photo somebody just sent should be
+  // live in the next message, not in twenty seconds.
+  refreshImages();
+  return { saved: true, file, replaced };
+}

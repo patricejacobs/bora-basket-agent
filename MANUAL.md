@@ -1091,9 +1091,40 @@ having a shop and being cooked were once the same fact.
 `show_product_photo` works and the catalogue has none, which is the single
 cheapest thing that would make the shop feel finished.
 
-**Photos live on disk.** Drop `RIC-001.jpg` into the images folder and it is
-live — no CDN, no upload, no restart. A URL in the catalogue CSV wins where
-there is one; the folder is the fallback.
+**Photograph the shelf and send it to the shop.** From a staff number, send
+the picture with the SKU as its caption:
+
+```
+[photo of the bora]  "photo VEG-006"
+
+  📸 Saved the photo for *Bora* (VEG-006).
+  1 of 72 products now have one.
+```
+
+Take it again and it replaces the first — a shopkeeper who photographs the
+tomatoes twice means the second one. A SKU that does not exist is refused
+rather than written to a file nothing will ever read:
+
+```
+"photo VEG-999"
+
+  No product with SKU *VEG-999*.
+  Check it against the list from `npm run photos:wanted`…
+```
+
+**A photo with no caption is still a menu being onboarded.** The caption is
+the whole disambiguation and has to be: a laminated menu and a bag of rice
+are both just a photo from the shop's own number.
+
+**Photos live on disk**, on the host's persistent disk where deploys cannot
+reach and git cannot write — which is why sending them in matters. Dropping
+`RIC-001.jpg` into the folder works too if you have one. A URL in the
+catalogue CSV wins where there is one; the folder is the fallback.
+
+**`PUBLIC_BASE_URL` has to be set** or nothing is ever shown: without it the
+photo has no address to give WhatsApp, and the picture is silently skipped.
+On Render it falls back to `RENDER_EXTERNAL_URL`, which the host sets itself.
+Saving a photo while it is unset says so.
 
 ```
 npm run photos:wanted
