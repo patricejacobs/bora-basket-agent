@@ -113,6 +113,62 @@ errand and collection services, so nobody picks letters that clash later.
 | `backup` | The trading record, sent to you here |
 | `wanted` | What customers asked for and you did not have |
 
+### Reward points
+
+**Five per cent of what a customer pays to be reached, given back as points.**
+
+| | |
+|---|---|
+| $10 of **delivery charges** | 1 point |
+| $10,000 of delivery charges | 1,000 points |
+| **1,000 points** | **$500 off an order** |
+
+**The delivery charge earns, not the shopping.** That has a consequence worth
+knowing before a customer points it out: the tariff runs from $500 in
+Georgetown to $5,000 at Parika, so somebody at Parika reaches a reward in two
+deliveries and somebody in Kitty needs twenty. The scheme pays back the people
+who pay the most to be reached — the dearest to serve and the easiest to lose
+— which is a defensible thing to do, and a different thing from rewarding the
+biggest shoppers.
+
+A **parcel's fee** is a delivery charge and earns. A **taxi earns nothing**:
+the fare is agreed in the car and the shop never learns it.
+
+**Points are credited when the goods arrive**, never when the order is placed.
+Cancelled, returned, never delivered — nothing earned. A reward *spent* on an
+order that then comes back is **given straight back**.
+
+```
+⭐ *+500 points* on this delivery.
+You have *1000 points*.
+That is *$500* off an order, whenever you want it — just say *use my points*.
+```
+
+Short of a reward they are told the distance, never just a number:
+
+```
+You have *50 points*.
+$9,500 more in delivery charges and you reach *1000 points*, worth $500.
+```
+
+**It is spent only when asked for.** Somebody saving for something must be
+able to buy a bag of rice without their $500 going on it. On the receipt it is
+a deduction, so the customer can see the money:
+
+```
+2 x Karibee Parboiled Rice — $3,700
+
+Reward −$500
+*Total $3,200* — paid in cash
+```
+
+The total is stored **net**, so the cash the associate collects, the day's
+takings and the backup are all right without knowing the scheme exists.
+
+**It is a ledger, not a balance.** Every point says which order earned or
+spent it and when, so a customer who says "I had more than that" can be
+answered rather than contradicted.
+
 ### Ratings
 
 After a delivery the customer gets **one tappable list of five stars**, as its

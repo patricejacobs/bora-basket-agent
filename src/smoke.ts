@@ -8937,6 +8937,131 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('Points come off the delivery charge');
+{
+  const { pointsFor, rewardsIn, valueOf, spendToNextReward, balanceLines, REWARD_POINTS, REWARD_VALUE }
+    = await import('./rewards.ts');
+  const { executeTool } = await import('./agent/tools.ts');
+  const { receiptLines } = await import('./notifications.ts');
+
+  /* --- the arithmetic, in one place ------------------------------------ */
+
+  // The delivery charge earns, not the shopping. That is the shop's
+  // decision, and this is where it is held to.
+  check('ten dollars of delivery is a point', pointsFor(10) === 1, String(pointsFor(10)));
+  check('a $500 town delivery earns 50', pointsFor(500) === 50, String(pointsFor(500)));
+  check('a $5,000 Parika delivery earns 500', pointsFor(5000) === 500, String(pointsFor(5000)));
+  check('fractions are rounded down', pointsFor(1899) === 189, String(pointsFor(1899)));
+  check('nothing earns nothing', pointsFor(0) === 0 && pointsFor(-100) === 0);
+  check('a thousand points is five hundred dollars', valueOf(REWARD_POINTS) === REWARD_VALUE, String(valueOf(REWARD_POINTS)));
+  // Rewards are whole or they are nothing: 1,900 points is one reward, not
+  // one and a bit, and the rest stays banked.
+  check('and 1,900 is still one reward', rewardsIn(1900) === 1 && valueOf(1900) === REWARD_VALUE);
+  check('short of the first, it says how far', spendToNextReward(50) === 9500, String(spendToNextReward(50)));
+
+  /* --- earned at delivery, and only there ------------------------------ */
+
+  const spender = '5926800001';
+  repo.saveCustomer(spender, { name: 'Points Tester', address: 'Lot 1 Parika', contactPhone: spender });
+  const made: string[] = [];
+  const order = (no: string, goods: number, fee: number, kind = 'grocery') => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, delivery_code, subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, ?, 'Points Tester', 'Lot 1 Parika', ?, '', ?, '', ?, ?, ?, 'cash', 'pending', ?)`,
+    ).run(no, spender, spender, kind, goods, fee, goods + fee, new Date().toISOString());
+    made.push(no);
+    return no;
+  };
+
+  const first = order('ORD-97001', 8000, 5000);
+  check('nothing is earned while it is still coming', repo.pointsBalance(spender) === 0);
+  repo.setOrderStatus(first, 'delivered');
+  check('the delivery charge earns on arrival', repo.pointsBalance(spender) === 500, String(repo.pointsBalance(spender)));
+  // A re-sent notice, a dispatcher re-closing it, a retry after a crash.
+  repo.setOrderStatus(first, 'delivered');
+  check('and never twice for one order', repo.pointsBalance(spender) === 500, String(repo.pointsBalance(spender)));
+
+  const lost = order('ORD-97002', 8000, 5000);
+  repo.setOrderStatus(lost, 'cancelled');
+  check('an order that never arrived earns nothing', repo.pointsBalance(spender) === 500);
+
+  // A taxi's fare was agreed in the car and the shop never learned it, so
+  // there is nothing to take a percentage of.
+  const ride = order('TXI-97003', 0, 0, 'taxi');
+  repo.setOrderStatus(ride, 'delivered');
+  check('a taxi earns nothing, having no fee on file', repo.pointsBalance(spender) === 500);
+  // A parcel's fee lives in the same column as a delivery charge and earns
+  // the same way.
+  const parcel = order('PCL-97004', 0, 2000, 'parcel');
+  repo.setOrderStatus(parcel, 'delivered');
+  check('a parcel fee earns like any other delivery', repo.pointsBalance(spender) === 700, String(repo.pointsBalance(spender)));
+
+  /* --- what the customer is told --------------------------------------- */
+
+  const short = balanceLines(700);
+  check('short of a reward, they are told how far', /700 points/.test(short[0] ?? '') && /1000 points/.test(short[1] ?? ''), short.join(' | '));
+  check('and never just handed a number', short.length === 2);
+  const ready = balanceLines(1200);
+  check('with one banked, they are told what it is worth', /\$500/.test(ready[1] ?? ''), ready.join(' | '));
+  check('and how to use it', /use my points/i.test(ready[1] ?? ''), ready[1]);
+
+  const ctx: ToolContext = { phone: spender, outbound: [] };
+  const asked = JSON.parse(executeTool('reward_points', {}, ctx)) as Record<string, unknown>;
+  check('the tool hands the model the words, not the sums',
+    Array.isArray(asked.lines) && asked.can_use_now === false, JSON.stringify(asked).slice(0, 120));
+
+  /* --- spending it ------------------------------------------------------ */
+
+  repo.setOrderStatus(order('ORD-97005', 2000, 3000), 'delivered');
+  check('they reach a reward', repo.pointsBalance(spender) === 1000, String(repo.pointsBalance(spender)));
+
+  const sku = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  check('there is something to buy', Boolean(sku), sku?.name);
+  repo.confirmIdentity(spender);
+  repo.setCartQty(spender, sku!.id, 1, '');
+  const paid = repo.placeOrder({
+    phone: spender, customerName: 'Points Tester', address: 'Lot 1 Parika',
+    contactPhone: spender, deliveryNote: '', paymentMethod: 'cash_on_delivery',
+    location: null, useReward: true,
+  } as never);
+  made.push(paid.orderNo);
+  const withReward = repo.findOrder(paid.orderNo)!;
+  check('the reward is recorded on the order', withReward.rewardPoints === REWARD_POINTS && withReward.rewardValue === REWARD_VALUE,
+    `${withReward.rewardPoints} / ${withReward.rewardValue}`);
+  // The figure every downstream thing reads - the associate's card, the
+  // day's takings, the backup - so it is stored net and nothing else has to
+  // know the scheme exists.
+  check('the total is net of it', withReward.total === withReward.subtotal + withReward.deliveryFee - REWARD_VALUE,
+    `${withReward.subtotal} + ${withReward.deliveryFee} - ${REWARD_VALUE} = ${withReward.total}`);
+  check('the points are gone from the balance', repo.pointsBalance(spender) === 0, String(repo.pointsBalance(spender)));
+  check('and the receipt shows what came off', receiptLines(withReward, 'en').some((l) => l.includes('−' + money(REWARD_VALUE))),
+    receiptLines(withReward, 'en').join(' | '));
+
+  /* --- and nothing is given away twice --------------------------------- */
+
+  repo.setCartQty(spender, sku!.id, 1, '');
+  const nothingLeft = repo.placeOrder({
+    phone: spender, customerName: 'Points Tester', address: 'Lot 1 Parika',
+    contactPhone: spender, deliveryNote: '', paymentMethod: 'cash_on_delivery',
+    location: null, useReward: true,
+  } as never);
+  made.push(nothingLeft.orderNo);
+  check('an empty balance buys nothing', repo.findOrder(nothingLeft.orderNo)?.rewardValue === 0);
+  check('and the balance never goes below zero', repo.pointsBalance(spender) === 0, String(repo.pointsBalance(spender)));
+
+  // A reward spent on an order that then came back has to come back too.
+  repo.setOrderStatus(paid.orderNo, 'returned');
+  check('a returned order gives the points back', repo.pointsBalance(spender) === REWARD_POINTS, String(repo.pointsBalance(spender)));
+
+  for (const no of made) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  db.prepare(`DELETE FROM points_ledger WHERE phone = ?`).run(spender);
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(spender);
+}
+
 section('A job number says what the job is');
 {
   const buyer = '5926700001';

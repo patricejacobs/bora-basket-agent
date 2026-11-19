@@ -9,6 +9,7 @@ import { productImageUrl } from '../product-images.ts';
 import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
+import { balanceLines, valueOf, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
 import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../services.ts';
 import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
@@ -409,6 +410,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           description:
             'Their own words about the time — "before 6", "after work", "any time this evening". Pass it alongside deliver_at whenever they said something rather than named a clock time, because "before six" is not a point in time and the associate needs to read what they actually said. Under 60 characters.',
         },
+        use_reward: {
+          type: 'boolean',
+          description:
+            'Spend their reward points on this order. Only when they have asked for it — check reward_points first and tell them what it is worth. Never set it because they have a balance: somebody saving for something must be able to buy a bag of rice without it being spent.',
+        },
         delivery_note: {
           type: 'string',
           description:
@@ -602,6 +608,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
       required: ['summary'],
       additionalProperties: false,
     },
+  },
+  {
+    name: 'reward_points',
+    description:
+      "What this customer has banked, and whether it is enough to take money off an order. Call it the moment they ask about points, rewards, a discount they think they are owed, or 'what do I have saved' - and once an order is agreed, if they have a reward waiting and have not mentioned it. Never guess a balance or do the arithmetic yourself: it returns the words to say.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'repeat_last_order',
@@ -1822,6 +1834,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           recipientName: asString(input.recipient_name),
           recipientPhone: asString(input.recipient_phone),
           recipientPinShared: input.recipient_pin_shared === true,
+          useReward: input.use_reward === true,
         });
         // Fire-and-forget: the shop needs to know immediately, but the customer
         // should not wait on a Graph API round trip to see their confirmation.
@@ -2465,6 +2478,32 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * has moved is reported, because the one thing worse than a basket
      * missing an item is a basket the customer believes is complete.
      */
+    /**
+     * The balance, with the words to say it in.
+     *
+     * The shop writes the sentences and the model repeats them, as it does
+     * for the aisles and the kitchens. Points are money: a model that is
+     * handed "340" and left to describe it will one day call it a discount,
+     * and the customer will arrive at the door expecting one.
+     */
+    case 'reward_points': {
+      const points = repo.pointsBalance(ctx.phone);
+      const value = valueOf(points);
+      const lang = languageFor(ctx.phone);
+
+      return ok({
+        points,
+        worth: value > 0 ? money(value) : money(0),
+        can_use_now: value > 0,
+        lines: balanceLines(points, lang),
+        rate: `Every ${money(10 * config.currency.minorPerUnit)} of delivery charges earns 1 point. ${REWARD_POINTS} points is ${money(REWARD_VALUE)} off an order.`,
+        next:
+          value > 0
+            ? 'Send the lines exactly as they are. If they want it used, say so when you call place_order with use_reward true.'
+            : 'Send the lines exactly as they are. Do not promise a reward they have not reached.',
+      });
+    }
+
     case 'repeat_last_order': {
       const asked = asString(input.order_number).trim();
       const orderNo = asked

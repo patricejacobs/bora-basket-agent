@@ -286,6 +286,30 @@ CREATE TABLE IF NOT EXISTS ratings (
 );
 CREATE INDEX IF NOT EXISTS idx_ratings_phone ON ratings(phone, asked_at);
 
+-- Reward points, as a ledger rather than a balance.
+--
+-- A single number on the customer row would be quicker to read and impossible
+-- to argue with. Points are money - a thousand of them is five hundred
+-- dollars - and the first time a customer says "I had more than that", a
+-- balance can only repeat itself. Every line here says which order earned or
+-- spent it and when, so the sum can be rebuilt from the orders themselves.
+--
+-- The points column is positive for earning and negative for spending. One
+-- row per order per direction, and the order number is unique per direction,
+-- which is what stops a re-sent delivery notice awarding the same order
+-- twice.
+CREATE TABLE IF NOT EXISTS points_ledger (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  phone      TEXT NOT NULL,
+  order_no   TEXT NOT NULL,
+  points     INTEGER NOT NULL,
+  /** 'earned' or 'spent'. */
+  reason     TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_points_once ON points_ledger(order_no, reason);
+CREATE INDEX IF NOT EXISTS idx_points_phone ON points_ledger(phone);
+
 -- The last numbered list a customer was shown.
 --
 -- "3" means nothing on its own. A customer picks from a list of aisles and
@@ -541,6 +565,17 @@ addColumnIfMissing('orders', 'safety_code', "TEXT NOT NULL DEFAULT ''");
 // the order it would stop working for a job that has been archived or
 // cleared, so it is written down here at the moment the question goes out.
 addColumnIfMissing('ratings', 'kind', "TEXT NOT NULL DEFAULT ''");
+// What a reward took off this order, in points and in money.
+//
+// Both, and not one derived from the other, because the rate could change.
+// A receipt reprinted next year has to say what was actually given, not what
+// those points would be worth under whatever the scheme has become.
+//
+// `total` is stored NET of this, so every figure downstream - the cash the
+// associate collects, the day's takings, the backup - is right without
+// knowing the scheme exists. Only the receipt has to explain it.
+addColumnIfMissing('orders', 'reward_points', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('orders', 'reward_value', 'INTEGER NOT NULL DEFAULT 0');
 // Ratings asked before the column existed know which order they belong to,
 // so the kind can be filled in from it. Without this every one of them would
 // match no service, the quiet period would read as "never asked" the first

@@ -6,6 +6,7 @@ import { parseOptionSpec, applySelection, summariseStored } from '../menu-option
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
 import { zoneFeeFor } from '../zones.ts';
 import { inShoppingOrder } from '../categories.ts';
+import { pointsFor, rewardsIn, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
 
 export type { LocationPin, SavedPin };
 
@@ -925,12 +926,31 @@ export function placeOrder(args: {
   deliverAt?: string;
   /** Their own words about it — "before 6", "after work". */
   deliverNote?: string;
+  /**
+   * Spend the customer's reward points on this order, if they have enough.
+   *
+   * Asked for rather than applied automatically. A customer saving for
+   * something must be able to buy a bag of rice without their five hundred
+   * dollars being spent on it, and a reward taken without being asked for is
+   * one the shop will be arguing about at the door.
+   */
+  useReward?: boolean;
 }): PlacedOrder {
   const cart = getCart(args.phone);
   if (cart.lines.length === 0) throw new Error('Cart is empty.');
 
   db.exec('BEGIN IMMEDIATE');
   try {
+    // The balance is read inside the transaction and spent inside it too, so
+    // the order and the points that paid for it stand or fall together. Read
+    // outside, two orders placed in the same breath would both see the same
+    // five hundred dollars and both spend it.
+    const banked = args.useReward ? pointsBalance(args.phone) : 0;
+    // Never more than the order itself. A $500 reward against a $300 order
+    // would hand money back, and the shop is not a bank.
+    const rewardValue = Math.min(rewardsIn(banked) > 0 ? REWARD_VALUE : 0, cart.total);
+    const rewardPoints = rewardValue > 0 ? REWARD_POINTS : 0;
+
     // Re-check availability inside the transaction; the catalogue may have moved
     // since the search, and a kitchen may have sold out mid-conversation.
     for (const line of cart.lines) {
@@ -964,8 +984,9 @@ export function placeOrder(args: {
             outlet_id, outlet_name, pickup_address, pickup_lat, pickup_lng, prep_minutes,
             kind, delivery_code, recipient_name, recipient_phone, recipient_pin,
             delivery_zone, deliver_at, deliver_note,
-            subtotal, delivery_fee, total, payment_method, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            subtotal, delivery_fee, total, payment_method, status, created_at,
+            reward_points, reward_value)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
       )
       .run(
         orderNo,
@@ -1013,9 +1034,15 @@ export function placeOrder(args: {
         args.deliverNote ?? '',
         cart.subtotal,
         cart.deliveryFee,
-        cart.total,
+        // NET of the reward. Everything downstream - the cash the associate
+        // collects, the day's takings, the backup - reads this one figure, so
+        // storing it gross would have every one of them asking for money the
+        // customer does not owe.
+        cart.total - rewardValue,
         args.paymentMethod,
         nowIso(),
+        rewardPoints,
+        rewardValue,
       );
 
     const orderId = Number(info.lastInsertRowid);
@@ -1043,6 +1070,17 @@ export function placeOrder(args: {
       // Guarded in SQL as well as here: a menu item has no quantity to decrement
       // and driving its stock negative would make it look out of stock forever.
       if (line.product.trackStock) decStock.run(line.qty, line.product.id);
+    }
+
+    // The points that paid for it, written in the same transaction as the
+    // order. A reward printed on a receipt and never taken off a balance is
+    // five hundred dollars the shop gives away every time that customer
+    // orders.
+    if (rewardPoints > 0) {
+      db.prepare(
+        `INSERT OR IGNORE INTO points_ledger (phone, order_no, points, reason, created_at)
+         VALUES (?, ?, ?, 'spent', ?)`,
+      ).run(args.phone.replace(/[^0-9]/g, ''), orderNo, -rewardPoints, nowIso());
     }
 
     db.prepare(`DELETE FROM cart_items WHERE phone = ?`).run(args.phone);
@@ -1352,6 +1390,9 @@ export type OrderRecord = {
   /** Their own words about the time — "before 6", "after work". */
   deliverNote: string;
   total: number;
+  /** Points spent on this order, and what they took off it. 0 for most. */
+  rewardPoints: number;
+  rewardValue: number;
   /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
   paymentMethod: string;
   status: OrderStatus;
@@ -1461,6 +1502,8 @@ function hydrateOrder(row: {
   deliver_note: string | null;
   payment_method: string | null;
   total: number;
+  reward_points: number | null;
+  reward_value: number | null;
   status: string;
   created_at: string;
 }): OrderRecord {
@@ -1476,6 +1519,8 @@ function hydrateOrder(row: {
     deliverAt: row.deliver_at ?? '',
     deliverNote: row.deliver_note ?? '',
     total: row.total,
+    rewardPoints: row.reward_points ?? 0,
+    rewardValue: row.reward_value ?? 0,
     status: row.status as OrderStatus,
     placedAt: row.created_at,
     // An order's pin was fixed at checkout; `pinnedAt` on an order means the
@@ -2576,6 +2621,120 @@ export function lastDelivered(phone: string): OrderRecord | null {
   return row ? hydrateOrder(row) : null;
 }
 
+/* ---------------------------------------------------------------- rewards */
+
+/** Every point this customer has, earned less spent. */
+export function pointsBalance(phone: string): number {
+  const row = db
+    .prepare(`SELECT COALESCE(SUM(points), 0) AS n FROM points_ledger WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as { n: number };
+  return row.n;
+}
+
+/**
+ * Credits an order's points, once.
+ *
+ * Idempotent through the ledger's own unique index rather than through a flag
+ * on the order: a delivery notice that is re-sent, a status re-applied by a
+ * dispatcher, a retry after a crash - all of them land here, and only the
+ * first one writes a row.
+ *
+ * Returns what was awarded, or 0 if this order had already earned.
+ */
+export function awardPoints(orderNo: string): number {
+  const order = findOrder(orderNo);
+  if (!order || order.status !== 'delivered') return 0;
+
+  // The delivery charge, not the shopping. A parcel's fee lives in the same
+  // column and earns the same way; a taxi has nothing there, because the fare
+  // was agreed in the car and the shop never learned it.
+  const points = pointsFor(order.deliveryFee);
+  if (points <= 0) return 0;
+
+  const done = db
+    .prepare(
+      `INSERT OR IGNORE INTO points_ledger (phone, order_no, points, reason, created_at)
+       VALUES (?, ?, ?, 'earned', ?)`,
+    )
+    .run(order.phone, orderNo, points, nowIso());
+  return done.changes > 0 ? points : 0;
+}
+
+/**
+ * Takes points off a customer for an order, refusing to overdraw.
+ *
+ * Checked and written in one transaction. Two orders placed in the same
+ * second from the same phone would otherwise both read the same balance and
+ * both spend it.
+ */
+export function spendPoints(phone: string, orderNo: string, points: number): boolean {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (points <= 0) return false;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const have = pointsBalance(digits);
+    if (have < points) {
+      db.exec('ROLLBACK');
+      return false;
+    }
+    const done = db
+      .prepare(
+        `INSERT OR IGNORE INTO points_ledger (phone, order_no, points, reason, created_at)
+         VALUES (?, ?, ?, 'spent', ?)`,
+      )
+      .run(digits, orderNo, -points, nowIso());
+    db.exec('COMMIT');
+    return done.changes > 0;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+/** Puts spent points back when the order they paid for never happened. */
+export function refundPoints(orderNo: string): number {
+  const row = db
+    .prepare(
+      `SELECT phone, points FROM points_ledger WHERE order_no = ? AND reason = 'spent'`,
+    )
+    .get(orderNo) as { phone: string; points: number } | undefined;
+  if (!row) return 0;
+
+  const given = db
+    .prepare(
+      `INSERT OR IGNORE INTO points_ledger (phone, order_no, points, reason, created_at)
+       VALUES (?, ?, ?, 'refunded', ?)`,
+    )
+    .run(row.phone, orderNo, -row.points, nowIso());
+  return given.changes > 0 ? -row.points : 0;
+}
+
+/** What this order earned, once it has been credited. 0 before that. */
+export function pointsEarnedOn(orderNo: string): number {
+  const row = db
+    .prepare(`SELECT points FROM points_ledger WHERE order_no = ? AND reason = 'earned'`)
+    .get(orderNo) as { points: number } | undefined;
+  return row?.points ?? 0;
+}
+
+export type PointsLine = {
+  orderNo: string;
+  points: number;
+  reason: string;
+  createdAt: string;
+};
+
+/** The customer's own statement, newest first. */
+export function pointsHistory(phone: string, limit = 10): PointsLine[] {
+  return db
+    .prepare(
+      `SELECT order_no AS orderNo, points, reason, created_at AS createdAt
+         FROM points_ledger WHERE phone = ? ORDER BY id DESC LIMIT ?`,
+    )
+    .all(phone.replace(/[^0-9]/g, ''), limit) as unknown as PointsLine[];
+}
+
 /* ---------------------------------------------------------------- ratings */
 
 export type Rating = {
@@ -3378,6 +3537,15 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   // owns. Done here rather than in each caller: there are three ways to
   // cancel an order and one of them would have been forgotten.
   if (status === 'cancelled' || status === 'returned') returnStock(orderNo);
+
+  // Points follow the goods, for the same reason and in the same place.
+  //
+  // Earned when it is handed over, never when it is ordered: a scheme that
+  // pays before the shopping arrives pays for orders that did not happen.
+  // And a reward spent on an order that then came back has to go back to the
+  // customer, or they have paid five hundred dollars for nothing.
+  if (status === 'delivered') awardPoints(orderNo);
+  if (status === 'cancelled' || status === 'returned') refundPoints(orderNo);
 }
 
 /* ------------------------------------------------- an associate's number */

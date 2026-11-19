@@ -53,6 +53,10 @@ const WIPED = [
   // the wipe deleted would still be inside the quiet period that stops the
   // shop asking them anything.
   'ratings',
+  // Points earned on orders that are being deleted. A balance that outlived
+  // the deliveries behind it is money the shop cannot account for, and the
+  // ledger exists precisely so every point can be traced to an order.
+  'points_ledger',
   // Who the shop knows, and everything said to them.
   'conversations',
   'customers',

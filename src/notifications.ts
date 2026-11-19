@@ -511,6 +511,13 @@ export function receiptLines(order: repo.OrderRecord, lang: Language): string[] 
             : `${t('receipt_delivery', lang)} ${money(order.deliveryFee)}`,
         ]
       : []),
+    // The reward, where one was spent. Shown as a deduction rather than
+    // folded into the total: a customer who used five hundred dollars of
+    // points must see the five hundred dollars, or the scheme has given them
+    // nothing they can point at.
+    ...(order.rewardValue > 0
+      ? [`${t('receipt_reward', lang)} −${money(order.rewardValue)}`]
+      : []),
     `*${t('receipt_total', lang)} ${money(order.total)}*${method ? ` — ${method}` : ''}`,
   ];
 }
@@ -606,6 +613,25 @@ export async function notifyCustomerOfStatus(
     // Only on this route, like the code above: the template that serves a
     // customer outside the 24-hour window cannot carry a list, and there is
     // no sense recording that somebody was asked something they never saw.
+    // What this delivery earned, and what it adds up to. Sent before the
+    // rating question: the good news first, and a customer who sees what
+    // their last delivery was worth is readier to answer what they thought
+    // of it.
+    if (status === 'delivered') {
+      const earned = repo.pointsEarnedOn(order.orderNo);
+      if (earned > 0) {
+        const { balanceLines } = await import('./rewards.ts');
+        const nl = String.fromCharCode(10);
+        await sendText(
+          order.phone,
+          [
+            t('points_earned', lang, { points: String(earned) }),
+            ...balanceLines(repo.pointsBalance(order.phone), lang),
+          ].join(nl),
+        );
+      }
+    }
+
     if (status === 'delivered') {
       const { shouldAsk, ratingAsk } = await import('./ratings.ts');
       const fresh = repo.findOrder(order.orderNo) ?? order;
