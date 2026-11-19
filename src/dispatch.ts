@@ -961,6 +961,18 @@ export function onTheWayCard(
     order.kind === 'taxi'
       ? `🚕 *${order.orderNo}* — passenger onboard`
       : `🛵 *${order.orderNo}* on the way`;
+  // A passenger in the car needs neither a pin nor a telephone number.
+  //
+  // Both exist for the same purpose on a delivery: finding somebody who is
+  // not with you. The taxi's are the passenger's own, and they are sitting
+  // in the car — so "⚠️ No pin — ring +592..." tells a driver to telephone
+  // the person beside them. What is worth saying at this moment is where
+  // they are going, which is the only thing still unknown.
+  if (order.kind === 'taxi') {
+    const where = order.address || order.location?.label || '';
+    return [head, ...(where ? [`*Take to:* ${where}`] : [])].join(String.fromCharCode(10));
+  }
+
   // No pin: the one fact worth repeating here, because it is the difference
   // between navigating and telephoning.
   const noPin =

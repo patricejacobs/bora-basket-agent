@@ -1373,6 +1373,19 @@ are going until they get there.
 | **Passenger arrived** | The associate, at the destination | *Trip complete — you have arrived* |
 | Nobody there | The associate, at the pickup | *The driver could not find you* |
 
+**Once the passenger is aboard, the card drops the pin warning and the
+telephone number.** Both exist to find somebody who is not with you, and the
+passenger is sitting in the car — "⚠️ No pin — ring +592…" would be telling a
+driver to telephone the person beside them. What it says instead is the one
+thing still unknown:
+
+```
+🚕 *TXI-00019* — passenger onboard
+*Take to:* 14 Delph Street, Campbellville
+```
+
+A delivery keeps both, because its customer is at the far end.
+
 **A taxi uses its own words.** The buttons read **Passenger onboard** and
 **Passenger arrived**, never *Uplifted* and *Delivered* — one is what you do
 to a parcel and the other is what happens to one. Typed, `onboard`, `aboard`

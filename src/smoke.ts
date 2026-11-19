@@ -2820,6 +2820,25 @@ section('A car, and no fare anywhere');
   check('and the associate is offered Uplifted once it is theirs',
     nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true }).some((a) => a.title === 'Uplifted'));
 
+  /* --- the card once somebody is in the car ---------------------------- */
+
+  {
+    const { onTheWayCard } = await import('./dispatch.ts');
+    const moving = repo.findOrder(accepted.orderNo)!;
+    const card = onTheWayCard(moving);
+    // A pin and a telephone number exist to find somebody who is not with
+    // you. The passenger is in the car.
+    check('no pin warning once the passenger is aboard', !/No pin/i.test(card), card);
+    check('and no telephone number either', !card.includes(moving.contactPhone) && !card.includes('📞'), card);
+    check('what it says instead is where they are going', /Take to:/.test(card), card);
+    // A delivery still gets both, because the customer is at the far end.
+    const food = repo.allOrders().find((o) => o.kind !== 'taxi' && !o.location);
+    if (food) {
+      check('a delivery with no pin is still warned about it',
+        /No pin/i.test(onTheWayCard(food)), onTheWayCard(food));
+    }
+  }
+
   /* --- a taxi's own words for the same two moves ---------------------- */
 
   const { statusLabel } = await import('./order-status.ts');
