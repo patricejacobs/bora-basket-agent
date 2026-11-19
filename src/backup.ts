@@ -136,6 +136,14 @@ function itemsCell(order: repo.ArchivedOrder): string {
   if (order.kind === 'parcel') {
     return order.parcelDetails ? `Parcel: ${order.parcelDetails}` : 'Parcel';
   }
+  // A taxi bought nothing either. The journey is what it was, so that is what
+  // the archive keeps — an empty cell beside a delivered job reads as data
+  // lost rather than a ride that had no shopping in it.
+  if (order.kind === 'taxi') {
+    const from = order.pickup?.address || (order.pickup ? 'pin' : '?');
+    const to = order.address || (order.location ? 'pin' : '?');
+    return `Taxi: ${from} to ${to}`;
+  }
   return order.items
     .map((i) => {
       const chosen = summariseStored(i.options);

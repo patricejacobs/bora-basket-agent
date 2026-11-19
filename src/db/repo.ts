@@ -1895,6 +1895,82 @@ export function createParcelJob(args: {
   }
 }
 
+/**
+ * A taxi job: a person collected from one place and taken to another.
+ *
+ * The same two-ended shape as a parcel, and reusing its columns deliberately -
+ * pickup at one end, the order's own address at the other, either of them a
+ * pin, words, or both. What differs is what is carried, and that changes two
+ * things.
+ *
+ * No delivery code. A parcel has one because the person at the door is not the
+ * person who booked it, and the digits are how the shop knows it reached the
+ * right hands. A passenger is in the car; asking them to read out a number on
+ * arrival is theatre.
+ *
+ * No fee either. The associate agrees it, as with an unpriced parcel, because
+ * this shop does not meter rides and a figure nobody agreed to is an argument
+ * on a kerb.
+ */
+export function createTaxiJob(args: {
+  phone: string;
+  /** Who is travelling. The booker, unless they say otherwise. */
+  passengerName: string;
+  passengerPhone: string;
+  pickup: { latitude: number; longitude: number; label?: string } | null;
+  pickupAddress: string;
+  destination: { latitude: number; longitude: number; label?: string } | null;
+  destinationAddress: string;
+  /** "2 passengers", "with a wheelchair" - whatever they said. */
+  note: string;
+  /** When they want collecting, ISO, or '' for now. */
+  wantedAt: string;
+  wantedNote: string;
+}): { orderNo: string } {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const orderNo = nextOrderNumber();
+    db.prepare(
+      `INSERT INTO orders
+         (order_no, kind, phone, customer_name, address, contact_phone, delivery_note,
+          latitude, longitude, location_label,
+          pickup_address, pickup_lat, pickup_lng,
+          recipient_name, recipient_phone, parcel_details, delivery_code, recipient_pin,
+          deliver_at, deliver_note,
+          subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, 'taxi', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 0, 0, 0, 'cash_on_delivery', 'pending', ?)`,
+    ).run(
+      orderNo,
+      args.phone,
+      args.passengerName,
+      args.destinationAddress,
+      args.passengerPhone,
+      args.destination?.latitude ?? null,
+      args.destination?.longitude ?? null,
+      args.destination?.label ?? '',
+      args.pickupAddress,
+      args.pickup?.latitude ?? null,
+      args.pickup?.longitude ?? null,
+      args.passengerName,
+      args.passengerPhone,
+      args.note,
+      // The destination pin was shared FOR this destination, which is what
+      // the flag means - without it a properly pinned drop-off would show
+      // NO PIN and no link at all.
+      args.destination ? 1 : 0,
+      args.wantedAt,
+      args.wantedNote,
+      nowIso(),
+    );
+    db.exec('COMMIT');
+    recordEvent(orderNo, 'booked', '', `taxi for ${args.passengerName}`);
+    return { orderNo };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 /* ----------------------------------------------------------- parked carts */
 
 /**
@@ -2815,14 +2891,17 @@ export function activeJobsFor(associatePhone: string): OrderRecord[] {
 export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   const rows = db
     .prepare(
-      // Food waits at `ready`; a parcel waits at `pending`, because a parcel
-      // is accepted by an associate rather than cooked by a kitchen and never
-      // passes through `ready` at all. Left out, a parcel booked while
+      // Food waits at `ready`; a parcel or a taxi waits at `pending`, because
+      // both are accepted by an associate rather than cooked by a kitchen and
+      // never pass through `ready` at all. Left out, a parcel booked while
       // everybody was carrying something was never re-offered and simply sat
-      // there - the same way food did before anything re-offered it.
+      // there - the same way food did before anything re-offered it, and the
+      // same way a taxi did until a taxi could wait here too. A passenger
+      // nobody was free to collect is the worst of the three to leave: they
+      // are standing in the road.
       `SELECT * FROM orders
         WHERE status = 'ready'
-           OR (kind = 'parcel' AND status = 'pending' AND driver_phone = '')
+           OR (kind IN ('parcel','taxi') AND status = 'pending' AND driver_phone = '')
         ORDER BY id ASC LIMIT ?`,
     )
     .all(limit) as unknown as Parameters<typeof hydrateOrder>[0][];

@@ -371,7 +371,15 @@ export function nextActions(
    */
   opts: {
     codeExpected?: boolean;
-    parcel?: boolean;
+    /**
+     * Nobody cooks this one, so accepting it is the associate's own act.
+     *
+     * True of a parcel and of a taxi alike. It was called `parcel` and read
+     * off the kind, which left a taxi driver who had just accepted a job with
+     * no button to say the passenger was in the car — the card offered
+     * nothing until somebody typed `uplifted` from memory.
+     */
+    selfAccepted?: boolean;
     /**
      * This order belongs to a kitchen, so accepting it is theirs to do.
      *
@@ -444,12 +452,12 @@ export function nextActions(
   // A delivery associate collects and delivers. Nothing else is theirs to decide.
   if (audience === 'driver') {
     switch (status) {
-      // A parcel is accepted by the associate rather than cooked by a kitchen,
-      // so acceptance is the moment it becomes theirs to fetch. Food at the
+      // A parcel or a taxi is accepted by the associate rather than cooked by
+      // a kitchen, so acceptance is the moment it becomes theirs to fetch. Food at the
       // same stage is still raw, and offering Uplifted there would send
       // somebody to stand over a fryer.
       case 'confirmed':
-        return opts.parcel ? [uplifted] : [];
+        return opts.selfAccepted ? [uplifted] : [];
       case 'ready':
         return [uplifted];
       // No Delivered button once a code is expected: typing the customer's four

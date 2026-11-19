@@ -2654,6 +2654,163 @@ section('Parcel delivery');
   check('not the number that booked it', !card.includes(parcelPhone), card);
 }
 
+/* ------------------------------------------------------------------ taxis */
+
+section('A car, and no fare anywhere');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { handleDriverMessage } = await import('./staff.ts');
+  const { offerParcel } = await import('./dispatch.ts');
+  const { customerStatusMessage, receiptLines, signOffFor } = await import('./notifications.ts');
+  const { nextActions } = await import('./order-status.ts');
+
+  const rider = '5926003030';
+  const passenger = '5920009300';
+  const ctx: ToolContext = { phone: passenger, outbound: [] };
+  const taxi = (name: string, input: unknown = {}): any => JSON.parse(executeTool(name, input, ctx));
+
+  repo.clearParcelDraft(passenger);
+  repo.saveCustomer(passenger, { name: 'Marcia Younge', contactPhone: '5926482233' });
+
+  /* --- nobody to send ------------------------------------------------- */
+
+  repo.setService(passenger, 'grocery');
+  check('book_taxi refuses outside the taxi service', typeof taxi('book_taxi', {}).error === 'string');
+  repo.setService(passenger, 'taxi');
+
+  // Said with the road empty, because the refusal with nobody on duty is the
+  // one a customer meets at six in the morning. Whoever an earlier section
+  // left working is clocked off for this and put back straight after.
+  const working = repo.associateNumbers().filter((p) => repo.isOnDuty(p));
+  for (const p of working) repo.setDuty(p, false);
+  const shut = taxi('book_taxi', { pickup_address: 'Stabroek', destination_address: 'Diamond' });
+  check(
+    'and refuses with no associate on duty',
+    typeof shut.error === 'string' && /nobody to send|no delivery associate/i.test(String(shut.error)),
+    JSON.stringify(shut).slice(0, 140),
+  );
+
+  repo.upsertAssociate({ phone: rider, name: 'Taxi Rider', vehicle: 'PAA 1111', active: true });
+  repo.setDuty(rider, true);
+
+  /* --- both ends, however they are given ------------------------------ */
+
+  check(
+    'refuses with nowhere to collect them',
+    /where to collect/i.test(String(taxi('book_taxi', { destination_address: 'Diamond' }).error)),
+  );
+  check(
+    'refuses with nowhere to take them',
+    /where they are going/i.test(String(taxi('book_taxi', { pickup_address: 'Stabroek' }).error)),
+  );
+  check(
+    'refuses a pick-up time that has gone',
+    /already passed/i.test(
+      String(
+        taxi('book_taxi', {
+          pickup_address: 'Stabroek',
+          destination_address: 'Diamond',
+          pick_up_at: '2020-01-01T10:00:00Z',
+        }).error,
+      ),
+    ),
+  );
+
+  // A pin where they stand, words for where they are going: the ordinary
+  // case, because a phone knows where it is and not where it is headed.
+  check('the first pin is the pickup', repo.addParcelPin(passenger, { latitude: 6.8013, longitude: -58.1551, label: 'Stabroek' }) === 'pickup');
+  const booked = taxi('book_taxi', {
+    destination_address: '14 Delph Street, Campbellville',
+    note: '2 passengers, one small case',
+  });
+  check('books the trip', booked.booked === true, JSON.stringify(booked).slice(0, 140));
+  check('and quotes no fare back to the model', String(booked.fare) === 'to be agreed with the driver', String(booked.fare));
+
+  const job = repo.findOrder(String(booked.job_number));
+  check('the job is a taxi', job?.kind === 'taxi', job?.kind);
+  check('with no line items', job?.items.length === 0, JSON.stringify(job?.items));
+  check('no fee of any kind', job?.total === 0 && job?.deliveryFee === 0, `${job?.total} / ${job?.deliveryFee}`);
+  // A passenger is not handed over against a code: they get out of the car.
+  check('and no delivery code to recite', repo.deliveryCodeExpected(job!.orderNo) === false);
+  check('the pickup is the pin that was dropped', job?.pickup?.latitude === 6.8013, JSON.stringify(job?.pickup));
+  check('the destination is the words that were given', job?.address === '14 Delph Street, Campbellville', job?.address);
+  check('what they said about the journey is kept', job?.parcelDetails === '2 passengers, one small case', job?.parcelDetails);
+  check('the passenger is named', job?.customerName === 'Marcia Younge', job?.customerName);
+  // Or the next ride starts at the last one's kerb.
+  check('and the draft is spent', repo.getParcelDraft(passenger).pickup === null);
+
+  // Words at both ends, which is what somebody telephoning for a car gives.
+  const worded = taxi('book_taxi', { pickup_address: 'Corner of Light and Charlotte', destination_address: 'Diamond, East Bank' });
+  const wordedJob = repo.findOrder(String(worded.job_number));
+  check('a trip can be booked on words alone', worded.booked === true && wordedJob?.kind === 'taxi', JSON.stringify(worded).slice(0, 120));
+  check('with no pin at either end', wordedJob?.pickup?.latitude === null && wordedJob?.location === null, JSON.stringify(wordedJob?.pickup));
+
+  /* --- what the passenger reads --------------------------------------- */
+
+  const n = String(Number(String(job?.orderNo).replace(/\D/g, '')));
+  check('the job is offered to the associates', (await offerParcel(job!.orderNo)) === 'sent');
+  await handleDriverMessage(`${n} confirm`, rider);
+  const accepted = repo.findOrder(job!.orderNo)!;
+  check('an associate can take it without a kitchen', accepted.status === 'confirmed', accepted.status);
+
+  // The whole point of this section. Every one of these lines used to be
+  // written for goods: a total of $0, a receipt for nothing, and thanks for
+  // trusting us with a parcel - sent to somebody sitting in the back of a car.
+  const onAccept = customerStatusMessage(accepted, 'confirmed');
+  check('the passenger is told a car is coming', /driver is on the way/i.test(onAccept), onAccept);
+
+  check('and the associate is offered Uplifted once it is theirs',
+    nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true }).some((a) => a.title === 'Uplifted'));
+
+  await handleDriverMessage(`${n} uplifted`, rider);
+  const moving = repo.findOrder(job!.orderNo)!;
+  const inTheCar = customerStatusMessage(moving, 'on_the_way');
+  check('on the way says they are on their way', /on your way/i.test(inTheCar), inTheCar);
+  check('and names no figure at all', !inTheCar.includes('$'), inTheCar);
+  check('it says who the fare is agreed with instead', /agreed with the driver/i.test(inTheCar), inTheCar);
+
+  await handleDriverMessage(`${n} delivered`, rider);
+  const done = repo.findOrder(job!.orderNo)!;
+  const atTheKerb = customerStatusMessage(done, 'delivered');
+  check('the trip is closed as a trip, not a delivery', /complete/i.test(atTheKerb) && !/delivered/i.test(atTheKerb), atTheKerb);
+  check('no receipt is produced for a ride nobody priced', receiptLines(done, 'en').length === 0);
+  check('so no total is quoted at the end either', !atTheKerb.includes('$') && !/Total/i.test(atTheKerb), atTheKerb);
+  check('and the goodbye is not the parcel one', !signOffFor(done).includes('📦'), signOffFor(done));
+
+  /* --- a passenger who is not there ----------------------------------- */
+
+  // At the pickup, where a parcel would still be on a counter. The guard that
+  // says "there is nothing to bring back" is right about goods and wrong
+  // about a car that waited.
+  const n2 = String(Number(String(worded.job_number).replace(/\D/g, '')));
+  await offerParcel(wordedJob!.orderNo);
+  await handleDriverMessage(`${n2} confirm`, rider);
+  await handleDriverMessage(`${n2} nobody there`, rider);
+  const noShow = repo.findOrder(wordedJob!.orderNo)!;
+  check('a no-show at the pickup closes the job', noShow.status === 'returned', noShow.status);
+  const told = customerStatusMessage(noShow, 'returned');
+  check('and the passenger is told the driver could not find them', /could not find you/i.test(told), told);
+  check('not that something is coming back to them', !/coming back/i.test(told), told);
+
+  /* --- a taxi nobody was free for is offered again --------------------- */
+
+  const waiting = taxi('book_taxi', { pickup_address: 'Kitty Market', destination_address: 'Sophia' });
+  const waitingNo = String(waiting.job_number);
+  check(
+    'a taxi waiting at pending is work still to be given out',
+    repo.ordersAwaitingPickup(20).some((o) => o.orderNo === waitingNo),
+    JSON.stringify(repo.ordersAwaitingPickup(20).map((o) => `${o.orderNo}:${o.kind}`)),
+  );
+
+  // Put back: an extra on-duty associate left behind here changes what every
+  // later section is working with, and the ones clocked off above are owed
+  // their shift back.
+  repo.setDuty(rider, false);
+  repo.upsertAssociate({ phone: rider, name: 'Taxi Rider', vehicle: 'PAA 1111', active: false });
+  for (const p of working) repo.setDuty(p, true);
+  repo.setService(passenger, 'grocery');
+}
+
 /* ---------------------------------------------------- cancelling an order */
 
 section('Why an order was cancelled');
@@ -5912,12 +6069,24 @@ section('What an order says it is');
 
   // Orders placed before groceries were shops kept their empty outlet. They
   // are history and must stay readable as what they were.
-  const legacy = archived.filter((o) => o.outlet === null && o.kind !== 'parcel');
+  // A parcel and a taxi have no shop by nature rather than by age, so neither
+  // is history and neither belongs in this comparison.
+  const legacy = archived.filter(
+    (o) => o.outlet === null && o.kind !== 'parcel' && o.kind !== 'taxi',
+  );
   check('a grocery order from before the change still reads as one', legacy.every((o) => o.kind === 'grocery'));
 
   check(
     'a parcel is neither',
-    archived.filter((o) => o.parcelDetails !== '').every((o) => o.kind === 'parcel'),
+    archived
+      .filter((o) => o.parcelDetails !== '' && o.kind !== 'taxi')
+      .every((o) => o.kind === 'parcel'),
+  );
+  // A taxi uses the same column for what the passenger said about the
+  // journey, which is why the line above has to let it past.
+  check(
+    'and a taxi is a taxi',
+    archived.filter((o) => o.kind === 'taxi').every((o) => o.items.length === 0 && o.total === 0),
   );
 }
 

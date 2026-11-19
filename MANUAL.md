@@ -21,10 +21,11 @@ commit as the change it describes, so if it is behind the agent, that is a bug.
 5. [What a customer sees](#5-what-a-customer-sees)
 6. [Delivery codes](#6-delivery-codes)
 7. [Parcels](#7-parcels)
-8. [Money](#8-money)
-9. [Settings](#9-settings)
-10. [Running it day to day](#10-running-it-day-to-day)
-11. [What is recorded](#11-what-is-recorded)
+8. [Taxis](#8-taxis)
+9. [Money](#9-money)
+10. [Settings](#10-settings)
+11. [Running it day to day](#11-running-it-day-to-day)
+12. [What is recorded](#12-what-is-recorded)
 
 ---
 
@@ -37,7 +38,7 @@ runs it through to the door. There are four services:
 |---|---|
 | **Grocery** | Shopping from a grocery shop |
 | **Restaurant** | Food from a partner kitchen |
-| **Taxi** | A car for people, arranged by a person — the shop does not drive these |
+| **Taxi** | A car for people, driven by the delivery associates — no fare is quoted |
 | **Parcel** | Collect something from one address, take it to another |
 | **Other** | Anything else — handed to a person |
 
@@ -78,7 +79,7 @@ Order numbers work as `7`, `ORD-7` or `ORD-00007`.
 | `where` | Where the associates are, and when each was last seen |
 | `where rohan` | Ask one of them to share a fresh pin |
 | `cash` | What each associate has collected today |
-| `change number <name> <new number>` | An associate has a new SIM — see §10 |
+| `change number <name> <new number>` | An associate has a new SIM — see §11 |
 | `7 history` | Everything that happened to order 7 |
 | `backup` | The trading record, sent to you here |
 | `wanted` | What customers asked for and you did not have |
@@ -186,8 +187,10 @@ Send `help` to the shop number for this list.
 | `on` | Clock on. Sharing a location pin also does it |
 | `off` | Clock off |
 | `jobs` | What is waiting, and what you are already carrying |
-| `7 uplifted` | You have it |
+| `7 confirm` | Take a parcel or a taxi — there is no kitchen to accept it |
+| `7 uplifted` | You have it, or the passenger is in the car |
 | `7 delivered` | Dropped off |
+| `7 nobody there` | Nobody at the door, or no passenger at the pickup |
 | `7 transfer` | Hand order 7 to another associate |
 | `cash` | What you are holding this shift |
 
@@ -287,8 +290,9 @@ always work in English.**
 
 ### Taxi
 
-First on the menu, and the one service the shop does not perform itself — it
-arranges it. There is no catalogue, no cart and no delivery associate.
+First on the menu. There is no catalogue and no cart — two ends and a
+passenger — and the delivery associates drive these themselves. The full
+journey is [chapter 8](#8-taxis); this is what the customer sees.
 
 ```
 *1.* Taxi
@@ -299,22 +303,24 @@ arranges it. There is no catalogue, no cart and no delivery associate.
 ```
 
 > A car it is. 🚕 Where are we collecting you from, where are you going, and
-> when? Tell me how many of you as well, and I will have somebody arrange it.
+> when? Tell me how many of you as well, and I will find you a car.
 
 Four things in as few messages as possible — **from, to, when, how many** —
-read back, then handed to a person with `request_staff_help`.
+read back, then booked with `book_taxi`. Either end can be a pin or an address
+in words; the job goes out to the associates the moment it is booked.
 
-**No fare is ever quoted, and no car or time is promised.** The shop does not
-know what is free, and a price nobody agreed to is an argument on a kerb.
+**No fare is ever quoted, and no car or time is promised.** The driver agrees
+the fare with the passenger, and a price nobody agreed to is an argument on a
+kerb.
 
 **"Car" is matched as a whole word.** This shop sells carrots, and without
 that a shopping list would be answered with a taxi. "Pick up" and "drop off"
 stay with parcels, where a customer saying *"pick up something from the shop"*
 means one every time.
 
-**This needs `STAFF_NUMBERS` to reach anyone.** Without it the request is
-written down and the customer is told so, honestly, rather than being told a
-car is coming.
+**This needs an associate on duty.** With nobody on the road the booking is
+refused and the customer is told so plainly, rather than being told a car is
+coming.
 
 ### Who the customer is talking to
 
@@ -986,7 +992,61 @@ Two different things, and the sender is told which:
 
 ---
 
-## 8. Money
+## 8. Taxis
+
+A car for a person, booked and dispatched exactly like a parcel — **the
+delivery associates drive these**. There is no catalogue, no cart and no
+kitchen, so the associate who takes the job is the one who confirms it.
+
+It needs **two ends and a passenger**. Each end can be a **location pin, an
+address in words, or both**: somebody standing on a road waiting for a car can
+usually drop a pin on where they are, and nobody can drop one on where they
+are going until they get there.
+
+### The journey
+
+| Step | Who | What the passenger is told |
+|---|---|---|
+| Booked | The agent, on the customer's yes | The job number, and that a car is being found |
+| Accepted | **An associate**, tapping Accept | *A driver is on the way to collect you* |
+| Uplifted | The associate, when the passenger is in the car | *You are on your way* |
+| Dropped off | The associate, tapping Delivered | *Trip complete — you have arrived* |
+| Nobody there | The associate, at the pickup | *The driver could not find you* |
+
+**No delivery code.** A passenger is not handed over against four digits; they
+get out of the car. The Delivered button closes the job.
+
+**Nobody there is reported from the pickup**, before anyone is in the car —
+which is the one place it differs from a parcel, where nothing can come back
+until it has been collected.
+
+### No fare, anywhere
+
+The shop does not meter rides. **The driver agrees the fare with the
+passenger**, and no figure is printed on any message, card or receipt:
+
+- The passenger's messages name no amount at all; the one in the car says the
+  fare is agreed with the driver.
+- The associate's card says *Fare not set — agree it with the passenger*.
+- The dispatch desk's card says the same.
+- **There is no receipt at the end.** A ride the shop never priced has nothing
+  to put on one, and `Total $0 — paid in cash` is a lie with a figure in it.
+
+A taxi is counted in no cash total for the same reason: nothing passed through
+the shop.
+
+### What it shares with everything else
+
+- **Nobody on duty, no booking.** The customer is told plainly, and no car or
+  time is promised.
+- **Offered to every free associate**; the first to accept takes it.
+- A taxi **nobody was free for waits** and is offered again the moment an
+  associate clocks on or finishes a job — the same queue a parcel waits in.
+- The whole trail is recorded: booked, accepted, uplifted, closed, by number.
+
+---
+
+## 9. Money
 
 Everything is cash on delivery unless `PAYMENT_METHODS` says otherwise.
 
@@ -994,6 +1054,7 @@ Everything is cash on delivery unless `PAYMENT_METHODS` says otherwise.
 |---|---|---|
 | Grocery, restaurant | at the door, by whoever receives it | whoever **delivered** it |
 | Parcel | at the pickup, by the sender | whoever **uplifted** it |
+| Taxi | in the car, at a fare the driver agreed | **nothing** — the shop never priced it |
 
 That difference matters when a job is transferred: a parcel's fee stays with
 the associate who collected it, because that is who has the notes.
@@ -1018,7 +1079,7 @@ carrying orders is told so, by order number.
 
 ---
 
-## 9. Settings
+## 10. Settings
 
 All set in the **Render dashboard → your service → Environment**. The dashboard
 overrides `render.yaml`, so a value in the file is ignored if it is also set
@@ -1750,7 +1811,7 @@ Render setting at all.
 
 ---
 
-## 10. Running it day to day
+## 11. Running it day to day
 
 ### Backups
 
@@ -1800,7 +1861,7 @@ orders, their events **and** the sequence row together.
 
 ---
 
-## 11. What is recorded
+## 12. What is recorded
 
 ### Every order carries its own trail
 

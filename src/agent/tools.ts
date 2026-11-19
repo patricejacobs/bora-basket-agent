@@ -446,6 +446,51 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'book_taxi',
+    description:
+      "Book a car. Call it once you have both ends — where they are collected from and where they are going — each a pin, an address in words, or both. Pins already shared are used automatically; pass the words for whichever end has none. It offers the job to the delivery associates straight away. Never quote a fare: the associate agrees it with the passenger.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        pickup_address: {
+          type: 'string',
+          description:
+            'Where to collect them, in words. Required when no pin has been shared for the pickup. The address and the landmark that goes with it — no telephone numbers.',
+        },
+        destination_address: {
+          type: 'string',
+          description:
+            'Where they are going, in words. Required when no pin has been shared for the destination.',
+        },
+        passenger_name: {
+          type: 'string',
+          description:
+            'Who is travelling. Leave it out when it is the person you are talking to and you already have their name.',
+        },
+        passenger_phone: {
+          type: 'string',
+          description:
+            "The number to ring on arrival, digits only. Leave it out to use the number they are writing from. Pass one only when somebody else is travelling.",
+        },
+        note: {
+          type: 'string',
+          description:
+            'Anything the driver should know: how many passengers, luggage, a wheelchair, a child seat. Their words, short.',
+        },
+        pick_up_at: {
+          type: 'string',
+          description:
+            'When they want collecting, as a full ISO timestamp, when it is not now. Leave it out for as soon as possible.',
+        },
+        pick_up_note: {
+          type: 'string',
+          description: 'Their own words about the time — "in an hour", "after work".',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'parcel_party',
     description:
       "Writes down one end of a parcel - the sender or the recipient - once the customer has AGREED it. Call it with `side` and whatever of the name, address and telephone number they gave. It reads the half back for you to show them; call it again with `confirmed` true once they have said it is right. Nothing is booked until both ends are confirmed, so this is how the six facts a parcel needs get collected without asking twice.",
@@ -1949,6 +1994,104 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * that a parcel is the one order where getting a name wrong cannot be
      * undone by apologising: it has already gone somewhere.
      */
+    /**
+     * A car, booked and offered to the associates.
+     *
+     * The same two-ended shape as a parcel, and the same tolerance about how
+     * each end is given: a pin, words, or both. Somebody standing on a road
+     * waiting for a car can usually drop a pin on where they are; nobody can
+     * drop one on where they are going until they get there, so an address in
+     * words has to be enough for the far end.
+     *
+     * No fare is quoted here or anywhere. The shop does not meter rides, and a
+     * figure nobody agreed to is an argument on a kerb.
+     */
+    case 'book_taxi': {
+      const wrong = requireService(ctx.phone, 'taxi');
+      if (wrong) return fail(wrong);
+
+      if (!repo.anyoneOnDuty()) {
+        return fail(
+          'Cannot book a car — no delivery associate is on duty, so there is nobody to send. Tell them kindly, say nothing about when, and invite them to message again.',
+        );
+      }
+
+      // The pins are filed exactly as a parcel's are: the first one shared is
+      // the pickup, the second the destination.
+      const draft = repo.getParcelDraft(ctx.phone);
+      const pickupAddress = asString(input.pickup_address).trim().slice(0, 160);
+      const destinationAddress = asString(input.destination_address).trim().slice(0, 160);
+
+      if (!draft.pickup && !pickupAddress) {
+        return fail(
+          'Nothing says where to collect them. Ask for a pin with request_location, or take the address in words and pass it as pickup_address.',
+        );
+      }
+      if (!draft.destination && !destinationAddress) {
+        return fail(
+          'Nothing says where they are going. Ask for a pin with request_location, or take the address in words and pass it as destination_address.',
+        );
+      }
+
+      const customer = repo.getIdentity(ctx.phone);
+      const passengerName = asString(input.passenger_name).trim() || customer.name || '';
+      if (!passengerName) {
+        return fail(
+          'Still need a name for the passenger — the driver has to ask for somebody. Take it with save_customer_details, or pass passenger_name when it is not the person you are talking to.',
+        );
+      }
+      const passengerPhone =
+        asString(input.passenger_phone).replace(/[^0-9]/g, '') || customer.contactPhone || ctx.phone;
+
+      // The same check as a delivery asked for at a time: a car wanted an hour
+      // ago would sort to the front of the queue for ever.
+      const whenRaw = asString(input.pick_up_at).trim();
+      let wantedAt = '';
+      if (whenRaw) {
+        const at = new Date(whenRaw);
+        if (Number.isNaN(at.getTime())) {
+          return fail('pick_up_at is not a time I can read. Leave it out and say it in pick_up_note instead.');
+        }
+        if (at.getTime() < Date.now() - 5 * 60_000) {
+          return fail('That time has already passed. Ask whether they meant later today or tomorrow.');
+        }
+        wantedAt = at.toISOString();
+      }
+
+      const job = repo.createTaxiJob({
+        phone: ctx.phone,
+        passengerName,
+        passengerPhone,
+        pickup: draft.pickup,
+        pickupAddress,
+        destination: draft.destination,
+        destinationAddress,
+        note: asString(input.note).trim().slice(0, 120),
+        wantedAt,
+        wantedNote: asString(input.pick_up_note).trim().slice(0, 60),
+      });
+
+      // Spent, like a parcel's: the next ride must not start with this one's
+      // pins already in it.
+      repo.clearParcelDraft(ctx.phone);
+
+      void announceNewOrder(job.orderNo).catch((err) =>
+        console.error('[tools] taxi announcement failed:', err),
+      );
+      void offerParcel(job.orderNo).catch((err) =>
+        console.error('[tools] could not offer the taxi:', err),
+      );
+
+      return ok({
+        booked: true,
+        job_number: job.orderNo,
+        passenger: passengerName,
+        fare: 'to be agreed with the driver',
+        say: `${job.orderNo} is in. I am looking for a car now.`,
+        next: 'Tell them the job number and that you are finding a driver. Do not promise a car, a time or a fare — none of the three is yours to give.',
+      });
+    }
+
     case 'parcel_party': {
       const side = asString(input.side) === 'recipient' ? 'recipient' : 'sender';
       const draft = repo.getParcelDraft(ctx.phone);

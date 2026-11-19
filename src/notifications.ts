@@ -50,24 +50,40 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
   // told a kitchen was cooking it.
   const isCooked = order.kind === 'restaurant';
 
+  // A taxi carries a person. Nothing about it is a list of goods, and the
+  // desk reading this card needs the two ends of the trip rather than a
+  // trolley and an empty line where the items would be.
+  const isTaxi = order.kind === 'taxi';
+
   const lines = [
-    isParcel
-      ? `📦 *New parcel job ${order.orderNo}*`
-      : order.outlet
-        ? `${isCooked ? '🍽️' : '🛒'} *New order ${order.orderNo}* — ${order.outlet.name}`
-        : `🛒 *New order ${order.orderNo}*`,
+    isTaxi
+      ? `🚕 *New taxi job ${order.orderNo}*`
+      : isParcel
+        ? `📦 *New parcel job ${order.orderNo}*`
+        : order.outlet
+          ? `${isCooked ? '🍽️' : '🛒'} *New order ${order.orderNo}* — ${order.outlet.name}`
+          : `🛒 *New order ${order.orderNo}*`,
     '',
-    // A parcel has no line items — one bag and a description.
-    ...(isParcel
-      ? [order.parcelDetails || 'Contents not described']
-      : order.items.map((i) => {
-          const chosen = summariseStored(i.options);
-          return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''} — ${money(i.lineTotal)}`;
-        })),
+    // A parcel has no line items — one bag and a description. A taxi has the
+    // journey instead, written the way the passenger gave it.
+    ...(isTaxi
+      ? [
+          `Collect: ${order.pickup?.address || (order.pickup ? 'pin only' : 'not given')}`,
+          `Take to: ${order.address || (order.location ? 'pin only' : 'not given')}`,
+          ...(order.parcelDetails ? [order.parcelDetails] : []),
+        ]
+      : isParcel
+        ? [order.parcelDetails || 'Contents not described']
+        : order.items.map((i) => {
+            const chosen = summariseStored(i.options);
+            return `${i.qty} x ${i.name}${chosen ? ` — _${chosen}_` : ''} — ${money(i.lineTotal)}`;
+          })),
     '',
     order.total > 0
       ? `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`
-      : '*Fee not set* — the associate agrees it with the sender at the pickup',
+      : isTaxi
+        ? '*Fare not set* — the driver agrees it with the passenger'
+        : '*Fee not set* — the associate agrees it with the sender at the pickup',
     // When it is wanted, on the desk's copy too. It is the one fact that
     // changes what to do with the order right now rather than later.
     ...(wantedBy(order) ? [wantedBy(order)] : []),
@@ -87,10 +103,17 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
         ]
       : []),
     '',
-    isParcel ? `To: ${order.recipientName} +${order.recipientPhone}` : `${order.customerName}`,
+    isParcel
+      ? `To: ${order.recipientName} +${order.recipientPhone}`
+      : isTaxi
+        ? `Passenger: ${order.customerName}`
+        : `${order.customerName}`,
     // Doorstep detail, which is often empty now that the pin carries the
-    // location. Skipped rather than printed as a blank line.
-    ...(order.address ? [order.address] : []),
+    // location. Skipped rather than printed as a blank line — and skipped on
+    // a taxi outright, where the address IS the destination and has been on
+    // this card since the third line. The same line twice in one message is
+    // read, checked against itself and trusted less.
+    ...(order.address && !isTaxi ? [order.address] : []),
     `📞 +${order.contactPhone || order.phone}`,
     ...(order.location
       ? ['', describePin(order.location, checkRange(order.location, config.store.serviceArea))]
@@ -286,6 +309,22 @@ export const PARCEL_SIGN_OFFS = [
 ];
 
 /**
+ * Taxis. Addressed to a passenger who has just been driven somewhere.
+ *
+ * Built from lines the other pools already use rather than new ones, because
+ * every wish that suits the end of a journey has been written here once
+ * already. What a passenger must never be sent is the parcel pool: "thanks
+ * for trusting us with it 📦" to somebody who was themselves the cargo.
+ */
+export const TAXI_SIGN_OFFS = [
+  'signoff_rest_of_day',
+  'signoff_see_you_next',
+  'signoff_here_for_you',
+  'signoff_good_to_help',
+  'signoff_next_one',
+];
+
+/**
  * One of them, chosen by the order number rather than at random.
  *
  * Varied across customers, fixed for any one order. That second half is the
@@ -304,7 +343,9 @@ export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): stri
       ? MEAL_SIGN_OFFS
       : order.kind === 'grocery'
         ? SHOPPING_SIGN_OFFS
-        : PARCEL_SIGN_OFFS;
+        : order.kind === 'taxi'
+          ? TAXI_SIGN_OFFS
+          : PARCEL_SIGN_OFFS;
 
   const n = Number(order.orderNo.replace(/[^0-9]/g, ''));
   const pick = Number.isFinite(n) ? n % pool.length : 0;
@@ -325,7 +366,13 @@ export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): stri
  */
 export function thanksFor(order: repo.OrderRecord, lang: Language = 'en'): string {
   if (order.kind === 'grocery') return t('thanks_grocery', lang);
-  if (order.kind === 'parcel') return t('thanks_parcel', lang, { store: config.store.name });
+  // A taxi thanks them for choosing the shop, as a parcel does. The line
+  // below names a kitchen, and a passenger who has just been driven home
+  // being thanked for ordering from a roti shop is the wrong message
+  // entirely.
+  if (order.kind === 'parcel' || order.kind === 'taxi') {
+    return t('thanks_parcel', lang, { store: config.store.name });
+  }
   return t('thanks_restaurant', lang, {
     outlet: order.outlet?.name ?? config.store.name,
   });
@@ -378,6 +425,12 @@ export function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
  * each figure instead, which reads the same in any font.
  */
 export function receiptLines(order: repo.OrderRecord, lang: Language): string[] {
+  // A taxi has no receipt to give. Nothing was bought, and the fare was never
+  // known to the shop: the driver agrees it with the passenger in the car.
+  // Rendering one anyway produced "*Total $0* — paid in cash" at the end of a
+  // journey somebody is about to pay for, which is worse than silence.
+  if (order.kind === 'taxi') return [];
+
   const isParcel = order.kind === 'parcel';
 
   // The time it was HANDED OVER, not the time it was ordered.
@@ -482,8 +535,13 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // Three shapes, not two. An order that never had a code is told neither
   // thing - it is not a confirmed delivery and it is not a failed one, and
   // saying either would be inventing a fact about it.
+  const isTaxi = order.kind === 'taxi';
   const key = unconfirmed ? 'delivered_unverified' : confirmed ? 'delivered_confirmed' : 'delivered';
-  const receipt = t(key, lang, { order: order.orderNo });
+  // A passenger was not delivered. The trip ended, which is a different
+  // sentence and the only one that is true of somebody who got out of a car.
+  const receipt = isTaxi
+    ? t('taxi_dropped_off', lang, { order: order.orderNo })
+    : t(key, lang, { order: order.orderNo });
   // Receipt, then thanks, then the wish. The thanks used to be the tail of the
   // receipt line itself, which meant one sentence had to suit a bag of
   // groceries, a hot meal and a parcel alike.
@@ -494,8 +552,15 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // the customer is waiting for is the one that says it arrived, and a receipt
   // is what you are handed afterwards rather than something to scroll past to
   // find out whether your delivery is done.
-  const head =
-    receipt + nl + nl + receiptLines(order, lang).join(nl) + nl + nl + thanksFor(order, lang);
+  //
+  // A taxi has no receipt block at all, so it closes up rather than leaving
+  // the blank lines that block used to sit between.
+  const head = [
+    receipt,
+    ...(isTaxi ? [] : ['', ...receiptLines(order, lang)]),
+    '',
+    thanksFor(order, lang),
+  ].join(nl);
 
   // Only the unconfirmed one invites a reply. On a delivery the customer
   // proved themselves, "anything wrong?" would be the shop asking a question
@@ -571,13 +636,26 @@ export function customerStatusMessage(
   const firstName = order.customerName.split(/\s+/)[0] ?? order.customerName;
 
   const freeForm: Partial<Record<repo.OrderStatus, string>> = {
-    confirmed: t('confirmed', lang, { name: firstName, order: order.orderNo }),
+    // A taxi is confirmed the moment an associate takes the job, and what the
+    // passenger needs to know then is that a car is coming — not that an
+    // order has been accepted and we will say when it leaves.
+    confirmed:
+      order.kind === 'taxi'
+        ? t('taxi_confirmed', lang, { name: firstName, order: order.orderNo })
+        : t('confirmed', lang, { name: firstName, order: order.orderNo }),
     // A parcel was paid for at the pickup, before it went anywhere. Telling
     // the sender it is "payable to the delivery associate" asks them for the
     // money a second time, and tells whoever booked it to expect a bill that
     // is already settled.
     on_the_way:
-      (order.kind === 'parcel'
+      (order.kind === 'taxi'
+        ? t('taxi_on_the_way', lang, { name: firstName }) +
+          String.fromCharCode(10) +
+          // Said plainly, once, at the moment the passenger is in the car and
+          // wondering what this will cost. The shop has no figure to give:
+          // what it can do is say who to ask instead of quoting a $0 total.
+          t('taxi_fare_with_driver', lang)
+        : order.kind === 'parcel'
         ? t('parcel_on_the_way', lang, {
             order: order.orderNo,
             name: order.recipientName || 'the recipient',
@@ -605,7 +683,9 @@ export function customerStatusMessage(
     // the shop and the person being written to is the one who was not at the
     // door - so none of the parcel wording fits, and saying "coming back to
     // you" to somebody who was out is close to rude.
-    returned: order.kind === 'parcel'
+    returned: order.kind === 'taxi'
+      ? t('taxi_no_show', lang, { order: order.orderNo })
+      : order.kind === 'parcel'
       ? t(
           repo.returnReason(order.orderNo) === 'wrong_code'
             ? 'returned_wrong_code'

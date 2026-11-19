@@ -1793,8 +1793,13 @@ export async function handleDriverMessage(
   // A parcel has no kitchen to accept it, so the associate accepts it - that
   // is the step that was missing, and without it every parcel waited at
   // `pending` for a confirmation only a staff member could give.
+  // A taxi is accepted the same way and for the same reason: no kitchen is
+  // going to confirm a car, so the associate taking it is the confirmation.
+  // Without this the Accept button on a taxi card was refused, and the job sat
+  // at `pending` with a passenger standing on a road waiting for it.
   const isParcel = order.kind === 'parcel';
-  const mayAccept = isParcel && status === 'confirmed' && order.status === 'pending';
+  const selfAccepted = isParcel || order.kind === 'taxi';
+  const mayAccept = selfAccepted && status === 'confirmed' && order.status === 'pending';
 
   // Anything can come back, because anything can meet a locked gate.
   //
@@ -1813,8 +1818,8 @@ export async function handleDriverMessage(
 
   if (status !== 'on_the_way' && status !== 'delivered' && !mayAccept && !mayReturn) {
     return reply(
-      isParcel
-        ? 'A delivery associate can accept a parcel, mark it uplifted, delivered, or returned. Anything else is for the shop.'
+      selfAccepted
+        ? `A delivery associate can accept ${order.kind === 'taxi' ? 'a job' : 'a parcel'}, mark it uplifted, delivered, or returned. Anything else is for the shop.`
         : 'A delivery associate can mark an order uplifted, delivered, or returned. Anything else is for the shop.',
     );
   }
@@ -1824,7 +1829,12 @@ export async function handleDriverMessage(
   // appointment; a code that would not verify may mean the order was offered
   // at the wrong door, and on a parcel the sender is the only one who can find
   // out which.
-  if (mayReturn && order.status === 'on_the_way') {
+  // A taxi's "nobody there" happens at the PICKUP, before anybody is in the
+  // car — so it is reported from `confirmed`, where a parcel would still be
+  // sitting on a counter. The job is the driver's; the passenger is not.
+  const taxiNoShow = order.kind === 'taxi' && order.status === 'confirmed';
+
+  if (mayReturn && (order.status === 'on_the_way' || taxiNoShow)) {
     repo.setReturnReason(
       order.orderNo,
       /wrong\s*code|bad\s*code/i.test(trimmed) ? 'wrong_code' : 'nobody_there',
@@ -1833,7 +1843,7 @@ export async function handleDriverMessage(
 
   // Returning is for what is in their hands, not for something somebody else
   // is carrying and not for one still sitting at a counter.
-  if (mayReturn && order.status !== 'on_the_way') {
+  if (mayReturn && order.status !== 'on_the_way' && !taxiNoShow) {
     return reply(
       `${order.orderNo} is not out with you — there is nothing to bring back. Send \`jobs\` to see what you have.`,
     );
@@ -2001,7 +2011,7 @@ export async function handleDriverMessage(
   // always say no and the card would carry a Delivered button it should not.
   const actions = nextActions(order.orderNo, landed, 'driver', {
     codeExpected: repo.deliveryCodeExpected(order.orderNo),
-    parcel: isParcel,
+    selfAccepted,
   });
 
   // The food is in the bag and only the drop is left, so this message is the

@@ -150,6 +150,18 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: 'Not where you are now? Drag the map, or search for the place, before you send it.',
     returned_wrong_code: 'Parcel {order} is coming back to you — the delivery code {name} gave did not match, so the delivery associate did not hand it over. Check with {name} that they had the code you passed on. The fee covers the trip, which was made, so it is not refunded.',
     parcel_on_the_way: 'Parcel {order} has been collected and is on its way to {name}.',
+    // A taxi quotes no figure anywhere. The shop never priced the trip — the
+    // driver and the passenger agree it between them — so every line here is
+    // written to say what is happening without naming money the shop does
+    // not know. "Total $0" was the alternative, and it was a lie.
+    taxi_confirmed: 'Thanks {name} — a driver is on the way to collect you. Trip {order}. 🚕',
+    taxi_on_the_way: '{name}, you are on your way 🚕',
+    taxi_fare_with_driver: 'The fare is agreed with the driver.',
+    taxi_dropped_off: 'Trip {order} complete — you have arrived. 🚕',
+    // A passenger who was not at the pickup. The parcel wording has nothing
+    // coming back to them and the delivery wording has nobody at a door, and
+    // neither is what happened: the car waited and left.
+    taxi_no_show: 'Trip {order} was closed — the driver could not find you at the pickup. Message us when you are ready and we will send another car.',
     returned_to_sender: 'Parcel {order} is coming back to you — {name} could not take it. The delivery associate will bring it to where it was collected. The fee covers the trip, which was made, so it is not refunded.',
     // The customer IS the one who was not there, so none of the parcel
     // wording fits: nothing is "coming back to you", and nobody else needs
@@ -176,7 +188,7 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: 'we could not get to the address',
 
     opening_taxi:
-      'A car it is. 🚕 Where are we collecting you from, where are you going, and when? Tell me how many of you as well, and I will have somebody arrange it.',
+      'A car it is. 🚕 Where are we collecting you from, where are you going, and when? Tell me how many of you as well, and I will find you a car.',
     opening_grocery:
       'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
     opening_parcel:
@@ -252,6 +264,11 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: '¿No está ahí ahora? Mueva el mapa, o busque el lugar, antes de enviarlo.',
     returned_wrong_code: 'El paquete {order} vuelve a usted — el código que dio {name} no coincidió, así que el asociado de entrega no lo entregó. Confirme con {name} que tenía el código que usted le pasó. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     parcel_on_the_way: 'El paquete {order} ha sido recogido y va camino a {name}.',
+    taxi_confirmed: 'Gracias {name} — un conductor va en camino a recogerle. Viaje {order}. 🚕',
+    taxi_on_the_way: '{name}, ya va en camino 🚕',
+    taxi_fare_with_driver: 'La tarifa se acuerda con el conductor.',
+    taxi_dropped_off: 'Viaje {order} completado — ha llegado. 🚕',
+    taxi_no_show: 'El viaje {order} se cerró — el conductor no pudo encontrarle en el punto de recogida. Escríbanos cuando esté listo y enviaremos otro coche.',
     returned_to_sender: 'El paquete {order} vuelve a usted — {name} no pudo recibirlo. El asociado de entrega lo llevará al lugar donde lo recogió. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     returned_nobody_home: 'El pedido {order} ha regresado — no había nadie en la puerta para recibirlo. Escríbanos cuando pueda y organizamos otra entrega.',
     delivered_confirmed: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: confirmado.',
@@ -274,7 +291,7 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: 'no pudimos llegar a la dirección',
 
     opening_taxi:
-      'Un coche. 🚕 ¿De dónde le recogemos, a dónde va y a qué hora? Dígame también cuántas personas son y haré que alguien lo organice.',
+      'Un coche. 🚕 ¿De dónde le recogemos, a dónde va y a qué hora? Dígame también cuántas personas son y le buscaré un coche.',
     opening_grocery:
       'Supermercado entonces. Dígame qué necesita — escriba una lista, envíe una foto, o simplemente dígamelo.',
     opening_parcel:
@@ -345,6 +362,11 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: 'Não está lá agora? Arraste o mapa, ou procure o local, antes de enviar.',
     returned_wrong_code: 'A encomenda {order} está a voltar para si — o código que {name} deu não coincidiu, por isso o associado de entrega não a entregou. Confirme com {name} que tinha o código que lhe passou. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     parcel_on_the_way: 'A encomenda {order} foi recolhida e está a caminho de {name}.',
+    taxi_confirmed: 'Obrigado {name} — um motorista está a caminho para o recolher. Viagem {order}. 🚕',
+    taxi_on_the_way: '{name}, está a caminho 🚕',
+    taxi_fare_with_driver: 'A tarifa é combinada com o motorista.',
+    taxi_dropped_off: 'Viagem {order} concluída — chegou ao destino. 🚕',
+    taxi_no_show: 'A viagem {order} foi encerrada — o motorista não o encontrou no local de recolha. Escreva-nos quando estiver pronto e enviaremos outro carro.',
     returned_to_sender: 'A encomenda {order} está a voltar para si — {name} não a pôde receber. O associado de entrega levá-la-á ao local onde a recolheu. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     returned_nobody_home: 'O pedido {order} voltou — não estava ninguém à porta para o receber. Escreva-nos quando puder e combinamos outra entrega.',
     delivered_confirmed: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: confirmado.',
@@ -367,7 +389,7 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: 'não conseguimos chegar ao endereço',
 
     opening_taxi:
-      'Um carro. 🚕 De onde o buscamos, para onde vai e a que horas? Diga-me também quantas pessoas são e peço a alguém para tratar disso.',
+      'Um carro. 🚕 De onde o buscamos, para onde vai e a que horas? Diga-me também quantas pessoas são e vou procurar-lhe um carro.',
     opening_grocery:
       'Compras, então. Diga-me o que precisa — escreva uma lista, envie uma foto, ou diga por voz.',
     opening_parcel:
@@ -436,6 +458,11 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: '现在不在那里？发送前请拖动地图，或搜索该地点。',
     returned_wrong_code: '包裹 {order} 正在退回给您 — {name} 提供的收货码不正确，配送专员因此没有交付。请与 {name} 核对您转告的收货码。费用已用于本次行程，故不予退还。',
     parcel_on_the_way: '包裹 {order} 已提取，正在送往 {name}。',
+    taxi_confirmed: '谢谢{name}，司机正在前往接您。行程 {order}。🚕',
+    taxi_on_the_way: '{name}，您已出发 🚕',
+    taxi_fare_with_driver: '车费请与司机商定。',
+    taxi_dropped_off: '行程 {order} 已完成，您已到达。🚕',
+    taxi_no_show: '行程 {order} 已结束，司机在接您的地点没有找到您。您准备好后请告诉我们，我们会再派一辆车。',
     returned_to_sender: '包裹 {order} 正在退回给您 — {name} 无法签收。配送专员会将其送回取件地点。费用已用于本次行程，故不予退还。',
     returned_nobody_home: '订单 {order} 已退回 — 门口无人接收。方便时请联系我们，我们会再安排一次配送。',
     delivered_confirmed: '订单 {order} 已送达。' + chr10 + '收货码：已确认。',
@@ -458,7 +485,7 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_undeliverable: '我们无法到达该地址',
 
     opening_taxi:
-      '好的，出租车。🚕 请问在哪里接您、去哪里、什么时间？也请告知几位乘客，我会请同事安排。',
+      '好的，出租车。🚕 请问在哪里接您、去哪里、什么时间？也请告知几位乘客，我这就为您找车。',
     opening_grocery:
       '好的，超市代购。请告诉我您需要什么——可以打字列清单、发照片，或者直接说。',
     opening_parcel:

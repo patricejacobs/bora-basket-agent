@@ -178,7 +178,10 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
  */
 export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch> {
   const order = repo.findOrder(orderNo);
-  if (!order || order.kind !== 'parcel') return 'no_drivers';
+  // Parcels and taxis both. Neither is cooked, so neither waits for a kitchen
+  // to say it is ready: the job exists the moment it is booked, and the only
+  // question is who takes it.
+  if (!order || (order.kind !== 'parcel' && order.kind !== 'taxi')) return 'no_drivers';
 
   // The directory, not the environment variable. A shop that has taken
   // somebody off the road sets `active = 0` and they stop being offered work;
@@ -206,7 +209,11 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
   if (nearby.length === 0) return 'all_busy';
 
   for (const associate of nearby) {
-    await sendButtons(associate, parcelOfferCard(order), [acceptButton(order.orderNo)]);
+    await sendButtons(
+      associate,
+      order.kind === 'taxi' ? taxiOfferCard(order) : parcelOfferCard(order),
+      [acceptButton(order.orderNo)],
+    );
   }
   return 'sent';
 }
@@ -218,6 +225,41 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
  * one they are driving to. The addresses, the numbers and the cash arrive on
  * the uplift card once it is theirs.
  */
+/**
+ * What an associate is offered when somebody wants a car.
+ *
+ * A person, not a package, and the card says so in every line: they are
+ * collected rather than uplifted, and taken rather than delivered. The number
+ * is the passenger's own and is there to be rung on arrival, which is how a
+ * driver finds somebody standing on a road with no number on the house.
+ */
+export function taxiOfferCard(order: repo.OrderRecord): string {
+  const pickup = order.pickup;
+  const pickupPin =
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
+      : null;
+  const trip =
+    pickupPin && order.location
+      ? `${formatDistance(distanceKm(pickupPin, order.location))} across town`
+      : '';
+
+  return [
+    `🚕 *New taxi job ${order.orderNo}*`,
+    '*Fare not set* — agree it with the passenger',
+    ...(wantedBy(order) ? [wantedBy(order)] : []),
+    '',
+    `*Collect:* ${order.customerName}${pickup?.address ? `, ${pickup.address}` : ''}`,
+    `📞 +${order.contactPhone || order.phone}`,
+    ...(pickupPin ? ['Click the link below for the pickup:', mapsLink(pickupPin)] : []),
+    '',
+    `*Take to:* ${order.address || 'they will direct you'}`,
+    ...(order.location ? ['Click the link below for the drop-off:', mapsLink(order.location)] : []),
+    ...(order.parcelDetails ? ['', order.parcelDetails] : []),
+    ...(trip ? ['', trip] : []),
+  ].join(String.fromCharCode(10));
+}
+
 export function parcelOfferCard(order: repo.OrderRecord): string {
   const pickup = order.pickup;
   const pickupPin =
@@ -270,6 +312,12 @@ export async function announceNewOrder(orderNo: string): Promise<void> {
 function itemLines(order: repo.OrderRecord): string[] {
   if (order.kind === 'parcel') {
     return [`📦 ${order.parcelDetails || 'Parcel (contents not described)'}`];
+  }
+  // A taxi carries a person, so what is "being carried" is who, and whatever
+  // they said about the journey. Without this it printed an empty list: a
+  // card with a blank where the job should be.
+  if (order.kind === 'taxi') {
+    return [`🚕 ${order.customerName}${order.parcelDetails ? ` — ${order.parcelDetails}` : ''}`];
   }
   return order.items.map((i) => {
     const chosen = summariseStored(i.options);
@@ -509,6 +557,7 @@ export function withoutPhone(address: string, phone: string): string {
 
 export function dropLines(order: repo.OrderRecord): string[] {
   const isParcel = order.kind === 'parcel';
+  const isTaxi = order.kind === 'taxi';
 
   // The number they are messaging from, which is the one fact about the buyer
   // that cannot be wrong.
@@ -647,7 +696,12 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // A parcel was paid for at the pickup, by the person who sent it. Asking
     // the recipient for the same money again is how somebody pays twice for
     // one journey - and the person at the door never agreed to pay at all.
-    ...(isParcel
+    ...(isTaxi
+      // A passenger settles the fare with the driver, and the shop has not
+      // quoted one. "Collect $0" over a ride nobody priced is worse than
+      // saying nothing.
+      ? ['*Fare not set* — agree it with the passenger.']
+      : isParcel
       ? ['Nothing to collect — the sender paid at the uplift.']
       : order.total > 0
         ? [
@@ -785,7 +839,7 @@ export async function tellTransferred(
 
   const actions = nextActions(order.orderNo, order.status, 'driver', {
     codeExpected: repo.deliveryCodeExpected(order.orderNo),
-    parcel: order.kind === 'parcel',
+    selfAccepted: order.kind === 'parcel' || order.kind === 'taxi',
   });
 
   return actions.length > 0
@@ -821,7 +875,7 @@ export async function offerWaitingWork(phone: string): Promise<string> {
   // Accept button, because the associate is deciding whether to take it
   // rather than driving to something already theirs.
   const how =
-    waiting.kind === 'parcel'
+    waiting.kind === 'parcel' || waiting.kind === 'taxi'
       ? await offerParcel(waiting.orderNo, digits)
       : await dispatchToDrivers(waiting.orderNo, digits);
   return how === 'sent' ? waiting.orderNo : '';
