@@ -373,7 +373,9 @@ section('Checkout');
   const stockBefore = call('get_product', { sku: 'RIC-001' }).stock_remaining;
   const order = call('place_order', { payment_method: 'cash_on_delivery', delivery_note: 'Call on arrival' });
   check('places the order', order.placed === true, JSON.stringify(order).slice(0, 160));
-  check('returns an order number', /^ORD-\d{5}$/.test(order.order_number ?? ''), order.order_number);
+  // A shopping order off the shop's own shelves, so GRO. The prefix says
+  // what the job is; the number is unique across all of them.
+  check('returns an order number', /^GRO-\d{5}$/.test(order.order_number ?? ''), order.order_number);
   // Asserted on the order, not on what the reply told the model. The total is
   // no longer handed back at placement — nothing is owed until somebody
   // accepts it — so the record is the only place it should be, and the only
@@ -787,14 +789,14 @@ section('Staff dispatch');
   // The order placed in the checkout section above is ORD-00001.
   const single = await handleStaffMessage('1');
   const one = single[0]?.text ?? '';
-  check('shows a single order', one.includes('ORD-00001'), one.slice(0, 60));
+  check('shows a single order', one.includes('GRO-00001'), one.slice(0, 60));
   check('shows the delivery address', one.includes('Georgetown'));
   check('shows a tappable maps link', one.includes('google.com/maps?q=6.80714'), one.slice(0, 200));
   // The delivery associate is usually about to drive there, so the pin follows as a card.
   check('sends the pin as a map card', single[1]?.kind === 'location', JSON.stringify(single[1]));
 
   const open = (await handleStaffMessage('orders'))[0]?.text ?? '';
-  check('lists open orders', open.includes('ORD-00001'), open.slice(0, 60));
+  check('lists open orders', open.includes('GRO-00001'), open.slice(0, 60));
 
   const missing = (await handleStaffMessage('999 delivered'))[0]?.text ?? '';
   check('reports an unknown order', missing.toLowerCase().includes('no order'), missing);
@@ -887,8 +889,13 @@ section('Service window');
   repo.logMessage(FRESH, 'in', 'whatsapp', 'hello');
   check('a message just now is inside the window', repo.withinServiceWindow(FRESH));
 
-  check('order lookup tolerates plain numbers', repo.findOrder('1')?.orderNo === 'ORD-00001');
-  check('order lookup tolerates the padded form', repo.findOrder('ORD-00001')?.orderNo === 'ORD-00001');
+  check('order lookup tolerates plain numbers', repo.findOrder('1')?.orderNo === 'GRO-00001');
+  check('order lookup tolerates the padded form', repo.findOrder('GRO-00001')?.orderNo === 'GRO-00001');
+  // Only the digits are read, so a dispatcher who types the wrong three
+  // letters - or the ones from the card above it - still reaches the job
+  // they meant. There is only one 1.
+  check('and the prefix typed is not held against anyone',
+    repo.findOrder('ORD-00001')?.orderNo === 'GRO-00001' && repo.findOrder('txi-1')?.orderNo === 'GRO-00001');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
@@ -1147,7 +1154,7 @@ section('Location pins');
   // was free to add was something it did not know.
   check(
     'and handed the words to send',
-    /^Got it — ORD-\d{5} received, but not yet confirmed\./.test(String(placed.say)),
+    /^Got it — GRO-\d{5} received, but not yet confirmed\./.test(String(placed.say)),
     String(placed.say),
   );
   check('which name no shop the customer never saw', /the shop confirms it/.test(String(placed.say)), String(placed.say));
@@ -1664,7 +1671,7 @@ section('Order status for customers');
   check('warns the agent off inventing an ETA', String(mine.note).includes('ETA'), mine.note);
 
   const byNumber = call('list_recent_orders', { order_number: '1' });
-  check('finds an order the customer names', byNumber.orders?.[0]?.order_number === 'ORD-00001', JSON.stringify(byNumber).slice(0, 90));
+  check('finds an order the customer names', byNumber.orders?.[0]?.order_number === 'GRO-00001', JSON.stringify(byNumber).slice(0, 90));
   check('a named order includes the address it goes to', typeof byNumber.orders?.[0]?.delivering_to === 'string');
   check('accepts the padded form too', call('list_recent_orders', { order_number: 'ORD-00001' }).orders?.length === 1);
 
@@ -4213,7 +4220,7 @@ section('A parcel, one end at a time');
   repo.saveLocationPin(booker, { latitude: 6.8101, longitude: -58.1575, label: 'Brickdam' });
   const booked = call('create_parcel_job', { contents: 'documents in an envelope' });
   const no = String(booked.job_number ?? booked.order_number ?? '');
-  check('the parcel books with no details repeated', no.startsWith('ORD-'), JSON.stringify(booked).slice(0, 200));
+  check('the parcel books with no details repeated', no.startsWith('PCL-'), JSON.stringify(booked).slice(0, 200));
 
   const job = repo.findOrder(no)!;
   check('the sender came from the draft', job.customerName === 'Patrice Jacobs', job.customerName);
@@ -4829,7 +4836,7 @@ section('A parcel is priced like any other delivery');
   // most parcels have fewer than two pins.
   const booked = call('create_parcel_job', { contents: 'documents in an envelope' });
   const no = String(booked.job_number ?? '');
-  check('the parcel books', no.startsWith('ORD-'), JSON.stringify(booked).slice(0, 160));
+  check('the parcel books', no.startsWith('PCL-'), JSON.stringify(booked).slice(0, 160));
   check('with a fee, not a promise to confirm one', String(booked.fee).includes('1,800'), JSON.stringify(booked.fee));
   check('and says what priced it', String(booked.priced_by).includes('Diamond'), String(booked.priced_by));
   check('no "to be confirmed"', !/to be confirmed/.test(JSON.stringify(booked)), JSON.stringify(booked).slice(0, 200));
@@ -4847,7 +4854,7 @@ section('A parcel is priced like any other delivery');
   const vague = call('create_parcel_job', { contents: 'a box of books' });
   const no2 = String(vague.job_number ?? '');
   if (config.parcel.baseFee <= 0) {
-    check('an unpriced parcel is still taken', no2.startsWith('ORD-'), JSON.stringify(vague).slice(0, 160));
+    check('an unpriced parcel is still taken', no2.startsWith('PCL-'), JSON.stringify(vague).slice(0, 160));
     check('and says the associate will agree it', /associate will confirm/i.test(String(vague.note)), String(vague.note));
     db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no2);
   }
@@ -8930,6 +8937,62 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('A job number says what the job is');
+{
+  const buyer = '5926700001';
+  repo.saveCustomer(buyer, { name: 'Prefix Tester', address: 'Lot 1 Kitty', contactPhone: buyer });
+  repo.confirmIdentity(buyer);
+
+  const parcel = repo.createParcelJob({
+    phone: buyer, senderName: 'Prefix Tester', pickup: null, pickupAddress: 'Lot 1 Kitty',
+    destination: null, destinationAddress: 'Lot 2 Diamond', recipientName: 'A Friend',
+    recipientPhone: '5926100005', contents: 'a box', fee: 0, contactPhone: buyer,
+  });
+  const taxi = repo.createTaxiJob({
+    phone: buyer, passengerName: 'Prefix Tester', passengerPhone: buyer,
+    pickup: null, pickupAddress: 'Lot 1 Kitty', destination: null,
+    destinationAddress: 'Lot 2 Diamond', note: '', wantedAt: '', wantedNote: '',
+  });
+
+  check('a parcel is PCL', parcel.orderNo.startsWith('PCL-'), parcel.orderNo);
+  check('a taxi is TXI', taxi.orderNo.startsWith('TXI-'), taxi.orderNo);
+  // Never TAX. On a receipt, beside a fare, that word is a levy.
+  check('and never TAX', !taxi.orderNo.startsWith('TAX-'), taxi.orderNo);
+
+  /* --- one counter under all of them ---------------------------------- */
+
+  // The whole design rests on this. Everything an associate or a button sends
+  // is the bare number - "7 delivered", `confirm_7` - and that only answers
+  // while 7 means one job in the entire shop.
+  const a = repo.orderDigits(parcel.orderNo);
+  const b = repo.orderDigits(taxi.orderNo);
+  check('the numbers keep climbing across services', b === a + 1, `${parcel.orderNo} then ${taxi.orderNo}`);
+  check('so a bare number still finds exactly one job',
+    repo.findOrder(String(b))?.orderNo === taxi.orderNo, repo.findOrder(String(b))?.orderNo);
+  check('whatever letters are typed in front of it',
+    repo.findOrder(`ORD-${b}`)?.orderNo === taxi.orderNo &&
+      repo.findOrder(`pcl-${b}`)?.orderNo === taxi.orderNo);
+
+  /* --- and the old records still answer -------------------------------- */
+
+  // Written before the padding existed, or by hand. A lookup that assumed
+  // five digits found none of them.
+  db.prepare(
+    `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+       kind, delivery_code, subtotal, delivery_fee, total, payment_method, status, created_at)
+     VALUES ('ORD-902', ?, 'Old Record', 'Lot 1 Kitty', ?, '', 'restaurant', '',
+       100000, 0, 100000, 'cash', 'delivered', '2026-09-01T10:00:00Z')`,
+  ).run(buyer, buyer);
+  check('an unpadded old number is still found', repo.findOrder('902')?.orderNo === 'ORD-902', repo.findOrder('902')?.orderNo);
+  check('and by its own written form', repo.findOrder('ORD-902')?.orderNo === 'ORD-902');
+
+  for (const no of [parcel.orderNo, taxi.orderNo, 'ORD-902']) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
+}
+
 section('Offered to whoever just finished nearby');
 {
   const { placeOf, jobStartsAt, jobEndedAt, standings, stagePool, describeStage } =
@@ -9569,7 +9632,7 @@ section('Starting the count again');
     phone: buyer, customerName: 'Patrice', address: '26 Brickdam', contactPhone: buyer,
     deliveryNote: '', paymentMethod: 'cash_on_delivery', location: null,
   } as never);
-  check('the next order is ORD-00001', first.orderNo === 'ORD-00001', first.orderNo);
+  check('the next order starts the count again', first.orderNo.endsWith('-00001'), first.orderNo);
 
   db.prepare(`DELETE FROM orders`).run();
   db.prepare(`DELETE FROM order_events`).run();

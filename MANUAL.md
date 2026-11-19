@@ -70,7 +70,33 @@ Send `help` to the shop number for this list at any time.
 | `7 delivered` | Close it; the customer is told |
 | `7 cancel` | Cancel it — you are asked why |
 
-Order numbers work as `7`, `ORD-7` or `ORD-00007`.
+### Job numbers
+
+**The three letters say what the job is. The number is the job.**
+
+| | |
+|---|---|
+| `ORD-00041` | A restaurant order |
+| `GRO-00042` | Groceries off the shop's own shelves |
+| `PCL-00043` | A parcel |
+| `TXI-00044` | A taxi |
+
+**One counter runs under all four**, so `TXI-00044` and `GRO-00042` are two
+different jobs and there is never a second number 42. That is what keeps
+`7 delivered`, `7 confirm` and every reply button working: the bare number is
+an answer because it means exactly one job in the whole shop.
+
+**Only the digits are read.** `7`, `ORD-7`, `txi-00007` and `PCL-7` all find
+the same job — somebody reading the wrong three letters off the card above is
+still asking about a job that exists, so they get it rather than an error.
+
+`TXI` and not `TAX`: beside a fare, on a receipt, that word is a levy.
+
+**Orders placed before this change keep the numbers they were given.** They
+all say `ORD`, whatever service they were — receipts, the audit trail and
+customers' own chats refer to them, and history that changes underneath you is
+worse than history that is inconsistent. `ERR` and `COL` are held back for the
+errand and collection services, so nobody picks letters that clash later.
 
 ### People and money
 

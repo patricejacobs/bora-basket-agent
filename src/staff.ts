@@ -544,7 +544,7 @@ const HELP = [
   '`outlets` — the restaurants on the system',
   'Send a photo of a menu to add one (`new outlet` for how)',
   '',
-  'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
+  'Job numbers work as `7`, `ORD-7`, `TXI-7` or the whole thing — only the digits are read.',
 ].join('\n');
 
 /**
@@ -1246,7 +1246,7 @@ const DRIVER_HELP = [
   '',
   'Share your location to be offered uplifts near you.',
   '',
-  'Order numbers work as `7`, `ORD-7` or `ORD-00007`.',
+  'Job numbers work as `7`, `ORD-7`, `TXI-7` or the whole thing — only the digits are read.',
 ].join('\n');
 
 /**

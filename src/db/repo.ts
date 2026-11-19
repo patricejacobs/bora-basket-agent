@@ -811,7 +811,46 @@ function newDeliveryCode(): string {
  * sequence row together starts again at ORD-00001, which is a thing a shop may
  * genuinely want. It just cannot happen by accident any more.
  */
-function nextOrderNumber(): string {
+/**
+ * The three letters in front of a job number, by what the job is.
+ *
+ * One counter underneath all of them, which is the whole design. Everything
+ * an associate or a button sends is the bare number - "7 delivered",
+ * `confirm_7` - and that only works while 7 means one job in the whole shop.
+ * A counter per service would make TXI-7 and ORD-7 both exist and every
+ * shorthand in the place ambiguous at once.
+ *
+ * TXI rather than TAX: on a receipt, next to a fare, "TAX" reads as a levy.
+ *
+ * ERR and COL are spoken for by the errand and collection services that have
+ * been sketched but not built, so nobody picks those letters for something
+ * else in the meantime.
+ */
+export const ORDER_PREFIX: Record<string, string> = {
+  restaurant: 'ORD',
+  grocery: 'GRO',
+  parcel: 'PCL',
+  taxi: 'TXI',
+};
+
+/** The number in a job reference, whatever is in front of it. */
+export function orderDigits(reference: string): number {
+  const digits = reference.replace(/[^0-9]/g, '');
+  return digits ? Number(digits) : 0;
+}
+
+/**
+ * The numeric part of `order_no`, in SQL.
+ *
+ * Everything after the first dash, cast to an integer — so ORD-00007, TXI-7
+ * and a bare 7 all come out as 7. Deliberately not "the last five
+ * characters": the padding is a display choice, and orders written before it
+ * existed, or by hand, are `ORD-902`. A match that assumed five digits found
+ * none of them.
+ */
+const ORDER_N = `CAST(substr(order_no, instr(order_no, '-') + 1) AS INTEGER)`;
+
+function nextOrderNumber(kind = 'restaurant'): string {
   const seen = db
     .prepare(
       `SELECT MAX(n) AS n FROM (
@@ -819,7 +858,12 @@ function nextOrderNumber(): string {
          UNION ALL
          SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'orders'), 0)
          UNION ALL
-         SELECT COALESCE(MAX(CAST(REPLACE(order_no, 'ORD-', '') AS INTEGER)), 0) FROM order_events
+         -- The number after the dash, not everything after "ORD-".
+         -- Stripping one fixed prefix read TXI-00012 as nothing at all, so
+         -- the trail stopped counting towards the high-water mark the moment
+         -- a second prefix existed - and a shop that cleared its orders but
+         -- kept the trail would have handed somebody's old number out again.
+         SELECT COALESCE(MAX(${ORDER_N}), 0) FROM order_events
        )`,
     )
     .get() as { n: number | null };
@@ -837,7 +881,7 @@ function nextOrderNumber(): string {
     high,
   );
 
-  return `ORD-${String(high + 1).padStart(5, '0')}`;
+  return `${ORDER_PREFIX[kind] ?? 'ORD'}-${String(high + 1).padStart(5, '0')}`;
 }
 
 export function placeOrder(args: {
@@ -907,7 +951,10 @@ export function placeOrder(args: {
       }
     }
 
-    const orderNo = nextOrderNumber();
+    // The kind decides the prefix, so it is worked out here rather than in
+    // the INSERT below - the same expression, read once.
+    const kind = cart.outlet?.kind === 'grocery' ? 'grocery' : 'restaurant';
+    const orderNo = nextOrderNumber(kind);
 
     const info = db
       .prepare(
@@ -950,7 +997,7 @@ export function placeOrder(args: {
         // every grocery order as a restaurant order the moment groceries
         // became shops. The label is permanent, so getting it wrong here is
         // not a display bug; it is the archive saying something untrue.
-        cart.outlet?.kind === 'grocery' ? 'grocery' : 'restaurant',
+        kind,
         // Written at placing time, not at dispatch. One code per order for its
         // whole life, so a retried or re-sent message carries the same digits
         // as the first one - a customer holding two different codes has no
@@ -1534,13 +1581,19 @@ export function lastRepeatableOrder(phone: string): string {
   return row?.orderNo ?? '';
 }
 
-/** Accepts "ORD-00007", "ord-7" or plain "7" — dispatchers will not type the padding. */
+/**
+ * Accepts "TXI-00007", "ord-7" or plain "7".
+ *
+ * Matched on the digits alone, and the prefix in what was typed is ignored
+ * entirely. A dispatcher reading a card aloud will not type the padding, an
+ * associate answering a button sends the bare number, and somebody who types
+ * ORD for a taxi has still told us which job they mean - there is only one 7.
+ */
 export function findOrder(reference: string): OrderRecord | null {
-  const digits = reference.replace(/[^0-9]/g, '');
-  if (!digits) return null;
-  const orderNo = `ORD-${String(Number(digits)).padStart(5, '0')}`;
+  const n = orderDigits(reference);
+  if (!n) return null;
 
-  const row = db.prepare(`SELECT * FROM orders WHERE order_no = ?`).get(orderNo) as
+  const row = db.prepare(`SELECT * FROM orders WHERE ${ORDER_N} = ?`).get(n) as
     | Parameters<typeof hydrateOrder>[0]
     | undefined;
   return row ? hydrateOrder(row) : null;
@@ -1867,7 +1920,7 @@ export function createParcelJob(args: {
 }): { orderNo: string } {
   db.exec('BEGIN IMMEDIATE');
   try {
-    const orderNo = nextOrderNumber();
+    const orderNo = nextOrderNumber('parcel');
 
     db.prepare(
       `INSERT INTO orders
@@ -1950,7 +2003,7 @@ export function createTaxiJob(args: {
 }): { orderNo: string } {
   db.exec('BEGIN IMMEDIATE');
   try {
-    const orderNo = nextOrderNumber();
+    const orderNo = nextOrderNumber('taxi');
     db.prepare(
       `INSERT INTO orders
          (order_no, kind, phone, customer_name, address, contact_phone, delivery_note,

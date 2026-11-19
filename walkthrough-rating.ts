@@ -98,7 +98,28 @@ repo.recordRatingAsk(third.orderNo, '5926200003');
 await says('Tina', '5926200003', 'I need food');
 await says('Tina', '5926200003', '2');
 
-rule('7. The month, from the shop number');
+rule('7. A taxi passenger, rating the ride');
+// A taxi has no kitchen to attribute anything to, so it counts under the
+// driver alone — and the question it was asked was about the trip, not about
+// an order number.
+db.prepare(
+  `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+     kind, outlet_name, driver_name, driver_phone, pickup_address, delivery_code,
+     subtotal, delivery_fee, total, payment_method, status, created_at)
+   VALUES ('ORD-00044', '5926200004', 'Anita Persaud', 'Georgetown', '5926200004', '',
+     'taxi', '', 'Shanta', '5926002222', 'Diamond, East Bank', '',
+     0, 0, 0, 'cash_on_delivery', 'delivered', ?)`,
+).run(new Date().toISOString());
+repo.saveCustomer('5926200004', { name: 'Anita Persaud' });
+const ride = repo.findOrder('ORD-00044')!;
+const trip = ratingAsk(ride);
+if (trip.kind === 'list') {
+  gets('Anita', `${trip.text}${'\n'}          [ ${trip.button} ▾ ]`);
+}
+repo.recordRatingAsk(ride.orderNo, '5926200004');
+await says('Anita', '5926200004', '⭐⭐⭐⭐');
+
+rule('8. The month, from the shop number');
 for (const m of await handleStaffMessage('ratings', SHOP)) gets('shop', m.text ?? '');
 console.log('');
 
