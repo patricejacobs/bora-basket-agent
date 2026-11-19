@@ -190,8 +190,15 @@ function sharePin() {
 }
 
 function renderOutbound(msg) {
+  // A template literal, and it has to be. The fallback handler inside the
+  // attribute is itself JavaScript full of single quotes, and written as a
+  // single-quoted string the first of them - createElement('div') - closed
+  // the string and left `div` sitting in the middle of an expression. That is
+  // a parse error, and a parse error anywhere in this block kills the whole
+  // script: the entire simulator loaded dead, with no error visible on the
+  // page itself, from September until it was noticed in November.
   const photo = msg.kind === 'image'
-    ? '<img src="' + esc(msg.imageUrl) + '" alt="product photo" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'meta',textContent:'[photo failed to load: '+this.src+']'}))">'
+    ? `<img src="${esc(msg.imageUrl)}" alt="product photo" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'meta',textContent:'[photo failed to load: '+this.src+']'}))">`
     : '';
   // A pin we sent out (to a driver) is a map card in WhatsApp; here it is the
   // link, which is the part a person can actually check.
@@ -212,6 +219,30 @@ function renderOutbound(msg) {
       el.onclick = () => {
         wrap.querySelectorAll('button').forEach(x => x.disabled = true);
         send(btn.command || btn.title, null, btn.title);
+      };
+      wrap.appendChild(el);
+    }
+    b.appendChild(wrap);
+  }
+
+  // A list. WhatsApp shows one button that opens a sheet of rows; here the
+  // rows are laid out directly, since the point of the simulator is to see
+  // what is on offer rather than to reproduce the sheet. What gets sent is
+  // the row's title, which is exactly what WhatsApp sends back.
+  if (msg.kind === 'list') {
+    const wrap = document.createElement('div');
+    wrap.className = 'btns';
+    const heading = document.createElement('div');
+    heading.className = 'muted';
+    heading.textContent = msg.button;
+    wrap.appendChild(heading);
+    for (const row of msg.rows) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.textContent = row.description ? `${row.title} — ${row.description}` : row.title;
+      el.onclick = () => {
+        wrap.querySelectorAll('button').forEach(x => x.disabled = true);
+        send(row.title, null, row.title);
       };
       wrap.appendChild(el);
     }
@@ -296,7 +327,7 @@ async function send(text, pin, shown) {
   log.scrollTop = log.scrollHeight;
 
   try {
-    const res = await fetch('./api/message', {
+    const res = await fetch('/simulator/api/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -347,7 +378,7 @@ fileEl.onchange = () => {
 form.onsubmit = (e) => { e.preventDefault(); const t = input.value; input.value = ''; send(t); };
 
 document.getElementById('reset').onclick = async () => {
-  const res = await fetch('./api/reset', {
+  const res = await fetch('/simulator/api/reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone: phoneEl.value }),
@@ -359,7 +390,7 @@ document.getElementById('reset').onclick = async () => {
 
 phoneEl.onchange = refresh;
 async function refresh() {
-  const res = await fetch('./api/state?phone=' + encodeURIComponent(phoneEl.value));
+  const res = await fetch('/simulator/api/state?phone=' + encodeURIComponent(phoneEl.value));
   renderState(await res.json());
 }
 refresh();
