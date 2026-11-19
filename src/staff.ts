@@ -533,6 +533,7 @@ const HELP = [
   '`base <name> <place>` — the place an associate works from',
   '`change number <name> <new number>` — they have a new SIM',
   '',
+  '`ratings` — what customers thought of it',
   '`cash` — what each associate collected today',
   '`7 history` — everything that happened to order 7',
   '`backup` — the trading record, sent to you here',
@@ -819,6 +820,12 @@ export async function handleStaffMessage(
   // Where everyone is, and a way to ask one of them for a fresh pin.
   if (/^(where|associates|drivers|riders)$/i.test(trimmed)) {
     return reply(await describeAssociates());
+  }
+
+  // What customers thought of it.
+  if (/^(ratings?|stars|feedback|reviews?)$/i.test(trimmed)) {
+    const { ratingsReport } = await import('./ratings.ts');
+    return reply(ratingsReport(30));
   }
 
   // Where the work is, against where the people are.

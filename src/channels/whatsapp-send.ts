@@ -147,6 +147,44 @@ export async function sendButtons(
 }
 
 /**
+ * Sends a tappable list: one button that opens a sheet of rows.
+ *
+ * The only way to put more than three answers in front of somebody on
+ * WhatsApp. Meta's limits, which it enforces by rejecting the message rather
+ * than truncating: ten rows, 24 characters of title, 72 of description, 20 on
+ * the button, and every row id unique within the message.
+ */
+export async function sendList(
+  to: string,
+  body: string,
+  button: string,
+  rows: { id: string; title: string; description?: string }[],
+): Promise<boolean> {
+  return callGraph({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: body.slice(0, 1024) },
+      action: {
+        button: button.slice(0, 20),
+        sections: [
+          {
+            rows: rows.slice(0, 10).map((r) => ({
+              id: r.id.slice(0, 200),
+              title: r.title.slice(0, 24),
+              ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+            })),
+          },
+        ],
+      },
+    },
+  });
+}
+
+/**
  * Sends an image by URL. WhatsApp fetches the address itself, so it must be
  * publicly reachable HTTPS — a link behind auth or on localhost silently fails.
  */
@@ -330,6 +368,7 @@ export async function deliver(to: string, messages: OutboundMessage[]): Promise<
     // raised when the message arrived runs for ~25s, covering these pauses.
     if (index > 0) await wait(typingDelayMs(msg.text));
     if (msg.kind === 'buttons') await sendButtons(to, msg.text, msg.buttons);
+    else if (msg.kind === 'list') await sendList(to, msg.text, msg.button, msg.rows);
     else if (msg.kind === 'image') await sendImage(to, msg.imageUrl, msg.text);
     else if (msg.kind === 'location_request') await sendLocationRequest(to, msg.text);
     else if (msg.kind === 'location') {

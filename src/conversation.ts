@@ -84,6 +84,7 @@ function outboundLogBody(msg: OutboundMessage): string {
     return `[pin sent] ${formatCoordinates(msg.pin)}${msg.text ? ` — ${msg.text}` : ''}`;
   }
   if (msg.kind === 'location_request') return `[send-location button] ${msg.text}`;
+  if (msg.kind === 'list') return `[list: ${msg.button}] ${msg.text}`;
   return msg.text;
 }
 
@@ -167,6 +168,67 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     const reply = serviceMenuReply(msg.phone);
     for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
     return reply;
+  }
+
+  /* -------------------------------------------------------------- ratings */
+
+  // Before the service menu and before the model, because a rating is a bare
+  // digit and this shop is full of bare digits: "4" is the fourth aisle, the
+  // fourth kitchen, the fourth item on a list. It is four stars only in the
+  // short window after the shop has asked, and only when the message is
+  // nothing else - `readStars` refuses "4 bags of rice", which is an order.
+  //
+  // Nothing here goes near the agent. A rating is two fixed messages and a
+  // row in a table; handing it to a language model would make it slower, cost
+  // money per star, and put the one number the shop will be judged on behind
+  // an instruction that can be ignored.
+  {
+    const { readStars, thanksForStars, tellStaffOfPoorRating, RATING_TTL_MS, RATING_DIGIT_TTL_MS, POOR } =
+      await import('./ratings.ts');
+
+    const pending = repo.pendingRating(msg.phone, RATING_TTL_MS);
+    const tapped = /^⭐+$/u.test(text.trim());
+    const asked = pending ? Date.now() - new Date(pending.askedAt).getTime() : 0;
+    // A tap counts for the whole window; a digit only while the question is
+    // still obviously the last thing that happened.
+    const stars = pending && (tapped || asked <= RATING_DIGIT_TTL_MS) ? readStars(text) : 0;
+    if (pending && stars > 0) {
+      repo.saveStars(pending.orderNo, stars);
+      const out: OutboundMessage[] = [{ kind: 'text', text: thanksForStars(stars) }];
+      // A good one ends here. Nobody is interviewed about a delivery that
+      // went well, and the row is closed so the next message they send is
+      // read as whatever it actually is.
+      if (stars > POOR) repo.saveRatingComment(pending.orderNo, '');
+      else void tellStaffOfPoorRating(pending.orderNo);
+      for (const o of out) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(o));
+      return out;
+    }
+
+    // The words after a poor one. Whatever they write next is the complaint,
+    // and it is taken whole rather than parsed - somebody describing what
+    // went wrong is not choosing from a menu.
+    const owed = repo.awaitingComment(msg.phone, RATING_TTL_MS);
+    if (owed && owed.stars <= POOR && text && !msg.image && !msg.location) {
+      repo.saveRatingComment(owed.orderNo, text);
+      void tellStaffOfPoorRating(owed.orderNo);
+      const said: OutboundMessage[] = [
+        {
+          kind: 'text',
+          text:
+            config.staffNumbers.length > 0
+              ? 'Thank you — that has gone to the manager, who will come back to you on this number.'
+              : 'Thank you — that is written down for the shop.',
+        },
+      ];
+      for (const o of said) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(o));
+      return said;
+    }
+
+    // Asked, and answered with something that is not a rating. The question
+    // is let go rather than kept in the way: somebody who replies "where is
+    // my change" wants an answer, not another star prompt, and leaving the
+    // row open would read their next digit as a rating.
+    if (pending && stars === 0 && text && !tapped) repo.closeRatingUnanswered(pending.orderNo);
   }
 
   /* ------------------------------------------------------- service choice */

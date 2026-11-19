@@ -80,11 +80,54 @@ Order numbers work as `7`, `ORD-7` or `ORD-00007`.
 | `where rohan` | Ask one of them to share a fresh pin |
 | `zones` | Where the work is, against where the people are |
 | `base rohan Diamond` | The place an associate works from |
+| `ratings` | What customers thought of it, by associate and by outlet |
 | `cash` | What each associate has collected today |
 | `change number <name> <new number>` | An associate has a new SIM — see §11 |
 | `7 history` | Everything that happened to order 7 |
 | `backup` | The trading record, sent to you here |
 | `wanted` | What customers asked for and you did not have |
+
+### Ratings
+
+After a delivery the customer gets **one tappable list of five stars**, as its
+own message. The one above it closes the order and carries the receipt and the
+goodbye; a question underneath all that is read as part of the signature.
+
+```
+How did we do with ORD-00042?
+              [ Rate this order ▾ ]
+
+   ⭐⭐⭐⭐⭐  Perfect — nothing to fix
+   ⭐⭐⭐⭐   Good — small things
+   ⭐⭐⭐    Alright
+   ⭐⭐     Not good
+   ⭐      Bad — please get in touch
+```
+
+**Four stars or five ends there.** Nobody is interviewed about a delivery that
+went well. **Three or fewer** gets one question — *what went wrong?* — and
+whatever they write is sent to `STAFF_NUMBERS` whole, with the order, the
+outlet and who delivered it. The shop is told the moment the stars arrive, not
+only when the words come: most people tap and never write, and two stars with
+no explanation is still worth knowing today.
+
+| Rule | Why |
+|---|---|
+| Asked once per order, ever | A second ask is nagging |
+| At most once a fortnight per customer | Somebody who orders weekly and is asked weekly mutes the shop |
+| Never on a cancelled or returned order | The shop already knows it went wrong |
+| Taxis and parcels too | A taxi is the one service where nobody from the shop sees the customer |
+
+**A typed number works as well as a tap, but not for as long.** A tap can only
+have come from the list, so it counts for two hours. A bare `2` is the second
+service on the menu, the second kitchen, the second aisle — so it means two
+stars only for **fifteen minutes** after the question, and is a menu choice
+again afterwards. Getting that wrong does not lose a rating, it eats somebody's
+order. A message with anything else in it — *"4 bags of rice"* — is never a
+rating.
+
+If the customer answers with something else entirely, the question is let go
+rather than left in the way.
 
 ### Coverage
 

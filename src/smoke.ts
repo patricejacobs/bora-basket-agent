@@ -8920,6 +8920,144 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('What the customer thought of it');
+{
+  const { readStars, shouldAsk, ratingAsk, thanksForStars, ratingsReport, poorRatingAlert,
+    RATING_TTL_MS, RATING_DIGIT_TTL_MS, POOR } = await import('./ratings.ts');
+  const { handleIncoming } = await import('./conversation.ts');
+
+  /* --- reading an answer ---------------------------------------------- */
+
+  check('a tap is read as stars', readStars('⭐⭐⭐⭐') === 4, String(readStars('⭐⭐⭐⭐')));
+  check('a digit is read as stars', readStars('5') === 5 && readStars('1') === 1);
+  check('and so is "4 stars"', readStars('4 stars') === 4, String(readStars('4 stars')));
+  // The one that matters. A message with anything else in it is not a
+  // rating, and reading it as one would swallow somebody's order.
+  check('but an order is not a rating', readStars('4 bags of rice') === 0, String(readStars('4 bags of rice')));
+  check('nor is a number out of range', readStars('7') === 0 && readStars('0') === 0);
+
+  /* --- who gets asked and who is left alone ---------------------------- */
+
+  const rater = '5926300001';
+  repo.saveCustomer(rater, { name: 'Rita Khan', address: 'Lot 9 Kitty', contactPhone: rater });
+  const place = (no: string, status: string) => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, outlet_name, driver_name, driver_phone, delivery_code,
+         subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, ?, 'Rita Khan', 'Lot 9 Kitty', ?, '', 'restaurant', 'A Taste of Guyana',
+         'Wayne', '5926001111', '', 100000, 50000, 150000, 'cash', ?, ?)`,
+    ).run(no, rater, rater, status, new Date().toISOString());
+    return repo.findOrder(no)!;
+  };
+
+  const done = place('ORD-95001', 'delivered');
+  const back = place('ORD-95002', 'returned');
+  check('a delivered order is worth asking about', shouldAsk(done) === true);
+  // The shop already knows this one went wrong. Asking for a score is salt.
+  check('an order that came back is not', shouldAsk(back) === false);
+
+  const ask = ratingAsk(done);
+  check('the question is a list of five', ask.kind === 'list' && ask.rows.length === 5, ask.kind);
+  check('each row carries its own order',
+    ask.kind === 'list' && ask.rows.every((r) => r.id.endsWith(done.orderNo)),
+    ask.kind === 'list' ? ask.rows[0]?.id : '');
+  // Meta rejects the whole message over a long title rather than trimming it.
+  check('and fits what WhatsApp will accept',
+    ask.kind === 'list' && ask.button.length <= 20 && ask.rows.every((r) => r.title.length <= 24 && (r.description ?? '').length <= 72));
+
+  /* --- a good one ends in one tap -------------------------------------- */
+
+  repo.recordRatingAsk(done.orderNo, rater);
+  check('the question is live', Boolean(repo.pendingRating(rater, RATING_TTL_MS)));
+  const good = await handleIncoming({ phone: rater, text: '⭐⭐⭐⭐⭐', channel: 'simulator' });
+  check('five stars are recorded', repo.ratingFor(done.orderNo)?.stars === 5, String(repo.ratingFor(done.orderNo)?.stars));
+  check('the customer is thanked and nothing more is asked',
+    /thank you/i.test(good[0]?.text ?? '') && !/what went wrong/i.test(good[0]?.text ?? ''), good[0]?.text);
+  check('and the question is closed', repo.pendingRating(rater, RATING_TTL_MS) === null);
+  check('so the next message is an ordinary one',
+    !/thank you/i.test((await handleIncoming({ phone: rater, text: '5', channel: 'simulator' }))[0]?.text ?? ''));
+
+  /* --- a poor one asks once, and tells somebody ------------------------ */
+
+  const cross = '5926300002';
+  repo.saveCustomer(cross, { name: 'Ravi Persaud' });
+  const bad = place('ORD-95003', 'delivered');
+  db.prepare(`UPDATE orders SET phone = ?, customer_name = 'Ravi Persaud' WHERE order_no = ?`).run(cross, bad.orderNo);
+  repo.recordRatingAsk(bad.orderNo, cross);
+  const poor = await handleIncoming({ phone: cross, text: '⭐⭐', channel: 'simulator' });
+  check('two stars are recorded', repo.ratingFor(bad.orderNo)?.stars === 2);
+  check('and that one is asked what went wrong', /what went wrong/i.test(poor[0]?.text ?? ''), poor[0]?.text);
+
+  const words = 'the rice was cold and it came late';
+  const after = await handleIncoming({ phone: cross, text: words, channel: 'simulator' });
+  check('their words are kept whole', repo.ratingFor(bad.orderNo)?.comment === words, repo.ratingFor(bad.orderNo)?.comment);
+  check('and they are told where it went', /manager|written down/i.test(after[0]?.text ?? ''), after[0]?.text);
+  const alert = poorRatingAlert(repo.findOrder(bad.orderNo)!.orderNo);
+  check('the shop is told who, what and who delivered it',
+    alert.includes('ORD-95003') && alert.includes(words) && alert.includes('Wayne'), alert);
+  // Their next message is an order again, not more complaint.
+  check('the complaint is closed after one answer',
+    repo.awaitingComment(cross, RATING_TTL_MS) === null);
+
+  /* --- a digit is only stars for a quarter of an hour ------------------ */
+
+  // The whole reason this is written down. "2" is two stars for a few minutes
+  // after the shop asks, and the second service on the menu for ever after.
+  const later = '5926300003';
+  repo.saveCustomer(later, { name: 'Tina Khan' });
+  const old = place('ORD-95004', 'delivered');
+  db.prepare(`UPDATE orders SET phone = ? WHERE order_no = ?`).run(later, old.orderNo);
+  repo.recordRatingAsk(old.orderNo, later);
+  db.prepare(`UPDATE ratings SET asked_at = ? WHERE order_no = ?`).run(
+    new Date(Date.now() - (RATING_DIGIT_TTL_MS + 60_000)).toISOString(), old.orderNo);
+  repo.setService(later, null);
+  const menu = await handleIncoming({ phone: later, text: '2', channel: 'simulator' });
+  check('a digit an hour later is a menu choice, not a rating',
+    repo.ratingFor(old.orderNo)?.stars !== 2, String(repo.ratingFor(old.orderNo)?.stars));
+  check('and it chose the service they meant', repo.getService(later) === 'grocery', String(repo.getService(later)));
+  check('the shop let the question go rather than holding the digit',
+    repo.pendingRating(later, RATING_TTL_MS) === null);
+  void menu;
+
+  // A tap, though, is never ambiguous: nobody types five star glyphs by
+  // accident, so it still counts.
+  const tapper = '5926300004';
+  repo.saveCustomer(tapper, { name: 'Late Tapper' });
+  const stale = place('ORD-95005', 'delivered');
+  db.prepare(`UPDATE orders SET phone = ? WHERE order_no = ?`).run(tapper, stale.orderNo);
+  repo.recordRatingAsk(stale.orderNo, tapper);
+  db.prepare(`UPDATE ratings SET asked_at = ? WHERE order_no = ?`).run(
+    new Date(Date.now() - (RATING_DIGIT_TTL_MS + 60_000)).toISOString(), stale.orderNo);
+  await handleIncoming({ phone: tapper, text: '⭐⭐⭐⭐', channel: 'simulator' });
+  check('a late tap still counts', repo.ratingFor(stale.orderNo)?.stars === 4, String(repo.ratingFor(stale.orderNo)?.stars));
+
+  /* --- nobody is pestered ---------------------------------------------- */
+
+  const again = place('ORD-95006', 'delivered');
+  check('a customer asked today is not asked again tomorrow', shouldAsk(again) === false);
+  check('and an order already rated is never asked twice', shouldAsk(done) === false);
+
+  /* --- what the shop reads --------------------------------------------- */
+
+  const report = ratingsReport(30);
+  check('the report averages what was answered', /average \*\d\.\d\* ⭐/.test(report), report.slice(0, 120));
+  check('it groups by associate', /Wayne/.test(report), report);
+  check('and lists the poor ones with their words', report.includes(words), report);
+
+  check('the promise matches what the shop can keep',
+    config.staffNumbers.length > 0
+      ? /straight to the manager/.test(thanksForStars(POOR))
+      : /write it down/.test(thanksForStars(POOR)),
+    thanksForStars(POOR));
+
+  for (const no of ['ORD-95001', 'ORD-95002', 'ORD-95003', 'ORD-95004', 'ORD-95005', 'ORD-95006']) {
+    db.prepare(`DELETE FROM ratings WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+}
+
 section('Where the work is against where the people are');
 {
   const { coverage, coverageReport, bandOf } = await import('./coverage.ts');

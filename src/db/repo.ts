@@ -2498,6 +2498,137 @@ export function clearParcelDraft(phone: string): void {
 }
 
 /** Records which delivery associate an order went to, so a second alert cannot send two. */
+/* ---------------------------------------------------------------- ratings */
+
+export type Rating = {
+  orderNo: string;
+  phone: string;
+  stars: number;
+  comment: string;
+  askedAt: string;
+  answeredAt: string;
+};
+
+/** Writes down that the question went out. One row per order, ever. */
+export function recordRatingAsk(orderNo: string, phone: string): void {
+  db.prepare(
+    `INSERT INTO ratings (order_no, phone, asked_at) VALUES (?, ?, ?)
+     ON CONFLICT(order_no) DO NOTHING`,
+  ).run(orderNo, phone.replace(/[^0-9]/g, ''), nowIso());
+}
+
+export function ratingFor(orderNo: string): Rating | null {
+  const row = db
+    .prepare(
+      `SELECT order_no AS orderNo, phone, stars, comment,
+              asked_at AS askedAt, answered_at AS answeredAt
+         FROM ratings WHERE order_no = ?`,
+    )
+    .get(orderNo) as Rating | undefined;
+  return row ?? null;
+}
+
+/** When this customer was last asked anything, so they are not pestered. */
+export function lastRatingAsk(phone: string): string {
+  const row = db
+    .prepare(`SELECT MAX(asked_at) AS at FROM ratings WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as { at: string | null } | undefined;
+  return row?.at ?? '';
+}
+
+/**
+ * The question still waiting on this customer, if it is still live.
+ *
+ * Time-limited on purpose. "4" means four stars for the couple of hours after
+ * the shop asks and means the fourth aisle for ever afterwards, and a window
+ * that never closed would quietly eat a digit the customer meant as a choice.
+ */
+export function pendingRating(phone: string, ttlMs: number, now = Date.now()): Rating | null {
+  const row = db
+    .prepare(
+      `SELECT order_no AS orderNo, phone, stars, comment,
+              asked_at AS askedAt, answered_at AS answeredAt
+         FROM ratings
+        WHERE phone = ? AND stars = 0
+        ORDER BY asked_at DESC LIMIT 1`,
+    )
+    .get(phone.replace(/[^0-9]/g, '')) as Rating | undefined;
+  if (!row) return null;
+  return now - new Date(row.askedAt).getTime() <= ttlMs ? row : null;
+}
+
+/**
+ * A poor rating whose words have been asked for and not yet given.
+ *
+ * The next thing they write is the complaint, so this is read before anything
+ * else a customer might be in the middle of.
+ */
+export function awaitingComment(phone: string, ttlMs: number, now = Date.now()): Rating | null {
+  const row = db
+    .prepare(
+      `SELECT order_no AS orderNo, phone, stars, comment,
+              asked_at AS askedAt, answered_at AS answeredAt
+         FROM ratings
+        WHERE phone = ? AND stars > 0 AND comment = '' AND commented_at = ''
+        ORDER BY answered_at DESC LIMIT 1`,
+    )
+    .get(phone.replace(/[^0-9]/g, '')) as Rating | undefined;
+  if (!row || !row.answeredAt) return null;
+  return now - new Date(row.answeredAt).getTime() <= ttlMs ? row : null;
+}
+
+/**
+ * Lets go of a question the customer answered with something else.
+ *
+ * -1 rather than a flag: it is not a rating, every report counts only stars
+ * above zero, and the row still says the question was asked - which is what
+ * stops the shop asking the same customer again next week.
+ */
+export function closeRatingUnanswered(orderNo: string): void {
+  db.prepare(
+    `UPDATE ratings SET stars = -1, answered_at = ?, commented_at = ?
+      WHERE order_no = ? AND stars = 0`,
+  ).run(nowIso(), nowIso(), orderNo);
+}
+
+export function saveStars(orderNo: string, stars: number): void {
+  db.prepare(
+    `UPDATE ratings SET stars = ?, answered_at = ? WHERE order_no = ? AND stars = 0`,
+  ).run(Math.max(1, Math.min(5, Math.round(stars))), nowIso(), orderNo);
+}
+
+/**
+ * Saves what they wrote, and closes the question either way.
+ *
+ * `commented_at` is stamped even for an empty comment, so a customer who was
+ * asked and said nothing is not asked again by the next message they send.
+ */
+export function saveRatingComment(orderNo: string, comment: string): void {
+  db.prepare(`UPDATE ratings SET comment = ?, commented_at = ? WHERE order_no = ?`).run(
+    comment.trim().slice(0, 500),
+    nowIso(),
+    orderNo,
+  );
+}
+
+export type RatedOrder = Rating & { driverName: string; outletName: string };
+
+/** Every rating since a date, with enough of the order to group them by. */
+export function ratingsSince(since: Date): RatedOrder[] {
+  return db
+    .prepare(
+      `SELECT r.order_no AS orderNo, r.phone, r.stars, r.comment,
+              r.asked_at AS askedAt, r.answered_at AS answeredAt,
+              COALESCE(o.driver_name, '') AS driverName,
+              COALESCE(o.outlet_name, '') AS outletName
+         FROM ratings r
+         LEFT JOIN orders o ON o.order_no = r.order_no
+        WHERE r.asked_at >= ?
+        ORDER BY r.asked_at DESC`,
+    )
+    .all(since.toISOString()) as unknown as RatedOrder[];
+}
+
 export type Associate = {
   phone: string;
   name: string;

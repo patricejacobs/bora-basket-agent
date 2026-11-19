@@ -2,7 +2,7 @@ import { config, money } from './config.ts';
 import { t, type Language } from './language.ts';
 import { languageFor } from './services.ts';
 import * as repo from './db/repo.ts';
-import { sendText, sendButtons, sendTemplate, sendLocation } from './channels/whatsapp-send.ts';
+import { sendText, sendButtons, sendTemplate, sendLocation, sendList } from './channels/whatsapp-send.ts';
 import { nextActions, CANCEL_REASONS, describeAge, wantedBy } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { checkRange, describePin } from './location.ts';
@@ -598,6 +598,24 @@ export async function notifyCustomerOfStatus(
     // because this message carried it; the template below cannot, and claiming
     // otherwise would have the associate asking for digits nobody has.
     if (status === 'on_the_way' && doorCodeLine(order, lang)) repo.markCodeSent(order.orderNo);
+
+    // The rating goes out as its own message, straight after. The one above
+    // closes the order and carries the receipt and the goodbye; a question
+    // under all of that is read as part of the signature and scrolled past.
+    //
+    // Only on this route, like the code above: the template that serves a
+    // customer outside the 24-hour window cannot carry a list, and there is
+    // no sense recording that somebody was asked something they never saw.
+    if (status === 'delivered') {
+      const { shouldAsk, ratingAsk } = await import('./ratings.ts');
+      const fresh = repo.findOrder(order.orderNo) ?? order;
+      if (shouldAsk(fresh)) {
+        const ask = ratingAsk(fresh);
+        if (ask.kind === 'list' && (await sendList(order.phone, ask.text, ask.button, ask.rows))) {
+          repo.recordRatingAsk(fresh.orderNo, fresh.phone);
+        }
+      }
+    }
     return 'text';
   }
 

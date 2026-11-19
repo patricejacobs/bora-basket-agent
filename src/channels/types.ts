@@ -22,6 +22,22 @@ export type OutboundMessage =
   /** A product photo. `text` is the caption shown beneath it. */
   | { kind: 'image'; text: string; imageUrl: string }
   /**
+   * A tappable list, for the one question that needs more than three answers.
+   *
+   * WhatsApp caps reply buttons at three, which is enough for yes/no/maybe and
+   * not enough for a five-point scale. A list opens a sheet of up to ten rows
+   * from a single button, so five stars are one tap rather than a typed digit.
+   *
+   * `button` is the word on the thing they tap to open it, and WhatsApp allows
+   * it twenty characters.
+   */
+  | {
+      kind: 'list';
+      text: string;
+      button: string;
+      rows: { id: string; title: string; description?: string }[];
+    }
+  /**
    * A prompt with WhatsApp's own "Send location" button. The customer taps it
    * and their phone shares a pin — far more reliable than asking in words and
    * hoping they find the paperclip menu.

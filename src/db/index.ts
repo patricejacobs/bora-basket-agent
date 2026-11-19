@@ -264,6 +264,28 @@ CREATE TABLE IF NOT EXISTS help_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_help_pending ON help_requests(delivered_at);
 
+-- What the customer thought of it, asked once per order and never twice.
+--
+-- One row per order, written when the question goes out rather than when it
+-- is answered: an unanswered row is how the shop knows not to ask again, and
+-- how a bare "4" arriving two minutes later is read as four stars instead of
+-- as the fourth item on some list.
+--
+-- A comment is only ever asked for below three stars. A customer who had a
+-- good delivery has already said so in one tap and must not be interviewed
+-- about it.
+CREATE TABLE IF NOT EXISTS ratings (
+  order_no     TEXT PRIMARY KEY,
+  phone        TEXT NOT NULL,
+  /** 1-5, or 0 while the question is still out. */
+  stars        INTEGER NOT NULL DEFAULT 0,
+  comment      TEXT NOT NULL DEFAULT '',
+  asked_at     TEXT NOT NULL,
+  answered_at  TEXT NOT NULL DEFAULT '',
+  commented_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_ratings_phone ON ratings(phone, asked_at);
+
 -- The last numbered list a customer was shown.
 --
 -- "3" means nothing on its own. A customer picks from a list of aisles and
