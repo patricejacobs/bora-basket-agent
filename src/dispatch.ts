@@ -358,7 +358,9 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
 
   return [
     `🚕 *New taxi job ${order.orderNo}*`,
-    '*Fare not set* — agree it with the passenger',
+    order.quotedFare > 0
+      ? `*Fare ${money(order.quotedFare)}* — quoted to the passenger, collect it from them`
+      : '*Fare not set* — agree it with the passenger',
     // What the shop DOES set, on the card where it is needed and in none of
     // the passenger's messages: publishing half a fare invites the question
     // the shop cannot answer.
@@ -423,7 +425,9 @@ export function taxiPickupCard(order: repo.OrderRecord): string {
         ]
       : []),
     '',
-    '*Fare not set* — agree it with the passenger.',
+    order.quotedFare > 0
+      ? `*Fare ${money(order.quotedFare)}* — the passenger has been told this. Collect it from them.`
+      : '*Fare not set* — agree it with the passenger.',
     ...(waitingLine() ? [waitingLine()] : []),
   ].join(String.fromCharCode(10));
 }
@@ -865,10 +869,12 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // the recipient for the same money again is how somebody pays twice for
     // one journey - and the person at the door never agreed to pay at all.
     ...(isTaxi
-      // A passenger settles the fare with the driver, and the shop has not
-      // quoted one. "Collect $0" over a ride nobody priced is worse than
-      // saying nothing.
-      ? ['*Fare not set* — agree it with the passenger.']
+      // The fare the passenger was quoted, where the tariff could price the
+      // trip. Where it could not, the driver settles it and the card says so
+      // rather than printing "Collect $0" over a ride nobody priced.
+      ? order.quotedFare > 0
+        ? [`*Collect ${money(order.quotedFare)}* — the fare they were quoted.`]
+        : ['*Fare not set* — agree it with the passenger.']
       : isParcel
       ? ['Nothing to collect — the sender paid at the uplift.']
       : order.total > 0

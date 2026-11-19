@@ -578,6 +578,13 @@ addColumnIfMissing('orders', 'safety_code', "TEXT NOT NULL DEFAULT ''");
 // waiting_since holds the open stop and is empty the rest of the time. It is
 // closed at the drop if the driver forgets, so a trip cannot end with a
 // clock still running.
+// The taxi fare the shop quoted, priced from the same tariff as everything
+// else. Its own column and NOT `total`, deliberately: the cash report sums
+// totals to say what an associate owes the shop, and a fare the driver takes
+// from the passenger is not money the shop is owed. Whether any of it is
+// handed in is a question nobody has answered yet, and this leaves it open
+// instead of answering it by accident.
+addColumnIfMissing('orders', 'quoted_fare', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('orders', 'waited_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('orders', 'waiting_since', "TEXT NOT NULL DEFAULT ''");
 // Which service the rated job was, copied onto the rating.

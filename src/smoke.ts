@@ -2765,17 +2765,29 @@ section('A car, and no fare anywhere');
   // A pin where they stand, words for where they are going: the ordinary
   // case, because a phone knows where it is and not where it is headed.
   check('the first pin is the pickup', repo.addParcelPin(passenger, { latitude: 6.8013, longitude: -58.1551, label: 'Stabroek' }) === 'pickup');
-  const booked = taxi('book_taxi', {
-    destination_address: '14 Delph Street, Campbellville',
-    note: '2 passengers, one small case',
-  });
-  check('books the trip', booked.booked === true, JSON.stringify(booked).slice(0, 140));
-  check('and quotes no fare back to the model', String(booked.fare) === 'to be agreed with the driver', String(booked.fare));
+
+  // The fare comes from the same tariff as every delivery, priced from both
+  // ends — and like a delivery charge it is quoted and agreed before the job
+  // exists, not announced afterwards.
+  const trip = { destination_address: '14 Delph Street, Campbellville', note: '2 passengers, one small case' };
+  const quote = taxi('book_taxi', trip);
+  check('the first call quotes instead of booking', quote.booked !== true && typeof quote.fare === 'string',
+    JSON.stringify(quote).slice(0, 120));
+  check('and names both ends of the trip', /Stabroek to Campbellville/.test(String(quote.priced_by)), String(quote.priced_by));
+  check('with nothing booked yet', repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== passenger));
+
+  const booked = taxi('book_taxi', { ...trip, fare_confirmed: true });
+  check('books the trip once they agree', booked.booked === true, JSON.stringify(booked).slice(0, 140));
 
   const job = repo.findOrder(String(booked.job_number));
   check('the job is a taxi', job?.kind === 'taxi', job?.kind);
   check('with no line items', job?.items.length === 0, JSON.stringify(job?.items));
-  check('no fee of any kind', job?.total === 0 && job?.deliveryFee === 0, `${job?.total} / ${job?.deliveryFee}`);
+  // The fare is on the job, and NOT in `total`: the cash report sums totals
+  // to say what an associate owes the shop, and a fare taken from a
+  // passenger is not money the shop is owed.
+  check('the fare is recorded', job?.quotedFare === 500, String(job?.quotedFare));
+  check('and stays out of the cash the shop is owed', job?.total === 0 && job?.deliveryFee === 0,
+    `${job?.total} / ${job?.deliveryFee}`);
   // A passenger is not handed over against a code: they get out of the car.
   check('and no delivery code to recite', repo.deliveryCodeExpected(job!.orderNo) === false);
   check('the pickup is the pin that was dropped', job?.pickup?.latitude === 6.8013, JSON.stringify(job?.pickup));
@@ -2849,8 +2861,14 @@ section('A car, and no fare anywhere');
   const moving = repo.findOrder(job!.orderNo)!;
   const inTheCar = customerStatusMessage(moving, 'on_the_way');
   check('on the way says they are on their way', /on your way/i.test(inTheCar), inTheCar);
-  check('and names no figure at all', !inTheCar.includes('$'), inTheCar);
-  check('it says who the fare is agreed with instead', /agreed with the driver/i.test(inTheCar), inTheCar);
+  // The fare they agreed before the car was booked, repeated at the moment
+  // they are sitting in it. A trip the tariff could not price has no figure
+  // to repeat, and says who settles it instead.
+  const priced = repo.findOrder(job!.orderNo)!.quotedFare;
+  check('the fare they agreed is repeated to them',
+    priced > 0 ? inTheCar.includes(money(priced)) : /agreed with the driver/i.test(inTheCar), inTheCar);
+  check('and nothing else about money is invented',
+    !/total/i.test(inTheCar) && !inTheCar.includes('$0'), inTheCar);
 
   await handleDriverMessage(`${n} delivered`, rider);
   const done = repo.findOrder(job!.orderNo)!;
@@ -2877,7 +2895,10 @@ section('A car, and no fare anywhere');
 
   /* --- a taxi nobody was free for is offered again --------------------- */
 
-  const waiting = taxi('book_taxi', { pickup_address: 'Kitty Market', destination_address: 'Sophia' });
+  taxi('book_taxi', { pickup_address: 'Kitty Market', destination_address: 'Sophia' });
+  const waiting = taxi('book_taxi', {
+    pickup_address: 'Kitty Market', destination_address: 'Sophia', fare_confirmed: true,
+  });
   const waitingNo = String(waiting.job_number);
   check(
     'a taxi waiting at pending is work still to be given out',
@@ -9124,7 +9145,7 @@ section('What a taxi driver is told about waiting');
       serviceOpening('taxi', lang).split(String.fromCharCode(10)).length >= 3,
       serviceOpening('taxi', lang));
   }
-  check('and in plain words', /agreed between you and the driver/.test(serviceOpening('taxi', 'en')),
+  check('and in plain words', /tell you the fare before anything is booked/i.test(serviceOpening('taxi', 'en')),
     serviceOpening('taxi', 'en'));
 
   check('the offer card carries the rate', taxiOfferCard(ride).includes('Waiting'), taxiOfferCard(ride));

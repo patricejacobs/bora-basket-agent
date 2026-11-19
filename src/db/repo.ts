@@ -1433,6 +1433,8 @@ export type OrderRecord = {
   /** A taxi's waiting, totalled across the trip, and the stop still open. */
   waitedMinutes: number;
   waitingSince: string;
+  /** What the shop quoted for a taxi. 0 where no fare was set. */
+  quotedFare: number;
   /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
   paymentMethod: string;
   status: OrderStatus;
@@ -1546,6 +1548,7 @@ function hydrateOrder(row: {
   reward_value: number | null;
   waited_minutes: number | null;
   waiting_since: string | null;
+  quoted_fare: number | null;
   status: string;
   created_at: string;
 }): OrderRecord {
@@ -1565,6 +1568,7 @@ function hydrateOrder(row: {
     rewardValue: row.reward_value ?? 0,
     waitedMinutes: row.waited_minutes ?? 0,
     waitingSince: row.waiting_since ?? '',
+    quotedFare: row.quoted_fare ?? 0,
     status: row.status as OrderStatus,
     placedAt: row.created_at,
     // An order's pin was fixed at checkout; `pinnedAt` on an order means the
@@ -2089,6 +2093,8 @@ export function createTaxiJob(args: {
   /** When they want collecting, ISO, or '' for now. */
   wantedAt: string;
   wantedNote: string;
+  /** What the shop quoted, from the tariff. 0 when it could not price it. */
+  fare?: number;
 }): { orderNo: string } {
   db.exec('BEGIN IMMEDIATE');
   try {
@@ -2099,9 +2105,9 @@ export function createTaxiJob(args: {
           latitude, longitude, location_label,
           pickup_address, pickup_lat, pickup_lng,
           recipient_name, recipient_phone, parcel_details, delivery_code, recipient_pin,
-          deliver_at, deliver_note, safety_code,
+          deliver_at, deliver_note, safety_code, quoted_fare,
           subtotal, delivery_fee, total, payment_method, status, created_at)
-       VALUES (?, 'taxi', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 0, 0, 0, 'cash_on_delivery', 'pending', ?)`,
+       VALUES (?, 'taxi', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, 0, 0, 0, 'cash_on_delivery', 'pending', ?)`,
     ).run(
       orderNo,
       args.phone,
@@ -2128,6 +2134,7 @@ export function createTaxiJob(args: {
       // a delivery code and the same unguessable four digits; what differs is
       // who says them to whom.
       newDeliveryCode(),
+      Math.max(0, Math.round(args.fare ?? 0)),
       nowIso(),
     );
     db.exec('COMMIT');

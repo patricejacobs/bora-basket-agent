@@ -703,10 +703,13 @@ export function customerStatusMessage(
       (order.kind === 'taxi'
         ? t('taxi_on_the_way', lang, { name: firstName }) +
           String.fromCharCode(10) +
-          // Said plainly, once, at the moment the passenger is in the car and
-          // wondering what this will cost. The shop has no figure to give:
-          // what it can do is say who to ask instead of quoting a $0 total.
-          t('taxi_fare_with_driver', lang)
+          // The figure they agreed before the car was booked, repeated at
+          // the moment they are sitting in it and wondering. Where the
+          // tariff could not price the trip there is no figure to give, and
+          // the shop says who to ask instead of inventing one.
+          (order.quotedFare > 0
+            ? t('taxi_fare_quoted', lang, { fare: money(order.quotedFare) })
+            : t('taxi_fare_with_driver', lang))
         : order.kind === 'parcel'
         ? t('parcel_on_the_way', lang, {
             order: order.orderNo,

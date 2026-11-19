@@ -157,6 +157,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_confirmed: 'Thanks {name} — a driver is on the way to collect you. Trip {order}. 🚕',
     taxi_on_the_way: '{name}, you are on your way 🚕',
     taxi_fare_with_driver: 'The fare is agreed with the driver.',
+    taxi_fare_quoted: 'Your fare is *{fare}*, payable to the driver. Waiting after pickup is charged separately.',
     taxi_dropped_off: 'Trip {order} complete — you have arrived. 🚕',
     // A passenger who was not at the pickup. The parcel wording has nothing
     // coming back to them and the delivery wording has nobody at a door, and
@@ -209,7 +210,7 @@ const STRINGS: Record<Language, Dictionary> = {
       'A car it is. 🚕 Where are we collecting you from, where are you going, and when? Tell me how many of you as well, and I will find you a car.' +
       chr10 +
       chr10 +
-      'The fare is agreed between you and the driver — we do not set it.',
+      'I will tell you the fare before anything is booked.',
     opening_grocery:
       'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
     opening_parcel:
@@ -288,6 +289,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_confirmed: 'Gracias {name} — un conductor va en camino a recogerle. Viaje {order}. 🚕',
     taxi_on_the_way: '{name}, ya va en camino 🚕',
     taxi_fare_with_driver: 'La tarifa se acuerda con el conductor.',
+    taxi_fare_quoted: 'Su tarifa es *{fare}*, a pagar al conductor. La espera después de la recogida se cobra aparte.',
     taxi_dropped_off: 'Viaje {order} completado — ha llegado. 🚕',
     taxi_no_show: 'El viaje {order} se cerró — el conductor no pudo encontrarle en el punto de recogida. Escríbanos cuando esté listo y enviaremos otro coche.',
     taxi_safety_code: '🔐 Su código de seguridad es *{code}*. El conductor le dirá estas cuatro cifras antes de que suba. Si dice otras, no suba al coche — escríbanos.',
@@ -324,7 +326,7 @@ const STRINGS: Record<Language, Dictionary> = {
       'Un coche. 🚕 ¿De dónde le recogemos, a dónde va y a qué hora? Dígame también cuántas personas son y le buscaré un coche.' +
       chr10 +
       chr10 +
-      'La tarifa se acuerda entre usted y el conductor — nosotros no la fijamos.',
+      'Le diré la tarifa antes de reservar nada.',
     opening_grocery:
       'Supermercado entonces. Dígame qué necesita — escriba una lista, envíe una foto, o simplemente dígamelo.',
     opening_parcel:
@@ -398,6 +400,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_confirmed: 'Obrigado {name} — um motorista está a caminho para o recolher. Viagem {order}. 🚕',
     taxi_on_the_way: '{name}, está a caminho 🚕',
     taxi_fare_with_driver: 'A tarifa é combinada com o motorista.',
+    taxi_fare_quoted: 'A sua tarifa é *{fare}*, a pagar ao motorista. A espera após a recolha é cobrada à parte.',
     taxi_dropped_off: 'Viagem {order} concluída — chegou ao destino. 🚕',
     taxi_no_show: 'A viagem {order} foi encerrada — o motorista não o encontrou no local de recolha. Escreva-nos quando estiver pronto e enviaremos outro carro.',
     taxi_safety_code: '🔐 O seu código de segurança é *{code}*. O motorista vai dizer-lhe estes quatro algarismos antes de entrar. Se disser outros, não entre no carro — escreva-nos.',
@@ -434,7 +437,7 @@ const STRINGS: Record<Language, Dictionary> = {
       'Um carro. 🚕 De onde o buscamos, para onde vai e a que horas? Diga-me também quantas pessoas são e vou procurar-lhe um carro.' +
       chr10 +
       chr10 +
-      'A tarifa é combinada entre si e o motorista — não somos nós que a definimos.',
+      'Digo-lhe a tarifa antes de reservar seja o que for.',
     opening_grocery:
       'Compras, então. Diga-me o que precisa — escreva uma lista, envie uma foto, ou diga por voz.',
     opening_parcel:
@@ -506,6 +509,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_confirmed: '谢谢{name}，司机正在前往接您。行程 {order}。🚕',
     taxi_on_the_way: '{name}，您已出发 🚕',
     taxi_fare_with_driver: '车费请与司机商定。',
+    taxi_fare_quoted: '您的车费为 *{fare}*，请付给司机。上车后的等候另行收费。',
     taxi_dropped_off: '行程 {order} 已完成，您已到达。🚕',
     taxi_no_show: '行程 {order} 已结束，司机在接您的地点没有找到您。您准备好后请告诉我们，我们会再派一辆车。',
     taxi_safety_code: '🔐 您的安全码是 *{code}*。上车前司机会把这四位数字告诉您。如果数字不符，请不要上车，并立即联系我们。',
@@ -542,7 +546,7 @@ const STRINGS: Record<Language, Dictionary> = {
       '好的，出租车。🚕 请问在哪里接您、去哪里、什么时间？也请告知几位乘客，我这就为您找车。' +
       chr10 +
       chr10 +
-      '车费由您与司机商定，不由我们制定。',
+      '预订前我会先告知您车费。',
     opening_grocery:
       '好的，超市代购。请告诉我您需要什么——可以打字列清单、发照片，或者直接说。',
     opening_parcel:

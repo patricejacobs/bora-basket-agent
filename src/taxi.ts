@@ -18,6 +18,25 @@
  * kerb cannot be asked to bill by the minute.
  */
 import { config, money } from './config.ts';
+import { fareBetween } from './zones.ts';
+
+/**
+ * What the shop charges for a trip, from the same tariff as everything else.
+ *
+ * The delivery table prices one journey - out of Georgetown - and a taxi runs
+ * from anywhere to anywhere, which is why this was left to the driver for so
+ * long. `fareBetween` prices both ends, so the same file that says what a
+ * delivery to Farm costs now says what a trip from Georgetown to Farm costs,
+ * and they are the same figure.
+ *
+ * Null when either end is not in the tariff. Better to say the driver will
+ * agree it than to invent a number for a place the shop cannot name.
+ */
+export function taxiFare(pickup: string, destination: string): { fee: number; say: string } | null {
+  const quoted = fareBetween(pickup, destination);
+  if (!quoted) return null;
+  return { fee: quoted.fee, say: `${quoted.explanation} is ${money(quoted.fee)}` };
+}
 
 /**
  * What a wait costs, in money.

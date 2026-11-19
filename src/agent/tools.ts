@@ -10,6 +10,7 @@ import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
 import { balanceLines, usualDelivery, valueOf, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
+import { taxiFare } from '../taxi.ts';
 import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../services.ts';
 import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
@@ -487,6 +488,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           type: 'string',
           description:
             'When they want collecting, as a full ISO timestamp, when it is not now. Leave it out for as soon as possible.',
+        },
+        fare_confirmed: {
+          type: 'boolean',
+          description:
+            'True only after you have told them the fare and they have agreed it. Call book_taxi once without it to get the figure, read it back, and call again with this true. Never set it on the same turn you first saw the fare.',
         },
         pick_up_note: {
           type: 'string',
@@ -2139,8 +2145,33 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         wantedAt = at.toISOString();
       }
 
+      // The fare, from the same tariff every delivery and parcel is priced
+      // from. Both ends, so Georgetown to Farm is the $1,800 a delivery to
+      // Farm costs, and Diamond to Mon Repos is the $2,500 that going into
+      // town and back out costs.
+      //
+      // Quoted and agreed before anything is booked, like a delivery: the
+      // first call returns the figure and the words to read back, the second
+      // books it. A trip the tariff cannot place has no fare and falls back
+      // to the driver agreeing it, which is what every taxi did until now.
+      const quoted = taxiFare(
+        pickupAddress || draft.pickup?.label || '',
+        destinationAddress || draft.destination?.label || '',
+      );
+
+      if (quoted && input.fare_confirmed !== true) {
+        return ok({
+          fare: money(quoted.fee),
+          priced_by: quoted.say,
+          say: `The fare ${quoted.say}, payable to the driver. Waiting after pickup is charged separately.`,
+          next: 'Read the fare back, get a yes, then call book_taxi again with the same details and fare_confirmed true. Book nothing until they have agreed it.',
+        });
+      }
+      if (quoted) repo.setFeeAgreed(ctx.phone, quoted.fee);
+
       const job = repo.createTaxiJob({
         phone: ctx.phone,
+        fare: quoted?.fee ?? 0,
         passengerName,
         passengerPhone,
         pickup: draft.pickup,

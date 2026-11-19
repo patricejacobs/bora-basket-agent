@@ -1459,20 +1459,46 @@ publish half of one — the driver states the waiting rate when the fare is
 agreed. Nothing is charged before pickup, and waiting is refused on a trip
 that has not started.
 
-### No fare, anywhere
+### The fare
 
-The shop does not meter rides. **The driver agrees the fare with the
-passenger**, and no figure is printed on any message, card or receipt:
+**Priced from the same tariff as everything else**, both ends, so a taxi from
+Georgetown to Farm costs the $1,800 a delivery to Farm costs, and Diamond to
+Mon Repos costs the $2,500 that going into town and back out costs.
 
-- The passenger's messages name no amount at all; the one in the car says the
-  fare is agreed with the driver.
-- The associate's card says *Fare not set — agree it with the passenger*.
-- The dispatch desk's card says the same.
-- **There is no receipt at the end.** A ride the shop never priced has nothing
-  to put on one, and `Total $0 — paid in cash` is a lie with a figure in it.
+| Trip | Fare |
+|---|---|
+| Stabroek → Kitty | $500 |
+| Georgetown → Farm | $1,800 |
+| Diamond → Mon Repos | $2,500 |
+| Georgetown → Parika | $5,000 |
 
-A taxi is counted in no cash total for the same reason: nothing passed through
-the shop.
+**Quoted and agreed before the car is booked**, exactly like a delivery
+charge. `book_taxi` called the first time returns the figure and the words to
+read back; called again with `fare_confirmed` it books. Nothing is booked on
+a fare the passenger has not heard.
+
+```
+The fare Stabroek to Campbellville is $500, payable to the driver.
+Waiting after pickup is charged separately.
+```
+
+The driver's card carries the same figure, so there is one number in the
+conversation:
+
+```
+*Fare $500* — the passenger has been told this. Collect it from them.
+⏱ *Waiting:* $800 per 30 min — part of a block counts as a whole one.
+```
+
+**A trip the tariff cannot place has no fare**, and falls back to the driver
+agreeing it with the passenger — which is what every taxi did before this.
+Better that than inventing a figure for a place the shop cannot name.
+
+**The fare is not counted as cash the shop is owed.** It lives in its own
+column, not in the order's total, because `cash` sums totals to tell an
+associate what to hand in — and whether any part of a taxi fare is handed in
+is a question nobody has answered yet. Waiting is extra and is settled the
+same way.
 
 ### What it shares with everything else
 

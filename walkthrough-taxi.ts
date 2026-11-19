@@ -34,6 +34,7 @@ process.env.STORE_NAME = 'Next Minute Delivery';
 const { db } = await import('./src/db/index.ts');
 const repo = await import('./src/db/repo.ts');
 const { handleDriverMessage } = await import('./src/staff.ts');
+const { money } = await import('./src/config.ts');
 const { offerParcel } = await import('./src/dispatch.ts');
 const { customerStatusMessage } = await import('./src/notifications.ts');
 
@@ -59,7 +60,13 @@ repo.setDuty(RIDER, true);
 repo.saveCustomer(PASSENGER, { name: 'Marcia Younge' });
 repo.logMessage(PASSENGER, 'in', 'whatsapp', 'I need a taxi');
 
+const { taxiFare } = await import('./src/taxi.ts');
+const fareQuote = taxiFare('Stabroek Market, by the clock', '14 Delph Street, Campbellville');
+console.log('');
+console.log(`  the shop quotes: ${fareQuote ? fareQuote.say : 'nothing — the tariff cannot place one end'}`);
+
 const job = repo.createTaxiJob({
+  fare: fareQuote?.fee ?? 0,
   phone: PASSENGER,
   passengerName: 'Marcia Younge',
   passengerPhone: PASSENGER,
@@ -84,7 +91,7 @@ console.log(`  passenger   : ${o.customerName} ${o.contactPhone}`);
 console.log(`  collect from: ${o.pickup?.address}  (pin: ${o.pickup?.latitude ? 'yes' : 'no'})`);
 console.log(`  take to     : ${o.address}  (pin: ${o.location ? 'yes' : 'no'})`);
 console.log(`  note        : ${o.parcelDetails}`);
-console.log(`  fare        : ${o.total === 0 ? 'not set — agreed in the car' : String(o.total)}`);
+console.log(`  fare        : ${o.quotedFare > 0 ? money(o.quotedFare) + ' — quoted from the tariff and agreed' : 'not set — agreed in the car'}`);
 
 rule('2. Offered to every free associate');
 console.log(`  offer → ${await offerParcel(job.orderNo)}`);
