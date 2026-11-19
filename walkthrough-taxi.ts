@@ -94,6 +94,10 @@ await show('Rider One', `${n} confirm`);
 
 rule('4. What Marcia is told then');
 gets('Marcia', customerStatusMessage(live(), 'confirmed'));
+// The same four digits in two places, which is the whole of the safety check:
+// the driver says them, and she checks them against her own screen.
+console.log('');
+console.log(`  both of them are holding code ${repo.safetyCodeFor(job.orderNo)}`);
 
 rule('5. She is in the car');
 await show('Rider One', `${n} uplifted`);

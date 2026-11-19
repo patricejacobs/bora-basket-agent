@@ -487,6 +487,21 @@ addColumnIfMissing('orders', 'code_verified_at', "TEXT NOT NULL DEFAULT ''");
 // prevent. Five wrong and the code is spent: the order can still be delivered,
 // only never as verified.
 addColumnIfMissing('orders', 'code_attempts', 'INTEGER NOT NULL DEFAULT 0');
+// A taxi's safety code, which is the delivery code turned around and therefore
+// its own column rather than a share of that one.
+//
+// A delivery code travels customer → associate and proves the person at the
+// door is the one who ordered: the associate must never see it. A taxi's
+// travels driver → passenger and proves the car at the kerb is the one the
+// shop sent: the driver is the one who says it, and the passenger checks it
+// against their own message before getting in.
+//
+// Sharing `delivery_code` would have put digits the driver must read out into
+// every branch built to keep digits away from them — the verification parser,
+// the "type the code to close it" instruction, the confirmed/unverified
+// wording on the customer's receipt. Two meanings, two columns, and no
+// exception to be forgotten.
+addColumnIfMissing('orders', 'safety_code', "TEXT NOT NULL DEFAULT ''");
 
 // When the money changed hands.
 //

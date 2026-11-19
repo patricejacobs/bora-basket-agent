@@ -30,6 +30,7 @@ import {
   withoutPhone,
   offerWaitingWork,
   parcelUpliftCard,
+  taxiPickupCard,
   flushOutletTickets,
   onTheWayCard,
   tellAssociatesCancelled,
@@ -2023,7 +2024,12 @@ export async function handleDriverMessage(
   // same shape: it is accepted before it is fetched, paid for at the pickup,
   // and can come back.
   const shown =
-    isParcel && landed === 'confirmed'
+    // A taxi becomes theirs the same way a parcel does, and needs the same
+    // card at that moment: who to collect, where, and the safety code they
+    // have to say before the passenger gets in.
+    fresh.kind === 'taxi' && landed === 'confirmed'
+      ? taxiPickupCard(fresh)
+      : isParcel && landed === 'confirmed'
       ? parcelUpliftCard(fresh)
       : isParcel && landed === 'on_the_way'
         ? [onTheWayCard(fresh, false), '', ...dropLines(fresh)].join(chr10)

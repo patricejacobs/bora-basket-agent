@@ -162,6 +162,10 @@ const STRINGS: Record<Language, Dictionary> = {
     // coming back to them and the delivery wording has nobody at a door, and
     // neither is what happened: the car waited and left.
     taxi_no_show: 'Trip {order} was closed — the driver could not find you at the pickup. Message us when you are ready and we will send another car.',
+    // The safety code, which runs the opposite way to a delivery code: the
+    // driver says it, the passenger checks it. Written so the one line that
+    // matters - do not get in if it does not match - is the one they read.
+    taxi_safety_code: '🔐 Your safety code is *{code}*. The driver will say these four digits to you before you get in. If they say anything else, do not get into the car — message us.',
     returned_to_sender: 'Parcel {order} is coming back to you — {name} could not take it. The delivery associate will bring it to where it was collected. The fee covers the trip, which was made, so it is not refunded.',
     // The customer IS the one who was not there, so none of the parcel
     // wording fits: nothing is "coming back to you", and nobody else needs
@@ -269,6 +273,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_fare_with_driver: 'La tarifa se acuerda con el conductor.',
     taxi_dropped_off: 'Viaje {order} completado — ha llegado. 🚕',
     taxi_no_show: 'El viaje {order} se cerró — el conductor no pudo encontrarle en el punto de recogida. Escríbanos cuando esté listo y enviaremos otro coche.',
+    taxi_safety_code: '🔐 Su código de seguridad es *{code}*. El conductor le dirá estas cuatro cifras antes de que suba. Si dice otras, no suba al coche — escríbanos.',
     returned_to_sender: 'El paquete {order} vuelve a usted — {name} no pudo recibirlo. El asociado de entrega lo llevará al lugar donde lo recogió. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     returned_nobody_home: 'El pedido {order} ha regresado — no había nadie en la puerta para recibirlo. Escríbanos cuando pueda y organizamos otra entrega.',
     delivered_confirmed: 'Pedido {order} entregado.' + chr10 + 'Código de entrega: confirmado.',
@@ -367,6 +372,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_fare_with_driver: 'A tarifa é combinada com o motorista.',
     taxi_dropped_off: 'Viagem {order} concluída — chegou ao destino. 🚕',
     taxi_no_show: 'A viagem {order} foi encerrada — o motorista não o encontrou no local de recolha. Escreva-nos quando estiver pronto e enviaremos outro carro.',
+    taxi_safety_code: '🔐 O seu código de segurança é *{code}*. O motorista vai dizer-lhe estes quatro algarismos antes de entrar. Se disser outros, não entre no carro — escreva-nos.',
     returned_to_sender: 'A encomenda {order} está a voltar para si — {name} não a pôde receber. O associado de entrega levá-la-á ao local onde a recolheu. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     returned_nobody_home: 'O pedido {order} voltou — não estava ninguém à porta para o receber. Escreva-nos quando puder e combinamos outra entrega.',
     delivered_confirmed: 'Pedido {order} entregue.' + chr10 + 'Código de entrega: confirmado.',
@@ -463,6 +469,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_fare_with_driver: '车费请与司机商定。',
     taxi_dropped_off: '行程 {order} 已完成，您已到达。🚕',
     taxi_no_show: '行程 {order} 已结束，司机在接您的地点没有找到您。您准备好后请告诉我们，我们会再派一辆车。',
+    taxi_safety_code: '🔐 您的安全码是 *{code}*。上车前司机会把这四位数字告诉您。如果数字不符，请不要上车，并立即联系我们。',
     returned_to_sender: '包裹 {order} 正在退回给您 — {name} 无法签收。配送专员会将其送回取件地点。费用已用于本次行程，故不予退还。',
     returned_nobody_home: '订单 {order} 已退回 — 门口无人接收。方便时请联系我们，我们会再安排一次配送。',
     delivered_confirmed: '订单 {order} 已送达。' + chr10 + '收货码：已确认。',

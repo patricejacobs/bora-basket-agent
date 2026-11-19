@@ -2762,6 +2762,43 @@ section('A car, and no fare anywhere');
   check('and the associate is offered Uplifted once it is theirs',
     nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true }).some((a) => a.title === 'Uplifted'));
 
+  /* --- the safety code, which runs the other way --------------------- */
+
+  // A delivery code proves the person at the door ordered the food, so the
+  // associate must never see it. This one proves the car at the kerb is the
+  // one the shop sent, so the driver is the one who says it — and the
+  // passenger, standing in a road, is the one who checks it.
+  const { taxiPickupCard } = await import('./dispatch.ts');
+  const safety = repo.safetyCodeFor(job!.orderNo);
+  check('a taxi is issued four digits at booking', /^[1-9][0-9]{3}$/.test(safety), safety);
+
+  const pickupCard = taxiPickupCard(accepted);
+  check('the driver’s card carries them', pickupCard.includes(safety), pickupCard);
+  check('and says what to do with them', /before they get in/i.test(pickupCard), pickupCard);
+  check('with the passenger’s name and number on the same card',
+    pickupCard.includes('Marcia Younge') && pickupCard.includes('5926482233'), pickupCard);
+
+  check('the passenger is sent the same four digits', onAccept.includes(safety), onAccept);
+  check('and told not to get in if they do not match', /do not get into the car/i.test(onAccept), onAccept);
+
+  // It is not a delivery code and must not behave like one: nothing is typed
+  // back, nothing is verified, and the Delivered button stays on the card.
+  check('no code is expected back from the driver', repo.deliveryCodeExpected(job!.orderNo) === false);
+  check(
+    'so Delivered is still offered at the kerb',
+    nextActions(job!.orderNo, 'on_the_way', 'driver', { codeExpected: false }).some((a) => a.title === 'Delivered'),
+  );
+
+  // The safeguard that keeps a customer's door code off an associate's card
+  // is untouched: this accessor answers for taxis and for nothing else.
+  const anyDelivery = repo.allOrders().find((o) => o.kind !== 'taxi' && o.kind !== 'parcel');
+  check('there is a delivery to check against', Boolean(anyDelivery), anyDelivery?.orderNo);
+  check(
+    'and a delivery has no safety code to leak',
+    repo.safetyCodeFor(anyDelivery?.orderNo ?? '') === '',
+    repo.safetyCodeFor(anyDelivery?.orderNo ?? ''),
+  );
+
   await handleDriverMessage(`${n} uplifted`, rider);
   const moving = repo.findOrder(job!.orderNo)!;
   const inTheCar = customerStatusMessage(moving, 'on_the_way');

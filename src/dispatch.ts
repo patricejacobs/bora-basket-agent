@@ -260,6 +260,57 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
   ].join(String.fromCharCode(10));
 }
 
+/**
+ * The card a taxi job becomes once it is theirs — with the safety code on it.
+ *
+ * A taxi had no card at this stage at all: accepting it answered "confirmed"
+ * and nothing else, so the passenger's name, number and pickup stayed on the
+ * offer card somewhere up the chat, under everything that had happened since.
+ *
+ * The code is the reason this card has to exist. **The driver says it to the
+ * passenger before they get in**, and the passenger checks it against the
+ * message the shop sent them: that is how somebody standing on a road knows
+ * this is the car and not a stranger who overheard a name. It is written here
+ * as an instruction rather than a number, because four digits on a card with
+ * no sentence around them get read out at the end of the trip or not at all.
+ *
+ * It is never typed back. Nothing in the system verifies it — the check
+ * happens between two people at a kerb, which is the only place it can.
+ */
+export function taxiPickupCard(order: repo.OrderRecord): string {
+  const pickup = order.pickup;
+  const pickupPin =
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
+      : null;
+  const code = repo.safetyCodeFor(order.orderNo);
+  const firstName = order.customerName.split(/\s+/)[0] || 'the passenger';
+
+  return [
+    `🚕 *${order.orderNo}* is yours.`,
+    '',
+    `*Collect:* ${order.customerName}`,
+    ...(pickup?.address ? [pickup.address] : []),
+    `📞 ${dial(order.contactPhone || order.phone)}`,
+    ...(pickupPin
+      ? ['Click the link below for the pickup:', mapsLink(pickupPin)]
+      : ['⚠️ No pin for the pickup — ring them']),
+    '',
+    `*Take to:* ${order.address || 'they will direct you'}`,
+    ...(order.location ? ['Click the link below for the drop-off:', mapsLink(order.location)] : []),
+    ...(order.parcelDetails ? ['', order.parcelDetails] : []),
+    '',
+    ...(code
+      ? [
+          `🔐 *Safety code ${code}*`,
+          `Say it to ${firstName} before they get in — they have the same four digits and will check them.`,
+        ]
+      : []),
+    '',
+    '*Fare not set* — agree it with the passenger.',
+  ].join(String.fromCharCode(10));
+}
+
 export function parcelOfferCard(order: repo.OrderRecord): string {
   const pickup = order.pickup;
   const pickupPin =
@@ -826,6 +877,19 @@ export async function tellTransferred(
     head,
     '',
     ...dropLines(order),
+    // A handed-over taxi carries its safety code to whoever is driving now.
+    // Without this the new driver pulls up knowing nothing about it, says
+    // nothing, and the passenger does the right thing and refuses to get in.
+    ...(() => {
+      const code = repo.safetyCodeFor(order.orderNo);
+      if (!code) return [];
+      const firstName = order.customerName.split(/\s+/)[0] || 'the passenger';
+      return [
+        '',
+        `🔐 *Safety code ${code}*`,
+        `Say it to ${firstName} before they get in.`,
+      ];
+    })(),
     ...(repo.deliveryCodeExpected(order.orderNo)
       ? [
           '',

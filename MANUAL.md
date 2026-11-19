@@ -905,6 +905,10 @@ message and reads them out at the door.
 not the shop's alert, not the export. A code the associate can read off their
 own screen proves nothing.
 
+A **taxi's safety code is a different thing in a different column**, and the
+driver is meant to read that one out: it proves the car, not the passenger.
+See [chapter 8](#8-taxis).
+
 The associate's card carries no *Delivered* button when a code is expected.
 Typing the four digits **is** the delivery.
 
@@ -1018,13 +1022,40 @@ are going until they get there.
 | Step | Who | What the passenger is told |
 |---|---|---|
 | Booked | The agent, on the customer's yes | The job number, and that a car is being found |
-| Accepted | **An associate**, tapping Accept | *A driver is on the way to collect you* |
+| Accepted | **An associate**, tapping Accept | *A driver is on the way to collect you*, with the safety code |
 | Uplifted | The associate, when the passenger is in the car | *You are on your way* |
 | Dropped off | The associate, tapping Delivered | *Trip complete — you have arrived* |
 | Nobody there | The associate, at the pickup | *The driver could not find you* |
 
-**No delivery code.** A passenger is not handed over against four digits; they
-get out of the car. The Delivered button closes the job.
+### The safety code
+
+**Four digits, and they run the opposite way to a delivery code.**
+
+A delivery code travels customer → associate and proves the person at the door
+is the one who ordered. A taxi's travels **driver → passenger** and proves the
+car at the kerb is the one the shop sent.
+
+| | |
+|---|---|
+| Issued | When the trip is booked |
+| On the driver's card | When they accept it — with the passenger's name and number |
+| In the passenger's chat | The same moment, with the news that a car is coming |
+| Checked | **At the kerb. The driver says it; the passenger checks it before getting in** |
+
+The passenger is told plainly: if the driver says anything else, do not get
+into the car, message us. Nothing is typed back and nothing is verified by the
+shop — the check happens between two people standing in a road, which is the
+only place it can happen.
+
+A job **handed to another associate carries the code with it**, or the new
+driver pulls up knowing nothing and the passenger rightly refuses to get in.
+
+The digits live in their own column, not the delivery code's. Sharing one
+would have put a number the driver must read out into every branch written to
+keep numbers away from them.
+
+**A taxi has no delivery code.** A passenger is not handed over against four
+digits; they get out of the car. The Delivered button closes the job.
 
 **Nobody there is reported from the pickup**, before anyone is in the car —
 which is the one place it differs from a parcel, where nothing can come back

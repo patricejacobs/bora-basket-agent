@@ -1640,6 +1640,27 @@ export function deliveryCodeFor(orderNo: string): string {
 }
 
 /**
+ * A taxi's safety code, for the two messages that carry it and nowhere else.
+ *
+ * The opposite of `deliveryCodeFor` in who may read it: these digits go on the
+ * DRIVER's card, because the driver is the one who says them. The passenger
+ * holds the same four digits in their own chat and checks them against what
+ * the driver says before getting into the car.
+ *
+ * Guarded on the kind rather than trusted to the caller. If this is ever
+ * pointed at a delivery it returns nothing, so a future edit cannot use it to
+ * print a customer's door code onto an associate's card — which is the one
+ * thing the delivery code exists to prevent.
+ */
+export function safetyCodeFor(orderNo: string): string {
+  const row = db
+    .prepare(`SELECT kind, safety_code AS code FROM orders WHERE order_no = ?`)
+    .get(orderNo) as { kind: string; code: string } | undefined;
+  if (!row || row.kind !== 'taxi') return '';
+  return row.code ?? '';
+}
+
+/**
  * Records that the code reached the customer.
  *
  * Called only after the message has actually gone, and only when it went as
@@ -1936,9 +1957,9 @@ export function createTaxiJob(args: {
           latitude, longitude, location_label,
           pickup_address, pickup_lat, pickup_lng,
           recipient_name, recipient_phone, parcel_details, delivery_code, recipient_pin,
-          deliver_at, deliver_note,
+          deliver_at, deliver_note, safety_code,
           subtotal, delivery_fee, total, payment_method, status, created_at)
-       VALUES (?, 'taxi', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 0, 0, 0, 'cash_on_delivery', 'pending', ?)`,
+       VALUES (?, 'taxi', ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, 0, 0, 0, 'cash_on_delivery', 'pending', ?)`,
     ).run(
       orderNo,
       args.phone,
@@ -1960,6 +1981,11 @@ export function createTaxiJob(args: {
       args.destination ? 1 : 0,
       args.wantedAt,
       args.wantedNote,
+      // Issued at booking, not at acceptance, so the digits exist before
+      // anything can be sent that ought to carry them. The same generator as
+      // a delivery code and the same unguessable four digits; what differs is
+      // who says them to whom.
+      newDeliveryCode(),
       nowIso(),
     );
     db.exec('COMMIT');

@@ -641,7 +641,15 @@ export function customerStatusMessage(
     // order has been accepted and we will say when it leaves.
     confirmed:
       order.kind === 'taxi'
-        ? t('taxi_confirmed', lang, { name: firstName, order: order.orderNo })
+        ? t('taxi_confirmed', lang, { name: firstName, order: order.orderNo }) +
+          // The code travels with the news that a car is coming, because the
+          // two facts are only useful together: digits with no car are a
+          // puzzle, and a car with no digits is a stranger pulling up.
+          (() => {
+            const code = repo.safetyCodeFor(order.orderNo);
+            const nl = String.fromCharCode(10);
+            return code ? nl + nl + t('taxi_safety_code', lang, { code }) : '';
+          })()
         : t('confirmed', lang, { name: firstName, order: order.orderNo }),
     // A parcel was paid for at the pickup, before it went anywhere. Telling
     // the sender it is "payable to the delivery associate" asks them for the
