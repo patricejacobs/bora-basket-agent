@@ -78,16 +78,59 @@ Order numbers work as `7`, `ORD-7` or `ORD-00007`.
 |---|---|
 | `where` | Where the associates are, and when each was last seen |
 | `where rohan` | Ask one of them to share a fresh pin |
+| `zones` | Where the work is, against where the people are |
+| `base rohan Diamond` | The place an associate works from |
 | `cash` | What each associate has collected today |
 | `change number <name> <new number>` | An associate has a new SIM — see §11 |
 | `7 history` | Everything that happened to order 7 |
 | `backup` | The trading record, sent to you here |
 | `wanted` | What customers asked for and you did not have |
 
+### Coverage
+
+`zones` answers two questions in one place, because neither is any use alone:
+**where the work is** and **where the people are**.
+
+```
+*Coverage* — last 30 days, 32 jobs
+
+*Georgetown* $500 · 7 jobs
+   — nobody based here
+*East Bank* $1,600 · 7 jobs
+   Shanta (1 on duty)
+...
+*Most driving with nobody based there:* East Bank near — 7 jobs at $800.
+
+_Wayne has no base set, so they are counted in none of these bands._
+```
+
+**A delivery is counted by where it went; a parcel or a taxi by where it
+started.** The shop is always one end of a delivery, so the other end is the
+interesting one — but a parcel begins wherever the sender is, and that is
+where an associate has to be standing.
+
+**The gap it names is ranked by road, not by job count.** Seven runs into
+Georgetown and seven up the East Bank are the same number and nothing like
+the same argument: one is a city round somebody is already doing, the other
+is seven trips up a highway. Jobs × the band's fee is the closest thing to
+"how much driving" the shop can know.
+
+**Nobody is assumed to be anywhere.** An associate with no base is counted in
+no band, and the report says who they are — otherwise every line reads as a
+gap that may not be one.
+
+`base <name> <place>` sets where somebody works from: `base Shanta Diamond`,
+or `base Shanta at Mon Repos` when either half is two words. The place is
+checked against the delivery tariff before it is saved, because a base the
+tariff does not recognise would simply never appear in the report and the
+shop would be left believing a coast was covered.
+
+**Nothing here changes a price or a dispatch.** It exists so the decision
+about where the next associate belongs is made from figures rather than from
+the map.
+
 ### Restaurants
 
-| Command | What it does |
-|---|---|
 | Command | What it does |
 |---|---|
 | `outlets` | The restaurants on the system |

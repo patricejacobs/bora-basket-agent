@@ -2503,6 +2503,8 @@ export type Associate = {
   name: string;
   vehicle: string;
   active: number;
+  /** The place they work from, as the tariff spells it. '' until it is set. */
+  basePlace: string;
 };
 
 /**
@@ -2723,15 +2725,35 @@ function closeShiftAtCap(phone: string, now: Date): void {
 
 export function getAssociate(phone: string): Associate | null {
   const row = db
-    .prepare(`SELECT phone, name, vehicle, active FROM associates WHERE phone = ?`)
+    .prepare(`SELECT phone, name, vehicle, active, base_place AS basePlace FROM associates WHERE phone = ?`)
     .get(phone.replace(/[^0-9]/g, '')) as Associate | undefined;
   return row ?? null;
 }
 
 export function listAssociates(): Associate[] {
   return db
-    .prepare(`SELECT phone, name, vehicle, active FROM associates ORDER BY name ASC`)
+    .prepare(
+      `SELECT phone, name, vehicle, active, base_place AS basePlace
+         FROM associates ORDER BY name ASC`,
+    )
     .all() as unknown as Associate[];
+}
+
+/**
+ * Records where an associate works from.
+ *
+ * The place as the tariff spells it, so the coverage report and the tariff are
+ * reading the same word. Passing '' clears it, which is how somebody moves
+ * back to working out of town.
+ */
+export function setAssociateBase(phone: string, place: string): void {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return;
+  db.prepare(`UPDATE associates SET base_place = ?, updated_at = ? WHERE phone = ?`).run(
+    place.trim().slice(0, 60),
+    nowIso(),
+    digits,
+  );
 }
 
 /**
@@ -3141,7 +3163,7 @@ export function findAssociateByName(name: string): Associate | null {
   const needle = name.trim().toLowerCase();
   if (needle.length < 2) return null;
   const rows = db
-    .prepare(`SELECT phone, name, vehicle, active FROM associates WHERE active = 1`)
+    .prepare(`SELECT phone, name, vehicle, active, base_place AS basePlace FROM associates WHERE active = 1`)
     .all() as unknown as Associate[];
   return rows.find((a) => a.name.toLowerCase().includes(needle)) ?? null;
 }

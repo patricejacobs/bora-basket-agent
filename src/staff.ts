@@ -437,9 +437,32 @@ function saveProductPhoto(sku: string, image: IncomingImage): string {
  * two hours old is where they were, and saying so is the difference between
  * a dispatcher trusting it and being misled by it.
  */
+/**
+ * One associate, by name or by number, out of the directory.
+ *
+ * The DIRECTORY, not `config.driverNumbers`. This used to search the
+ * environment variable, which is the seed and not the list — so an associate
+ * the shop had added itself could be clocked on, carrying an order and
+ * visible in every other report, and still answer "no delivery associate
+ * matching that" to the one person trying to find out where they were.
+ */
+function findAssociate(named: string): string {
+  const wanted = named.trim().toLowerCase();
+  const digits = wanted.replace(/[^0-9]/g, '');
+  const roster = repo.associateNumbers();
+  const found = roster.find((p2) => {
+    if (digits.length >= 6 && p2.includes(digits)) return true;
+    const who = repo.getAssociate(p2);
+    return Boolean(who?.name && who.name.toLowerCase().includes(wanted));
+  });
+  return found ?? '';
+}
+
 async function describeAssociates(): Promise<string> {
-  const roster = config.driverNumbers;
-  if (roster.length === 0) return 'No delivery associates are set up (DRIVER_NUMBERS is empty).';
+  const roster = repo.associateNumbers();
+  if (roster.length === 0) {
+    return 'No delivery associates are active. Add them to the directory, or set DRIVER_NUMBERS to seed it.';
+  }
 
   const now = Date.now();
   const lines = roster.map((phone) => {
@@ -506,6 +529,8 @@ const HELP = [
   '',
   '`where` — where the delivery associates are',
   '`where <name>` — ask one of them for a fresh pin',
+  '`zones` — where the work is, against where the people are',
+  '`base <name> <place>` — the place an associate works from',
   '`change number <name> <new number>` — they have a new SIM',
   '',
   '`cash` — what each associate collected today',
@@ -796,17 +821,91 @@ export async function handleStaffMessage(
     return reply(await describeAssociates());
   }
 
+  // Where the work is, against where the people are.
+  if (/^(zones?|coverage|cover)$/i.test(trimmed)) {
+    const { coverageReport } = await import('./coverage.ts');
+    const days = Number(trimmed.match(/(\d+)/)?.[1] ?? 30);
+    return reply(coverageReport(days > 0 ? days : 30));
+  }
+
+  // Where one associate works from, which is what the report above counts.
+  //
+  // The place is checked against the tariff before it is saved. A base the
+  // tariff does not recognise would simply never appear in the report, and
+  // the shop would be left believing a coast was covered.
+  const basing = trimmed.match(/^base\s+(.+)$/i);
+  if (basing) {
+    const { findZone } = await import('./zones.ts');
+    const rest = (basing[1] ?? '').trim();
+
+    // "base Wayne Diamond" has to be read without being told where the name
+    // ends and the place begins, and both halves can be two words: Mon Repos,
+    // Land of Canaan, Mark Anthony. So every split is tried, longest place
+    // first, and the one taken is the one where BOTH halves are real - a
+    // person in the directory and a place in the tariff.
+    //
+    // "base Wayne at Mon Repos" is read first, because somebody who writes it
+    // that way has said where the join is and should not be second-guessed.
+    const splits: [string, string][] = [];
+    const spoken = rest.match(/^(.+?)\s+(?:at|in|from)\s+(.+)$/i);
+    if (spoken) splits.push([spoken[1]!.trim(), spoken[2]!.trim()]);
+    const words = rest.split(/\s+/);
+    for (let take = words.length - 1; take >= 1; take -= 1) {
+      splits.push([words.slice(0, take).join(' '), words.slice(take).join(' ')]);
+    }
+
+    let named = splits[0]?.[0] ?? rest;
+    let place = splits[0]?.[1] ?? '';
+    let match = '';
+    for (const [who, where] of splits) {
+      const candidate = findAssociate(who);
+      if (!candidate) continue;
+      const clearing = /^(none|nowhere|clear|off)$/i.test(where);
+      if (!clearing && findZone(where).kind === 'unknown') {
+        // The person is real and the place is not. Keep it as the best guess
+        // so the refusal below names the place they actually typed.
+        if (!match) [named, place, match] = [who, where, candidate];
+        continue;
+      }
+      [named, place, match] = [who, where, candidate];
+      break;
+    }
+    if (!match) {
+      return reply(`No delivery associate matching "${named}". Send \`where\` to see them all.`);
+    }
+
+    if (/^(none|nowhere|clear|off)$/i.test(place)) {
+      repo.setAssociateBase(match, '');
+      const who = repo.getAssociate(match);
+      return reply(`${who?.name || `+${match}`} works out of town again — no base.`);
+    }
+
+    const found = findZone(place);
+    if (found.kind === 'ambiguous') {
+      return reply(
+        [
+          `"${place}" could be ${found.candidates.map((c) => c.place).join(' or ')}.`,
+          'Say which one.',
+        ].join(chr10),
+      );
+    }
+    if (found.kind !== 'found') {
+      return reply(
+        `"${place}" is not in the delivery tariff, so nothing could count jobs there. Use a place from data/delivery-zones.csv.`,
+      );
+    }
+
+    repo.setAssociateBase(match, found.match.place);
+    const who = repo.getAssociate(match);
+    return reply(
+      `${who?.name || `+${match}`} works from *${found.match.place}* (${found.match.zone}). Send \`zones\` to see what that covers.`,
+    );
+  }
+
   const asking = trimmed.match(/^where\s+(.+)$/i);
   if (asking) {
     const named = (asking[1] ?? '').trim();
-    // By name or by number, because a dispatcher knows the person and not
-    // always the digits.
-    const digits = named.replace(/[^0-9]/g, '');
-    const match = config.driverNumbers.find((p2) => {
-      if (digits.length >= 6 && p2.includes(digits)) return true;
-      const who = repo.getAssociate(p2);
-      return Boolean(who?.name && who.name.toLowerCase().includes(named.toLowerCase()));
-    });
+    const match = findAssociate(named);
 
     if (!match) return reply(`No delivery associate matching "${named}". Send \`where\` to see them all.`);
 

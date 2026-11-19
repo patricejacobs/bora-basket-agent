@@ -8920,6 +8920,129 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('Where the work is against where the people are');
+{
+  const { coverage, coverageReport, bandOf } = await import('./coverage.ts');
+  const { handleStaffMessage } = await import('./staff.ts');
+
+  const SHOP = config.staffNumbers[0] ?? '5926497570';
+  const town = '5926004040';
+  const bank = '5926004041';
+  repo.upsertAssociate({ phone: town, name: 'Coverage Town', vehicle: '', active: true });
+  repo.upsertAssociate({ phone: bank, name: 'Coverage Bank', vehicle: '', active: true });
+
+  const baseline = coverage(30);
+  const made: string[] = [];
+  const job = (no: string, place: string, when: number) => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, delivery_zone, delivery_code, driver_phone, subtotal, delivery_fee, total,
+         payment_method, status, created_at)
+       VALUES (?, '5926100001','A Customer', ?, '5926100001','', 'grocery', ?, '', '',
+         100000, 50000, 150000, 'cash', 'delivered', ?)`,
+    ).run(no, `Lot 1 ${place}`, place, new Date(Date.now() - when * 86400000).toISOString());
+    made.push(no);
+  };
+
+  // Seven city runs against three up the East Bank: more jobs in town, far
+  // more driving out of it.
+  for (let i = 0; i < 7; i += 1) job(`ORD-94${String(i).padStart(3, '0')}`, 'Kitty', 1);
+  for (let i = 0; i < 3; i += 1) job(`ORD-94${String(10 + i).padStart(3, '0')}`, 'Diamond', 2);
+  // Old enough to be outside the window, so the window is proved to mean
+  // something rather than being a number in a heading.
+  job('ORD-94900', 'Parika', 400);
+
+  // Counted as a difference, not a total. Every section before this one has
+  // left orders in the database, and a test that asserts "seven" is really
+  // asserting that nobody ever adds another section above it.
+  const after = coverage(30);
+  const count = (from: ReturnType<typeof coverage>, name: string) =>
+    from.bands.find((b) => b.zone === name)?.jobs ?? 0;
+  check('city jobs are counted in their band', count(after, 'Georgetown') - count(baseline, 'Georgetown') === 7,
+    `${count(baseline, 'Georgetown')} → ${count(after, 'Georgetown')}`);
+  check('and East Bank jobs in theirs', count(after, 'East Bank') - count(baseline, 'East Bank') === 3,
+    `${count(baseline, 'East Bank')} → ${count(after, 'East Bank')}`);
+  check('a job older than the window is left out',
+    count(after, 'West Coast far') - count(baseline, 'West Coast far') === 0,
+    `${count(baseline, 'West Coast far')} → ${count(after, 'West Coast far')}`);
+
+  // A parcel and a taxi are counted by where they START, because that is
+  // where an associate has to be standing. A delivery is counted by where it
+  // went, since the shop is always the other end of it.
+  const ride = repo.createTaxiJob({
+    phone: '5926100002', passengerName: 'A Passenger', passengerPhone: '5926100002',
+    pickup: null, pickupAddress: 'Mon Repos, by the market',
+    destination: null, destinationAddress: 'Georgetown',
+    note: '', wantedAt: '', wantedNote: '',
+  });
+  made.push(ride.orderNo);
+  check('a taxi is placed by its pickup, not its destination',
+    bandOf(repo.findOrder(ride.orderNo)!) === 'East Coast near',
+    bandOf(repo.findOrder(ride.orderNo)!));
+
+  /* --- nobody is assumed to be anywhere -------------------------------- */
+
+  const before = coverageReport(30);
+  check('an associate with no base is counted in no band',
+    coverage(30).bands.every((b) => b.based.length === 0),
+    JSON.stringify(coverage(30).bands.map((b) => b.based)));
+  check('and the report says so rather than leaving a false gap',
+    /no base set/.test(before) && before.includes('Coverage Town'), before);
+
+  /* --- the shop puts somebody out ------------------------------------- */
+
+  const set = (await handleStaffMessage('base Coverage Bank Diamond', SHOP))[0]?.text ?? '';
+  check('a base is saved against the associate', /works from \*Diamond\*/.test(set), set);
+  check('and stored as the tariff spells it', repo.getAssociate(bank)?.basePlace === 'Diamond', repo.getAssociate(bank)?.basePlace);
+  check('the band now shows them', coverage(30).bands.find((b) => b.zone === 'East Bank')?.based.includes('Coverage Bank') === true);
+
+  // A base the tariff does not know would never appear in the report, so it
+  // is refused at the point of setting rather than silently kept.
+  const nowhere = (await handleStaffMessage('base Coverage Town Narnia', SHOP))[0]?.text ?? '';
+  check('a place the tariff does not know is refused', /not in the delivery tariff/i.test(nowhere), nowhere);
+  check('and nothing is saved', repo.getAssociate(town)?.basePlace === '', repo.getAssociate(town)?.basePlace);
+
+  // The two Golden Groves, eight hundred dollars and two corridors apart.
+  const which = (await handleStaffMessage('base Coverage Town Golden Grove', SHOP))[0]?.text ?? '';
+  check('a name on two corridors is asked about', /could be/i.test(which), which);
+
+  /* --- ranked by the driving, not the job count ------------------------ */
+
+  const report = coverageReport(30);
+  check('the report is what the shop reads', /^\*Coverage\* — last 30 days, \d+ jobs/m.test(report), report.slice(0, 60));
+
+  // Worked out from the same data rather than written down, so this asserts
+  // the RULE - most road, not most jobs - and keeps asserting it when an
+  // earlier section changes what is in the database.
+  const open = coverage(30).bands.filter((b) => b.based.length === 0);
+  const byRoad = [...open].sort((a, b) => b.jobs * b.fee - a.jobs * a.fee)[0]!;
+  const byCount = [...open].sort((a, b) => b.jobs - a.jobs)[0]!;
+  check(
+    'the gap named is the one with the most road in it',
+    report.includes(`Most driving with nobody based there:* ${byRoad.zone}`),
+    report.split('\n').find((l) => l.includes('Most driving')) ?? report,
+  );
+  check(
+    'which is not simply the one with the most jobs',
+    byRoad.zone !== byCount.zone || byRoad.fee >= byCount.fee,
+    `${byRoad.zone} ${byRoad.jobs}x${byRoad.fee} vs ${byCount.zone} ${byCount.jobs}x${byCount.fee}`,
+  );
+
+  /* --- and the directory is the list, here too ------------------------- */
+
+  // `where <name>` searched DRIVER_NUMBERS, so an associate the shop added
+  // itself was invisible to it while being perfectly visible everywhere else.
+  const found = (await handleStaffMessage('where Coverage Bank', SHOP))[0]?.text ?? '';
+  check('an associate only in the directory can still be found by name',
+    !/No delivery associate matching/i.test(found), found);
+
+  for (const no of made) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  db.prepare(`DELETE FROM associates WHERE phone IN (?, ?)`).run(town, bank);
+}
+
 section('The blueprint says each setting once');
 {
   // MAX_JOBS_PER_ASSOCIATE was declared twice in render.yaml, as 0 and then

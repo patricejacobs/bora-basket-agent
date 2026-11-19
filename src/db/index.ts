@@ -464,6 +464,16 @@ addColumnIfMissing('orders', 'handed_over_at', "TEXT NOT NULL DEFAULT ''");
 // flag, so going off can happen by itself after a long enough silence - a
 // flag would leave somebody on duty overnight and getting job cards at 3am.
 addColumnIfMissing('associates', 'on_duty_at', "TEXT NOT NULL DEFAULT ''");
+// Where an associate works from, as a place name out of the tariff — "Diamond",
+// "Mon Repos". Empty for somebody who works out of town, which is everybody
+// until a shop says otherwise.
+//
+// Deliberately a declared base and not the live pin in `associate_locations`.
+// A pin says where somebody was forty minutes ago, which is the right fact for
+// "who is nearest this pickup right now" and the wrong one for "which parts of
+// the coast do we cover at all". The two answer different questions and the
+// shop needs both.
+addColumnIfMissing('associates', 'base_place', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
