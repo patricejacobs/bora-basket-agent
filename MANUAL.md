@@ -196,9 +196,19 @@ Send `help` to the shop number for this list.
 
 ### The rules
 
-**One at a time.** You cannot uplift anything new until the one you have is
-delivered. The refusal repeats the whole job card, because the original is
-buried up the chat by then.
+**Three at a time.** You cannot uplift a fourth until one of the three you
+have is delivered. The refusal repeats the whole job card, because the
+original is buried up the chat by then.
+
+`MAX_JOBS_PER_ASSOCIATE` sets it: `1` is the strict rule — the shop knows each
+associate is holding exactly one thing — and `0` switches the cap off. It is
+**3** here so a taxi booked while somebody is mid-delivery still reaches them:
+a busy associate is offered nothing at all, and at `1` a passenger waited in
+the road until a bag of groceries got to a door. The price is that three open
+jobs are three chances to arrive cold.
+
+`/health` reports `maxJobsPerAssociate` — the figure actually running, which
+settles it when the blueprint and the Render dashboard disagree.
 
 **Twelve hours.** A shift ends twelve hours after you clock on, and you cannot
 work more than twelve hours in any rolling twenty-four, however you split them.
@@ -1792,7 +1802,7 @@ Render setting at all.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `MAX_JOBS_PER_ASSOCIATE` | 1 | How many orders one associate may carry. 0 = no limit |
+| `MAX_JOBS_PER_ASSOCIATE` | 3 | How many jobs one associate may hold. 1 = the strict rule, 0 = no limit |
 | `ASSOCIATE_DUTY_HOURS` | 12 | A shift lapses this long after clocking on |
 | `ASSOCIATE_MAX_HOURS_PER_DAY` | 12 | The rolling 24-hour cap. 0 = off |
 | `ASSOCIATE_RADIUS_MILES` | 0 | Only offer jobs within this far. 0 = everybody |

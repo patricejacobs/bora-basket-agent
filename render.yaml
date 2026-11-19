@@ -135,10 +135,6 @@ services:
       # pickup. 0 = off. Nobody whose position is unknown is ever excluded.
       - key: ASSOCIATE_RADIUS_MILES
         value: "0"
-      # Cap on deliveries one associate may hold. 0 = no cap, which is right
-      # while several orders from one kitchen are collected in a single trip.
-      - key: MAX_JOBS_PER_ASSOCIATE
-        value: "0"
       # How long a clock-in lasts before it lapses on its own. Somebody will
       # forget to clock off, and the shop trades around the clock - a forgotten
       # shift means job cards at three in the morning.
@@ -163,13 +159,21 @@ services:
       # BACKUP_TO defaults to the first STAFF_NUMBERS entry.
       - key: BACKUP_SEND_HOURS
         value: "24"
-      # One delivery at a time. An associate cannot uplift anything new while
-      # an order is still undelivered, so the shop always knows exactly what
-      # each of them is holding. The price: two orders from one kitchen are a
-      # single trip and the second is refused. Raise to 2 if that is worth
-      # more; 0 switches the limit off.
+      # How many jobs one associate may hold at once. Three, so a car booked
+      # while they are mid-delivery still reaches them: a busy associate is
+      # offered nothing, and with a cap of one a passenger waited in the road
+      # until a bag of groceries got to a door.
+      #
+      # The price of raising it, stated plainly: the shop no longer knows that
+      # each associate is holding exactly one thing. Three open jobs is three
+      # chances to arrive cold. 1 is the strict rule, 0 switches the cap off.
+      #
+      # This file is the blueprint, not the running service. A value changed
+      # here reaches the shop only if Render is syncing the blueprint —
+      # otherwise it is the dashboard's copy that counts, and both should be
+      # set to the same thing. /health reports the figure in force.
       - key: MAX_JOBS_PER_ASSOCIATE
-        value: "1"
+        value: "3"
       - key: STALL_ALERT_MINUTES
         value: "15"
       - key: STALL_PENDING_MINUTES

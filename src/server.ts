@@ -334,6 +334,12 @@ app.get('/health', (_req: Request, res: Response) => {
       associatesOnDuty: onDutyCount(),
       // The duty limits in force now, and the override if one is.
       dutyHours: dutyLimits(),
+      // How many jobs one associate may hold. A busy associate is offered
+      // nothing, so this figure decides how long a taxi or a second order
+      // waits for somebody. 0 means no cap. Reported because it is set in two
+      // places — the blueprint and the dashboard — and this is the one that
+      // is actually running.
+      maxJobsPerAssociate: config.maxJobsPerAssociate,
       databasePath: config.databasePath,
     },
     webhooks: webhookStats,

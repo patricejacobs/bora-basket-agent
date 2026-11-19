@@ -8883,6 +8883,28 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('The blueprint says each setting once');
+{
+  // MAX_JOBS_PER_ASSOCIATE was declared twice in render.yaml, as 0 and then
+  // as 1, with a paragraph of reasoning above each. Nothing read both: one of
+  // them quietly won, and which one was a matter of how the file was parsed.
+  // A setting written down twice is a setting nobody can be sure of, and the
+  // next person to change the cap would have edited whichever they found
+  // first and watched nothing happen.
+  const blueprint = fs.readFileSync('render.yaml', 'utf8');
+  const keys = [...blueprint.matchAll(/^\s*- key: ([A-Z0-9_]+)/gm)].map((m) => m[1]!);
+  const twice = [...new Set(keys.filter((k, i) => keys.indexOf(k) !== i))];
+  check('there are settings in the blueprint to check', keys.length > 20, String(keys.length));
+  check('and none of them is declared twice', twice.length === 0, twice.join(', '));
+
+  // The figure the shop actually runs on is reported, so a blueprint and a
+  // dashboard that disagree can be told apart without guessing.
+  check(
+    'the cap in force is reported on /health',
+    /maxJobsPerAssociate: config\.maxJobsPerAssociate/.test(fs.readFileSync('src/server.ts', 'utf8')),
+  );
+}
+
 section('What a dead order leaves on the shelf');
 {
   const { executeTool } = await import('./agent/tools.ts');
