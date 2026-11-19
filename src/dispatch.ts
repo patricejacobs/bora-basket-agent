@@ -956,7 +956,11 @@ export function onTheWayCard(
    */
   warnAboutPin = true,
 ): string {
-  const head = `🛵 *${order.orderNo}* on the way`;
+  // A taxi is a car with somebody in it, not a scooter with a bag on it.
+  const head =
+    order.kind === 'taxi'
+      ? `🚕 *${order.orderNo}* — passenger onboard`
+      : `🛵 *${order.orderNo}* on the way`;
   // No pin: the one fact worth repeating here, because it is the difference
   // between navigating and telephoning.
   const noPin =

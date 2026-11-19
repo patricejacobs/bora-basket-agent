@@ -2820,6 +2820,28 @@ section('A car, and no fare anywhere');
   check('and the associate is offered Uplifted once it is theirs',
     nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true }).some((a) => a.title === 'Uplifted'));
 
+  /* --- a taxi's own words for the same two moves ---------------------- */
+
+  const { statusLabel } = await import('./order-status.ts');
+  check('a passenger is onboard, not uplifted', statusLabel('on_the_way', 'taxi') === 'passenger onboard');
+  check('and arrives, not delivered', statusLabel('delivered', 'taxi') === 'passenger arrived');
+  // The same machine underneath: only the word a person reads changes.
+  check('while a delivery keeps its own words',
+    statusLabel('delivered', 'grocery') === 'delivered' && statusLabel('on_the_way') === 'on the way');
+
+  const taxiButtons = nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true, canWait: true });
+  check('the tap says Passenger onboard', taxiButtons.some((b) => b.title === 'Passenger onboard'),
+    JSON.stringify(taxiButtons));
+  const endButtons = nextActions(accepted.orderNo, 'on_the_way', 'driver', { canWait: true });
+  check('and the last one says Passenger arrived', endButtons.some((b) => b.title === 'Passenger arrived'),
+    JSON.stringify(endButtons));
+  // A delivery is untouched by either.
+  const foodButtons = nextActions('ORD-00001', 'on_the_way', 'driver', {});
+  check('a delivery still says Delivered', foodButtons.some((b) => b.title === 'Delivered'),
+    JSON.stringify(foodButtons));
+  check('and WhatsApp will accept both titles',
+    [...taxiButtons, ...endButtons].every((b) => b.title.length <= 20));
+
   /* --- the safety code, which runs the other way --------------------- */
 
   // A delivery code proves the person at the door ordered the food, so the
@@ -2877,6 +2899,23 @@ section('A car, and no fare anywhere');
   check('no receipt is produced for a ride nobody priced', receiptLines(done, 'en').length === 0);
   check('so no total is quoted at the end either', !atTheKerb.includes('$') && !/Total/i.test(atTheKerb), atTheKerb);
   check('and the goodbye is not the parcel one', !signOffFor(done).includes('📦'), signOffFor(done));
+
+  // "Arrived" ends a trip, and ONLY a trip. A delivery associate typing it
+  // means they have reached the kitchen, and reading that as a completed
+  // delivery would close an order whose food is still on a counter.
+  {
+    const { handleDriverMessage } = await import('./staff.ts');
+    const food = repo.allOrders().find((o) => o.kind !== 'taxi' && o.status === 'on_the_way');
+    if (food) {
+      const said = (await handleDriverMessage(
+        `${Number(food.orderNo.replace(/\D/g, ''))} arrived`,
+        food.driverPhone || '5926001111',
+      ))[0]?.text ?? '';
+      check('a delivery is not closed by the word "arrived"',
+        repo.findOrder(food.orderNo)?.status === 'on_the_way', `${food.orderNo} ${repo.findOrder(food.orderNo)?.status}`);
+      void said;
+    }
+  }
 
   /* --- a passenger who is not there ----------------------------------- */
 

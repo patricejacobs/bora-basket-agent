@@ -12,6 +12,7 @@ import { notifyCustomerOfStatus, warnStaff } from './notifications.ts';
 import { sendLocationRequest, sendText } from './channels/whatsapp-send.ts';
 import {
   STATUS_LABEL,
+  statusLabel,
   STATUS_WORDS,
   cancelButtons,
   findCancelReason,
@@ -381,14 +382,17 @@ async function applyStatus(
   if (reportedBy === 'outlet') {
     const problems = kitchenNotes;
     return {
-      body: [`*${order.orderNo}* ${STATUS_LABEL[status]}.`, ...problems].join(
+      body: [`*${order.orderNo}* ${statusLabel(status, order.kind)}.`, ...problems].join(
         String.fromCharCode(10),
       ),
       status,
     };
   }
 
-  return { body: `${order.orderNo} → *${STATUS_LABEL[status]}*.\n${notes.join('\n')}`, status };
+  return {
+    body: `${order.orderNo} → *${statusLabel(status, order.kind)}*.\n${notes.join('\n')}`,
+    status,
+  };
 }
 
 /**
@@ -1236,7 +1240,9 @@ const DRIVER_HELP = [
   '',
   '`jobs` — uplifts waiting',
   '`7 uplifted` — you have the food',
+  '`7 onboard` — a taxi: the passenger is in the car',
   '`7 delivered` — dropped off, cash taken',
+  '`7 arrived` — a taxi: the passenger is where they were going',
   '',
   '`cash` — what you are holding this shift',
   '`7 transfer` — hand order 7 to another associate',
@@ -1937,9 +1943,17 @@ export async function handleDriverMessage(
   }
 
   const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
-  if (!matched) return reply(describeForDriver(order));
 
-  const status = matched[1];
+  // "Arrived" is the taxi's word for the end of the trip, and ONLY the
+  // taxi's. A delivery associate who types "7 arrived" means they have
+  // reached the kitchen, and reading that as a completed delivery would
+  // close an order whose food is still on a counter.
+  const taxiArrived =
+    order.kind === 'taxi' && !matched && /\b(arrived|arrive|here)\b/i.test(trimmed);
+
+  if (!matched && !taxiArrived) return reply(describeForDriver(order));
+
+  const status = taxiArrived ? ('delivered' as const) : matched![1];
 
   // What an associate may do, which is more for a parcel than for food.
   //

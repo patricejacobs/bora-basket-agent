@@ -1367,11 +1367,21 @@ are going until they get there.
 
 | Step | Who | What the passenger is told |
 |---|---|---|
-| Booked | The agent, on the customer's yes | The job number, and that a car is being found |
+| Booked | The agent, once the fare is agreed | The job number, and that a car is being found |
 | Accepted | **An associate**, tapping Accept | *A driver is on the way to collect you*, with the safety code |
-| Uplifted | The associate, when the passenger is in the car | *You are on your way* |
-| Dropped off | The associate, tapping Delivered | *Trip complete — you have arrived* |
+| **Passenger onboard** | The associate, when they are in the car | *You are on your way*, with the fare |
+| **Passenger arrived** | The associate, at the destination | *Trip complete — you have arrived* |
 | Nobody there | The associate, at the pickup | *The driver could not find you* |
+
+**A taxi uses its own words.** The buttons read **Passenger onboard** and
+**Passenger arrived**, never *Uplifted* and *Delivered* — one is what you do
+to a parcel and the other is what happens to one. Typed, `onboard`, `aboard`
+and `arrived` all work, and the status underneath is the same `on_the_way`
+and `delivered` every other job uses, so nothing downstream has to know.
+
+**`arrived` is a taxi word only.** A delivery associate typing it means they
+have reached the kitchen, and reading that as a completed delivery would
+close an order whose food is still on the counter.
 
 ### The safety code
 

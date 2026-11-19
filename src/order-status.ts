@@ -7,6 +7,24 @@ import { config } from './config.ts';
  */
 import type { OrderStatus } from './db/repo.ts';
 
+/**
+ * What a taxi's statuses are called, where a delivery's words do not fit.
+ *
+ * The same machine underneath: a passenger getting into a car is the same
+ * transition as food leaving a counter, and the status is `on_the_way` for
+ * both. Only the word a person reads changes, because "uplifted" is what you
+ * do to a parcel and "delivered" is what happens to one.
+ */
+export const TAXI_LABEL: Partial<Record<OrderStatus, string>> = {
+  on_the_way: 'passenger onboard',
+  delivered: 'passenger arrived',
+};
+
+/** The label for an order, in the words its own kind uses. */
+export function statusLabel(status: OrderStatus, kind = ''): string {
+  return (kind === 'taxi' ? TAXI_LABEL[status] : undefined) ?? STATUS_LABEL[status];
+}
+
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'new, not yet confirmed',
   confirmed: 'confirmed',
@@ -219,7 +237,10 @@ export const STATUS_WORDS: [RegExp, OrderStatus][] = [
   // "collected" and "picked up" mean a delivery associate has the food and is moving, which
   // is the same state as on the way for everyone downstream.
   [
-    /\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone|uplift(ed)?|collected|picked\s*up)\b/i,
+    // "onboard" and "aboard" are the taxi's words for the same move: the
+    // passenger is in the car. A driver taps a button marked that, so the
+    // command behind it has to be a word the parser knows.
+    /\b(on\s*the\s*way|otw|out\s*for\s*delivery|dispatched|sending|gone|uplift(ed)?|collected|picked\s*up|on\s*board|onboard|aboard)\b/i,
     'on_the_way',
   ],
   [/\b(delivered|done|complete[d]?|dropped)\b/i, 'delivered'],
@@ -429,8 +450,16 @@ export function nextActions(
   // happened and nothing else: only the person carrying it can say it is on
   // its way.
   const uplifted = act(`otw_${n}`, 'Uplifted', `${n} on the way`);
+  // A taxi carries a person, and "uplifted" is what you do to a parcel. The
+  // id and the command are the same move - the status machine does not care
+  // what the cargo is - but the word a driver reads should match what they
+  // just did, which is let somebody into the car.
+  const onboard = act(`otw_${n}`, 'Passenger onboard', `${n} onboard`);
   const handedOver = act(`handover_${n}`, 'Uplifted', `${n} handover`);
   const delivered = act(`delivered_${n}`, 'Delivered', `${n} delivered`);
+  // A passenger is not delivered. The command behind it stays `delivered`,
+  // because that is the move; only the word on the button changes.
+  const arrived = act(`delivered_${n}`, 'Passenger arrived', `${n} delivered`);
   // A taxi stopping at the passenger's request, and moving off again. Two
   // taps rather than a number typed at the end of a trip nobody can now
   // remember the shape of.
@@ -472,7 +501,7 @@ export function nextActions(
       // same stage is still raw, and offering Uplifted there would send
       // somebody to stand over a fryer.
       case 'confirmed':
-        return opts.selfAccepted ? [uplifted] : [];
+        return opts.selfAccepted ? [opts.canWait ? onboard : uplifted] : [];
       case 'ready':
         return [uplifted];
       // No Delivered button once a code is expected: typing the customer's four
@@ -490,7 +519,7 @@ export function nextActions(
         // a way to end the trip without closing the clock.
         if (opts.waitingOpen) return [moving];
         if (opts.codeExpected) return [];
-        return opts.canWait ? [waiting, delivered] : [delivered];
+        return opts.canWait ? [waiting, arrived] : [delivered];
       }
       default:
         return [];

@@ -107,7 +107,7 @@ console.log('');
 console.log(`  both of them are holding code ${repo.safetyCodeFor(job.orderNo)}`);
 
 rule('5. She is in the car');
-await show('Rider One', `${n} uplifted`);
+await show('Rider One', `${n} onboard`);
 gets('Marcia', customerStatusMessage(live(), 'on_the_way'));
 
 rule('6. She asks him to stop at the pharmacy');
@@ -128,7 +128,7 @@ db.prepare(`UPDATE orders SET waiting_since = ? WHERE order_no = ?`).run(
 await show('Rider One', `${n} moving`);
 
 rule('8. Dropped off');
-await show('Rider One', `${n} delivered`);
+await show('Rider One', `${n} arrived`);
 gets('Marcia', customerStatusMessage(live(), 'delivered'));
 
 rule('9. Where it ended up');
