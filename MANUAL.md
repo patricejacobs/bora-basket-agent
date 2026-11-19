@@ -37,6 +37,7 @@ runs it through to the door. There are four services:
 |---|---|
 | **Grocery** | Shopping from a grocery shop |
 | **Restaurant** | Food from a partner kitchen |
+| **Taxi** | A car for people, arranged by a person — the shop does not drive these |
 | **Parcel** | Collect something from one address, take it to another |
 | **Other** | Anything else — handed to a person |
 
@@ -283,6 +284,37 @@ has accepted is to leave the button off until then.
 English, Spanish, Portuguese and Chinese, chosen from how they write and kept
 for the whole order — including the menu. **Staff, associates and kitchens
 always work in English.**
+
+### Taxi
+
+First on the menu, and the one service the shop does not perform itself — it
+arranges it. There is no catalogue, no cart and no delivery associate.
+
+```
+*1.* Taxi
+*2.* Grocery shopping
+*3.* Restaurant ordering
+*4.* Parcel delivery
+*5.* Other
+```
+
+> A car it is. 🚕 Where are we collecting you from, where are you going, and
+> when? Tell me how many of you as well, and I will have somebody arrange it.
+
+Four things in as few messages as possible — **from, to, when, how many** —
+read back, then handed to a person with `request_staff_help`.
+
+**No fare is ever quoted, and no car or time is promised.** The shop does not
+know what is free, and a price nobody agreed to is an argument on a kerb.
+
+**"Car" is matched as a whole word.** This shop sells carrots, and without
+that a shopping list would be answered with a taxi. "Pick up" and "drop off"
+stay with parcels, where a customer saying *"pick up something from the shop"*
+means one every time.
+
+**This needs `STAFF_NUMBERS` to reach anyone.** Without it the request is
+written down and the customer is told so, honestly, rather than being told a
+car is coming.
 
 ### Who the customer is talking to
 

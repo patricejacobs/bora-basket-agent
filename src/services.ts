@@ -18,7 +18,7 @@ import type { Outlet } from './db/repo.ts';
 import { hoursStatus } from './hours.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
-export const SERVICES = ['grocery', 'restaurant', 'parcel', 'other'] as const;
+export const SERVICES = ['taxi', 'grocery', 'restaurant', 'parcel', 'other'] as const;
 export type Service = (typeof SERVICES)[number];
 
 type Definition = {
@@ -33,27 +33,40 @@ type Definition = {
 };
 
 export const SERVICE_MENU: Record<Service, Definition> = {
-  grocery: {
+  taxi: {
     number: 1,
+    labelKey: 'service_taxi',
+    // Word boundaries matter more here than anywhere else in this list: this
+    // shop sells carrots, and "car" sits inside the word. Without them a
+    // customer typing a shopping list would be offered a ride.
+    //
+    // "Drop" and "pick up" are deliberately absent: they belong to a parcel,
+    // and a customer saying "pick up something from the shop" means a parcel
+    // every time. A taxi is asked for by naming the car or the ride.
+    spoken: /\b(taxi|cab|car|ride|hire\s*car|carry\s*me|take\s*me)\b/i,
+    openingKey: 'opening_taxi',
+  },
+  grocery: {
+    number: 2,
     labelKey: 'service_grocery',
     spoken: /\b(grocer(y|ies)|shopping|shop|market|food\s*shop|supermarket|provisions?)\b/i,
     openingKey: 'opening_grocery',
   },
   restaurant: {
-    number: 2,
+    number: 3,
     labelKey: 'service_restaurant',
     spoken: /\b(restaurant|takeaway|take\s*out|fast\s*food|cooked|hot\s*food|lunch|dinner|meal|eat)\b/i,
     // Unused: serviceOpening renders the live kitchen list for this one.
     openingKey: 'opening_restaurant',
   },
   parcel: {
-    number: 3,
+    number: 4,
     labelKey: 'service_parcel',
     spoken: /\b(parcel|package|courier|delivery\s*only|send\s*(something|a\s*thing)|drop\s*off|pick\s*up\s*something)\b/i,
     openingKey: 'opening_parcel',
   },
   other: {
-    number: 4,
+    number: 5,
     labelKey: 'service_other',
     spoken: /\b(other|something\s*else|help|complain|complaint|speak\s*to|talk\s*to|manager|staff|problem)\b/i,
     openingKey: 'opening_other',
@@ -246,6 +259,8 @@ export function serviceMenuReply(phone: string): OutboundMessage[] {
 /** How the chosen service is described to the agent. */
 export function serviceContextLine(service: Service): string {
   const lines: Record<Service, string> = {
+    taxi:
+      'Service chosen: *taxi*. No catalogue, no cart, no delivery associate — the shop does not drive these itself, it arranges them. Take four things in as few messages as you can: where they are being collected from, where they are going, when, and how many people. Read them back, then call request_staff_help with all four so a person arranges the car. Never quote a fare, never promise a time or a car: you do not know what is free, and a price nobody agreed to is an argument on a kerb. If they ask for groceries, food or a parcel instead, call switch_service.',
     grocery:
       "Service chosen: *grocery shopping* from the shop's own catalogue. Do not offer restaurant menus or parcel delivery unasked — but if they ask for one, switch_service takes them there in the same breath.",
     restaurant:

@@ -2393,11 +2393,24 @@ section('Service menu');
   check('greets a returning customer by name', returning.includes('Anita'), returning.split('\n')[0]);
   check('and still shows the menu', returning.includes('*3.*'));
 
-  check('reads a bare number', parseServiceChoice('1') === 'grocery');
-  check('reads every number', parseServiceChoice('2') === 'restaurant' && parseServiceChoice('3') === 'parcel' && parseServiceChoice('4') === 'other');
-  check('reads a number with punctuation', parseServiceChoice('3.') === 'parcel' && parseServiceChoice('(2)') === 'restaurant');
-  check('reads "option 4"', parseServiceChoice('option 4') === 'other');
+  check('reads a bare number', parseServiceChoice('1') === 'taxi');
+  check(
+    'reads every number',
+    parseServiceChoice('2') === 'grocery' &&
+      parseServiceChoice('3') === 'restaurant' &&
+      parseServiceChoice('4') === 'parcel' &&
+      parseServiceChoice('5') === 'other',
+  );
+  check('reads a number with punctuation', parseServiceChoice('4.') === 'parcel' && parseServiceChoice('(3)') === 'restaurant');
+  check('reads "option 5"', parseServiceChoice('option 5') === 'other');
   check('ignores a number out of range', parseServiceChoice('7') === null);
+
+  // A car is asked for by naming the ride. "Pick up" and "drop off" are
+  // deliberately not taxi words: a customer saying "pick up something from
+  // the shop" means a parcel every time.
+  check('reads taxi in words', parseServiceChoice('taxi') === 'taxi' && parseServiceChoice('I need a car') === 'taxi');
+  // This shop sells carrots, and "car" sits inside the word.
+  check('a shopping list is not a ride', parseServiceChoice('carrots') === null && parseServiceChoice('2 kg carrots') === null);
 
   // Someone who answers in words has answered the question.
   check('reads the service in words', parseServiceChoice('groceries') === 'grocery');
@@ -2427,13 +2440,20 @@ section('Service routing');
   const nudge = await send('I want 2kg rice');
   check('an unchosen service re-shows the menu', /\*1\.\*/.test(nudge[0] ?? ''), nudge[0]?.slice(0, 40));
 
-  const picked = await send('1');
-  check('a number selects the service', repo.getService(phone) === 'grocery');
+  const picked = await send('2');
+  check('a number selects the service', repo.getService(phone) === 'grocery', String(repo.getService(phone)));
   check('and opens that service', /groceries/i.test(picked[0] ?? ''), picked[0]);
+
+  // And one is a car, which is the whole point of putting it first.
+  await send('menu');
+  const ride = await send('1');
+  check('one is a taxi', repo.getService(phone) === 'taxi', String(repo.getService(phone)));
+  check('and it says what it needs', /where are we collecting you/i.test(ride[0] ?? ''), ride[0]?.slice(0, 90));
+  await send('menu');
 
   const back = await send('menu');
   check('"menu" clears the service', repo.getService(phone) === null, String(repo.getService(phone)));
-  check('and shows the menu again', /\*4\.\*/.test(back[0] ?? ''));
+  check('and shows the menu again', /\*5\.\*/.test(back[0] ?? ''));
 
   // A pin before choosing must not be filed anywhere.
   const pinFirst = await send('', { location: { latitude: 6.8, longitude: -58.1 } });

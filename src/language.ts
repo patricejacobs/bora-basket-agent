@@ -117,6 +117,7 @@ const STRINGS: Record<Language, Dictionary> = {
     how_can_we_help: 'What can we help you with today?',
     reply_with_number: 'Just reply with the number.',
 
+    service_taxi: 'Taxi',
     service_grocery: 'Grocery shopping',
     service_restaurant: 'Restaurant ordering',
     service_parcel: 'Parcel delivery',
@@ -174,6 +175,8 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_customer: 'you asked us to cancel it',
     reason_undeliverable: 'we could not get to the address',
 
+    opening_taxi:
+      'A car it is. 🚕 Where are we collecting you from, where are you going, and when? Tell me how many of you as well, and I will have somebody arrange it.',
     opening_grocery:
       'Groceries it is. Tell me what you need — type a list, send a photo of one, or just say it.',
     opening_parcel:
@@ -223,6 +226,7 @@ const STRINGS: Record<Language, Dictionary> = {
     how_can_we_help: '¿En qué podemos ayudarle hoy?',
     reply_with_number: 'Responda con el número.',
 
+    service_taxi: 'Taxi',
     service_grocery: 'Compra de supermercado',
     service_restaurant: 'Pedido de restaurante',
     service_parcel: 'Envío de paquetes',
@@ -269,6 +273,8 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_customer: 'usted nos pidió cancelarlo',
     reason_undeliverable: 'no pudimos llegar a la dirección',
 
+    opening_taxi:
+      'Un coche. 🚕 ¿De dónde le recogemos, a dónde va y a qué hora? Dígame también cuántas personas son y haré que alguien lo organice.',
     opening_grocery:
       'Supermercado entonces. Dígame qué necesita — escriba una lista, envíe una foto, o simplemente dígamelo.',
     opening_parcel:
@@ -313,6 +319,7 @@ const STRINGS: Record<Language, Dictionary> = {
     how_can_we_help: 'Em que podemos ajudar hoje?',
     reply_with_number: 'Responda com o número.',
 
+    service_taxi: 'Táxi',
     service_grocery: 'Compras de supermercado',
     service_restaurant: 'Pedido de restaurante',
     service_parcel: 'Entrega de encomendas',
@@ -359,6 +366,8 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_customer: 'você pediu para cancelar',
     reason_undeliverable: 'não conseguimos chegar ao endereço',
 
+    opening_taxi:
+      'Um carro. 🚕 De onde o buscamos, para onde vai e a que horas? Diga-me também quantas pessoas são e peço a alguém para tratar disso.',
     opening_grocery:
       'Compras, então. Diga-me o que precisa — escreva uma lista, envie uma foto, ou diga por voz.',
     opening_parcel:
@@ -403,6 +412,7 @@ const STRINGS: Record<Language, Dictionary> = {
     how_can_we_help: '今天需要什么服务？',
     reply_with_number: '请回复数字。',
 
+    service_taxi: '出租车',
     service_grocery: '超市代购',
     service_restaurant: '餐厅订餐',
     service_parcel: '包裹递送',
@@ -447,6 +457,8 @@ const STRINGS: Record<Language, Dictionary> = {
     reason_customer: '您要求取消',
     reason_undeliverable: '我们无法到达该地址',
 
+    opening_taxi:
+      '好的，出租车。🚕 请问在哪里接您、去哪里、什么时间？也请告知几位乘客，我会请同事安排。',
     opening_grocery:
       '好的，超市代购。请告诉我您需要什么——可以打字列清单、发照片，或者直接说。',
     opening_parcel:
