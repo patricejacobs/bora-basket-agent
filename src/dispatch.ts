@@ -26,6 +26,16 @@ import {
   saysTheSamePlace,
 } from './location.ts';
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
+import { jobStartsAt, stagePool, standings, describeStage, type Stage } from './nearby.ts';
+
+/** A pause the widening can be driven with, and the tests can shorten. */
+const wait = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    // Node waits for pending timers before it exits. A dispatch widening is
+    // not a reason to hold a script open, and the suite would hang on it.
+    timer.unref?.();
+  });
 
 /**
  * The associates near enough to a pickup to be worth telling.
@@ -176,6 +186,107 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
  * on the uplift card once it is theirs. Everything shown here is something
  * that bears on the decision: how far, how much, and what it is.
  */
+/**
+ * Offers a job outward in rings, nearest first, widening on a timer.
+ *
+ * The one entry point for new work. It sends the first ring itself and
+ * returns what happened to it; the widening runs on its own afterwards, so
+ * the customer's "I am finding you a car" is not held up for thirty-five
+ * seconds waiting to find out.
+ *
+ * Every stage re-reads the order. The commonest outcome by far is that
+ * somebody accepted during the wait, and then there is nothing to widen —
+ * a second card for a job that is already taken is how two associates end up
+ * driving to one pickup.
+ *
+ * Nothing here can strand a job. If the narrow rings are empty the next one
+ * runs immediately, and the last ring is everybody.
+ */
+export async function offerNearestFirst(orderNo: string): Promise<Dispatch> {
+  const order = repo.findOrder(orderNo);
+  if (!order) return 'no_drivers';
+
+  const send = (no: string, who: string): Promise<Dispatch> =>
+    order.kind === 'parcel' || order.kind === 'taxi'
+      ? offerParcel(no, who)
+      : dispatchToDrivers(no, who);
+
+  const { bandMinutes, bandWaitSeconds, corridorMinutes, corridorWaitSeconds } = config.dispatch;
+  const start = jobStartsAt(order);
+  const told = new Set<string>();
+
+  // One ring: everybody in it who has not already been told. Returns what to
+  // say about it, and whether anybody at all was reached.
+  const ring = async (stage: Stage): Promise<Dispatch> => {
+    const live = repo.findOrder(orderNo);
+    if (!live || live.status !== 'pending' && live.status !== 'ready') return 'sent';
+    if (live.driverPhone) return 'sent';
+
+    const pool = stagePool(start, standings(repo.associateNumbers()), stage, {
+      bandMinutes,
+      corridorMinutes,
+    }).filter((phone) => !told.has(phone));
+
+    if (pool.length === 0) return 'all_busy';
+
+    let reached: Dispatch = 'all_busy';
+    for (const phone of pool) {
+      told.add(phone);
+      const how = await send(orderNo, phone);
+      if (how === 'sent') reached = 'sent';
+      else if (how === 'no_drivers' && reached !== 'sent') reached = 'no_drivers';
+    }
+    console.log(
+      `[dispatch] ${orderNo} offered to ${describeStage(stage, start)} — ${pool.length} associate(s), ${reached}`,
+    );
+    return reached;
+  };
+
+  const stages: Stage[] = ['band', 'corridor', 'everyone'];
+  // The wait that comes BEFORE each stage: none before the first, then the
+  // band's wait, then the corridor's.
+  const waits = [0, bandWaitSeconds, corridorWaitSeconds];
+
+  // Rings that reach nobody are not waited on. A wait exists to give the
+  // people holding the card time to tap it, and an empty band has nobody
+  // holding anything — so it falls straight through to the next ring. This
+  // is also what keeps the answer honest: a kitchen marking food ready is
+  // told "dispatched" or "waiting" based on what has actually happened by
+  // the time it is told, not on what a timer will do half a minute later.
+  let outcome: Dispatch = 'all_busy';
+  let next = 0;
+  for (; next < stages.length; next += 1) {
+    outcome = await ring(stages[next]!);
+    if (outcome === 'sent') {
+      next += 1;
+      break;
+    }
+  }
+
+  // Whatever is left widens on its own. `void` rather than awaited: this is
+  // called from the tool that books a job and from a kitchen marking food
+  // ready, and neither should sit for half a minute.
+  if (next < stages.length) {
+    void (async () => {
+      try {
+        for (let i = next; i < stages.length; i += 1) {
+          if (waits[i]! > 0) await wait(waits[i]! * 1000);
+          const how = await ring(stages[i]!);
+          // Somebody took it, or somebody new is now looking at it. Either
+          // way the rings after this one still run: the card is not taken
+          // away from anyone, and the order being accepted is checked at the
+          // top of every ring.
+          void how;
+        }
+      } catch (err) {
+        console.error(`[dispatch] widening ${orderNo} failed:`, err);
+      }
+    })();
+  }
+
+  return outcome;
+}
+
 export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch> {
   const order = repo.findOrder(orderNo);
   // Parcels and taxis both. Neither is cooked, so neither waits for a kitchen

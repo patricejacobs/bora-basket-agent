@@ -2498,6 +2498,31 @@ export function clearParcelDraft(phone: string): void {
 }
 
 /** Records which delivery associate an order went to, so a second alert cannot send two. */
+/**
+ * The last job this associate actually finished, if any.
+ *
+ * Where somebody ended up, rather than where their phone last said they were.
+ * A drop-off is a fact with a time on it: they were at that address, and the
+ * order says when. A shared pin is a courtesy that goes stale silently.
+ *
+ * Either end of a parcel counts - whoever uplifted it may not be whoever
+ * delivered it, and both of them were there.
+ */
+export function lastDelivered(phone: string): OrderRecord | null {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return null;
+  const row = db
+    .prepare(
+      `SELECT * FROM orders
+        WHERE status = 'delivered'
+          AND delivered_at <> ''
+          AND (driver_phone = ? OR uplifted_by = ?)
+        ORDER BY delivered_at DESC LIMIT 1`,
+    )
+    .get(digits, digits) as Parameters<typeof hydrateOrder>[0] | undefined;
+  return row ? hydrateOrder(row) : null;
+}
+
 /* ---------------------------------------------------------------- ratings */
 
 export type Rating = {

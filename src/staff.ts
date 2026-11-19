@@ -25,6 +25,7 @@ import {
 } from './order-status.ts';
 import {
   dispatchToDrivers,
+  offerNearestFirst,
   dropLines,
   tellTransferred,
   withoutPhone,
@@ -260,7 +261,7 @@ async function applyStatus(
   const dispatchNow = status === 'ready';
   if (dispatchNow) {
     try {
-      const how = await dispatchToDrivers(order.orderNo);
+      const how = await offerNearestFirst(order.orderNo);
       notes.push(
         how === 'sent'
           ? '🛵 Delivery associate dispatched to uplift.'

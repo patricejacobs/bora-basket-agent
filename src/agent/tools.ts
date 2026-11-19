@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
-import { announceNewOrder, offerParcel, tellKitchenCancelled } from '../dispatch.ts';
+import { announceNewOrder, offerNearestFirst, tellKitchenCancelled } from '../dispatch.ts';
 import { notifyStaffOfRequest } from '../notifications.ts';
 import { quoteParcel, flatParcelQuote, checkContents } from '../parcels.ts';
 import { productImageUrl } from '../product-images.ts';
@@ -2078,7 +2078,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       void announceNewOrder(job.orderNo).catch((err) =>
         console.error('[tools] taxi announcement failed:', err),
       );
-      void offerParcel(job.orderNo).catch((err) =>
+      void offerNearestFirst(job.orderNo).catch((err) =>
         console.error('[tools] could not offer the taxi:', err),
       );
 
@@ -2336,7 +2336,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // a confirmation step a parcel has nobody to perform. There is no
       // kitchen here: the contents were checked, the distance was checked and
       // the fee is set, so the job is ready by the time it exists.
-      void offerParcel(job.orderNo).catch((err) =>
+      void offerNearestFirst(job.orderNo).catch((err) =>
         console.error('[tools] could not offer the parcel:', err),
       );
 

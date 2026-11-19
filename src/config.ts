@@ -289,6 +289,27 @@ export const config = {
   associateLocationTtlMinutes: Math.max(5, num('ASSOCIATE_LOCATION_TTL_MINUTES', 180)),
 
   /**
+   * A job is offered outward in three rings, timed in seconds.
+   *
+   * First to whoever finished a delivery in the same band in the last few
+   * minutes - they are standing there now. Then, if nobody takes it, to the
+   * whole corridor, including the first group, who keep the card they already
+   * have. Then to everybody.
+   *
+   * The waits are short on purpose. Every second of a stage is a second a
+   * customer waits for a car nobody has accepted yet, and the cost of
+   * widening too early is only that a job somebody nearer might have taken
+   * goes to somebody further away. Set either wait to 0 to go straight out to
+   * everyone, which is how this behaved before.
+   */
+  dispatch: {
+    bandMinutes: Math.max(0, num('DISPATCH_BAND_MINUTES', 5)),
+    bandWaitSeconds: Math.max(0, num('DISPATCH_BAND_WAIT_SECONDS', 20)),
+    corridorMinutes: Math.max(0, num('DISPATCH_CORRIDOR_MINUTES', 10)),
+    corridorWaitSeconds: Math.max(0, num('DISPATCH_CORRIDOR_WAIT_SECONDS', 15)),
+  },
+
+  /**
    * How many deliveries one associate may hold at once. 0 means no limit.
    *
    * ONE by default, and 0 switches it off.

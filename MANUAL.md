@@ -129,6 +129,45 @@ rating.
 If the customer answers with something else entirely, the question is let go
 rather than left in the way.
 
+### Who gets offered a job
+
+**Nearest first, widening on a timer.** Nearest is not measured from a live
+pin — no associate is asked to share their location. It is measured from
+**where each of them last finished a delivery, and when**, which is a fact the
+order already records.
+
+| Ring | Who | Then |
+|---|---|---|
+| 1 | Finished in the **same band** within **5 minutes** | wait **20s** |
+| 2 | Finished anywhere on the **same corridor** within **10 minutes**, plus ring 1 | wait **15s** |
+| 3 | **Everybody** | — |
+
+A band is "East Bank near"; a corridor is the whole East Bank road. Neither
+needs a pin at either end, which matters because most addresses here arrive as
+words.
+
+**Nobody loses a card when the offer widens.** Each ring adds people; the
+first to accept takes the job and the rest are told it has gone.
+
+**An empty ring is not waited on.** If nobody finished in that band, there is
+no response to wait for, so it falls straight through to the next — which is
+also why a kitchen marking food ready is told *dispatched* or *waiting* based
+on what has actually happened, not on what a timer will do later.
+
+**A job whose pickup the tariff cannot place goes straight to everybody.**
+Everyone is equally near an address nobody recognises. An associate who has
+finished nothing is not penalised either: they are simply not in the narrow
+rings, and ring 3 is everybody.
+
+Set any wait to `0` to switch the staging off.
+
+| Setting | Default | |
+|---|---|---|
+| `DISPATCH_BAND_MINUTES` | 5 | How fresh a drop-off must be to count as "there now" |
+| `DISPATCH_BAND_WAIT_SECONDS` | 20 | Before the corridor is told |
+| `DISPATCH_CORRIDOR_MINUTES` | 10 | How fresh it must be to count as "on that road" |
+| `DISPATCH_CORRIDOR_WAIT_SECONDS` | 15 | Before everybody is told |
+
 ### Coverage
 
 `zones` answers two questions in one place, because neither is any use alone:
@@ -1926,7 +1965,11 @@ Render setting at all.
 | `MAX_JOBS_PER_ASSOCIATE` | 1 | How many jobs one associate may hold. 0 = no limit, which is what this shop runs |
 | `ASSOCIATE_DUTY_HOURS` | 12 | A shift lapses this long after clocking on |
 | `ASSOCIATE_MAX_HOURS_PER_DAY` | 12 | The rolling 24-hour cap. 0 = off |
-| `ASSOCIATE_RADIUS_MILES` | 0 | Only offer jobs within this far. 0 = everybody |
+| `ASSOCIATE_RADIUS_MILES` | 0 | Only offer jobs within this far of a shared pin. 0 = everybody |
+| `DISPATCH_BAND_MINUTES` | 5 | A drop-off this recent means they are in that band now |
+| `DISPATCH_BAND_WAIT_SECONDS` | 20 | Before the offer widens to the corridor |
+| `DISPATCH_CORRIDOR_MINUTES` | 10 | A drop-off this recent means they are on that road |
+| `DISPATCH_CORRIDOR_WAIT_SECONDS` | 15 | Before the offer widens to everybody |
 
 ### Codes, backups, alerts
 

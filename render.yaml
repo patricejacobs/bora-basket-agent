@@ -135,6 +135,19 @@ services:
       # pickup. 0 = off. Nobody whose position is unknown is ever excluded.
       - key: ASSOCIATE_RADIUS_MILES
         value: "0"
+      # A job is offered nearest first and widens on a timer. Nearest is read
+      # from where each associate last FINISHED a delivery, not from a shared
+      # pin: a drop-off is a fact with a time on it, and a pin goes stale in
+      # silence. Same band within 5 minutes, then the whole corridor within
+      # 10, then everybody. Either wait at 0 switches the staging off.
+      - key: DISPATCH_BAND_MINUTES
+        value: "5"
+      - key: DISPATCH_BAND_WAIT_SECONDS
+        value: "20"
+      - key: DISPATCH_CORRIDOR_MINUTES
+        value: "10"
+      - key: DISPATCH_CORRIDOR_WAIT_SECONDS
+        value: "15"
       # How long a clock-in lasts before it lapses on its own. Somebody will
       # forget to clock off, and the shop trades around the clock - a forgotten
       # shift means job cards at three in the morning.

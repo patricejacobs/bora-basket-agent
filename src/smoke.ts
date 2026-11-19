@@ -5002,13 +5002,23 @@ section('What a delivery costs, by where it goes');
 
   /* --- a shop with no tariff is untouched ----------------------------- */
 
+  // The file's own text, kept so the tariff can be put back exactly as it
+  // was. Rebuilding it from `zones()` looked equivalent and was not: a zone
+  // carries the corridor it is on, read from the file's section headings, and
+  // a round-trip through "place,zone,fee" drops it. Every section after this
+  // one then saw every band as its own corridor, which is wrong in a way that
+  // is invisible until something asks which road a place is on.
   const saved = (await import('./zones.ts')).zones();
+  const savedText = fs.readFileSync('data/delivery-zones.csv', 'utf8');
   loadZones('place,zone,fee\n');
   check('no tariff, no zone pricing', repo.calcDeliveryFee(1000, null, 'Diamond') === config.store.deliveryFee);
   const none = call({ text: 'Diamond' });
   check('and the tool says so plainly', none.priced === false && /flat/.test(String(none.note)), JSON.stringify(none));
-  loadZones(['place,zone,fee', ...saved.map((z) => `${z.place},${z.zone},${z.fee}`)].join(String.fromCharCode(10)));
+  loadZones(savedText);
   check('the tariff is back', zoneCount() === saved.length, `${zoneCount()} of ${saved.length}`);
+  check('and so are the corridors it was read with',
+    (await import('./zones.ts')).zones().some((z) => z.corridor !== z.zone),
+    JSON.stringify((await import('./zones.ts')).zones().slice(0, 2)));
 
   db.prepare(`DELETE FROM orders WHERE phone = ?`).run(buyer);
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(buyer);
@@ -8918,6 +8928,119 @@ section('The same as last time');
   db.prepare(`DELETE FROM orders WHERE phone = ?`).run(regular);
   db.prepare(`DELETE FROM products WHERE sku IN (?, ?)`).run(milk, rice);
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
+}
+
+section('Offered to whoever just finished nearby');
+{
+  const { placeOf, jobStartsAt, jobEndedAt, standings, stagePool, describeStage } =
+    await import('./nearby.ts');
+  const { offerNearestFirst } = await import('./dispatch.ts');
+
+  /* --- the two circles, read out of the tariff ------------------------- */
+
+  check('a place knows its band', placeOf('Lot 4 Diamond')?.zone === 'East Bank', JSON.stringify(placeOf('Diamond')));
+  check('and the road it is on', placeOf('Diamond')?.corridor === 'East Bank Demerara', placeOf('Diamond')?.corridor);
+  // The two that no amount of reading the band name would tell you.
+  check('the highway is the East Bank continuing', placeOf('Kuru Kururu')?.corridor === 'East Bank Demerara', placeOf('Kuru Kururu')?.corridor);
+  check('and Mahaicony is the East Coast', placeOf('Mahaicony')?.corridor === 'East Coast Demerara', placeOf('Mahaicony')?.corridor);
+  check('an address nobody recognises places nowhere', placeOf('somewhere up the road') === null);
+
+  /* --- where a job starts, and where one left somebody ----------------- */
+
+  const near = '5926500001';
+  const same = '5926500002';
+  const far = '5926500003';
+  const idle = '5926500004';
+  for (const [phone, name] of [[near, 'Near'], [same, 'Corridor'], [far, 'Town'], [idle, 'Idle']] as const) {
+    repo.upsertAssociate({ phone, name, vehicle: '', active: true });
+  }
+
+  const made: string[] = [];
+  const finished = (phone: string, place: string, minutesAgo: number) => {
+    const no = `ORD-96${String(made.length).padStart(3, '0')}`;
+    const at = new Date(Date.now() - minutesAgo * 60_000).toISOString();
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, delivery_zone, driver_phone, delivery_code, delivered_at,
+         subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, '5926100001','A Customer', ?, '5926100001','', 'grocery', ?, ?, '', ?,
+         100000, 50000, 150000, 'cash', 'delivered', ?)`,
+    ).run(no, `Lot 1 ${place}`, place, phone, at, at);
+    made.push(no);
+    return no;
+  };
+
+  finished(near, 'Diamond', 2);       // same band, just now
+  finished(same, 'Providence', 8);    // same corridor, a while back
+  finished(far, 'Kitty', 60);         // town, and stale
+
+  const ride = repo.createTaxiJob({
+    phone: '5926100009', passengerName: 'A Passenger', passengerPhone: '5926100009',
+    pickup: null, pickupAddress: 'Diamond, East Bank',
+    destination: null, destinationAddress: 'Kitty',
+    note: '', wantedAt: '', wantedNote: '',
+  });
+  made.push(ride.orderNo);
+  const start = jobStartsAt(repo.findOrder(ride.orderNo)!);
+  check('a taxi starts where it collects', start?.zone === 'East Bank', JSON.stringify(start));
+  // And not where it is going, which is the whole point: the nearest
+  // associate to the far end of a job is the wrong person to send.
+  check('not where it is going', start?.zone !== 'Georgetown');
+  check('a finished delivery left them at its destination',
+    jobEndedAt(repo.findOrder(made[0]!)!)?.zone === 'East Bank', JSON.stringify(jobEndedAt(repo.findOrder(made[0]!)!)));
+
+  /* --- the rings ------------------------------------------------------- */
+
+  const who = standings([near, same, far, idle]);
+  const limits = { bandMinutes: 5, corridorMinutes: 10 };
+  const band = stagePool(start ?? null, who, 'band', limits);
+  const corridor = stagePool(start ?? null, who, 'corridor', limits);
+  const all = stagePool(start ?? null, who, 'everyone', limits);
+
+  check('the first ring is whoever just finished in that band', band.length === 1 && band[0] === near, JSON.stringify(band));
+  check('the second takes in the whole corridor', corridor.includes(near) && corridor.includes(same), JSON.stringify(corridor));
+  check('and still excludes town', !corridor.includes(far), JSON.stringify(corridor));
+  check('the last ring is everybody', all.length === 4, JSON.stringify(all));
+  check('including whoever has finished nothing at all', all.includes(idle));
+
+  // Time is the whole of it. The same associate, standing in the same place,
+  // is in the first ring at two minutes and out of it at six.
+  const stale = standings([near], Date.now() + 6 * 60_000);
+  check('a drop-off goes stale', stagePool(start ?? null, stale, 'band', limits).length === 0,
+    JSON.stringify(stale.map((s) => Math.round(s.minutesAgo))));
+  check('but still counts for the wider ring at six minutes',
+    stagePool(start ?? null, stale, 'corridor', limits).length === 1);
+
+  /* --- nothing is ever stranded ---------------------------------------- */
+
+  // A pickup the tariff cannot place has no near and no far: everybody is
+  // equally close to an address nobody recognises.
+  const nowhere = repo.createTaxiJob({
+    phone: '5926100010', passengerName: 'B Passenger', passengerPhone: '5926100010',
+    pickup: null, pickupAddress: 'behind the blue gate',
+    destination: null, destinationAddress: 'Kitty',
+    note: '', wantedAt: '', wantedNote: '',
+  });
+  made.push(nowhere.orderNo);
+  const unplaced = jobStartsAt(repo.findOrder(nowhere.orderNo)!);
+  check('an unplaceable pickup has no rings', unplaced === null);
+  check('so the first ring is everybody', stagePool(unplaced, who, 'band', limits).length === 4);
+  check('and the log says why', /not in the tariff/.test(describeStage('band', unplaced)), describeStage('band', unplaced));
+
+  /* --- end to end ------------------------------------------------------ */
+
+  // The suite runs with the real waits, so only the first ring has happened
+  // by the time this returns — which is exactly what the kitchen is told.
+  repo.setDuty(near, true);
+  const sent = await offerNearestFirst(ride.orderNo);
+  check('the job goes out to the nearest ring first', sent === 'sent', sent);
+  repo.setDuty(near, false);
+
+  for (const no of made) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  db.prepare(`DELETE FROM associates WHERE phone IN (?, ?, ?, ?)`).run(near, same, far, idle);
 }
 
 section('What the customer thought of it');

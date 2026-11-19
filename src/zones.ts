@@ -22,6 +22,15 @@ export type Zone = {
   /** The band it belongs to, for the receipt and the associate's card. */
   zone: string;
   fee: number;
+  /**
+   * The road it is on, from the file's own section headings.
+   *
+   * Bands say how far; corridors say which way. Dispatch needs the second to
+   * decide who is "in the general area" of a pickup - two places 20 minutes
+   * apart on the same road are nearer each other than two bands of the same
+   * price on opposite sides of the river.
+   */
+  corridor: string;
 };
 
 export type ZoneMatch = Zone & {
@@ -51,8 +60,19 @@ let TARIFF: Zone[] = [];
 export function parseZones(text: string): Zone[] {
   const out: Zone[] = [];
   const lines = text.split(/\r?\n/);
+  // The section headings are the corridors, and they are the only thing in
+  // this file that says which places are on the road to one another. Read
+  // from the headings rather than inferred from the band names: "Highway" is
+  // the East Bank continuing and "Outer" is the East Coast, and no amount of
+  // reading those two words tells you so.
+  let corridor = '';
   for (const raw of lines) {
     const line = raw.trim();
+    const heading = line.match(/^#\s*-{3,}\s*(.+?)\s*$/);
+    if (heading) {
+      corridor = heading[1]!.replace(/,.*$/, '').trim();
+      continue;
+    }
     if (!line || line.startsWith('#')) continue;
     const cells = line.split(',').map((c) => c.trim());
     if (cells.length < 3) continue;
@@ -60,7 +80,12 @@ export function parseZones(text: string): Zone[] {
     if (cells[0]!.toLowerCase() === 'place') continue;
     const fee = Number(cells[2]!.replace(/[^0-9.]/g, ''));
     if (!cells[0] || !Number.isFinite(fee)) continue;
-    out.push({ place: cells[0]!, zone: cells[1] || cells[0]!, fee });
+    out.push({
+      place: cells[0]!,
+      zone: cells[1] || cells[0]!,
+      fee,
+      corridor: corridor || cells[1] || cells[0]!,
+    });
   }
   return out;
 }
