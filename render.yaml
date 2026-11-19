@@ -140,6 +140,17 @@ services:
       # pin: a drop-off is a fact with a time on it, and a pin goes stale in
       # silence. Same band within 5 minutes, then the whole corridor within
       # 10, then everybody. Either wait at 0 switches the staging off.
+      # The taxi tariff, which is the waiting charge and nothing else: the
+      # shop quotes no fare, the driver agrees that with the passenger. This
+      # is set so two drivers kept waiting the same twenty minutes do not
+      # charge two different figures. It goes on the driver's card only.
+      # Part of a block counts as a whole one. Fee 0 removes the line.
+      - key: TAXI_WAIT_FREE_MINUTES
+        value: "10"
+      - key: TAXI_WAIT_BLOCK_MINUTES
+        value: "30"
+      - key: TAXI_WAIT_BLOCK_FEE
+        value: "800"
       - key: DISPATCH_BAND_MINUTES
         value: "5"
       - key: DISPATCH_BAND_WAIT_SECONDS

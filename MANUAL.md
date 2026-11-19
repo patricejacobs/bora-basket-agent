@@ -1358,6 +1358,35 @@ digits; they get out of the car. The Delivered button closes the job.
 which is the one place it differs from a parcel, where nothing can come back
 until it has been collected.
 
+### Waiting
+
+**$800 per 30 minutes, after 10 free.** Part of a block counts as a whole
+one — a driver sitting at a kerb cannot bill by the minute.
+
+| Waited | Charge |
+|---|---|
+| up to 10 min | nothing |
+| 11–40 min | $800 |
+| 41–70 min | $1,600 |
+| 71–100 min | $2,400 |
+
+**It appears on the driver's card and in none of the passenger's messages:**
+
+```
+*Fare not set* — agree it with the passenger.
+⏱ *Waiting:* First 10 min free, then $800 per 30 min — part of a block counts as a whole one.
+```
+
+The shop sets this and not the fare, so that two drivers kept waiting the same
+twenty minutes do not charge two different figures. It is **not** quoted to
+the passenger: publishing half a fare — the waiting but not the fare it is
+added to — invites the obvious question, and the shop has no answer to it. The
+driver settles the whole thing in the car, as before.
+
+`TAXI_WAIT_FREE_MINUTES`, `TAXI_WAIT_BLOCK_MINUTES` and
+`TAXI_WAIT_BLOCK_FEE` set it; a fee of `0` removes the line entirely, which is
+the shop saying waiting is the driver's business too.
+
 ### No fare, anywhere
 
 The shop does not meter rides. **The driver agrees the fare with the

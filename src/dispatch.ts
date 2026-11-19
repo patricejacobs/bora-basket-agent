@@ -27,6 +27,7 @@ import {
 } from './location.ts';
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 import { jobStartsAt, stagePool, standings, describeStage, type Stage } from './nearby.ts';
+import { waitingLine } from './taxi.ts';
 
 /** A pause the widening can be driven with, and the tests can shorten. */
 const wait = (ms: number): Promise<void> =>
@@ -358,6 +359,10 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
   return [
     `🚕 *New taxi job ${order.orderNo}*`,
     '*Fare not set* — agree it with the passenger',
+    // What the shop DOES set, on the card where it is needed and in none of
+    // the passenger's messages: publishing half a fare invites the question
+    // the shop cannot answer.
+    ...(waitingLine() ? [waitingLine()] : []),
     ...(wantedBy(order) ? [wantedBy(order)] : []),
     '',
     `*Collect:* ${order.customerName}${pickup?.address ? `, ${pickup.address}` : ''}`,
@@ -419,6 +424,7 @@ export function taxiPickupCard(order: repo.OrderRecord): string {
       : []),
     '',
     '*Fare not set* — agree it with the passenger.',
+    ...(waitingLine() ? [waitingLine()] : []),
   ].join(String.fromCharCode(10));
 }
 

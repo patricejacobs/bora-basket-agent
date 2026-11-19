@@ -8956,6 +8956,54 @@ section('The same as last time');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(regular);
 }
 
+section('What a taxi driver is told about waiting');
+{
+  const { waitingCharge, waitingLine } = await import('./taxi.ts');
+  const { taxiOfferCard, taxiPickupCard } = await import('./dispatch.ts');
+  const { customerStatusMessage } = await import('./notifications.ts');
+
+  /* --- the blocks ------------------------------------------------------ */
+
+  // Ten minutes free: a passenger locking a door has not kept a car waiting,
+  // and $800 for three minutes is a fare nobody pays twice.
+  check('the free minutes are free', waitingCharge(0) === 0 && waitingCharge(10) === 0);
+  check('a minute past them is a whole block', waitingCharge(11) === 800, String(waitingCharge(11)));
+  // Any part of a block is a whole one — a driver at a kerb cannot bill by
+  // the minute.
+  check('and so is the rest of it', waitingCharge(25) === 800 && waitingCharge(40) === 800,
+    `${waitingCharge(25)} / ${waitingCharge(40)}`);
+  check('the second block starts at forty-one', waitingCharge(41) === 1600, String(waitingCharge(41)));
+  check('and it keeps counting', waitingCharge(71) === 2400, String(waitingCharge(71)));
+  check('never below nothing', waitingCharge(-20) === 0);
+
+  /* --- who reads it ---------------------------------------------------- */
+
+  const booked = repo.createTaxiJob({
+    phone: '5926100044', passengerName: 'A Passenger', passengerPhone: '5926100044',
+    pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+    destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '',
+  });
+  const ride = repo.findOrder(booked.orderNo)!;
+
+  check('the offer card carries the rate', taxiOfferCard(ride).includes('Waiting'), taxiOfferCard(ride));
+  check('so does the card once it is theirs', taxiPickupCard(ride).includes('Waiting'));
+  check('and it says the free minutes out loud', /First 10 min free/.test(waitingLine()), waitingLine());
+
+  // The shop sets no fare, so it must not publish half of one. A passenger
+  // told the waiting rate will ask what the rest is, and there is no answer.
+  const toPassenger = [
+    customerStatusMessage(ride, 'confirmed'),
+    customerStatusMessage(ride, 'on_the_way'),
+    customerStatusMessage(ride, 'delivered'),
+  ].join(' ');
+  check('the passenger is told none of it', !/waiting/i.test(toPassenger) && !toPassenger.includes('800'),
+    toPassenger.slice(0, 120));
+  check('and still no fare at all', !toPassenger.includes('$'), toPassenger.slice(0, 120));
+
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(ride.orderNo);
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(ride.orderNo);
+}
+
 section('A parcel is priced from both ends');
 {
   const { fareBetween } = await import('./zones.ts');

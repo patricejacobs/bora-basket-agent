@@ -302,6 +302,19 @@ export const config = {
    * goes to somebody further away. Set either wait to 0 to go straight out to
    * everyone, which is how this behaved before.
    */
+  /**
+   * The taxi tariff. The shop sets no fare — only what waiting costs.
+   *
+   * Set WAIT_BLOCK_FEE to 0 and the line disappears from the driver's card
+   * altogether, which is the shop saying waiting is the driver's business
+   * too.
+   */
+  taxi: {
+    waitFreeMinutes: Math.max(0, num('TAXI_WAIT_FREE_MINUTES', 10)),
+    waitBlockMinutes: Math.max(0, num('TAXI_WAIT_BLOCK_MINUTES', 30)),
+    waitBlockFee: Math.round(Math.max(0, num('TAXI_WAIT_BLOCK_FEE', 800)) * minorPerUnit),
+  },
+
   dispatch: {
     bandMinutes: Math.max(0, num('DISPATCH_BAND_MINUTES', 5)),
     bandWaitSeconds: Math.max(0, num('DISPATCH_BAND_WAIT_SECONDS', 20)),
