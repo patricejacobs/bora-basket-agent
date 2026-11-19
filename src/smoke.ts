@@ -8538,6 +8538,64 @@ section('A photo from the shop floor');
   db.prepare(`DELETE FROM products WHERE sku = ?`).run(sku);
 }
 
+section('Offering a photo of the groceries');
+{
+  const { executeTool } = await import('./agent/tools.ts');
+  const { savePhotoFor, imagesDirectory } = await import('./product-images.ts');
+  const { SYSTEM_PROMPT } = await import('./agent/system-prompt.ts');
+  const fsx = await import('node:fs');
+  const pathx = await import('node:path');
+
+  const shopper = '5926103535';
+  repo.setService(shopper, 'grocery');
+  const call = (tool: string, args: Record<string, unknown> = {}): Record<string, unknown> =>
+    JSON.parse(executeTool(tool, args, { phone: shopper, outbound: [] as never[] } as never)) as Record<string, unknown>;
+
+  const withPhoto = 'SHOT-001';
+  const without = 'SHOT-002';
+  for (const [sku, name] of [[withPhoto, 'Shot Bora'], [without, 'Shot Callaloo']] as [string, string][]) {
+    repo.upsertProduct({
+      sku, name, description: '', category: 'Fresh Produce', unit: 'bundle',
+      price: 320, stock: 10, keywords: name.toLowerCase(), active: 1,
+    } as never);
+  }
+  savePhotoFor(withPhoto, {
+    base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    mediaType: 'image/png',
+  });
+
+  const aisle = call('browse_category', { category: 'Fresh Produce' });
+  const lines = (aisle.lines as string[]).join(String.fromCharCode(10));
+  const items = aisle.items as { sku: string; name: string; photo?: boolean }[];
+
+  // So a customer knows what they can ask to see.
+  check('an item with a photo is marked', /Shot Bora.*📷/.test(lines), lines.split(String.fromCharCode(10)).find((l) => l.includes('Shot Bora')) ?? '');
+  check('one without is not', !/Shot Callaloo.*📷/.test(lines), lines.split(String.fromCharCode(10)).find((l) => l.includes('Shot Callaloo')) ?? '');
+  check('and the model is told which', items.find((i) => i.sku === withPhoto)?.photo === true, JSON.stringify(items.find((i) => i.sku === withPhoto)));
+  check('without claiming one for the rest', items.find((i) => i.sku === without)?.photo === undefined, JSON.stringify(items.find((i) => i.sku === without)));
+
+  // Offered only where there is something to offer. Promising a photo and
+  // then taking it back makes the shop look like it is losing things.
+  check('it is told to invite them to ask', /ask to see any of those/.test(String(aisle.next)), String(aisle.next).slice(-140));
+
+  const sent = JSON.parse(
+    executeTool('show_product_photo', { sku: withPhoto }, { phone: shopper, outbound: [] as never[] } as never),
+  ) as Record<string, unknown>;
+  check('and the photo can be sent', sent.sent === true, JSON.stringify(sent));
+
+  const missing = JSON.parse(
+    executeTool('show_product_photo', { sku: without }, { phone: shopper, outbound: [] as never[] } as never),
+  ) as Record<string, unknown>;
+  check('while one without is reported, not faked', missing.sent === false, JSON.stringify(missing));
+
+  check('the prompt says to offer rather than wait', /Offer photos, do not wait to be asked/.test(SYSTEM_PROMPT));
+  check('and never to offer what is not there', /Never offer one that does not exist/.test(SYSTEM_PROMPT));
+
+  fsx.rmSync(pathx.join(imagesDirectory(), `${withPhoto}.png`), { force: true });
+  db.prepare(`DELETE FROM products WHERE sku IN (?, ?)`).run(withPhoto, without);
+  db.prepare(`DELETE FROM numbered_lists WHERE phone = ?`).run(shopper);
+}
+
 section('The same as last time');
 {
   const { executeTool } = await import('./agent/tools.ts');

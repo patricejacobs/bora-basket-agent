@@ -1088,6 +1088,40 @@ having a shop and being cooked were once the same fact.
 
 ### Photographs
 
+**The aisle marks what can be seen.** An item with a picture carries a camera,
+so a customer knows what to ask for:
+
+```
+(a) Bananas — $420 (per kg) 📷
+(b) Bora — $320 (bundle) 📷
+(c) Callaloo — $280 (bundle) 📷
+(d) Carrots — $580 (per kg)
+
+Put the quantity beside the letter, like *a x2, d x1*.
+Say the word for a photo of any of the 📷 ones.
+```
+
+> **customer:** "show me the bora"
+
+```
+[ photo ]  Bora — $320 / bundle
+```
+
+**It offers rather than waiting to be asked**, and sends one unprompted where
+it would settle something — two items easily confused, a size hard to picture,
+anything a customer hesitates over. A picture answers *"is that the big bag?"*
+better than a sentence about grams.
+
+**It never offers one that does not exist.** Only the marked items have a
+picture; promising one and then taking it back makes a shop look like it is
+losing things. Where there is none it describes the item in a few words and
+moves on. Search results carry the same flag.
+
+One photo to a message, so two or three in a row at most — a screen filling
+with pictures is a screen nobody can shop from.
+
+
+
 `show_product_photo` works and the catalogue has none, which is the single
 cheapest thing that would make the shop feel finished.
 

@@ -945,7 +945,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         lines: items.map((p, i) => {
           const label = itemLabel(i + 1);
           const note = available(p) ? '' : ` — _${availabilityLabel(p)}_`;
-          return `(${label}) ${p.name} — ${money(p.price)} (${p.unit})${note}`;
+          // A camera against the ones there is a picture of, so a customer
+          // knows what they can ask to see. Offering a photo of everything
+          // and then not having one for most of it is worse than not
+          // offering: the shop looks like it is losing things.
+          const camera = productImageUrl(p.sku, p.imageUrl) ? ' 📷' : '';
+          return `(${label}) ${p.name} — ${money(p.price)} (${p.unit})${note}${camera}`;
         }),
         // Still itemised, for talking about one of them - "the milk is $780"
         // - but never for rebuilding the list.
@@ -955,16 +960,25 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // shelf - and a customer who types the first thing they can see
           // cannot land in the wrong list.
           ref: itemLabel(i + 1),
+          sku: p.sku,
           name: p.name,
           unit: p.unit,
           price: money(p.price),
+          // So a photo can be offered rather than attempted. Without this the
+          // only way to find out was to try and be told there wasn't one,
+          // which means promising a picture and then taking it back.
+          ...(productImageUrl(p.sku, p.imageUrl) ? { photo: true } : {}),
           ...(available(p) ? {} : { note: availabilityLabel(p) }),
         })),
         say: `Send *${name}* as the heading, then the \`lines\` exactly as they are, one per line. Do not reletter them, reorder them, reword them, add to them or leave any out.`,
         // The way back, said on the list itself rather than left to be
         // guessed. Somebody in the wrong aisle with no visible way out
         // scrolls up hunting for the last message, or gives up.
-        next: 'End the list with both: how to answer it — "Put the quantity beside the letter, like *a x2, d x1*" — and how to get out of it: "or type *categories* to see the aisles again". Say the second one every time you send an aisle.',
+        next: `End the list with both: how to answer it — "Put the quantity beside the letter, like *a x2, d x1*" — and how to get out of it: "or type *categories* to see the aisles again". Say the second one every time you send an aisle.${
+          items.some((p) => productImageUrl(p.sku, p.imageUrl))
+            ? ' Some of these have a 📷 against them: add one line saying they can ask to see any of those, and send it with show_product_photo when they do.'
+            : ''
+        }`,
       });
     }
 
