@@ -2740,10 +2740,12 @@ export function awardPoints(orderNo: string): number {
   const order = findOrder(orderNo);
   if (!order || order.status !== 'delivered') return 0;
 
-  // The delivery charge, not the shopping. A parcel's fee lives in the same
-  // column and earns the same way; a taxi has nothing there, because the fare
-  // was agreed in the car and the shop never learned it.
-  const points = pointsFor(order.deliveryFee);
+  // What the shop charged to move them or their things, which is the
+  // delivery fee on an order, the fee on a parcel, and the fare on a taxi.
+  // Not the shopping, and not the waiting: waiting is settled between the
+  // driver and the passenger and the shop never records an amount for it.
+  const charged = order.kind === 'taxi' ? order.quotedFare : order.deliveryFee;
+  const points = pointsFor(charged);
   if (points <= 0) return 0;
 
   const done = db

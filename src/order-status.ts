@@ -278,6 +278,9 @@ export type Audience = 'staff' | 'outlet' | 'driver';
  * taps as ids would feed it "option_1" instead of "Grocery shopping".
  */
 export function commandFromButtonId(id: string): string | null {
+  const paxCancel = /^paxcancel_(\d+)$/.exec(id);
+  if (paxCancel) return `${paxCancel[1]} passenger cancelled`;
+
   const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move)_(\d+)$/.exec(id);
   if (simple) {
     const verb =
@@ -455,6 +458,16 @@ export function nextActions(
   // what the cargo is - but the word a driver reads should match what they
   // just did, which is let somebody into the car.
   const onboard = act(`otw_${n}`, 'Passenger onboard', `${n} onboard`);
+  // The two other ways a pickup ends. Both are things that happen at a kerb
+  // with nobody in the car, and both were previously a telephone call to the
+  // shop or nothing at all.
+  //
+  // Not found and cancelled are DIFFERENT events and must stay that way: one
+  // is somebody who did not come, the other is somebody who changed their
+  // mind. Told apart, the shop can see which of its passengers waste trips;
+  // rolled into one, it cannot.
+  const notFound = act(`nobody_${n}`, 'Passenger not found', `${n} nobody there`);
+  const paxCancelled = act(`paxcancel_${n}`, 'Passenger cancelled', `${n} passenger cancelled`);
   const handedOver = act(`handover_${n}`, 'Uplifted', `${n} handover`);
   const delivered = act(`delivered_${n}`, 'Delivered', `${n} delivered`);
   // A passenger is not delivered. The command behind it stays `delivered`,
@@ -501,7 +514,10 @@ export function nextActions(
       // same stage is still raw, and offering Uplifted there would send
       // somebody to stand over a fryer.
       case 'confirmed':
-        return opts.selfAccepted ? [opts.canWait ? onboard : uplifted] : [];
+        // A taxi at the kerb has three ways this goes: they get in, they are
+        // not there, or they call it off. Exactly WhatsApp's three buttons.
+        if (opts.canWait) return [onboard, notFound, paxCancelled];
+        return opts.selfAccepted ? [uplifted] : [];
       case 'ready':
         return [uplifted];
       // No Delivered button once a code is expected: typing the customer's four

@@ -2915,8 +2915,30 @@ section('A car, and no fare anywhere');
   const done = repo.findOrder(job!.orderNo)!;
   const atTheKerb = customerStatusMessage(done, 'delivered');
   check('the trip is closed as a trip, not a delivery', /complete/i.test(atTheKerb) && !/delivered/i.test(atTheKerb), atTheKerb);
-  check('no receipt is produced for a ride nobody priced', receiptLines(done, 'en').length === 0);
-  check('so no total is quoted at the end either', !atTheKerb.includes('$') && !/Total/i.test(atTheKerb), atTheKerb);
+  // The shop priced this trip, so the passenger gets a receipt for it: what
+  // they were quoted, what the waiting came to, and what the two add up to.
+  const slip = receiptLines(done, 'en');
+  check('the trip gets a receipt', slip.length > 0, slip.join(' | '));
+  check('naming the fare they agreed', slip.some((l) => l.includes(money(done.quotedFare))), slip.join(' | '));
+  check('and totalling fare and waiting', slip.some((l) => /\*Total /.test(l)), slip.join(' | '));
+  check('the receipt reaches them at the kerb', atTheKerb.includes(money(done.quotedFare)), atTheKerb);
+  // The points for the trip are on the receipt, not in a message of their
+  // own: a passenger on a pavement gets one thing to read.
+  check('with the points on it', /You earned \*\d+ points\* on this trip/.test(atTheKerb), atTheKerb);
+
+  // A trip the tariff could not price still has nothing to show. "*Total $0*
+  // — paid in cash" after a journey somebody has just paid for is worse than
+  // silence.
+  const unpriced = repo.createTaxiJob({
+    phone: '5926100045', passengerName: 'C Passenger', passengerPhone: '5926100045',
+    pickup: null, pickupAddress: 'behind the blue gate', destination: null,
+    destinationAddress: 'somewhere up the road', note: '', wantedAt: '', wantedNote: '',
+  });
+  db.prepare(`UPDATE orders SET status = 'delivered' WHERE order_no = ?`).run(unpriced.orderNo);
+  check('a ride nobody priced still gets no receipt',
+    receiptLines(repo.findOrder(unpriced.orderNo)!, 'en').length === 0);
+  db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(unpriced.orderNo);
+  db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(unpriced.orderNo);
   check('and the goodbye is not the parcel one', !signOffFor(done).includes('📦'), signOffFor(done));
 
   // "Arrived" ends a trip, and ONLY a trip. A delivery associate typing it
@@ -2933,6 +2955,72 @@ section('A car, and no fare anywhere');
       check('a delivery is not closed by the word "arrived"',
         repo.findOrder(food.orderNo)?.status === 'on_the_way', `${food.orderNo} ${repo.findOrder(food.orderNo)?.status}`);
       void said;
+    }
+  }
+
+  /* --- the three ways a pickup ends ------------------------------------ */
+
+  {
+    const { handleDriverMessage } = await import('./staff.ts');
+    const kerb = nextActions('TXI-00001', 'confirmed', 'driver', { selfAccepted: true, canWait: true });
+    check('a taxi at the kerb offers three answers', kerb.length === 3, JSON.stringify(kerb.map((b) => b.title)));
+    check('they get in, they are not there, or they call it off',
+      kerb.map((b) => b.title).join('|') === 'Passenger onboard|Passenger not found|Passenger cancelled',
+      JSON.stringify(kerb.map((b) => b.title)));
+    check('and WhatsApp will take all three', kerb.every((b) => b.title.length <= 20));
+    // A parcel at the same stage is untouched.
+    check('a parcel still has one',
+      nextActions('PCL-00001', 'confirmed', 'driver', { selfAccepted: true }).length === 1);
+
+    // Calling it off is NOT a no-show. One is somebody who did not come, the
+    // other is somebody who changed their mind, and a shop that cannot tell
+    // them apart cannot see which passengers waste trips.
+    const calledOff = repo.createTaxiJob({
+      phone: '5926100046', passengerName: 'D Passenger', passengerPhone: '5926100046',
+      pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+      destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+    });
+    const cn = String(Number(calledOff.orderNo.replace(/\D/g, '')));
+    await handleDriverMessage(`${cn} confirm`, rider);
+    const said = (await handleDriverMessage(`${cn} passenger cancelled`, rider))[0]?.text ?? '';
+    const off = repo.findOrder(calledOff.orderNo)!;
+    check('a passenger calling it off cancels the trip', off.status === 'cancelled', off.status);
+    check('recorded as their decision, not a no-show',
+      off.cancelReason === 'Customer changed their mind' && off.cancelledBy === 'customer',
+      `${off.cancelReason} / ${off.cancelledBy}`);
+    check('and the driver is told they are free', /free for the next job/i.test(said), said);
+    check('the passenger is told their trip, not their order',
+      /Trip .* has been cancelled/.test(customerStatusMessage(off, 'cancelled')),
+      customerStatusMessage(off, 'cancelled'));
+
+    // Once somebody is in the car it is a trip in progress, not a booking.
+    const underway = repo.createTaxiJob({
+      phone: '5926100047', passengerName: 'E Passenger', passengerPhone: '5926100047',
+      pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+      destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+    });
+    const un = String(Number(underway.orderNo.replace(/\D/g, '')));
+    await handleDriverMessage(`${un} confirm`, rider);
+    await handleDriverMessage(`${un} onboard`, rider);
+    const refused = (await handleDriverMessage(`${un} passenger cancelled`, rider))[0]?.text ?? '';
+    check('it cannot be called off once they are aboard',
+      repo.findOrder(underway.orderNo)?.status === 'on_the_way', repo.findOrder(underway.orderNo)?.status);
+    check('and the refusal says why', /in the car/i.test(refused), refused);
+
+    // And no other kind of job gained a way for a driver to cancel.
+    const anyOrder = repo.allOrders().find((o) => o.kind !== 'taxi' && o.status === 'on_the_way');
+    if (anyOrder) {
+      await handleDriverMessage(
+        `${Number(anyOrder.orderNo.replace(/\D/g, ''))} passenger cancelled`,
+        anyOrder.driverPhone || rider,
+      );
+      check('a delivery still cannot be cancelled by its associate',
+        repo.findOrder(anyOrder.orderNo)?.status === 'on_the_way', repo.findOrder(anyOrder.orderNo)?.status);
+    }
+
+    for (const no of [calledOff.orderNo, underway.orderNo]) {
+      db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+      db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
     }
   }
 

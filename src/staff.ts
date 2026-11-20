@@ -1944,6 +1944,38 @@ export async function handleDriverMessage(
 
   const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
 
+  // A passenger who called it off before the car reached them.
+  //
+  // Drivers cannot cancel anything, anywhere else, and that rule is right: an
+  // associate standing at a door with food in their hand must not be able to
+  // void the order. A taxi before pickup is the one case with nothing in
+  // anybody's hands - the passenger has waved the car away, and recording it
+  // as a no-show would be a lie about what happened, while recording nothing
+  // would leave the job open for ever.
+  if (order.kind === 'taxi' && /\bpassenger\s*cancell?ed\b/i.test(trimmed)) {
+    if (order.status === 'on_the_way') {
+      return reply(
+        `${order.orderNo} is under way with the passenger in the car. Finish the trip, or ring the shop.`,
+      );
+    }
+    if (order.status !== 'pending' && order.status !== 'confirmed') {
+      return reply(`${order.orderNo} is ${STATUS_LABEL[order.status]} — nothing to call off.`);
+    }
+
+    repo.setCancelReason(order.orderNo, 'Customer changed their mind', 'customer');
+    repo.setOrderStatus(order.orderNo, 'cancelled');
+    repo.recordEvent(order.orderNo, 'cancelled', phone, 'passenger cancelled at the pickup');
+    void notifyCustomerOfStatus(repo.findOrder(order.orderNo)!, 'cancelled').catch((err) =>
+      console.error('[staff] could not tell the passenger:', err),
+    );
+    return reply(
+      [
+        `${order.orderNo} → *cancelled* — the passenger called it off.`,
+        'Nothing to collect. You are free for the next job.',
+      ].join(chr10),
+    );
+  }
+
   // "Arrived" is the taxi's word for the end of the trip, and ONLY the
   // taxi's. A delivery associate who types "7 arrived" means they have
   // reached the kitchen, and reading that as a completed delivery would

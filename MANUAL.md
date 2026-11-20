@@ -1373,6 +1373,33 @@ are going until they get there.
 | **Passenger arrived** | The associate, at the destination | *Trip complete — you have arrived* |
 | Nobody there | The associate, at the pickup | *The driver could not find you* |
 
+### The three ways a pickup ends
+
+Accepting a taxi gives the driver three buttons — exactly WhatsApp's limit:
+
+```
+[Passenger onboard]  [Passenger not found]  [Passenger cancelled]
+```
+
+| Tap | What it records | What the passenger is told |
+|---|---|---|
+| **Passenger onboard** | the trip is under way | *You are on your way*, with the fare |
+| **Passenger not found** | **returned**, nobody there | *The driver could not find you at the pickup* |
+| **Passenger cancelled** | **cancelled**, their decision | *Trip X has been cancelled: you asked us to* |
+
+**Not found and cancelled are different events and stay that way.** One is
+somebody who did not come; the other is somebody who changed their mind. Told
+apart, the shop can see which passengers waste trips; rolled together, it
+cannot.
+
+**A driver cannot cancel anything else, anywhere.** That rule is right — an
+associate at a door with food in their hand must not be able to void an
+order. A taxi before pickup is the one case with nothing in anybody's hands,
+and once the passenger is in the car it is refused again:
+
+> TXI-00019 is under way with the passenger in the car. Finish the trip, or
+> ring the shop.
+
 **Once the passenger is aboard, the card drops the pin warning and the
 telephone number.** Both exist to find somebody who is not with you, and the
 passenger is sitting in the car — "⚠️ No pin — ring +592…" would be telling a
@@ -1395,6 +1422,43 @@ and `delivered` every other job uses, so nothing downstream has to know.
 **`arrived` is a taxi word only.** A delivery associate typing it means they
 have reached the kitchen, and reading that as a completed delivery would
 close an order whose food is still on the counter.
+
+### The receipt
+
+A trip the shop priced ends with a receipt, like any other order — and the
+points for it are printed on the receipt rather than sent separately, because
+a passenger standing on a pavement should get one thing to read:
+
+```
+Trip TXI-00019 complete — you have arrived. 🚕
+
+🧾 *Receipt* — 19 Nov, 18:51
+🚕 Trip: Stabroek Market → 14 Delph Street, Campbellville
+
+Fare $500
+Waiting 20 min $800
+*Total $1,300* — paid in cash
+
+You earned *50 points* on this trip.
+
+Thank you for choosing Next Minute Delivery!
+See you next time! 👋
+```
+
+Then the rating list, as every delivery gets:
+
+```
+How was the trip, Marcia?
+              [ Rate this trip ▾ ]
+```
+
+**Points come off the fare**, at the same rate as a delivery charge — $10 is
+a point. Not the waiting: that is settled between the driver and the
+passenger and the shop never records an amount for it.
+
+**A trip the tariff could not price gets no receipt.** There is no fare to
+print, the driver settled it in the car, and `*Total $0* — paid in cash`
+after a journey somebody has just paid for is worse than silence.
 
 ### The safety code
 

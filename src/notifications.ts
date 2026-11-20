@@ -5,6 +5,7 @@ import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate, sendLocation, sendList } from './channels/whatsapp-send.ts';
 import { nextActions, CANCEL_REASONS, describeAge, wantedBy } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
+import { waitingCharge as taxiWaitingCharge } from './taxi.ts';
 import { checkRange, describePin } from './location.ts';
 
 /**
@@ -169,7 +170,12 @@ function cancelledMessage(order: repo.OrderRecord): string {
   const byOutlet = order.cancelledBy === 'outlet' && Boolean(order.outlet?.name);
   const subject = byOutlet
     ? t('cancel_by_outlet', lang, { outlet: order.outlet?.name ?? '' })
-    : t('cancel_plain', lang, { order: order.orderNo });
+    : // A trip is not an order. The word reaches a passenger who has just
+      // waved a car away, and calling their ride an order is the same slip
+      // as thanking them for their shopping.
+      t(order.kind === 'taxi' ? 'cancel_plain_taxi' : 'cancel_plain', lang, {
+        order: order.orderNo,
+      });
 
   // An order the customer asked us to cancel is not something to apologise
   // for. Anything else is, and the regret goes first, before the explanation.
@@ -425,12 +431,6 @@ export function doorCodeLine(order: repo.OrderRecord, lang: Language): string {
  * each figure instead, which reads the same in any font.
  */
 export function receiptLines(order: repo.OrderRecord, lang: Language): string[] {
-  // A taxi has no receipt to give. Nothing was bought, and the fare was never
-  // known to the shop: the driver agrees it with the passenger in the car.
-  // Rendering one anyway produced "*Total $0* — paid in cash" at the end of a
-  // journey somebody is about to pay for, which is worse than silence.
-  if (order.kind === 'taxi') return [];
-
   const isParcel = order.kind === 'parcel';
 
   // The time it was HANDED OVER, not the time it was ordered.
@@ -486,6 +486,36 @@ export function receiptLines(order: repo.OrderRecord, lang: Language): string[] 
     : order.paymentMethod.startsWith('card')
       ? t('receipt_paid_card', lang)
       : '';
+
+  // A taxi's receipt: the fare the shop quoted, the waiting the driver
+  // counted, and what the two come to.
+  //
+  // Still nothing where the shop never priced the trip — a tariff that
+  // cannot place one end quotes no fare, the driver settles it in the car,
+  // and "*Total $0* — paid in cash" at the end of a journey somebody has
+  // just paid for is worse than silence.
+  if (order.kind === 'taxi') {
+    if (order.quotedFare <= 0 && order.waitedMinutes <= 0) return [];
+
+    const waited = order.waitedMinutes > 0 ? taxiWaitingCharge(order.waitedMinutes) : 0;
+    const trip = order.pickup?.address
+      ? `${order.pickup.address} → ${order.address}`
+      : order.address;
+
+    return [
+      head,
+      '',
+      ...(trip ? [`🚕 ${t('receipt_trip', lang)}: ${trip}`, ''] : []),
+      `${t('receipt_fare', lang)} ${money(order.quotedFare)}`,
+      // Only where there was any. "Waiting $0" is a charge that was never
+      // made, which on a receipt reads as a question.
+      ...(waited > 0
+        ? [`${t('receipt_waiting', lang)} ${order.waitedMinutes} min ${money(waited)}`]
+        : []),
+      `*${t('receipt_total', lang)} ${money(order.quotedFare + waited)}*${method ? ` — ${method}` : ''}`,
+    ];
+  }
+
 
   return [
     head,
@@ -560,11 +590,20 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // is what you are handed afterwards rather than something to scroll past to
   // find out whether your delivery is done.
   //
-  // A taxi has no receipt block at all, so it closes up rather than leaving
-  // the blank lines that block used to sit between.
+  // A taxi gets one too, now that the shop prices the trip. Where it could
+  // not - a place the tariff cannot name - receiptLines returns nothing and
+  // the message closes up rather than leaving the blank lines that block
+  // would have sat between.
+  //
+  // The points earned go INSIDE a taxi's receipt rather than in a message of
+  // their own, because a ride ends with one hand-over and a passenger
+  // standing on a pavement should get one thing to read, not three.
+  const lines = receiptLines(order, lang);
+  const earned = isTaxi ? repo.pointsEarnedOn(order.orderNo) : 0;
   const head = [
     receipt,
-    ...(isTaxi ? [] : ['', ...receiptLines(order, lang)]),
+    ...(lines.length > 0 ? ['', ...lines] : []),
+    ...(earned > 0 ? ['', t('receipt_points', lang, { points: String(earned) })] : []),
     '',
     thanksFor(order, lang),
   ].join(nl);
@@ -617,7 +656,9 @@ export async function notifyCustomerOfStatus(
     // rating question: the good news first, and a customer who sees what
     // their last delivery was worth is readier to answer what they thought
     // of it.
-    if (status === 'delivered') {
+    // A taxi's points are printed on its receipt, in the message above, so
+    // this one would be the same news twice.
+    if (status === 'delivered' && order.kind !== 'taxi') {
       const earned = repo.pointsEarnedOn(order.orderNo);
       if (earned > 0) {
         const { balanceLines, usualDelivery } = await import('./rewards.ts');
