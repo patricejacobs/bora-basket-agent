@@ -9,6 +9,7 @@ export { shopStatus, hoursStatus, type ShopStatus } from '../hours.ts';
 
 const isService = (v: string): v is Service => (SERVICES as readonly string[]).includes(v);
 import { checkRange, formatDistance } from '../location.ts';
+import { CUSTOMER_STATUS } from '../order-status.ts';
 
 /**
  * Per-conversation context: what time it is locally, and who this customer is.
@@ -85,9 +86,49 @@ function languageLine(phone: string): string | null {
 }
 
 export function buildTurnContext(phone: string): string {
-  return [buildTimeContext(), languageLine(phone), serviceLine(phone), parkedLine(phone)]
+  return [
+    buildTimeContext(),
+    languageLine(phone),
+    serviceLine(phone),
+    parkedLine(phone),
+    openJobsLine(phone),
+  ]
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * What of theirs is still running, said on every turn.
+ *
+ * The agent never sees a status update. Everything after an order is placed —
+ * confirmed, on the way, the receipt, the rating — is sent to the customer by
+ * the shop and does not pass through the conversation, so the last thing the
+ * agent knows about a job is its own sentence saying it had been booked.
+ *
+ * Asked for another car, it would say the trip it booked an hour ago was
+ * still running, because as far as it could see that was the last thing that
+ * had happened. It was not contradicting the customer out of stubbornness; it
+ * was answering from the only account it had.
+ *
+ * So the account is corrected here, every turn, from the orders themselves —
+ * including the empty case, which is the one that matters: silence would
+ * leave the agent's own stale sentence as the most recent thing it knew.
+ */
+function openJobsLine(phone: string): string | null {
+  const recent = repo.recentOrders(phone, 5);
+  if (recent.length === 0) return null;
+
+  const done = new Set(['delivered', 'cancelled', 'returned']);
+  const open = recent.filter((o) => !done.has(o.status));
+
+  if (open.length === 0) {
+    return 'Nothing of theirs is still running — every job they have is finished, cancelled or came back. Never tell them an old one is still live, and never refuse a new one on account of it.';
+  }
+
+  const described = open
+    .map((o) => `${o.orderNo} (${CUSTOMER_STATUS[o.status as repo.OrderStatus] ?? o.status})`)
+    .join('; ');
+  return `Still running for them: ${described}. Anything else they have is finished.`;
 }
 
 /**

@@ -9368,6 +9368,55 @@ section('What a taxi driver is told about waiting');
   db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(ride.orderNo);
 }
 
+section('The agent is told what is still running');
+{
+  const { buildTurnContext } = await import('./agent/context.ts');
+
+  // The agent never sees a status update: everything after an order is
+  // placed is sent to the customer by the shop and does not pass through the
+  // conversation. Asked for another car, it would say the trip it booked an
+  // hour ago was still running, because that was the last thing it knew.
+  const who = '5927200001';
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(who);
+  repo.saveCustomer(who, { name: 'Context Tester', contactPhone: who });
+
+  check('a customer with no history gets no claim either way',
+    !/still running/i.test(buildTurnContext(who)), buildTurnContext(who));
+
+  const trip = repo.createTaxiJob({
+    phone: who, passengerName: 'Context Tester', passengerPhone: who,
+    pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+    destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+  });
+  const running = buildTurnContext(who);
+  check('a live job is named', running.includes(trip.orderNo), running);
+  check('with what state it is in', /Still running for them/.test(running), running);
+
+  // The empty case is the one that matters: silence would leave the agent's
+  // own stale sentence as the most recent thing it knew.
+  repo.setOrderStatus(trip.orderNo, 'delivered');
+  const finished = buildTurnContext(who);
+  check('a finished job is said to be finished', /Nothing of theirs is still running/.test(finished), finished);
+  check('and it is told not to refuse a new one', /never refuse a new one/i.test(finished), finished);
+  check('the old number is not repeated as live', !finished.includes(`${trip.orderNo} (`), finished);
+
+  // Cancelled and returned count as finished too.
+  const second = repo.createTaxiJob({
+    phone: who, passengerName: 'Context Tester', passengerPhone: who,
+    pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+    destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+  });
+  repo.setOrderStatus(second.orderNo, 'cancelled');
+  check('a cancelled job is finished as well',
+    /Nothing of theirs is still running/.test(buildTurnContext(who)), buildTurnContext(who));
+
+  for (const no of [trip.orderNo, second.orderNo]) {
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run(who);
+}
+
 section('Nobody is charged a fee they were not told');
 {
   const { executeTool } = await import('./agent/tools.ts');

@@ -588,6 +588,36 @@ means one every time.
 refused and the customer is told so plainly, rather than being told a car is
 coming.
 
+### What the agent can and cannot see
+
+**The agent never sees a status update.** Everything after an order is placed
+— confirmed, on the way, the receipt, the points, the rating — is sent to the
+customer by the shop and does not pass through the conversation. The last
+thing the agent knows about a job is its own sentence saying it was booked.
+
+Left alone, that caused a real fault: asked for a second car, it said the
+trip booked an hour earlier was still running. It was not being stubborn — it
+was answering from the only account it had.
+
+So every turn it is told, from the orders themselves, what is actually
+running:
+
+```
+Still running for them: TXI-00035 (out with the delivery associate).
+Anything else they have is finished.
+```
+
+and, when nothing is:
+
+```
+Nothing of theirs is still running — every job they have is finished,
+cancelled or came back. Never tell them an old one is still live, and never
+refuse a new one on account of it.
+```
+
+**The empty case is the one that matters.** Saying nothing would leave the
+agent's own stale sentence as the most recent thing it knew.
+
 ### Who the customer is talking to
 
 **The customer associate.** The delivery associates ride; this one takes the
