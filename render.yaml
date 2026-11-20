@@ -155,12 +155,14 @@ services:
       # the shop.
       - key: RATING_EVERY_DAYS
         value: "14"
+      # Waiting is the car stopped at the passenger's request AFTER pickup -
+      # a pharmacy, a gate - totalled across the trip and charged by the
+      # minute from the first one. Whole minutes, rounded down. A rate of 0
+      # removes the charge and the line on the driver's card with it.
       - key: TAXI_WAIT_FREE_MINUTES
         value: "0"
-      - key: TAXI_WAIT_BLOCK_MINUTES
+      - key: TAXI_WAIT_PER_MINUTE
         value: "30"
-      - key: TAXI_WAIT_BLOCK_FEE
-        value: "800"
       - key: DISPATCH_BAND_MINUTES
         value: "5"
       - key: DISPATCH_BAND_WAIT_SECONDS

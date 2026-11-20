@@ -41,17 +41,16 @@ export function taxiFare(pickup: string, destination: string): { fee: number; sa
 /**
  * What a wait costs, in money.
  *
- * Rounded UP to the block. That is the rule as the shop set it and it is the
- * only version a driver can apply without a calculator: eleven minutes is a
- * block, forty-one is two.
+ * By the minute, and whole minutes only — rounded DOWN. The figure decides
+ * money, and the part-minute should not fall on the passenger, who is not
+ * the one doing the tapping.
  */
 export function waitingCharge(minutes: number): number {
-  const { waitFreeMinutes, waitBlockMinutes, waitBlockFee } = config.taxi;
-  if (waitBlockMinutes <= 0 || waitBlockFee <= 0) return 0;
+  const { waitFreeMinutes, waitPerMinute } = config.taxi;
+  if (waitPerMinute <= 0) return 0;
 
-  const chargeable = Math.max(0, minutes - waitFreeMinutes);
-  if (chargeable <= 0) return 0;
-  return Math.ceil(chargeable / waitBlockMinutes) * waitBlockFee;
+  const chargeable = Math.max(0, Math.floor(minutes) - waitFreeMinutes);
+  return chargeable * waitPerMinute;
 }
 
 /**
@@ -61,9 +60,10 @@ export function waitingCharge(minutes: number): number {
  * work out at a kerb and a sentence is something to read.
  */
 export function waitingLine(): string {
-  const { waitFreeMinutes, waitBlockMinutes, waitBlockFee } = config.taxi;
-  if (waitBlockMinutes <= 0 || waitBlockFee <= 0) return '';
+  const { waitFreeMinutes, waitPerMinute } = config.taxi;
+  if (waitPerMinute <= 0) return '';
 
-  const free = waitFreeMinutes > 0 ? `First ${waitFreeMinutes} min free, then ` : '';
-  return `⏱ *Waiting:* ${free}${money(waitBlockFee)} per ${waitBlockMinutes} min — part of a block counts as a whole one.`;
+  return waitFreeMinutes > 0
+    ? `⏱ *Waiting:* first ${waitFreeMinutes} min free, then ${money(waitPerMinute)} a minute.`
+    : `⏱ *Waiting:* ${money(waitPerMinute)} a minute, from the first minute.`;
 }

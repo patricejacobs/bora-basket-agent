@@ -303,20 +303,28 @@ export const config = {
    * everyone, which is how this behaved before.
    */
   /**
-   * The taxi tariff. The shop sets no fare — only what waiting costs.
+   * What waiting costs on a taxi.
    *
-   * Set WAIT_BLOCK_FEE to 0 and the line disappears from the driver's card
-   * altogether, which is the shop saying waiting is the driver's business
-   * too.
+   * The fare itself comes from the delivery tariff; this is the other half,
+   * and the only part the shop sets by hand. TAXI_WAIT_PER_MINUTE at 0
+   * removes the charge and the line on the driver's card with it, which is
+   * the shop saying waiting is the driver's business too.
    */
   taxi: {
-    // No free period. Waiting is not a passenger locking a door any more -
-    // it is the car stopped at their request, with the driver in it and not
-    // earning. A two-minute stop costs a block, which is the rule as the
-    // shop set it.
+    /** Free minutes before the meter starts. 0 charges from the first. */
     waitFreeMinutes: Math.max(0, num('TAXI_WAIT_FREE_MINUTES', 0)),
-    waitBlockMinutes: Math.max(0, num('TAXI_WAIT_BLOCK_MINUTES', 30)),
-    waitBlockFee: Math.round(Math.max(0, num('TAXI_WAIT_BLOCK_FEE', 800)) * minorPerUnit),
+    /**
+     * What a minute of waiting costs.
+     *
+     * By the minute, not by the half hour. Blocks are easy to apply at a
+     * kerb and wrong at both ends of the scale: a two-minute stop cost the
+     * same $800 as a thirty-minute one, and the thirty-first minute doubled
+     * the bill. A rate per minute is what a passenger thinks they are paying
+     * for a car standing still.
+     *
+     * 0 removes the charge, and the line on the driver's card with it.
+     */
+    waitPerMinute: Math.round(Math.max(0, num('TAXI_WAIT_PER_MINUTE', 30)) * minorPerUnit),
   },
 
   /**

@@ -1564,19 +1564,23 @@ until it has been collected.
 
 ### Waiting
 
-**$800 per 30 minutes, and it starts once the passenger is in the car.**
+**$30 a minute, from the first, once the passenger is in the car.**
 
 Waiting is the car stopped at the passenger's request — the pharmacy, a gate,
-somebody running in for five minutes — not the time before pickup. There is no
-free period, and **part of a block counts as a whole one**: a driver who has
-stopped is a driver not earning.
+somebody running in for five minutes — not the time before pickup. Whole
+minutes only, **rounded down**: the part-minute goes to the passenger, who is
+not the one doing the tapping.
 
 | Waited in total | Charge |
 |---|---|
-| 2 min | $800 |
-| 30 min | $800 |
-| 31 min | $1,600 |
-| 61 min | $2,400 |
+| 1 min | $30 |
+| 12 min | $360 |
+| 20 min | $600 |
+| 45 min | $1,350 |
+
+It was half-hour blocks to begin with, which is easy to apply at a kerb and
+wrong at both ends of the scale: a two-minute stop cost the same $800 as a
+thirty-minute one, and the thirty-first minute doubled the bill.
 
 **Two taps, no numbers.** The driver taps *Waiting* when the car stops and
 *Moving* when it goes again; the shop times it. While a stop is open, *Moving*
@@ -1586,28 +1590,25 @@ with the clock still running.
 ```
 Wayne ▸ 19 waiting
 Wayne ◂ ⏱ Waiting from 18:26. Tap when you move off.
-        ⏱ *Waiting:* $800 per 30 min — part of a block counts as a whole one.
+        ⏱ *Waiting:* $30 a minute, from the first minute.
 
 Wayne ▸ 19 moving
-Wayne ◂ ⏱ 12 min waited, 12 in total — *$800* so far.
+Wayne ◂ ⏱ 12 min waited, 12 in total — *$360* so far.
 ```
 
-**Totalled across the trip, not per stop.** Twelve minutes at the pharmacy and
-eight at a gate is twenty minutes — one block, $800. Charging each stop its own
-block would make the same twenty minutes $1,600 and give a driver a reason to
-tap twice instead of once.
+**Totalled across the trip.** Twelve minutes at the pharmacy and eight at a
+gate is twenty minutes — $600, however it was split.
 
 ```
-Wayne ◂ TXI-00019 → *delivered*.
-        Customer notified.
-        ⏱ Waited 20 min in total — *$800* to add to the fare.
+Wayne ◂ TXI-00019 → *passenger arrived*.
+        ⏱ Waited 20 min in total — *$600* to add to the fare.
 ```
 
 **A forgotten clock is closed at the drop.** A trip cannot end with one still
 running: the drop is when the car stopped being theirs to wait in.
 
 **Rounded down**, each stop. The figure decides money, so a driver tapping a
-few seconds late should not push a passenger into the next block.
+few seconds late should not cost the passenger a minute.
 
 **The passenger is told none of this.** The shop sets no fare, so it must not
 publish half of one — the driver states the waiting rate when the fare is

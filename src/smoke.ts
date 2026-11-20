@@ -9223,15 +9223,17 @@ section('What a taxi driver is told about waiting');
 
   /* --- the blocks ------------------------------------------------------ */
 
-  // No free period. Waiting is the car stopped at the passenger's request,
-  // with the driver in it and not earning, so the first minute costs a block.
+  // By the minute, from the first. Blocks were easy to apply at a kerb and
+  // wrong at both ends of the scale: a two-minute stop cost the same as a
+  // thirty-minute one, and the thirty-first minute doubled the bill.
+  const perMinute = config.taxi.waitPerMinute;
   check('nothing waited costs nothing', waitingCharge(0) === 0);
-  check('two minutes is a whole block', waitingCharge(2) === 800, String(waitingCharge(2)));
-  // Any part of a block is a whole one — a driver at a kerb cannot bill by
-  // the minute.
-  check('and so is thirty', waitingCharge(30) === 800, String(waitingCharge(30)));
-  check('the second block starts at thirty-one', waitingCharge(31) === 1600, String(waitingCharge(31)));
-  check('and it keeps counting', waitingCharge(61) === 2400, String(waitingCharge(61)));
+  check('the first minute is charged', waitingCharge(1) === perMinute, String(waitingCharge(1)));
+  check('and every one after it', waitingCharge(12) === 12 * perMinute, String(waitingCharge(12)));
+  check('with no step at the half hour',
+    waitingCharge(31) === waitingCharge(30) + perMinute, `${waitingCharge(30)} → ${waitingCharge(31)}`);
+  // Part-minutes go to the passenger, who is not the one doing the tapping.
+  check('part of a minute is not charged', waitingCharge(12.9) === 12 * perMinute, String(waitingCharge(12.9)));
   check('never below nothing', waitingCharge(-20) === 0);
 
   /* --- two taps, not a number typed at the end ------------------------- */
@@ -9273,8 +9275,8 @@ section('What a taxi driver is told about waiting');
   await handleDriverMessage(`${n} moving`, driver);
   check('the second is added to it', repo.findOrder(trip.orderNo)?.waitedMinutes === 20,
     String(repo.findOrder(trip.orderNo)?.waitedMinutes));
-  check('two stops of twenty minutes are one block, not two',
-    waitingCharge(repo.findOrder(trip.orderNo)!.waitedMinutes) === 800,
+  check('and the two stops are charged as twenty minutes',
+    waitingCharge(repo.findOrder(trip.orderNo)!.waitedMinutes) === 20 * perMinute,
     String(waitingCharge(repo.findOrder(trip.orderNo)!.waitedMinutes)));
 
   const closing = (await handleDriverMessage(`${n} delivered`, driver))[0]?.text ?? '';
@@ -9283,7 +9285,7 @@ section('What a taxi driver is told about waiting');
   // told is noise on the one card they work from.
   check('and does not report that the passenger was told',
     !/Customer notified/i.test(closing), closing);
-  check('with the money beside it', closing.includes(money(800)), closing);
+  check('with the money beside it', closing.includes(money(20 * perMinute)), closing);
 
   /* --- a clock nobody closed ------------------------------------------- */
 
@@ -9304,7 +9306,8 @@ section('What a taxi driver is told about waiting');
   const ended = repo.findOrder(forgot.orderNo)!;
   check('a forgotten clock is closed at the drop', ended.waitingSince === '' && ended.waitedMinutes === 35,
     `${ended.waitingSince} / ${ended.waitedMinutes}`);
-  check('and charged as two blocks', waitingCharge(ended.waitedMinutes) === 1600, String(waitingCharge(ended.waitedMinutes)));
+  check('and charged for every one of them', waitingCharge(ended.waitedMinutes) === 35 * perMinute,
+    String(waitingCharge(ended.waitedMinutes)));
 
   /* --- and only a taxi, and only under way ------------------------------ */
 
@@ -9351,7 +9354,7 @@ section('What a taxi driver is told about waiting');
   check('the offer card carries the rate', taxiOfferCard(ride).includes('Waiting'), taxiOfferCard(ride));
   check('so does the card once it is theirs', taxiPickupCard(ride).includes('Waiting'));
   check('and it states the rate without a free period',
-    /\$800 per 30 min/.test(waitingLine()) && !/free/.test(waitingLine()), waitingLine());
+    /a minute, from the first minute/.test(waitingLine()) && !/free/.test(waitingLine()), waitingLine());
 
   // The shop sets no fare, so it must not publish half of one. A passenger
   // told the waiting rate will ask what the rest is, and there is no answer.
@@ -9687,23 +9690,32 @@ section('Points come off the delivery charge');
   // A taxi earns on the WHOLE trip - the fare and the waiting together,
   // which is what the passenger actually paid to be carried, and what the
   // receipt they are holding says.
+  const { waitingCharge: waitCost } = await import('./taxi.ts');
+  const beforeRide = repo.pointsBalance(spender);
   const ride = order('TXI-97003', 0, 0, 'taxi');
   db.prepare(`UPDATE orders SET quoted_fare = 1800, waited_minutes = 20 WHERE order_no = ?`).run(ride);
   repo.setOrderStatus(ride, 'delivered');
-  // $1,800 fare + $800 waiting = $2,600 → 260 points.
+  // Worked out from the rules rather than written down: the fare plus what
+  // twenty minutes of waiting costs, at whatever the shop charges for it.
+  const tripCost = 1800 + waitCost(20);
   check('a taxi earns on the fare and the waiting together',
-    repo.pointsBalance(spender) === 500 + 260, String(repo.pointsBalance(spender)));
+    repo.pointsBalance(spender) === beforeRide + pointsFor(tripCost),
+    `${repo.pointsBalance(spender)} vs ${beforeRide} + ${pointsFor(tripCost)}`);
 
   // A trip the tariff could not price has nothing to take a share of.
+  const afterRide = repo.pointsBalance(spender);
   const unpriced = order('TXI-97007', 0, 0, 'taxi');
   repo.setOrderStatus(unpriced, 'delivered');
-  check('and a trip nobody priced earns nothing', repo.pointsBalance(spender) === 760,
+  check('and a trip nobody priced earns nothing', repo.pointsBalance(spender) === afterRide,
     String(repo.pointsBalance(spender)));
   // A parcel's fee lives in the same column as a delivery charge and earns
   // the same way.
+  const beforeParcel = repo.pointsBalance(spender);
   const parcel = order('PCL-97004', 0, 2000, 'parcel');
   repo.setOrderStatus(parcel, 'delivered');
-  check('a parcel fee earns like any other delivery', repo.pointsBalance(spender) === 960, String(repo.pointsBalance(spender)));
+  check('a parcel fee earns like any other delivery',
+    repo.pointsBalance(spender) === beforeParcel + pointsFor(2000),
+    `${beforeParcel} → ${repo.pointsBalance(spender)}`);
 
   /* --- what the customer is told --------------------------------------- */
 
