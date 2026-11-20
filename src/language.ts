@@ -131,8 +131,10 @@ const STRINGS: Record<Language, Dictionary> = {
     // be thanked for what the customer actually did. "Shopping" is only true
     // of a grocery order, and nothing was bought at all on a parcel job.
     thanks_grocery: 'Thank you for shopping with us!',
-    thanks_restaurant: 'Thank you for ordering from {outlet}!',
-    thanks_parcel: 'Thank you for choosing {store}!',
+    // One thanks for everything the shop carries, in the shop's own name.
+    // A kitchen's food is the kitchen's; the delivery is the shop's, and the
+    // shop is who the customer is talking to.
+    thanks_store: 'Thank you for choosing {store}!',
 
     // The receipt, printed above the three lines of thanks. Labels only - the
     // figures and the item lines are built from the order itself.
@@ -278,8 +280,7 @@ const STRINGS: Record<Language, Dictionary> = {
       '{name}, su pedido {order} va en camino 🛵\nTotal {total}, a pagar al asociado de entrega.',
     delivered: 'Pedido {order} entregado.',
     thanks_grocery: '¡Gracias por comprar con nosotros!',
-    thanks_restaurant: '¡Gracias por pedir en {outlet}!',
-    thanks_parcel: '¡Gracias por elegir {store}!',
+    thanks_store: '¡Gracias por elegir {store}!',
 
     receipt_title: 'Recibo',
     receipt_goods: 'Productos',
@@ -395,8 +396,7 @@ const STRINGS: Record<Language, Dictionary> = {
       '{name}, o seu pedido {order} está a caminho 🛵\nTotal {total}, a pagar ao associado de entrega.',
     delivered: 'Pedido {order} entregue.',
     thanks_grocery: 'Obrigado por comprar connosco!',
-    thanks_restaurant: 'Obrigado por pedir em {outlet}!',
-    thanks_parcel: 'Obrigado por escolher {store}!',
+    thanks_store: 'Obrigado por escolher {store}!',
 
     receipt_title: 'Recibo',
     receipt_goods: 'Produtos',
@@ -510,8 +510,7 @@ const STRINGS: Record<Language, Dictionary> = {
     on_the_way: '{name}，您的订单 {order} 已出发 🛵\n共计 {total}，请付给配送专员。',
     delivered: '订单 {order} 已送达。',
     thanks_grocery: '感谢您在我们这里购物！',
-    thanks_restaurant: '感谢您从 {outlet} 订餐！',
-    thanks_parcel: '感谢您选择 {store}！',
+    thanks_store: '感谢您选择 {store}！',
 
     receipt_title: '收据',
     receipt_goods: '商品',

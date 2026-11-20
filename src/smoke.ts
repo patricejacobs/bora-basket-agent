@@ -4171,7 +4171,7 @@ section('How a food order says goodbye');
   for (const lang of LANGUAGES) {
     check(
       `every sign-off and thanks is written in ${lang}`,
-      [...pools, 'thanks_grocery', 'thanks_restaurant', 'thanks_parcel'].every(
+      [...pools, 'thanks_grocery', 'thanks_store'].every(
         (k) => tr(k, lang).trim() !== '',
       ),
       [...pools, 'thanks_grocery'].filter((k) => tr(k, lang).trim() === '').join(','),
@@ -9369,6 +9369,48 @@ section('What a taxi driver is told about waiting');
 
   db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(ride.orderNo);
   db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(ride.orderNo);
+}
+
+section('The shop thanks them, not the kitchen');
+{
+  const { thanksFor, signOffFor } = await import('./notifications.ts');
+  const make = (no: string, kind: string, outlet: string) => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone,
+         delivery_note, kind, outlet_name, delivery_code, subtotal, delivery_fee,
+         total, payment_method, status, created_at)
+       VALUES (?, '5927300001','Marcia','Lot 1 Kitty','5927300001','', ?, ?, '',
+         1000, 500, 1500, 'cash', 'delivered', ?)`,
+    ).run(no, kind, outlet, new Date().toISOString());
+    return repo.findOrder(no)!;
+  };
+
+  const food = make('ORD-98001', 'restaurant', 'A Taste of Guyana Roti Shop & Bakery');
+  // It used to read "Thank you for ordering from A Taste of Guyana Roti Shop
+  // & Bakery!" — the shop thanking a customer on a kitchen's behalf, for a
+  // transaction the kitchen was not party to.
+  check('a restaurant order is thanked for in the shop’s name',
+    thanksFor(food) === `Thank you for choosing ${config.store.name}!`, thanksFor(food));
+  check('and never names the kitchen', !thanksFor(food).includes('Taste of Guyana'), thanksFor(food));
+  // The wish about the food still names the meal: that part was right.
+  check('the meal is still wished over', /meal|appétit|bite|enjoy/i.test(signOffFor(food)), signOffFor(food));
+
+  const shopping = make('GRO-98002', 'grocery', 'Centro de Gangas');
+  check('a grocery order keeps its own thanks',
+    thanksFor(shopping) === 'Thank you for shopping with us!', thanksFor(shopping));
+  check('which names no shop either', !thanksFor(shopping).includes('Centro'), thanksFor(shopping));
+
+  for (const kind of ['parcel', 'taxi'] as const) {
+    const job = make(`${kind === 'parcel' ? 'PCL' : 'TXI'}-98003`, kind, '');
+    check(`a ${kind} is thanked for in the same words`,
+      thanksFor(job) === `Thank you for choosing ${config.store.name}!`, thanksFor(job));
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(job.orderNo);
+  }
+
+  for (const no of ['ORD-98001', 'GRO-98002']) {
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(no);
+  }
+  db.prepare(`DELETE FROM customers WHERE phone = ?`).run('5927300001');
 }
 
 section('The agent is told what is still running');

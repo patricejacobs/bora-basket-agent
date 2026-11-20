@@ -1243,6 +1243,25 @@ counter is indistinguishable from food still cooking.
 
 ---
 
+### Who thanks whom
+
+**The shop thanks the customer, never the kitchen.** A restaurant order used
+to close with *"Thank you for ordering from A Taste of Guyana Roti Shop &
+Bakery!"* — the shop thanking somebody on a kitchen's behalf, for a
+transaction the kitchen was not party to. The food is the kitchen's; the
+order, the delivery and the whole conversation are the shop's.
+
+| Kind | Thanks | Wish |
+|---|---|---|
+| Restaurant | Thank you for choosing Next Minute Delivery! | *Enjoy your meal! 🍽️* |
+| Grocery | Thank you for shopping with us! | *Hope it's all just right! 😊* |
+| Parcel | Thank you for choosing Next Minute Delivery! | *Thanks for trusting us with it. 📦* |
+| Taxi | Thank you for choosing Next Minute Delivery! | *See you next time! 👋* |
+
+**The wish is unchanged** and still belongs to what was actually delivered —
+a meal is still wished over as a meal, and a grocery line never names the
+shop it was packed in.
+
 ## 6. Delivery codes
 
 Every order gets four digits. The customer receives them with the "on its way"

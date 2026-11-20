@@ -372,16 +372,15 @@ export function signOffFor(order: repo.OrderRecord, lang: Language = 'en'): stri
  */
 export function thanksFor(order: repo.OrderRecord, lang: Language = 'en'): string {
   if (order.kind === 'grocery') return t('thanks_grocery', lang);
-  // A taxi thanks them for choosing the shop, as a parcel does. The line
-  // below names a kitchen, and a passenger who has just been driven home
-  // being thanked for ordering from a roti shop is the wrong message
-  // entirely.
-  if (order.kind === 'parcel' || order.kind === 'taxi') {
-    return t('thanks_parcel', lang, { store: config.store.name });
-  }
-  return t('thanks_restaurant', lang, {
-    outlet: order.outlet?.name ?? config.store.name,
-  });
+  // Everything else is thanked for in the shop's own name.
+  //
+  // It used to read "Thank you for ordering from A Taste of Guyana Roti Shop
+  // & Bakery!" — the shop thanking a customer on a kitchen's behalf, for a
+  // transaction the kitchen was not party to. The food is the kitchen's and
+  // the wish about it still names the meal; the order, the delivery and the
+  // chat are the shop's, and the shop is who the customer has been talking
+  // to all along.
+  return t('thanks_store', lang, { store: config.store.name });
 }
 
 /**
