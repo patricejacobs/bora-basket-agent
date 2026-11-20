@@ -338,11 +338,20 @@ async function applyStatus(
   } else {
     try {
       const how = await notifyCustomerOfStatus(updated, status, config.diagnoseSource ? byPhone || reportedBy : '');
-      notes.push(
-        how === 'skipped'
-          ? '⚠️ Customer NOT notified — outside the 24h window and no template set up.'
-          : `Customer notified${how === 'template' ? ' (via template)' : ''}.`,
-      );
+      // A taxi driver does not need telling that the passenger was told.
+      //
+      // On a delivery it matters: the customer is somewhere else, and
+      // whether they have heard decides whether the associate should ring
+      // them. In a taxi the passenger is sitting there, or standing at the
+      // window — the driver can see them. What is still worth saying is when
+      // the message FAILED to go, because that is a fact they cannot see.
+      if (updated.kind !== 'taxi' || how === 'skipped') {
+        notes.push(
+          how === 'skipped'
+            ? '⚠️ Customer NOT notified — outside the 24h window and no template set up.'
+            : `Customer notified${how === 'template' ? ' (via template)' : ''}.`,
+        );
+      }
     } catch (err) {
       console.error('[staff] failed to notify customer:', err);
       notes.push('⚠️ Status saved, but notifying the customer failed.');

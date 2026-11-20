@@ -9279,6 +9279,10 @@ section('What a taxi driver is told about waiting');
 
   const closing = (await handleDriverMessage(`${n} delivered`, driver))[0]?.text ?? '';
   check('the closing card says what it came to', /Waited 20 min in total/.test(closing), closing);
+  // A taxi driver can see the passenger. Telling them the passenger was
+  // told is noise on the one card they work from.
+  check('and does not report that the passenger was told',
+    !/Customer notified/i.test(closing), closing);
   check('with the money beside it', closing.includes(money(800)), closing);
 
   /* --- a clock nobody closed ------------------------------------------- */
