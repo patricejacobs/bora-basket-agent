@@ -8,7 +8,11 @@
 import { config, money, dutyLimits } from './config.ts';
 import { savePhotoFor, skusWithLocalImages } from './product-images.ts';
 import * as repo from './db/repo.ts';
-import { notifyCustomerOfStatus, warnStaff } from './notifications.ts';
+import {
+  notifyCustomerOfStatus,
+  notifyPassengerDriverOutside,
+  warnStaff,
+} from './notifications.ts';
 import { sendLocationRequest, sendText } from './channels/whatsapp-send.ts';
 import {
   STATUS_LABEL,
@@ -1944,6 +1948,44 @@ export async function handleDriverMessage(
 
   const matched = STATUS_WORDS.find(([pattern]) => pattern.test(trimmed));
 
+  // The car has reached the pickup.
+  //
+  // "Arrived" means two different things on a taxi and the difference is
+  // which end of the trip it is: at the kerb it means "I am here", and with
+  // somebody in the car it means "they are where they were going". Read by
+  // the status, because the driver should not have to type two different
+  // words for the same thing they just did.
+  if (
+    order.kind === 'taxi' &&
+    (order.status === 'confirmed' || order.status === 'pending') &&
+    /\b(at\s*pickup|arrived|arrive|here|outside)\b/i.test(trimmed)
+  ) {
+    const at = repo.markArrivedAtPickup(order.orderNo);
+    const clock = new Date(at).toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: config.store.timezone,
+    });
+    // The passenger is told, which is the whole point of the tap from their
+    // side: a car outside that nobody mentioned is a car they do not know is
+    // theirs.
+    void notifyPassengerDriverOutside(order.orderNo).catch((err: unknown) =>
+      console.error('[staff] could not tell the passenger:', err),
+    );
+    return [
+      {
+        kind: 'buttons',
+        text: [
+          `🚕 *${order.orderNo}* — at the pickup, ${clock}.`,
+          `Say the safety code to ${order.customerName.split(/\s+/)[0] || 'them'} before they get in.`,
+        ].join(chr10),
+        buttons: nextActions(order.orderNo, 'confirmed', 'driver', {
+          selfAccepted: true,
+          canWait: true,
+          atPickup: true,
+        }),
+      },
+    ];
+  }
+
   // A passenger who called it off before the car reached them.
   //
   // Drivers cannot cancel anything, anywhere else, and that rule is right: an
@@ -1980,8 +2022,15 @@ export async function handleDriverMessage(
   // taxi's. A delivery associate who types "7 arrived" means they have
   // reached the kitchen, and reading that as a completed delivery would
   // close an order whose food is still on a counter.
+  //
+  // And only once the passenger is IN the car. Before that, the same word
+  // means the driver has reached the pickup, which is handled above — two
+  // ends of one trip, and the status is what tells them apart.
   const taxiArrived =
-    order.kind === 'taxi' && !matched && /\b(arrived|arrive|here)\b/i.test(trimmed);
+    order.kind === 'taxi' &&
+    order.status === 'on_the_way' &&
+    !matched &&
+    /\b(arrived|arrive|here)\b/i.test(trimmed);
 
   if (!matched && !taxiArrived) return reply(describeForDriver(order));
 
@@ -2220,6 +2269,7 @@ export async function handleDriverMessage(
     selfAccepted,
     // A taxi under way can be put on hold at the kerb.
     canWait: order.kind === 'taxi',
+    atPickup: Boolean(repo.findOrder(order.orderNo)?.arrivedAt),
     waitingOpen: Boolean(repo.findOrder(order.orderNo)?.waitingSince),
   });
 

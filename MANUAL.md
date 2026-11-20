@@ -1373,13 +1373,39 @@ are going until they get there.
 | **Passenger arrived** | The associate, at the destination | *Trip complete — you have arrived* |
 | Nobody there | The associate, at the pickup | *The driver could not find you* |
 
-### The three ways a pickup ends
+### From accepting to boarding
 
-Accepting a taxi gives the driver three buttons — exactly WhatsApp's limit:
+**Accepting puts the driver on the road, not at the kerb**, so the card
+offers only what can happen while driving there:
 
 ```
+[Arrived at pickup]  [Passenger cancelled]
+```
+
+Tapping *Arrived at pickup* records the minute, tells the passenger their car
+is outside, and changes the card to the three things that can happen now:
+
+```
+🚕 *TXI-00019* — at the pickup, 20:05.
+Say the safety code to Marcia before they get in.
+
 [Passenger onboard]  [Passenger not found]  [Passenger cancelled]
 ```
+
+The passenger gets:
+
+```
+Your driver is outside 🚕 They will say your safety code *6938* before you get in.
+```
+
+A car at a kerb that nobody has mentioned is a car the passenger does not know
+is theirs — and this is the minute before they get in, which is the minute the
+code is for.
+
+**"Arrived" means two different things on a taxi, and the status tells them
+apart.** At the kerb it means *I am here*; with somebody in the car it ends
+the trip. The driver types the same word for the same thing they just did,
+and tapping the arrival twice does not move the time it was recorded.
 
 | Tap | What it records | What the passenger is told |
 |---|---|---|

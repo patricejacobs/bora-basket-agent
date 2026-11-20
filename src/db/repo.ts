@@ -1435,6 +1435,8 @@ export type OrderRecord = {
   waitingSince: string;
   /** What the shop quoted for a taxi. 0 where no fare was set. */
   quotedFare: number;
+  /** When the car reached the pickup. '' until the driver says so. */
+  arrivedAt: string;
   /** How it was agreed to be paid, e.g. `cash_on_delivery`. */
   paymentMethod: string;
   status: OrderStatus;
@@ -1549,6 +1551,7 @@ function hydrateOrder(row: {
   waited_minutes: number | null;
   waiting_since: string | null;
   quoted_fare: number | null;
+  arrived_at: string | null;
   status: string;
   created_at: string;
 }): OrderRecord {
@@ -1569,6 +1572,7 @@ function hydrateOrder(row: {
     waitedMinutes: row.waited_minutes ?? 0,
     waitingSince: row.waiting_since ?? '',
     quotedFare: row.quoted_fare ?? 0,
+    arrivedAt: row.arrived_at ?? '',
     status: row.status as OrderStatus,
     placedAt: row.created_at,
     // An order's pin was fixed at checkout; `pinnedAt` on an order means the
@@ -2670,6 +2674,23 @@ export function lastDelivered(phone: string): OrderRecord | null {
     )
     .get(digits, digits) as Parameters<typeof hydrateOrder>[0] | undefined;
   return row ? hydrateOrder(row) : null;
+}
+
+/**
+ * Records that the car has reached the pickup.
+ *
+ * Idempotent, like the waiting clock: a driver who taps twice because
+ * nothing seemed to happen must not move the time they arrived.
+ */
+export function markArrivedAtPickup(orderNo: string): string {
+  const order = findOrder(orderNo);
+  if (!order || order.kind !== 'taxi') return '';
+  if (order.arrivedAt) return order.arrivedAt;
+
+  const now = nowIso();
+  db.prepare(`UPDATE orders SET arrived_at = ? WHERE order_no = ?`).run(now, orderNo);
+  recordEvent(orderNo, 'at the pickup', '', 'the car reached the collection point');
+  return now;
 }
 
 /* ------------------------------------------------------------ taxi waiting */

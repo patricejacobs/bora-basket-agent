@@ -281,6 +281,9 @@ export function commandFromButtonId(id: string): string | null {
   const paxCancel = /^paxcancel_(\d+)$/.exec(id);
   if (paxCancel) return `${paxCancel[1]} passenger cancelled`;
 
+  const atPickupTap = /^atpickup_(\d+)$/.exec(id);
+  if (atPickupTap) return `${atPickupTap[1]} at pickup`;
+
   const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move)_(\d+)$/.exec(id);
   if (simple) {
     const verb =
@@ -412,6 +415,11 @@ export function nextActions(
      * something anybody is charged for.
      */
     canWait?: boolean;
+    /**
+     * The car is at the pickup, so the next answers are about the passenger
+     * rather than about getting there.
+     */
+    atPickup?: boolean;
     /** A stop is already open, so the one button that matters is Moving. */
     waitingOpen?: boolean;
     /**
@@ -466,6 +474,7 @@ export function nextActions(
   // is somebody who did not come, the other is somebody who changed their
   // mind. Told apart, the shop can see which of its passengers waste trips;
   // rolled into one, it cannot.
+  const atPickup = act(`atpickup_${n}`, 'Arrived at pickup', `${n} at pickup`);
   const notFound = act(`nobody_${n}`, 'Passenger not found', `${n} nobody there`);
   const paxCancelled = act(`paxcancel_${n}`, 'Passenger cancelled', `${n} passenger cancelled`);
   const handedOver = act(`handover_${n}`, 'Uplifted', `${n} handover`);
@@ -514,9 +523,13 @@ export function nextActions(
       // same stage is still raw, and offering Uplifted there would send
       // somebody to stand over a fryer.
       case 'confirmed':
-        // A taxi at the kerb has three ways this goes: they get in, they are
-        // not there, or they call it off. Exactly WhatsApp's three buttons.
-        if (opts.canWait) return [onboard, notFound, paxCancelled];
+        // Two moments, not one. Driving to the pickup, the only things that
+        // can happen are arriving and the passenger calling it off — "not
+        // found" means nothing from the road. At the kerb it is the three
+        // real answers, which is exactly WhatsApp's limit.
+        if (opts.canWait) {
+          return opts.atPickup ? [onboard, notFound, paxCancelled] : [atPickup, paxCancelled];
+        }
         return opts.selfAccepted ? [uplifted] : [];
       case 'ready':
         return [uplifted];

@@ -2848,8 +2848,16 @@ section('A car, and no fare anywhere');
   check('while a delivery keeps its own words',
     statusLabel('delivered', 'grocery') === 'delivered' && statusLabel('on_the_way') === 'on the way');
 
-  const taxiButtons = nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true, canWait: true });
-  check('the tap says Passenger onboard', taxiButtons.some((b) => b.title === 'Passenger onboard'),
+  // Driving there, the only answers are arriving and being called off. The
+  // boarding taps appear once the car is at the kerb.
+  const onTheRoad = nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true, canWait: true });
+  check('on the way there, the tap is Arrived at pickup',
+    onTheRoad.map((b) => b.title).join('|') === 'Arrived at pickup|Passenger cancelled',
+    JSON.stringify(onTheRoad.map((b) => b.title)));
+  const taxiButtons = nextActions(accepted.orderNo, 'confirmed', 'driver', {
+    selfAccepted: true, canWait: true, atPickup: true,
+  });
+  check('and at the kerb it says Passenger onboard', taxiButtons.some((b) => b.title === 'Passenger onboard'),
     JSON.stringify(taxiButtons));
   const endButtons = nextActions(accepted.orderNo, 'on_the_way', 'driver', { canWait: true });
   check('and the last one says Passenger arrived', endButtons.some((b) => b.title === 'Passenger arrived'),
@@ -2958,11 +2966,53 @@ section('A car, and no fare anywhere');
     }
   }
 
+  /* --- reaching the pickup --------------------------------------------- */
+
+  {
+    const { handleDriverMessage } = await import('./staff.ts');
+    const toPickup = repo.createTaxiJob({
+      phone: '5926100048', passengerName: 'F Passenger', passengerPhone: '5926100048',
+      pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+      destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+    });
+    const pn = String(Number(toPickup.orderNo.replace(/\D/g, '')));
+    await handleDriverMessage(`${pn} confirm`, rider);
+    check('nothing says they are there yet', repo.findOrder(toPickup.orderNo)?.arrivedAt === '');
+
+    const atKerb = await handleDriverMessage(`${pn} at pickup`, rider);
+    check('the arrival is recorded with its time',
+      Boolean(repo.findOrder(toPickup.orderNo)?.arrivedAt), repo.findOrder(toPickup.orderNo)?.arrivedAt);
+    check('and the card now offers the boarding answers',
+      atKerb[0]?.kind === 'buttons' &&
+        atKerb[0].buttons.map((b) => b.title).join('|') ===
+          'Passenger onboard|Passenger not found|Passenger cancelled',
+      JSON.stringify(atKerb[0]?.kind === 'buttons' ? atKerb[0].buttons.map((b) => b.title) : atKerb[0]?.kind));
+    check('it reminds them to say the code', /safety code/i.test(atKerb[0]?.text ?? ''), atKerb[0]?.text);
+    // Tapping twice must not move the time they arrived.
+    const first = repo.findOrder(toPickup.orderNo)!.arrivedAt;
+    await handleDriverMessage(`${pn} at pickup`, rider);
+    check('tapping it again keeps the first time', repo.findOrder(toPickup.orderNo)?.arrivedAt === first);
+
+    // The word means two things, and the status tells them apart: at the
+    // kerb it is "I am here", with somebody aboard it ends the trip.
+    check('arriving at the pickup does not end the trip',
+      repo.findOrder(toPickup.orderNo)?.status === 'confirmed', repo.findOrder(toPickup.orderNo)?.status);
+    await handleDriverMessage(`${pn} onboard`, rider);
+    await handleDriverMessage(`${pn} arrived`, rider);
+    check('but the same word ends it once they are in the car',
+      repo.findOrder(toPickup.orderNo)?.status === 'delivered', repo.findOrder(toPickup.orderNo)?.status);
+
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(toPickup.orderNo);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(toPickup.orderNo);
+  }
+
   /* --- the three ways a pickup ends ------------------------------------ */
 
   {
     const { handleDriverMessage } = await import('./staff.ts');
-    const kerb = nextActions('TXI-00001', 'confirmed', 'driver', { selfAccepted: true, canWait: true });
+    const kerb = nextActions('TXI-00001', 'confirmed', 'driver', {
+      selfAccepted: true, canWait: true, atPickup: true,
+    });
     check('a taxi at the kerb offers three answers', kerb.length === 3, JSON.stringify(kerb.map((b) => b.title)));
     check('they get in, they are not there, or they call it off',
       kerb.map((b) => b.title).join('|') === 'Passenger onboard|Passenger not found|Passenger cancelled',

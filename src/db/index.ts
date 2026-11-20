@@ -585,6 +585,15 @@ addColumnIfMissing('orders', 'safety_code', "TEXT NOT NULL DEFAULT ''");
 // handed in is a question nobody has answered yet, and this leaves it open
 // instead of answering it by accident.
 addColumnIfMissing('orders', 'quoted_fare', 'INTEGER NOT NULL DEFAULT 0');
+// When the car reached the pickup, which is a different moment from the
+// passenger getting into it. Between the two the driver is standing at a
+// kerb, and the card has to offer different things: before it, "I am here";
+// after it, "they are in" or "they never came".
+//
+// Not a status. The ladder is the same for every job and a taxi arriving at
+// a kerb is not a stage a delivery has - it is a fact about one job, with a
+// time on it, which is what a column is for.
+addColumnIfMissing('orders', 'arrived_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'waited_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('orders', 'waiting_since', "TEXT NOT NULL DEFAULT ''");
 // Which service the rated job was, copied onto the rating.

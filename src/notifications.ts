@@ -614,6 +614,30 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   return head + signOffFor(order, lang) + (unconfirmed ? t('delivered_check', lang) : '');
 }
 
+/**
+ * Tells a passenger their car is outside.
+ *
+ * Sent when the driver says they have reached the pickup, and it is the
+ * whole point of that tap from the passenger's side: a car at a kerb that
+ * nobody has mentioned is a car they do not know is theirs. It carries the
+ * safety code again, because this is the minute before they get in, which is
+ * the minute it is for.
+ */
+export async function notifyPassengerDriverOutside(orderNo: string): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order || order.kind !== 'taxi') return false;
+  if (!repo.withinServiceWindow(order.phone)) return false;
+
+  const code = repo.safetyCodeFor(orderNo);
+  const lang = languageFor(order.phone);
+  return sendText(
+    order.phone,
+    code
+      ? t('taxi_driver_outside', lang, { code })
+      : t('taxi_driver_outside', lang, { code: '—' }),
+  );
+}
+
 export async function notifyCustomerOfStatus(
   order: repo.OrderRecord,
   status: repo.OrderStatus,

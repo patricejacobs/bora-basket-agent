@@ -106,7 +106,13 @@ gets('Marcia', customerStatusMessage(live(), 'confirmed'));
 console.log('');
 console.log(`  both of them are holding code ${repo.safetyCodeFor(job.orderNo)}`);
 
-rule('5. She is in the car');
+rule('5. He reaches the pickup');
+await show('Rider One', `${n} at pickup`);
+gets('Marcia', (await import('./src/language.ts')).t('taxi_driver_outside', 'en', {
+  code: repo.safetyCodeFor(job.orderNo),
+}));
+
+rule('5b. She is in the car');
 await show('Rider One', `${n} onboard`);
 gets('Marcia', customerStatusMessage(live(), 'on_the_way'));
 
