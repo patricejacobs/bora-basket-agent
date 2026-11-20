@@ -137,10 +137,22 @@ rule('8. Dropped off');
 await show('Rider One', `${n} arrived`);
 gets('Marcia', customerStatusMessage(live(), 'delivered'));
 
-rule('9. Where it ended up');
+rule('9. And the rating, as every delivery gets');
+{
+  const { ratingAsk, shouldAsk } = await import('./src/ratings.ts');
+  const closed = live();
+  const ask = ratingAsk(closed);
+  console.log(`  shouldAsk → ${shouldAsk(closed)}`);
+  if (ask.kind === 'list') {
+    gets('Marcia', ask.text + String.fromCharCode(10) + '          [ ' + ask.button + ' ▾ ]');
+    for (const r of ask.rows) console.log(`           ${r.title}  ${r.description ?? ''}`);
+  }
+}
+
+rule('10. Where it ended up');
 console.log(`  ${JSON.stringify({ kind: live().kind, status: live().status, total: live().total })}`);
 
-rule('10. A second trip — nobody at the pickup');
+rule('11. A second trip — nobody at the pickup');
 const second = repo.createTaxiJob({
   phone: PASSENGER,
   passengerName: 'Marcia Younge',
