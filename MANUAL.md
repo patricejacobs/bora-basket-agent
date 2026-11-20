@@ -2309,7 +2309,7 @@ Goods $3,200
 Delivery $500
 *Total $3,700* — paid in cash
 
-Thank you for ordering from A Taste of Guyana!   ← thanks, by kind
+Thank you for choosing Next Minute Delivery!     ← the shop's thanks
 Enjoy your meal, see you next time! 👋           ← one of seven wishes
 ```
 
@@ -2373,7 +2373,7 @@ All of it exists in English, Spanish, Portuguese and Chinese.
 | Kind | Thanked for | Wishes |
 |---|---|---|
 | Grocery | shopping with us | 5, about the day |
-| Restaurant | ordering from the named kitchen | 7, about the meal |
+| Restaurant | choosing the shop | 7, about the meal |
 | Parcel | choosing the service | 5, about the trust |
 
 A grocery and a parcel used to get no wish at all — the only pool was about
