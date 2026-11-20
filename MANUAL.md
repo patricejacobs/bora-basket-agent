@@ -1513,6 +1513,28 @@ turn that forgets to ask. What each button means travels in its **id**, never
 its title: the titles are words in whatever language the passenger writes, and
 matching on those would be matching on a translation.
 
+**The gate is the shop's record, not the model's word for it.** `book_taxi`
+takes a `fare_confirmed` flag, and a flag is a field the model fills in — after
+a long exchange about where somebody is going, it will set it believing the
+figure came up somewhere. So the shop writes down the fare it actually sent
+(`customers.taxi_fare_shown`) and checks the claim against it:
+
+| Quoted now | Shown earlier | What happens |
+|---|---|---|
+| $700 | $700 | Booked. The confirmation repeats the figure |
+| $700 | nothing | The fare goes out again. Nothing is dispatched |
+| $700 | $900 — the trip changed | The new fare goes out again |
+
+This is why it matters: the booking confirmation used to report the fare as
+*"to be agreed with the driver"* and tell the agent not to mention one — true
+when a taxi had no tariff, wrong since it got one. Combined with a skippable
+quote, a priced trip could reach the road **without any figure ever reaching
+the passenger**. Both halves are closed: the quote cannot be skipped, and the
+confirmation repeats the agreed fare.
+
+Where the tariff genuinely cannot price a trip there is still no figure, and
+the shop says so plainly rather than inventing one — the driver agrees it.
+
 ### The journey
 
 | Step | Who | What the passenger is told |

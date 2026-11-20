@@ -2171,7 +2171,23 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         destinationAddress || draft.destination?.label || '',
       );
 
-      if (quoted && input.fare_confirmed !== true) {
+      // Whether this passenger has SEEN this fare, which is the shop's own
+      // record and not the model's recollection.
+      //
+      // `fare_confirmed` is a field the model fills in, and after a long
+      // exchange about where somebody is going a model will set it believing
+      // the figure came up somewhere. It had not: the quote branch below is
+      // the only thing that ever sends a figure, so skipping it meant no
+      // price reached the passenger at all — and the booking confirmation,
+      // which says nothing about money, never made up for it.
+      //
+      // So the claim is checked against what was actually sent. Quoted
+      // $700 and now booking $700: honoured. Anything else — never quoted,
+      // or the trip changed under it — and the fare goes out again.
+      const everShown = repo.taxiFareShown(ctx.phone);
+      const seenThisFare = quoted !== null && everShown === quoted.fee;
+
+      if (quoted && (input.fare_confirmed !== true || !seenThisFare)) {
         // The figure goes out as three buttons rather than as a sentence the
         // model composes: Book it, Change destination, Cancel.
         //
@@ -2184,10 +2200,17 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // Sent from here, so the fare cannot be quoted without its answers
         // attached and cannot be skipped by a turn that forgets to ask.
         ctx.outbound.push(fareButtons(money(quoted.fee), languageFor(ctx.phone)));
+        // Written down as sent. Nothing books until this matches again.
+        repo.setTaxiFareShown(ctx.phone, quoted.fee);
         return ok({
           fare: money(quoted.fee),
           priced_by: quoted.say,
           sent: true,
+          ...(input.fare_confirmed === true && !seenThisFare
+            ? {
+                note: 'You passed fare_confirmed, but this passenger had not been sent this fare. They have it now. Wait for the tap.',
+              }
+            : {}),
           next: 'The fare and its three buttons have already gone to the passenger. Say nothing further about the fare and do not ask whether it is all right — wait for the tap. Book nothing until Book it comes back.',
         });
       }
@@ -2220,13 +2243,29 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         console.error('[tools] could not offer the taxi:', err),
       );
 
+      // What the passenger is told now the car is booked.
+      //
+      // This used to say the fare was "to be agreed with the driver" and
+      // forbid the model from mentioning one — true when a taxi had no
+      // tariff, wrong since it got one, and the reason a priced trip could
+      // reach the road without a figure ever being said out loud. A fare the
+      // shop quoted and the passenger agreed to is the shop's to repeat.
       return ok({
         booked: true,
         job_number: job.orderNo,
         passenger: passengerName,
-        fare: 'to be agreed with the driver',
-        say: `${job.orderNo} is in. I am looking for a car now.`,
-        next: 'Tell them the job number and that you are finding a driver. Do not promise a car, a time or a fare — none of the three is yours to give.',
+        ...(quoted
+          ? {
+              fare: money(quoted.fee),
+              priced_by: quoted.say,
+              say: `${job.orderNo} is in, ${money(quoted.fee)} as agreed. I am looking for a car now.`,
+              next: 'Give them the job number and repeat the fare they agreed, which is theirs to have in writing. Say waiting after pickup is charged on top. Do not promise a car or a time — neither is yours to give.',
+            }
+          : {
+              fare: 'to be agreed with the driver',
+              say: `${job.orderNo} is in. I am looking for a car now.`,
+              next: 'Tell them the job number, and that the driver agrees the fare with them — the tariff could not price this trip, so the shop has no figure. Do not promise a car, a time or a fare.',
+            }),
       });
     }
 

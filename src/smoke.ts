@@ -2801,8 +2801,52 @@ section('A car, and no fare anywhere');
   check('and the agent is told not to ask again',
     /do not ask whether it is all right/i.test(String(quote.next)), String(quote.next));
 
+  // The failure this guards against, which reached a live shop: after a long
+  // exchange about where somebody was going, the model called book_taxi with
+  // fare_confirmed already true. The quote branch never ran, so no figure was
+  // ever sent — and the booking confirmation says nothing about money, so the
+  // passenger got a car and no price at all.
+  //
+  // fare_confirmed is a field the model fills in. Whether a fare was put in
+  // front of somebody is the shop's own record.
+  {
+    const unseen = '5920009350';
+    repo.setService(unseen, 'taxi');
+    repo.saveCustomer(unseen, { name: 'Never Quoted', contactPhone: '5926480000' });
+    // Both ends in words: this passenger has shared no pin, and the point
+    // being tested is the fare, not where the car is going.
+    const sameTrip = { pickup_address: 'Stabroek', ...trip };
+    const sneaky: ToolContext = { phone: unseen, outbound: [] };
+    const jump: any = JSON.parse(
+      executeTool('book_taxi', { ...sameTrip, fare_confirmed: true }, sneaky),
+    );
+    check('a fare nobody was shown does not book', jump.booked !== true, JSON.stringify(jump).slice(0, 120));
+    check('the figure is sent instead', sneaky.outbound.at(-1)?.kind === 'buttons');
+    check('and the model is told why', /had not been sent this fare/i.test(String(jump.note)), String(jump.note));
+    check('still nothing on the road',
+      repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== unseen));
+
+    // Shown now, so the same call goes through.
+    const second: ToolContext = { phone: unseen, outbound: [] };
+    const now: any = JSON.parse(
+      executeTool('book_taxi', { ...sameTrip, fare_confirmed: true }, second),
+    );
+    check('once they have seen it, it books', now.booked === true, JSON.stringify(now).slice(0, 120));
+    check('and the fare is cleared for the next trip', repo.taxiFareShown(unseen) === -1,
+      String(repo.taxiFareShown(unseen)));
+    repo.setService(unseen, null);
+  }
+
   const booked = taxi('book_taxi', { ...trip, fare_confirmed: true });
   check('books the trip once they agree', booked.booked === true, JSON.stringify(booked).slice(0, 140));
+
+  // And the confirmation repeats the figure. It used to say the fare was "to
+  // be agreed with the driver" and forbid the model from mentioning one —
+  // left over from when a taxi had no tariff, and the second half of why a
+  // priced trip could reach the road with no price ever said out loud.
+  check('the booking repeats the fare they agreed', /^\$[0-9,]+$/.test(String(booked.fare)), String(booked.fare));
+  check('and tells the agent to say it', /repeat the fare/i.test(String(booked.next)), String(booked.next));
+  check('with waiting mentioned on top', /waiting/i.test(String(booked.next)), String(booked.next));
 
   const job = repo.findOrder(String(booked.job_number));
   check('the job is a taxi', job?.kind === 'taxi', job?.kind);

@@ -414,8 +414,33 @@ export function setTaxiPick(phone: string, side: 'from' | 'to', place: string): 
 
 export function clearTaxiPicks(phone: string): void {
   db.prepare(
-    `UPDATE customers SET taxi_pick_from = '', taxi_pick_to = '', updated_at = ? WHERE phone = ?`,
+    `UPDATE customers SET taxi_pick_from = '', taxi_pick_to = '', taxi_fare_shown = -1,
+       updated_at = ? WHERE phone = ?`,
   ).run(nowIso(), phone);
+}
+
+/**
+ * Records a fare the shop has actually put in front of this passenger.
+ *
+ * The companion to `taxiFareShown`: together they are how the shop knows a
+ * figure was really quoted, rather than taking a model's word for it. See the
+ * column's own note in db/index.ts.
+ */
+export function setTaxiFareShown(phone: string, fee: number): void {
+  db.prepare(
+    `INSERT INTO customers (phone, taxi_fare_shown, created_at, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET taxi_fare_shown = excluded.taxi_fare_shown,
+       updated_at = excluded.updated_at`,
+  ).run(phone, Math.max(0, Math.round(fee)), nowIso(), nowIso());
+}
+
+/** The fare this passenger has been shown, or -1 if none ever was. */
+export function taxiFareShown(phone: string): number {
+  const row = db
+    .prepare(`SELECT taxi_fare_shown AS fee FROM customers WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as { fee: number } | undefined;
+  return row?.fee ?? -1;
 }
 
 /**

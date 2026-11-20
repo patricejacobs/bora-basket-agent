@@ -502,6 +502,19 @@ addColumnIfMissing('customers', 'service_chosen_at', 'TEXT');
 addColumnIfMissing('customers', 'taxi_pick_from', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'taxi_pick_to', "TEXT NOT NULL DEFAULT ''");
 
+// The fare the shop has actually PUT IN FRONT of this passenger, or -1.
+//
+// Written when the three buttons go out, checked before a car is dispatched.
+// It exists because book_taxi's `fare_confirmed` is a field the model fills
+// in, and a model that believes the figure came up somewhere in a long
+// conversation will set it — skipping the quote entirely, so the passenger
+// never sees a price and the booking confirmation, which says nothing about
+// money, never mentions one either.
+//
+// A fare is a promise. Whether one was made is the shop's own record, not the
+// model's recollection.
+addColumnIfMissing('customers', 'taxi_fare_shown', 'INTEGER NOT NULL DEFAULT -1');
+
 // A parcel has a sender and a recipient, and they are different people in
 // different places. The customer is the sender; these are who receives it.
 addColumnIfMissing('orders', 'recipient_name', "TEXT NOT NULL DEFAULT ''");
