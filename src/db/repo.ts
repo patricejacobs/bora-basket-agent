@@ -7,6 +7,7 @@ import { parseCoordinates, type LocationPin, type SavedPin } from '../location.t
 import { zoneFeeFor } from '../zones.ts';
 import { inShoppingOrder } from '../categories.ts';
 import { pointsFor, rewardsIn, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
+import { waitingCharge } from '../taxi.ts';
 
 export type { LocationPin, SavedPin };
 
@@ -2761,11 +2762,19 @@ export function awardPoints(orderNo: string): number {
   const order = findOrder(orderNo);
   if (!order || order.status !== 'delivered') return 0;
 
-  // What the shop charged to move them or their things, which is the
-  // delivery fee on an order, the fee on a parcel, and the fare on a taxi.
-  // Not the shopping, and not the waiting: waiting is settled between the
-  // driver and the passenger and the shop never records an amount for it.
-  const charged = order.kind === 'taxi' ? order.quotedFare : order.deliveryFee;
+  // What the shop charged to move them or their things: the delivery fee on
+  // an order, the fee on a parcel, and on a taxi the WHOLE trip — the fare
+  // and the waiting together.
+  //
+  // The waiting was left out at first on the reasoning that the driver
+  // settles it. So they do, and they settle the fare too; what the passenger
+  // paid to be carried is both, and a scheme that gives back a share of it
+  // should count what they actually paid. The amount is the shop's own
+  // arithmetic over minutes the shop recorded, so there is nothing to guess.
+  const charged =
+    order.kind === 'taxi'
+      ? order.quotedFare + waitingCharge(order.waitedMinutes)
+      : order.deliveryFee;
   const points = pointsFor(charged);
   if (points <= 0) return 0;
 

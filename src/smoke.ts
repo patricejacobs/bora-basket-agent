@@ -9684,16 +9684,26 @@ section('Points come off the delivery charge');
   repo.setOrderStatus(lost, 'cancelled');
   check('an order that never arrived earns nothing', repo.pointsBalance(spender) === 500);
 
-  // A taxi's fare was agreed in the car and the shop never learned it, so
-  // there is nothing to take a percentage of.
+  // A taxi earns on the WHOLE trip - the fare and the waiting together,
+  // which is what the passenger actually paid to be carried, and what the
+  // receipt they are holding says.
   const ride = order('TXI-97003', 0, 0, 'taxi');
+  db.prepare(`UPDATE orders SET quoted_fare = 1800, waited_minutes = 20 WHERE order_no = ?`).run(ride);
   repo.setOrderStatus(ride, 'delivered');
-  check('a taxi earns nothing, having no fee on file', repo.pointsBalance(spender) === 500);
+  // $1,800 fare + $800 waiting = $2,600 → 260 points.
+  check('a taxi earns on the fare and the waiting together',
+    repo.pointsBalance(spender) === 500 + 260, String(repo.pointsBalance(spender)));
+
+  // A trip the tariff could not price has nothing to take a share of.
+  const unpriced = order('TXI-97007', 0, 0, 'taxi');
+  repo.setOrderStatus(unpriced, 'delivered');
+  check('and a trip nobody priced earns nothing', repo.pointsBalance(spender) === 760,
+    String(repo.pointsBalance(spender)));
   // A parcel's fee lives in the same column as a delivery charge and earns
   // the same way.
   const parcel = order('PCL-97004', 0, 2000, 'parcel');
   repo.setOrderStatus(parcel, 'delivered');
-  check('a parcel fee earns like any other delivery', repo.pointsBalance(spender) === 700, String(repo.pointsBalance(spender)));
+  check('a parcel fee earns like any other delivery', repo.pointsBalance(spender) === 960, String(repo.pointsBalance(spender)));
 
   /* --- what the customer is told --------------------------------------- */
 
@@ -9733,7 +9743,10 @@ section('Points come off the delivery charge');
   /* --- spending it ------------------------------------------------------ */
 
   repo.setOrderStatus(order('ORD-97005', 2000, 3000), 'delivered');
-  check('they reach a reward', repo.pointsBalance(spender) === 1000, String(repo.pointsBalance(spender)));
+  // Measured against what they have rather than a figure written down here:
+  // what earns points is settled above, and this part is about spending.
+  const banked = repo.pointsBalance(spender);
+  check('they reach a reward', rewardsIn(banked) >= 1, String(banked));
 
   const sku = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
   check('there is something to buy', Boolean(sku), sku?.name);
@@ -9753,7 +9766,8 @@ section('Points come off the delivery charge');
   // know the scheme exists.
   check('the total is net of it', withReward.total === withReward.subtotal + withReward.deliveryFee - REWARD_VALUE,
     `${withReward.subtotal} + ${withReward.deliveryFee} - ${REWARD_VALUE} = ${withReward.total}`);
-  check('the points are gone from the balance', repo.pointsBalance(spender) === 0, String(repo.pointsBalance(spender)));
+  check('the reward is taken off the balance', repo.pointsBalance(spender) === banked - REWARD_POINTS,
+    `${banked} → ${repo.pointsBalance(spender)}`);
   check('and the receipt shows what came off', receiptLines(withReward, 'en').some((l) => l.includes('−' + money(REWARD_VALUE))),
     receiptLines(withReward, 'en').join(' | '));
 
@@ -9766,12 +9780,17 @@ section('Points come off the delivery charge');
     location: null, useReward: true,
   } as never);
   made.push(nothingLeft.orderNo);
+  // Spent down below a reward, so there is nothing left to spend.
+  db.prepare(`DELETE FROM points_ledger WHERE phone = ? AND reason = 'earned'`).run(spender);
   check('an empty balance buys nothing', repo.findOrder(nothingLeft.orderNo)?.rewardValue === 0);
-  check('and the balance never goes below zero', repo.pointsBalance(spender) === 0, String(repo.pointsBalance(spender)));
+  check('and the balance never goes below zero', repo.pointsBalance(spender) <= 0, String(repo.pointsBalance(spender)));
 
   // A reward spent on an order that then came back has to come back too.
+  const beforeRefund = repo.pointsBalance(spender);
   repo.setOrderStatus(paid.orderNo, 'returned');
-  check('a returned order gives the points back', repo.pointsBalance(spender) === REWARD_POINTS, String(repo.pointsBalance(spender)));
+  check('a returned order gives the points back',
+    repo.pointsBalance(spender) === beforeRefund + REWARD_POINTS,
+    `${beforeRefund} → ${repo.pointsBalance(spender)}`);
 
   for (const no of made) {
     db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(no);

@@ -1519,9 +1519,10 @@ How was the trip, Marcia?
               [ Rate this trip ▾ ]
 ```
 
-**Points come off the fare**, at the same rate as a delivery charge — $10 is
-a point. Not the waiting: that is settled between the driver and the
-passenger and the shop never records an amount for it.
+**Points come off the whole trip** — the fare and the waiting together, at
+the same rate as a delivery charge: $10 is a point. A $500 fare with $800 of
+waiting is a $1,300 trip and earns 130, which is the total printed on the
+receipt the passenger is holding.
 
 **A trip the tariff could not price gets no receipt.** There is no fare to
 print, the driver settled it in the car, and `*Total $0* — paid in cash`

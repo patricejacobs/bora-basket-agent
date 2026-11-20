@@ -21,8 +21,10 @@
  * thing as rewarding the biggest shoppers, and nobody should discover that
  * from a customer.
  *
- * A parcel's fee is a delivery charge and earns. A taxi earns nothing,
- * because the shop never learns the fare: the driver agrees it in the car.
+ * A parcel's fee is a delivery charge and earns. A taxi earns on the whole
+ * trip - the fare and the waiting together, which is what the passenger paid
+ * to be carried and what the receipt in their hand says. A trip the tariff
+ * could not price earns nothing, the shop never having learned what was paid.
  *
  * Two rules that matter more than the rate:
  *
