@@ -343,6 +343,16 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       return result.outbound;
     }
 
+    // Straight back to the front door, from any screen of the picker.
+    if (result?.kind === 'menu') {
+      repo.setService(msg.phone, null);
+      repo.setBrowsingOutlet(msg.phone, null);
+      repo.resetConversation(msg.phone);
+      const menu = serviceMenuReply(msg.phone);
+      for (const out of menu) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return menu;
+    }
+
     // Called off at the fare. The service goes with it, so the next message
     // is read as a fresh visit rather than as more of a trip that is not
     // happening.

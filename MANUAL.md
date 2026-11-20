@@ -1455,10 +1455,16 @@ Which part of East Bank Demerara?          [ Choose a place ]
   Covent Garden            $700
   Golden Grove East Bank   $700
   Grove                    $700
-  Herstelling              $700
   More…
   ✏️ Type the address
+  ⬅️ Main menu
 ```
+
+Three rows end **every** screen of the picker and are never paged away:
+`More…` where there is more, `Type the address`, and `Main menu`. That is why
+a page holds seven places — ten rows, less those three. Tapping `Main menu`
+drops the trip and goes back to the front door: a pickup left on file would
+have the next taxi start wherever this one was going to.
 
 **The picker prices the trip; it does not find the door.** A village name
 sets the fare and says nothing about which gate, so the pin and the typed
@@ -1467,13 +1473,20 @@ address are still how a driver is told where to stop — the picker replaces the
 now` are on **every** screen and are never paged away: somebody going
 somewhere the tariff has never heard of must still be able to book a car.
 
+A typed place is matched on sound, not spelling, and forgiven **one letter
+per seven of each word** — counted so that a swapped pair of letters costs one,
+not two, because that is the commonest slip anybody makes. A name mistyped
+further than that goes unmatched and the agent asks, which is the right way
+round for a fare: a question costs a message, a wrong village costs the
+difference and nobody notices until the car arrives. *Mahdia* is not *Mahaica*.
+
 Ordering is by fare from the chosen pickup, which is nearest-first in the only
 sense a passenger cares about and needs no trading history to be right. From
 Diamond that puts Farm and Great Diamond on page one; ordering by distance
 from town would have given Agricola and McDoom.
 
-Eight places to a page, not nine, so `More…` and `Type the address` both
-survive to the bottom. The last page has no `More…` and may show nine.
+The last page has no `More…` and so may show eight; the offsets still step by
+seven, which is why a short final page never repeats the one before it.
 
 The picker is read in `place-picker.ts` **before the agent runs**, for the
 same reason the service menu is fixed text: a tapped row is already structured

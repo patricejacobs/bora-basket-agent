@@ -210,13 +210,21 @@ export function soundalike(s: string): string {
     .replace(/th/g, 't')
     .replace(/gh/g, 'g')
     .replace(/sch/g, 'sk')
+    // Dutch -cht is the -gt the same village is spelled with elsewhere:
+    // Uitvlucht and Uitvlugt are one place. Before c becomes k below, or the
+    // two spellings end up two letters apart.
+    .replace(/cht/g, 'gt')
     // ij, ei and y all land on the same sound in these names.
     .replace(/ij/g, 'i')
     .replace(/ei/g, 'i')
     .replace(/y/g, 'i')
-    // oe and ou are u; oo is long but spelled both ways.
+    // oe and ou are u; oo is long but spelled both ways. So is ow, and it has
+    // to be flattened HERE rather than left to the w rule below — Powderoyen
+    // and Pouderoyen are the same village, and "pof" against "pu" is two
+    // letters apart for no reason anybody said out loud.
     .replace(/oe/g, 'u')
     .replace(/ou/g, 'u')
+    .replace(/ow/g, 'u')
     .replace(/oo/g, 'u')
     // v, w and f swap constantly between Dutch and English spellings.
     .replace(/w/g, 'v')
@@ -230,10 +238,27 @@ export function soundalike(s: string): string {
   return t.replace(/\s+/g, ' ').trim();
 }
 
-/** Ordinary edit distance, capped so a long mismatch costs nothing to reject. */
+/**
+ * Edit distance where swapping two neighbouring letters costs one, not two.
+ *
+ * Plain edit distance charges a transposition twice — once to take the letter
+ * out and once to put it back — which is wrong about thumbs. Typing "Leonroa"
+ * for Leonora is one slip, and counting it as two put it in the same bracket
+ * as Mahdia against Mahaica, which is two deliberate differences between two
+ * real towns several hundred kilometres apart. The slack then had to be set
+ * loose enough for the typo, which left it loose enough for the town.
+ *
+ * Counting the swap as the single slip it is separates them, so the allowance
+ * can be tight and still forgive the commonest mistake anybody makes.
+ *
+ * Capped, so a long mismatch costs nothing to reject.
+ */
 function distance(a: string, b: string, cap = 4): number {
   if (a === b) return 0;
   if (Math.abs(a.length - b.length) > cap) return cap + 1;
+
+  // Three rows rather than two: a transposition needs the row before last.
+  let twoBack: number[] = [];
   let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
     const row = [i];
@@ -243,7 +268,12 @@ function distance(a: string, b: string, cap = 4): number {
         row[j - 1]! + 1,
         prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1),
       );
+      // The two letters either side swapped over.
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        row[j] = Math.min(row[j]!, twoBack[j - 2]! + 1);
+      }
     }
+    twoBack = prev;
     prev = row;
     if (Math.min(...row) > cap) return cap + 1;
   }
@@ -256,11 +286,50 @@ function holds(whole: string, part: string): boolean {
   return ` ${whole} `.includes(` ${part} `);
 }
 
-/** How much slack a name of this length gets. Short names get almost none. */
+/**
+ * How much slack a name of this length gets: one letter per seven, at least
+ * one and never more than three.
+ *
+ * Proportional, because the thing that matters is not how many letters are
+ * wrong but what share of the name they are. Two wrong letters in
+ * Beterverwagting is a thumb on a phone; two in Mahaica is a different place.
+ *
+ * It used to be banded — one letter up to five, two up to nine, three beyond —
+ * which gave a seven-letter name two letters of slack, nearly a third of it.
+ * That is how *Mahdia*, a mining town several hundred kilometres inland, was
+ * silently read as *Mahaica* on the coast and quoted $4,800. Measured against
+ * a typo of every place in the tariff, every wrong answer the matcher gave sat
+ * in that second letter of slack; at one letter it gave none at all.
+ *
+ * The cost is that a name mistyped twice now goes unmatched instead of being
+ * guessed at, and the agent asks. For a fare that is the right way round: a
+ * question costs a message, a wrong village costs the difference between $700
+ * and $4,800 and nobody notices until the car arrives.
+ */
 function allowance(name: string): number {
-  if (name.length <= 5) return 1;
-  if (name.length <= 9) return 2;
-  return 3;
+  // A letter of slack per seven, counted WORD BY WORD and never less than one
+  // a word, up to three for the whole name.
+  //
+  // Per word rather than over the whole string, because a budget spent on one
+  // word is a different word. "Meadow Bank" is eleven characters and used to
+  // get three letters of slack, which let it answer to "Diamond, East Bank" —
+  // every one of those three spent turning "east" into "meadow", with "bank"
+  // doing all the work. Per word it gets one and one, and the match fails as
+  // it should.
+  //
+  // Proportional rather than banded, because what matters is not how many
+  // letters are wrong but what share of the word they are. Two wrong letters
+  // in Beterverwagting is a thumb on a phone. Two in Mahaica is *Mahdia*, a
+  // mining town several hundred kilometres inland, silently quoted $4,800 as
+  // though it were on the coast.
+  //
+  // One letter is enough to forgive the commonest mistakes because the
+  // distance below counts a swapped pair as one, and because soundalike has
+  // already flattened the spellings people genuinely disagree about.
+  const perWord = name
+    .split(' ')
+    .reduce((sum, word) => sum + Math.max(1, Math.floor(word.length / 7)), 0);
+  return Math.min(3, perWord);
 }
 
 /**

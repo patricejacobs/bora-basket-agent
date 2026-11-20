@@ -37,14 +37,15 @@ import type { OutboundMessage } from './channels/types.ts';
 /**
  * Places on one page of a corridor.
  *
- * Eight, not nine, because "Type the address" has to survive to the bottom of
- * every page. Ten rows, less one for typing and one for "More…", leaves eight
- * — and a page that pushed typing off the end would be the picker becoming a
- * gate, which is the one thing it must never be. The last page has no "More…"
- * and so may show nine; the offsets still step by eight, which is why a short
- * final page never overlaps the one before it.
+ * Seven, because three rows have to survive to the bottom of every page:
+ * "More…", "Type the address" and "Main menu". Ten rows less those three
+ * leaves seven. A page that pushed typing or the way out off the end would be
+ * the picker becoming a gate, which is the one thing it must never be.
+ *
+ * The last page has no "More…" and so may show eight; the offsets still step
+ * by seven, which is why a short final page never overlaps the one before it.
  */
-const PER_PAGE = 8;
+const PER_PAGE = 7;
 
 /** WhatsApp's own ceiling on a list. */
 const MAX_ROWS = 10;
@@ -67,6 +68,7 @@ export type Pick =
   | { kind: 'type'; side: PickSide }
   | { kind: 'place'; side: PickSide; place: string }
   | { kind: 'corridor'; side: PickSide; corridor: string; page: number }
+  | { kind: 'menu'; side: PickSide }
   | { kind: 'fare'; answer: 'book' | 'change' | 'cancel' };
 
 /** True when this is one of our row ids rather than somebody else's. */
@@ -101,6 +103,7 @@ export function readPick(id: string): Pick | null {
   const kind = parts[2] ?? '';
   if (kind === 'here') return { kind: 'here', side };
   if (kind === 'type') return { kind: 'type', side };
+  if (kind === 'menu') return { kind: 'menu', side };
   if (kind === 'place') {
     // The place itself may hold anything but a colon, so it is the whole rest
     // of the id rather than the next field: "Vryheid's Lust" survives, and so
@@ -124,6 +127,19 @@ const placeRow = (side: PickSide, place: string, description?: string) => ({
   title: place.slice(0, 24),
   ...(description ? { description } : {}),
 });
+
+/**
+ * The two rows that end every picker screen, in this order.
+ *
+ * Typing, so somebody going where the tariff has never heard of can still
+ * book; and the way out, so nobody is ever stuck in a list. Neither is ever
+ * paged away — see PER_PAGE, which is seven so that these two and "More…"
+ * all fit under WhatsApp's ten.
+ */
+const wayOutRows = (side: PickSide, lang: Language) => [
+  { id: `${PREFIX}:${side}:type`, title: t('pick_type', lang) },
+  { id: `${PREFIX}:${side}:menu`, title: t('pick_menu', lang) },
+];
 
 const corridorRow = (side: PickSide, corridor: string, page = 0) => ({
   id: `${PREFIX}:${side}:corr:${page}:${corridor}`,
@@ -165,15 +181,15 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
     rows.push(placeRow(side, found.match.place, t('pick_recent', lang)));
   }
 
-  // The corridors fill whatever is left, with one row kept back for typing.
-  // In practice there is always room: the most that can be above them is a
-  // location row, a saved address and two recents.
+  // The corridors fill whatever is left, with two rows kept back for the way
+  // out. In practice there is always room: the most that can be above them is
+  // a location row, a saved address and two recents.
   for (const corridor of corridors()) {
-    if (rows.length >= MAX_ROWS - 1) break;
+    if (rows.length >= MAX_ROWS - 2) break;
     rows.push(corridorRow(side, corridor));
   }
 
-  rows.push({ id: `${PREFIX}:${side}:type`, title: t('pick_type', lang) });
+  rows.push(...wayOutRows(side, lang));
 
   return {
     kind: 'list',
@@ -221,9 +237,9 @@ export function corridorPicker(
   const left = priced.length - start;
   if (left <= 0) return null;
 
-  // Everything that is left, when it fits beside the typing row. Otherwise a
-  // page of eight with "More…" after it.
-  const take = left <= MAX_ROWS - 1 ? MAX_ROWS - 1 : PER_PAGE;
+  // Everything that is left, when it fits beside the two way-out rows.
+  // Otherwise a page of seven with "More…" after it.
+  const take = left <= MAX_ROWS - 2 ? MAX_ROWS - 2 : PER_PAGE;
   const slice = priced.slice(start, start + take);
 
   const rows = slice.map((r) =>
@@ -237,7 +253,7 @@ export function corridorPicker(
   }
 
   // Last, and on every page. See PER_PAGE.
-  rows.push({ id: `${PREFIX}:${side}:type`, title: t('pick_type', lang) });
+  rows.push(...wayOutRows(side, lang));
 
   return {
     kind: 'list',
@@ -280,7 +296,9 @@ export type PickResult =
   /** Hand this to the agent in place of the customer's words. */
   | { kind: 'note'; note: string }
   /** The passenger called it off. Clear the service and show the menu. */
-  | { kind: 'cancelled'; outbound: OutboundMessage[] };
+  | { kind: 'cancelled'; outbound: OutboundMessage[] }
+  /** They want the service menu. Clear the trip and send it. */
+  | { kind: 'menu' };
 
 /**
  * Acts on a tapped row.
@@ -318,6 +336,15 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
       kind: 'note',
       note: '[The passenger tapped *Book it*: they have seen the fare and agreed it. Call book_taxi again with the same details and fare_confirmed true. Do not quote the fare again and do not ask whether it is all right — they have already answered that.]',
     };
+  }
+
+  if (pick.kind === 'menu') {
+    // The trip goes with them. Somebody who has walked back to the front door
+    // is not half way through choosing a car any more, and leaving a pickup
+    // on file would have the next taxi start wherever this one was going to.
+    repo.clearTaxiPicks(phone);
+    repo.clearParcelDraft(phone);
+    return { kind: 'menu' };
   }
 
   if (pick.kind === 'here') {

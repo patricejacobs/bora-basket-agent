@@ -3210,7 +3210,7 @@ section('Picking a place instead of typing one');
     rows.every((r) => r.title.length <= 24),
     JSON.stringify(rows.map((r) => r.title).filter((t2) => t2.length > 24)));
   check('it opens with the location button', rows[0]?.id === 'pick:from:here', rows[0]?.id);
-  check('and ends with typing', rows.at(-1)?.id === 'pick:from:type', rows.at(-1)?.id);
+  check('and offers typing', rows.some((r) => r.id === 'pick:from:type'));
   check('with every corridor between them',
     ['Georgetown', 'East Bank Demerara', 'West Coast Demerara'].every((c) =>
       rows.some((r) => r.title === c)),
@@ -3245,10 +3245,13 @@ section('Picking a place instead of typing one');
   check('the pickup is not offered as a destination',
     !p0.some((r) => r.title === 'Diamond'));
 
-  // The two rows that must survive to the bottom of every page. A page that
-  // pushed typing off the end would be the picker becoming a gate.
+  // The rows that must survive to the bottom of every page. A page that
+  // pushed typing or the way out off the end would be the picker becoming a
+  // gate, which is the one thing it must never be.
   check('there is a way on to the next page', p0.some((r) => r.id.includes(':corr:1:')));
-  check('and typing is still the last row', p0.at(-1)?.id === 'pick:to:type', p0.at(-1)?.id);
+  check('typing is still offered', p0.some((r) => r.id === 'pick:to:type'));
+  check('and the way out is the last row', p0.at(-1)?.id === 'pick:to:menu', p0.at(-1)?.id);
+  check('the first screen offers it too', rows.at(-1)?.id === 'pick:from:menu', rows.at(-1)?.id);
 
   /* --- paging never loses or repeats a place --------------------------- */
 
@@ -3361,6 +3364,18 @@ section('Picking a place instead of typing one');
     !repo.getParcelDraft(rider).pickup && !repo.getParcelDraft(rider).destination);
 
   check('a fare answer nobody sent reads as nothing', readPick('pick:fare:maybe') === null);
+
+  /* --- the way out, from any screen ------------------------------------ */
+
+  // Nobody is ever stuck in a list. The trip goes with them: a pickup left on
+  // file would have the next taxi start wherever this one was going to.
+  repo.setTaxiPick(rider, 'from', 'Diamond');
+  repo.setTaxiPick(rider, 'to', 'Grove');
+  const out = handlePick(rider, 'pick:to:menu');
+  check('the main-menu row goes back to the menu', out?.kind === 'menu', out?.kind);
+  check('and takes the trip with it',
+    repo.taxiPicks(rider).from === '' && repo.taxiPicks(rider).to === '');
+  check('from the pickup screen as well', handlePick(rider, 'pick:from:menu')?.kind === 'menu');
 
   repo.setService(rider, null);
 }
@@ -5430,9 +5445,41 @@ section('What a delivery costs, by where it goes');
     ['Leanora', 'Leonora=3500'],
     ['Uitvlucht', 'Uitvlugt=3800'],
     ['Fergenoegen', 'Vergenoegen=4500'],
+    // Two neighbouring letters swapped: the commonest slip there is, and one
+    // edit rather than two, so a tight allowance still forgives it.
+    ['Leonroa', 'Leonora=3500'],
+    ['Diamnod', 'Diamond=1800'],
+    ['Providnece', 'Providence=1200'],
   ] as [string, string][]) {
     check(`"${typed}" is understood`, fee(`Lot 12 ${typed}`) === expected, `${typed} -> ${fee(`Lot 12 ${typed}`)}`);
   }
+
+  /* --- and a different place is not a spelling of this one ------------- */
+
+  // Reported from the live shop. Mahdia is a mining town several hundred
+  // kilometres inland; Mahaica is on the coast. Two letters apart on a
+  // seven-letter name, which the old banded allowance called a typo — so a
+  // passenger who typed what they meant was quoted $4,800 for somewhere they
+  // had not asked for, with nothing in the exchange to show it.
+  //
+  // The shop would rather ask. A question costs a message; a wrong village
+  // costs the difference, and nobody notices until the car arrives.
+  for (const stranger of ['Mahdia', 'Bartica', 'Lethem', 'Kwakwani']) {
+    const r = findZone(`Lot 12 ${stranger}`);
+    check(`"${stranger}" is not read as somewhere else`, r.kind !== 'found',
+      `${stranger} -> ${r.kind === 'found' ? r.match.place : r.kind}`);
+  }
+
+  // The places it must still know, so the line above is not simply the
+  // matcher giving up.
+  check('Mahaica itself still prices', fee('Lot 12 Mahaica') === 'Mahaica=3500', fee('Lot 12 Mahaica'));
+  check('and Mahaicony is its own place', fee('Lot 12 Mahaicony') === 'Mahaicony=5000', fee('Lot 12 Mahaicony'));
+
+  // A budget spent on one word is a different word. "Meadow Bank" is eleven
+  // characters and once had three letters of slack, all three of which went
+  // on turning "east" into "meadow" while "bank" did the work.
+  check('a taxi from Diamond does not start at Meadow Bank',
+    fee('Diamond, East Bank') === 'Diamond=1800', fee('Diamond, East Bank'));
 
   // The one that mattered most: an exact match on a SHORTER name must not
   // beat a near match on a longer, more specific one. Meer Zorg is spelled
