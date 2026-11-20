@@ -10016,7 +10016,11 @@ section('What the customer thought of it');
   /* --- nobody is pestered ---------------------------------------------- */
 
   const again = place('ORD-95006', 'delivered');
-  check('a customer asked today is not asked again tomorrow', shouldAsk(again) === false);
+  // Only where the shop has set a quiet period. At 0 — which is what a shop
+  // testing this wants — everybody is asked every time.
+  check('a customer asked today is not asked again tomorrow',
+    config.ratingEveryDays > 0 ? shouldAsk(again) === false : shouldAsk(again) === true,
+    `quiet period ${config.ratingEveryDays} days`);
   check('and an order already rated is never asked twice', shouldAsk(done) === false);
 
   // Per service, which is the point of counting it that way. The same

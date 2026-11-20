@@ -48,7 +48,7 @@ export const RATING_DIGIT_TTL_MS = 15 * 60 * 1000;
  * fortnight could be asked four times. That is the price of hearing about
  * each of them.
  */
-export const RATING_EVERY_DAYS = 14;
+export const RATING_EVERY_DAYS = config.ratingEveryDays;
 
 /** At or below this, the shop asks what went wrong. */
 export const POOR = 3;
@@ -71,6 +71,10 @@ const STARS: { stars: number; title: string; description: string }[] = [
 export function shouldAsk(order: repo.OrderRecord, now = new Date()): boolean {
   if (order.status !== 'delivered') return false;
   if (repo.ratingFor(order.orderNo)) return false;
+
+  // Nothing to wait for when the shop has set no quiet period, which is how
+  // a shop testing this gets asked after every trip.
+  if (RATING_EVERY_DAYS <= 0) return true;
 
   const last = repo.lastRatingAsk(order.phone, order.kind);
   if (!last) return true;

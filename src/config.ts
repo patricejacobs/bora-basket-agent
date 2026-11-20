@@ -319,6 +319,15 @@ export const config = {
     waitBlockFee: Math.round(Math.max(0, num('TAXI_WAIT_BLOCK_FEE', 800)) * minorPerUnit),
   },
 
+  /**
+   * The quietest a customer is left between rating questions, per service.
+   *
+   * 0 asks after every delivery, which is what a shop testing the thing
+   * wants and what a shop trading would regret: somebody who orders three
+   * times a week and is asked three times a week mutes it.
+   */
+  ratingEveryDays: Math.max(0, num('RATING_EVERY_DAYS', 14)),
+
   dispatch: {
     bandMinutes: Math.max(0, num('DISPATCH_BAND_MINUTES', 5)),
     bandWaitSeconds: Math.max(0, num('DISPATCH_BAND_WAIT_SECONDS', 20)),

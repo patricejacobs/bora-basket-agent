@@ -148,6 +148,13 @@ services:
       # Waiting is the car stopped at the passenger's request AFTER pickup -
       # a pharmacy, a gate - totalled across the trip. No free period, and
       # part of a block counts as a whole one. Fee 0 removes it entirely.
+      # How long a customer is left alone between rating questions, per
+      # service. 0 asks after every delivery and every trip, which is what
+      # you want while testing and what you would regret in trade: somebody
+      # who orders three times a week and is asked three times a week mutes
+      # the shop.
+      - key: RATING_EVERY_DAYS
+        value: "14"
       - key: TAXI_WAIT_FREE_MINUTES
         value: "0"
       - key: TAXI_WAIT_BLOCK_MINUTES

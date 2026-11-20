@@ -220,6 +220,17 @@ no explanation is still worth knowing today.
 |---|---|
 | Asked once per order, ever | A second ask is nagging |
 | At most once a fortnight **per service** | Somebody who orders weekly and is asked weekly mutes the shop — but their taxi is asked about on its own account |
+
+`RATING_EVERY_DAYS` sets that fortnight. **`0` asks after every single
+delivery and trip**, which is what you want while testing the thing and what
+you would regret in trade.
+
+**If a rating did not appear, it is one of four things**, and in this order:
+the customer was asked about that service inside the quiet period; the job
+ended as cancelled or returned rather than delivered; the customer had not
+messaged the shop in 24 hours, so the closing notice went as a template and a
+template cannot carry a list; or that order had already been asked about
+once.
 | Never on a cancelled or returned order | The shop already knows it went wrong |
 | Taxis and parcels too | A taxi is the one service where nobody from the shop sees the customer |
 
