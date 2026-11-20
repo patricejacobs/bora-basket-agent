@@ -120,6 +120,39 @@ export function zoneCount(): number {
 }
 
 /**
+ * The tariff in the order the file lists it, which runs outward from town.
+ *
+ * `zones()` sorts by name length, because that is the order matching has to
+ * read it in. A list put in front of a customer needs the shop's own order
+ * instead: "Georgetown, Kingston, Cummingsburg" is a road, and the same places
+ * sorted by how long their names are is nothing at all.
+ */
+export function tariff(): Zone[] {
+  // Through zones() rather than TARIFF directly, so the file still loads on
+  // first use.
+  zones();
+  return [...TARIFF];
+}
+
+/**
+ * The corridors, in the order the tariff lists them.
+ *
+ * Four roads out of town and the town itself, read from the section headings
+ * rather than from the band names — see parseZones, which explains why those
+ * two are not the same thing.
+ */
+export function corridors(): string[] {
+  const out: string[] = [];
+  for (const z of tariff()) if (!out.includes(z.corridor)) out.push(z.corridor);
+  return out;
+}
+
+/** Every place on one corridor, in the tariff's own order. */
+export function placesIn(corridor: string): Zone[] {
+  return tariff().filter((z) => z.corridor === corridor);
+}
+
+/**
  * Loads the tariff from disk. Called once at boot; silent when there is no
  * file, because a shop that has not written one simply charges its flat fee.
  */

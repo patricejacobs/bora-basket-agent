@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { commandFromButtonId } from '../order-status.ts';
+import { isPickerId } from '../place-picker.ts';
 import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
@@ -230,11 +231,21 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
               // the model has to receive those words, not "option_1". It also
               // keeps buttons sent before this change working, since their
               // titles still carry the number.
+              //
+              // A tapped LIST row is the same story with one exception. Its
+              // title is the answer nearly everywhere — a rating row's title
+              // is a run of stars, and that IS the rating — so the title still
+              // wins, and the id is only read when it is the place picker's.
+              // Those ids carry a corridor and a page, which no 24-character
+              // title could, and `isPickerId` is what keeps every other list
+              // on the title path untouched.
               const reply = m.interactive?.button_reply;
+              const row = m.interactive?.list_reply;
               text =
                 (reply?.id ? commandFromButtonId(reply.id) : null) ??
                 reply?.title ??
-                m.interactive?.list_reply?.title ??
+                (row?.id && isPickerId(row.id) ? row.id : null) ??
+                row?.title ??
                 '';
             }
             break;

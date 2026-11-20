@@ -384,6 +384,71 @@ export function getService(phone: string): string | null {
   return row?.service ?? null;
 }
 
+/* ------------------------------------------------------- taxi place picker */
+
+export type TaxiPicks = { from: string; to: string };
+
+/** The two ends a passenger has tapped out of the place picker so far. */
+export function taxiPicks(phone: string): TaxiPicks {
+  const row = db
+    .prepare(`SELECT taxi_pick_from AS pickFrom, taxi_pick_to AS pickTo FROM customers WHERE phone = ?`)
+    .get(phone) as { pickFrom: string | null; pickTo: string | null } | undefined;
+  return { from: row?.pickFrom ?? '', to: row?.pickTo ?? '' };
+}
+
+/** Writes one end. A blank clears it. */
+export function setTaxiPick(phone: string, side: 'from' | 'to', place: string): void {
+  // Touch-insert: somebody can tap a place before the shop holds anything
+  // else about them, and there would be no row to update.
+  db.prepare(
+    `INSERT INTO customers (phone, created_at, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(phone) DO NOTHING`,
+  ).run(phone, nowIso(), nowIso());
+  const column = side === 'from' ? 'taxi_pick_from' : 'taxi_pick_to';
+  db.prepare(`UPDATE customers SET ${column} = ?, updated_at = ? WHERE phone = ?`).run(
+    place,
+    nowIso(),
+    phone,
+  );
+}
+
+export function clearTaxiPicks(phone: string): void {
+  db.prepare(
+    `UPDATE customers SET taxi_pick_from = '', taxi_pick_to = '', updated_at = ? WHERE phone = ?`,
+  ).run(nowIso(), phone);
+}
+
+/**
+ * Places this passenger has been to or from by taxi before, most recent first.
+ *
+ * Both ends of every past trip, because somebody collected from Providence
+ * last week is as likely to be going back there as leaving from it again. The
+ * pickup column and the destination column are read together and deduplicated.
+ */
+export function recentTaxiPlaces(phone: string, limit = 2): string[] {
+  const rows = db
+    .prepare(
+      `SELECT pickup_address AS pickup, address AS destination
+         FROM orders
+        WHERE phone = ? AND kind = 'taxi'
+        ORDER BY id DESC
+        LIMIT 20`,
+    )
+    .all(phone) as { pickup: string | null; destination: string | null }[];
+
+  const out: string[] = [];
+  for (const row of rows) {
+    for (const place of [row.destination, row.pickup]) {
+      const clean = (place ?? '').trim();
+      if (!clean) continue;
+      if (out.some((seen) => seen.toLowerCase() === clean.toLowerCase())) continue;
+      out.push(clean);
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
 export function setService(phone: string, service: string | null): void {
   // A customer may choose a service before we know anything else about them.
   db.prepare(

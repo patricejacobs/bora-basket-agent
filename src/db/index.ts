@@ -489,6 +489,19 @@ addColumnIfMissing('orders', 'cancelled_by', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'service', 'TEXT');
 addColumnIfMissing('customers', 'service_chosen_at', 'TEXT');
 
+// The two ends of a taxi, as tapped out of the place picker.
+//
+// Held here rather than in the row id of the next list, which was the other
+// way to do it: the destination list prices every row against the pickup, so
+// by the time those rows are drawn the pickup has to be readable from
+// somewhere. A column is that somewhere, and it survives the customer putting
+// their phone down between the two taps.
+//
+// Place names from the tariff, not free text. Cleared when the car is booked
+// and when the service changes, so one trip's ends never start the next.
+addColumnIfMissing('customers', 'taxi_pick_from', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('customers', 'taxi_pick_to', "TEXT NOT NULL DEFAULT ''");
+
 // A parcel has a sender and a recipient, and they are different people in
 // different places. The customer is the sender; these are who receives it.
 addColumnIfMissing('orders', 'recipient_name', "TEXT NOT NULL DEFAULT ''");

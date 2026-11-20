@@ -2497,7 +2497,13 @@ section('Service routing');
   await send('menu');
   const ride = await send('1');
   check('one is a taxi', repo.getService(phone) === 'taxi', String(repo.getService(phone)));
-  check('and it says what it needs', /where are we collecting you/i.test(ride[0] ?? ''), ride[0]?.slice(0, 90));
+  // Two messages now, not one: the place picker asks the first question, so
+  // the opening says the thing a picker cannot — that nothing is booked
+  // before the fare is known.
+  check('and it promises the fare first', /fare before anything/i.test(ride[0] ?? ''), ride[0]?.slice(0, 90));
+  check('then asks where to collect them',
+    ride.some((said) => /where are we collecting you/i.test(said)),
+    JSON.stringify(ride));
   await send('menu');
 
   const back = await send('menu');
@@ -3112,6 +3118,132 @@ section('A car, and no fare anywhere');
   repo.upsertAssociate({ phone: rider, name: 'Taxi Rider', vehicle: 'PAA 1111', active: false });
   for (const p of working) repo.setDuty(p, true);
   repo.setService(passenger, 'grocery');
+}
+
+/* ------------------------------------------------- the taxi place picker */
+
+section('Picking a place instead of typing one');
+{
+  const {
+    endPicker,
+    corridorPicker,
+    handlePick,
+    readPick,
+    isPickerId,
+    pickerAvailable,
+  } = await import('./place-picker.ts');
+
+  const rider = '5920009400';
+  repo.setService(rider, 'taxi');
+  repo.clearTaxiPicks(rider);
+
+  check('there is a tariff to pick from', pickerAvailable());
+
+  /* --- the first screen ------------------------------------------------ */
+
+  const from = endPicker(rider, 'from');
+  const rows = from.kind === 'list' ? from.rows : [];
+
+  check('the pickup screen is a list', from.kind === 'list');
+  check('inside WhatsApp’s ten rows', rows.length <= 10, String(rows.length));
+  check('every title inside twenty-four characters',
+    rows.every((r) => r.title.length <= 24),
+    JSON.stringify(rows.map((r) => r.title).filter((t2) => t2.length > 24)));
+  check('it opens with the location button', rows[0]?.id === 'pick:from:here', rows[0]?.id);
+  check('and ends with typing', rows.at(-1)?.id === 'pick:from:type', rows.at(-1)?.id);
+  check('with every corridor between them',
+    ['Georgetown', 'East Bank Demerara', 'West Coast Demerara'].every((c) =>
+      rows.some((r) => r.title === c)),
+    JSON.stringify(rows.map((r) => r.title)));
+
+  // Nobody shares a pin for where they are GOING, so that row is not offered.
+  const to = endPicker(rider, 'to');
+  check('the destination screen has no location row',
+    to.kind === 'list' && !to.rows.some((r) => r.id.endsWith(':here')));
+
+  /* --- a corridor, priced from the pickup ------------------------------ */
+
+  // Diamond is on the East Bank, so its neighbours are the cheap end and
+  // town is dear. Priced from the chosen pickup, that is what page one holds;
+  // priced from town — which is what the tariff alone says — it would be
+  // Agricola and McDoom, which is the whole reason the fare does the sorting.
+  repo.setTaxiPick(rider, 'from', 'Diamond');
+  const page0 = corridorPicker(rider, 'to', 'East Bank Demerara', 0);
+  const p0 = page0?.kind === 'list' ? page0.rows : [];
+
+  check('a corridor page fits', p0.length <= 10, String(p0.length));
+  check('it starts with the places nearest the pickup',
+    ['Farm', 'Great Diamond', 'Little Diamond'].every((place) =>
+      p0.some((r) => r.title === place)),
+    JSON.stringify(p0.map((r) => r.title)));
+  check('not the ones nearest town',
+    !p0.some((r) => r.title === 'Agricola' || r.title === 'McDoom'),
+    JSON.stringify(p0.map((r) => r.title)));
+  check('each row carries its own fare',
+    p0.filter((r) => r.id.includes(':place:')).every((r) => /^\$[0-9,]+$/.test(r.description ?? '')),
+    JSON.stringify(p0.map((r) => r.description)));
+  check('the pickup is not offered as a destination',
+    !p0.some((r) => r.title === 'Diamond'));
+
+  // The two rows that must survive to the bottom of every page. A page that
+  // pushed typing off the end would be the picker becoming a gate.
+  check('there is a way on to the next page', p0.some((r) => r.id.includes(':corr:1:')));
+  check('and typing is still the last row', p0.at(-1)?.id === 'pick:to:type', p0.at(-1)?.id);
+
+  /* --- paging never loses or repeats a place --------------------------- */
+
+  const page1 = corridorPicker(rider, 'to', 'East Bank Demerara', 1);
+  const p1 = page1?.kind === 'list' ? page1.rows : [];
+  const placesOn = (rs: typeof p0) =>
+    rs.filter((r) => r.id.includes(':place:')).map((r) => r.title);
+  const overlap = placesOn(p0).filter((t2) => placesOn(p1).includes(t2));
+  check('page two repeats nothing from page one', overlap.length === 0, JSON.stringify(overlap));
+  check('and is still priced', p1.length > 0 && p1.some((r) => r.id.includes(':place:')));
+
+  /* --- reading a tap --------------------------------------------------- */
+
+  check('a rating row is not a picker row', !isPickerId('rate_5_TXI-00042'));
+  check('a place with an apostrophe survives the round trip',
+    readPick("pick:to:place:Vryheid's Lust")?.kind === 'place' &&
+      (readPick("pick:to:place:Vryheid's Lust") as { place: string }).place === "Vryheid's Lust");
+  check('a mangled id reads as nothing', readPick('pick:from:corr:nope') === null);
+  check('and so does somebody else’s', readPick('rate_5_TXI-00042') === null);
+
+  /* --- what a finished choice hands the agent -------------------------- */
+
+  const chose = handlePick(rider, 'pick:to:place:Grove');
+  check('choosing both ends goes to the agent', chose?.kind === 'note');
+  const note = chose?.kind === 'note' ? chose.note : '';
+  check('with both places named', /Diamond/.test(note) && /Grove/.test(note), note);
+  check('and the fare already worked out', /\$700/.test(note), note);
+  check('the pick is remembered', repo.taxiPicks(rider).to === 'Grove');
+
+  // Half a choice is not a choice: the pickup tap answers with the next
+  // screen rather than troubling the agent.
+  repo.clearTaxiPicks(rider);
+  const half = handlePick(rider, 'pick:from:place:Diamond');
+  check('choosing only the pickup asks for the destination', half?.kind === 'reply');
+
+  // The escapes. Both leave the picker, and neither books anything.
+  const typed = handlePick(rider, 'pick:to:type');
+  check('typing hands over to the agent', typed?.kind === 'note' && /words/i.test(typed.note));
+  const here = handlePick(rider, 'pick:from:here');
+  check('and the location row asks for a pin',
+    here?.kind === 'reply' && here.outbound[0]?.kind === 'location_request');
+
+  /* --- the picks feed the booking -------------------------------------- */
+
+  repo.clearTaxiPicks(rider);
+  repo.setTaxiPick(rider, 'from', 'Diamond');
+  repo.setTaxiPick(rider, 'to', 'Grove');
+  check('both ends are on file for book_taxi',
+    repo.taxiPicks(rider).from === 'Diamond' && repo.taxiPicks(rider).to === 'Grove');
+
+  repo.clearTaxiPicks(rider);
+  check('and clearing them leaves nothing behind',
+    repo.taxiPicks(rider).from === '' && repo.taxiPicks(rider).to === '');
+
+  repo.setService(rider, null);
 }
 
 /* ---------------------------------------------------- cancelling an order */

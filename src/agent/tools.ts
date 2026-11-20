@@ -2106,8 +2106,19 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // The pins are filed exactly as a parcel's are: the first one shared is
       // the pickup, the second the destination.
       const draft = repo.getParcelDraft(ctx.phone);
-      const pickupAddress = asString(input.pickup_address).trim().slice(0, 160);
-      const destinationAddress = asString(input.destination_address).trim().slice(0, 160);
+
+      // What they tapped out of the place picker, used only where the agent
+      // passed nothing. A fallback rather than an override on purpose: a
+      // passenger who taps Grove and then types "actually, Diamond" has
+      // changed their mind, and the words they just wrote are the later
+      // answer. What this catches is the agent forgetting to carry a tapped
+      // place forward, which would otherwise lose a choice the passenger
+      // already made and send the conversation round again.
+      const picks = repo.taxiPicks(ctx.phone);
+      const pickupAddress =
+        asString(input.pickup_address).trim().slice(0, 160) || picks.from;
+      const destinationAddress =
+        asString(input.destination_address).trim().slice(0, 160) || picks.to;
 
       if (!draft.pickup && !pickupAddress) {
         return fail(
@@ -2184,8 +2195,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       });
 
       // Spent, like a parcel's: the next ride must not start with this one's
-      // pins already in it.
+      // pins already in it. The tapped places go the same way and for the
+      // same reason.
       repo.clearParcelDraft(ctx.phone);
+      repo.clearTaxiPicks(ctx.phone);
 
       void announceNewOrder(job.orderNo).catch((err) =>
         console.error('[tools] taxi announcement failed:', err),

@@ -1423,6 +1423,67 @@ address in words, or both**: somebody standing on a road waiting for a car can
 usually drop a pin on where they are, and nobody can drop one on where they
 are going until they get there.
 
+### Picking the two ends
+
+Choosing a taxi opens a **place picker** — a tappable list built from the
+delivery tariff — rather than a question in words:
+
+```
+Where are we collecting you from?          [ Choose a place ]
+
+  📍 Where I am now        Share your location
+  Diamond                  Your saved address
+  Providence               You have used this before
+  Georgetown
+  East Bank Demerara
+  East Coast Demerara
+  West Bank Demerara
+  West Coast Demerara
+  ✏️ Type the address
+```
+
+Tapping a corridor opens the places on it, **priced from the pickup already
+chosen, cheapest first**:
+
+```
+Which part of East Bank Demerara?          [ Choose a place ]
+
+  Farm                     $500
+  Great Diamond            $500
+  Little Diamond           $500
+  Barnwell                 $700
+  Covent Garden            $700
+  Golden Grove East Bank   $700
+  Grove                    $700
+  Herstelling              $700
+  More…
+  ✏️ Type the address
+```
+
+**The picker prices the trip; it does not find the door.** A village name
+sets the fare and says nothing about which gate, so the pin and the typed
+address are still how a driver is told where to stop — the picker replaces the
+*pricing* question only. `Type the address` and, for a pickup, `Where I am
+now` are on **every** screen and are never paged away: somebody going
+somewhere the tariff has never heard of must still be able to book a car.
+
+Ordering is by fare from the chosen pickup, which is nearest-first in the only
+sense a passenger cares about and needs no trading history to be right. From
+Diamond that puts Farm and Great Diamond on page one; ordering by distance
+from town would have given Agricola and McDoom.
+
+Eight places to a page, not nine, so `More…` and `Type the address` both
+survive to the bottom. The last page has no `More…` and may show nine.
+
+The picker is read in `place-picker.ts` **before the agent runs**, for the
+same reason the service menu is fixed text: a tapped row is already structured
+data, and passing it through a language model only adds a chance of a
+different village coming back. Only a finished choice reaches the agent, as a
+note naming both places and the fare.
+
+It appears only where there is a tariff to pick from. A shop on the flat fee
+has no places to list, and gets the old typed question instead.
+
 ### The journey
 
 | Step | Who | What the passenger is told |

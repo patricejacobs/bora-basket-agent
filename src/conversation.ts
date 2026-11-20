@@ -1,5 +1,5 @@
 import { runAgent, friendlyErrorMessage, SESSION_TTL_MS as CONVERSATION_TTL_MS } from './agent/run.ts';
-import { detectLanguage } from './language.ts';
+import { detectLanguage, t } from './language.ts';
 import { languageFor } from './services.ts';
 import {
   isStaff,
@@ -23,6 +23,7 @@ import {
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
+import { endPicker, handlePick, isPickerId, pickerAvailable } from './place-picker.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
 /**
@@ -70,6 +71,25 @@ export function recordParcelPin(phone: string, pin: LocationPin): string {
       : 'Still need the other one — ask for it with request_location.';
 
   return `[The customer shared a location pin. Saved as the parcel's ${which}${label}. ${stillNeeded} Read back which one you took it as, so a mix-up is caught now rather than by the delivery associate.]`;
+}
+
+/**
+ * Files a pin into the taxi being arranged.
+ *
+ * Into the same draft a parcel's pins go into, because that is where book_taxi
+ * reads them from — a taxi and a parcel are the same shape of job, two ends
+ * and something to carry. Before the place picker nothing ever put a taxi's
+ * pin there: it went onto the customer's record as their home address, which
+ * is wrong twice over. A pickup is where somebody is standing now, not where
+ * they live, and book_taxi never saw it.
+ */
+export function recordTaxiPin(phone: string, pin: LocationPin): string {
+  const slot = repo.addParcelPin(phone, pin);
+  console.log(`[taxi] ${phone} pinned ${slot} ${formatCoordinates(pin)}`);
+
+  const which = slot === 'pickup' ? 'pickup' : 'destination';
+  const label = pin.label ? ` (${pin.label})` : '';
+  return `[The passenger shared a location pin. Saved as the taxi's ${which}${label}. Read back which end you took it as, so a car sent to the wrong end is caught now rather than by the driver.]`;
 }
 
 /**
@@ -165,6 +185,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     repo.clearCart(msg.phone);
     repo.setService(msg.phone, null);
     repo.setBrowsingOutlet(msg.phone, null);
+    repo.clearTaxiPicks(msg.phone);
     const reply = serviceMenuReply(msg.phone);
     for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
     return reply;
@@ -252,6 +273,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   if (chosen && wantsServiceMenu(text)) {
     repo.setService(msg.phone, null);
     repo.setBrowsingOutlet(msg.phone, null);
+    repo.clearTaxiPicks(msg.phone);
     const reply = serviceMenuReply(msg.phone);
     for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
     return reply;
@@ -279,11 +301,59 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     // should be the service opening, with none of the menu in its history.
     repo.resetConversation(msg.phone);
 
-    const reply: OutboundMessage[] = [
-      { kind: 'text', text: serviceOpening(picked, languageFor(msg.phone)) },
-    ];
+    const lang = languageFor(msg.phone);
+
+    // A taxi opens with the place picker rather than a question in words.
+    // The shorter opening goes with it: the long one asks for both ends and
+    // the time at once, which reads as a demand when the next message is a
+    // list answering the first half of it.
+    //
+    // Only when there is a tariff to pick from. A shop running on the flat
+    // fee has no places to list, and an empty picker is worse than the
+    // question it replaced.
+    const reply: OutboundMessage[] =
+      picked === 'taxi' && pickerAvailable()
+        ? [
+            { kind: 'text', text: t('opening_taxi_picked', lang) },
+            endPicker(msg.phone, 'from', lang),
+          ]
+        : [{ kind: 'text', text: serviceOpening(picked, lang) }];
+
+    // Last trip's ends must never start this one.
+    if (picked === 'taxi') repo.clearTaxiPicks(msg.phone);
     for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
     return reply;
+  }
+
+  /* --------------------------------------------------- taxi place picker */
+
+  // A tapped row, read here rather than by the model. The id carries a
+  // corridor and a page, which no 24-character title could, and the places
+  // themselves come straight out of the tariff — so there is nothing for a
+  // language model to add except the chance of a different village coming
+  // back. Only a finished choice reaches the agent, as a note.
+  if (chosen === 'taxi' && isPickerId(text)) {
+    const lang = languageFor(msg.phone);
+    const result = handlePick(msg.phone, text, lang);
+
+    if (result?.kind === 'reply') {
+      for (const out of result.outbound) {
+        repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      }
+      return result.outbound;
+    }
+
+    if (result?.kind === 'note') {
+      text = result.note;
+    } else {
+      // An id this build cannot read: a tap on a list sent before a deploy,
+      // or one that arrived mangled. Start that end again rather than
+      // guessing at a place — a car sent to the wrong village is a worse
+      // answer than one more question.
+      const again = [endPicker(msg.phone, 'from', lang)];
+      for (const out of again) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return again;
+    }
   }
 
   // A pin is saved the moment it arrives, and the agent is handed a note about
@@ -297,7 +367,9 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     const note =
       chosen === 'parcel'
         ? recordParcelPin(msg.phone, msg.location)
-        : recordLocationPin(msg.phone, msg.location);
+        : chosen === 'taxi'
+          ? recordTaxiPin(msg.phone, msg.location)
+          : recordLocationPin(msg.phone, msg.location);
     text = text ? `${note}\n\n${text}` : note;
   }
 
