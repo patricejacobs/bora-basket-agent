@@ -2785,6 +2785,22 @@ section('A car, and no fare anywhere');
   check('and names both ends of the trip', /Stabroek to Campbellville/.test(String(quote.priced_by)), String(quote.priced_by));
   check('with nothing booked yet', repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== passenger));
 
+  // The fare goes out as its own three buttons, from the tool rather than
+  // from the model. A figure quoted with no way to answer it is how a
+  // passenger ends up typing "ok" at a gate that was supposed to hold.
+  const fareMsg = ctx.outbound.at(-1);
+  check('the fare is sent with its answers attached', fareMsg?.kind === 'buttons', fareMsg?.kind);
+  const fareOpts = fareMsg?.kind === 'buttons' ? fareMsg.buttons : [];
+  check('three of them, which is WhatsApp’s limit', fareOpts.length === 3, String(fareOpts.length));
+  check('book, change the destination, or call it off',
+    fareOpts.map((b) => b.id).join(' ') === 'pick:fare:book pick:fare:change pick:fare:cancel',
+    JSON.stringify(fareOpts.map((b) => b.id)));
+  check('and WhatsApp will accept the titles', fareOpts.every((b) => b.title.length <= 20),
+    JSON.stringify(fareOpts.map((b) => b.title)));
+  check('the figure is in the message itself', /\$/.test(fareMsg?.text ?? ''), fareMsg?.text);
+  check('and the agent is told not to ask again',
+    /do not ask whether it is all right/i.test(String(quote.next)), String(quote.next));
+
   const booked = taxi('book_taxi', { ...trip, fare_confirmed: true });
   check('books the trip once they agree', booked.booked === true, JSON.stringify(booked).slice(0, 140));
 
@@ -3242,6 +3258,65 @@ section('Picking a place instead of typing one');
   repo.clearTaxiPicks(rider);
   check('and clearing them leaves nothing behind',
     repo.taxiPicks(rider).from === '' && repo.taxiPicks(rider).to === '');
+
+  /* --- the fare, and the three things to do about it ------------------- */
+
+  const { fareButtons } = await import('./place-picker.ts');
+  const offer = fareButtons('$700');
+  const opts = offer.kind === 'buttons' ? offer.buttons : [];
+  check('the fare comes with three answers', opts.length === 3, String(opts.length));
+  check('and the figure is in the words', /\$700/.test(offer.kind === 'buttons' ? offer.text : ''),
+    offer.kind === 'buttons' ? offer.text : '');
+
+  // What they MEAN travels in the id. The titles are words in whatever
+  // language the passenger writes, so matching on those would be matching on
+  // a translation.
+  const es = fareButtons('$700', 'es');
+  check('the same ids whatever the language',
+    es.kind === 'buttons' && es.buttons.map((b) => b.id).join() === opts.map((b) => b.id).join());
+  check('with the words translated',
+    es.kind === 'buttons' && es.buttons[0]?.title === 'Reservar',
+    es.kind === 'buttons' ? es.buttons[0]?.title : '');
+  check('and still inside twenty characters',
+    es.kind === 'buttons' && es.buttons.every((b) => b.title.length <= 20));
+
+  // Book it: the agent is told they have already answered, so it cannot ask
+  // again and cannot quote the figure twice.
+  repo.setTaxiPick(rider, 'from', 'Diamond');
+  repo.setTaxiPick(rider, 'to', 'Grove');
+  const agreed = handlePick(rider, 'pick:fare:book');
+  check('Book it goes to the agent', agreed?.kind === 'note');
+  check('telling it the fare is settled',
+    agreed?.kind === 'note' && /fare_confirmed true/.test(agreed.note),
+    agreed?.kind === 'note' ? agreed.note : '');
+  check('and the trip is still on file',
+    repo.taxiPicks(rider).from === 'Diamond' && repo.taxiPicks(rider).to === 'Grove');
+
+  // Change destination: the destination only. Somebody who balks at a figure
+  // has not moved, and asking where they are again would be the picker
+  // wasting their time over a number they did not like.
+  const redo = handlePick(rider, 'pick:fare:change');
+  check('Change destination reopens the list', redo?.kind === 'reply');
+  check('asking only where they are going',
+    redo?.kind === 'reply' &&
+      redo.outbound[0]?.kind === 'list' &&
+      /where are you going/i.test(redo.outbound[0].text));
+  check('the pickup is kept', repo.taxiPicks(rider).from === 'Diamond');
+  check('and only the destination is dropped', repo.taxiPicks(rider).to === '');
+
+  // Cancel: nothing half-finished is left anywhere.
+  repo.setTaxiPick(rider, 'to', 'Grove');
+  const called = handlePick(rider, 'pick:fare:cancel');
+  check('Cancel ends it', called?.kind === 'cancelled');
+  check('saying nothing was booked',
+    called?.kind === 'cancelled' && /nothing has been booked/i.test(called.outbound[0]?.text ?? ''),
+    called?.kind === 'cancelled' ? called.outbound[0]?.text : '');
+  check('both ends are let go',
+    repo.taxiPicks(rider).from === '' && repo.taxiPicks(rider).to === '');
+  check('and so are the pins',
+    !repo.getParcelDraft(rider).pickup && !repo.getParcelDraft(rider).destination);
+
+  check('a fare answer nobody sent reads as nothing', readPick('pick:fare:maybe') === null);
 
   repo.setService(rider, null);
 }

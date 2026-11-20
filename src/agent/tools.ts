@@ -17,6 +17,7 @@ import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { findZone, zoneCount, describeZone, zoneFeeFor, fareBetween } from '../zones.ts';
+import { fareButtons } from '../place-picker.ts';
 import { itemLabel, labelPosition } from '../categories.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
 
@@ -2171,11 +2172,23 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       );
 
       if (quoted && input.fare_confirmed !== true) {
+        // The figure goes out as three buttons rather than as a sentence the
+        // model composes: Book it, Change destination, Cancel.
+        //
+        // "Is that fare all right?" has two answers and the commonest one is
+        // neither of them — somebody who balks at a figure usually wants a
+        // different destination, not no taxi. Asked as a yes/no, they have to
+        // type their way back to a list they have already used. Asked as
+        // three buttons, it is one tap.
+        //
+        // Sent from here, so the fare cannot be quoted without its answers
+        // attached and cannot be skipped by a turn that forgets to ask.
+        ctx.outbound.push(fareButtons(money(quoted.fee), languageFor(ctx.phone)));
         return ok({
           fare: money(quoted.fee),
           priced_by: quoted.say,
-          say: `The fare ${quoted.say}, payable to the driver. Waiting after pickup is charged separately.`,
-          next: 'Read the fare back, get a yes, then call book_taxi again with the same details and fare_confirmed true. Book nothing until they have agreed it.',
+          sent: true,
+          next: 'The fare and its three buttons have already gone to the passenger. Say nothing further about the fare and do not ask whether it is all right — wait for the tap. Book nothing until Book it comes back.',
         });
       }
       if (quoted) repo.setFeeAgreed(ctx.phone, quoted.fee);

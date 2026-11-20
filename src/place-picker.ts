@@ -66,7 +66,8 @@ export type Pick =
   | { kind: 'here'; side: PickSide }
   | { kind: 'type'; side: PickSide }
   | { kind: 'place'; side: PickSide; place: string }
-  | { kind: 'corridor'; side: PickSide; corridor: string; page: number };
+  | { kind: 'corridor'; side: PickSide; corridor: string; page: number }
+  | { kind: 'fare'; answer: 'book' | 'change' | 'cancel' };
 
 /** True when this is one of our row ids rather than somebody else's. */
 export function isPickerId(id: string): boolean {
@@ -83,6 +84,17 @@ export function isPickerId(id: string): boolean {
 export function readPick(id: string): Pick | null {
   if (!isPickerId(id)) return null;
   const parts = id.split(':');
+
+  // The fare's three answers. Not a side of the journey, so it is read before
+  // the side is insisted on.
+  if (parts[1] === 'fare') {
+    const answer = parts[2] ?? '';
+    if (answer === 'book' || answer === 'change' || answer === 'cancel') {
+      return { kind: 'fare', answer };
+    }
+    return null;
+  }
+
   const side = parts[1] === 'to' ? 'to' : parts[1] === 'from' ? 'from' : null;
   if (!side) return null;
 
@@ -235,12 +247,40 @@ export function corridorPicker(
   };
 }
 
+/**
+ * The fare, and the three things a passenger can do about it.
+ *
+ * Three answers, which is exactly WhatsApp's limit on buttons — and the
+ * reason this is buttons rather than a question in words. "Is that fare all
+ * right?" has two answers and leaves the third, the commonest one, unsaid:
+ * somebody who balks at a figure usually wants a different destination, not
+ * no taxi at all. A yes/no makes them type their way back to a list they have
+ * already used.
+ *
+ * It is built here and not by the model because it is a gate. The fare has to
+ * be seen and answered before a car is dispatched, and a gate a language
+ * model is asked to hold is a gate that one day swings open.
+ */
+export function fareButtons(fare: string, lang: Language = 'en'): OutboundMessage {
+  return {
+    kind: 'buttons',
+    text: t('taxi_fare_quoted', lang, { fare }),
+    buttons: [
+      { id: `${PREFIX}:fare:book`, title: t('fare_book', lang) },
+      { id: `${PREFIX}:fare:change`, title: t('fare_change', lang) },
+      { id: `${PREFIX}:fare:cancel`, title: t('fare_cancel', lang) },
+    ],
+  };
+}
+
 /** What a tap did, for the caller to act on. */
 export type PickResult =
   /** Send these and stop; the agent is not involved. */
   | { kind: 'reply'; outbound: OutboundMessage[] }
   /** Hand this to the agent in place of the customer's words. */
-  | { kind: 'note'; note: string };
+  | { kind: 'note'; note: string }
+  /** The passenger called it off. Clear the service and show the menu. */
+  | { kind: 'cancelled'; outbound: OutboundMessage[] };
 
 /**
  * Acts on a tapped row.
@@ -253,6 +293,32 @@ export type PickResult =
 export function handlePick(phone: string, id: string, lang: Language = 'en'): PickResult | null {
   const pick = readPick(id);
   if (!pick) return null;
+
+  if (pick.kind === 'fare') {
+    if (pick.answer === 'cancel') {
+      // Both ends and both pins, because a passenger who called this off is
+      // not half way through anything any more.
+      repo.clearTaxiPicks(phone);
+      repo.clearParcelDraft(phone);
+      return {
+        kind: 'cancelled',
+        outbound: [{ kind: 'text', text: t('taxi_cancelled', lang) }],
+      };
+    }
+
+    if (pick.answer === 'change') {
+      // The destination only. Where they are being collected from has not
+      // changed, and asking it again would be the picker wasting their time
+      // over a figure they did not like.
+      repo.setTaxiPick(phone, 'to', '');
+      return { kind: 'reply', outbound: [endPicker(phone, 'to', lang)] };
+    }
+
+    return {
+      kind: 'note',
+      note: '[The passenger tapped *Book it*: they have seen the fare and agreed it. Call book_taxi again with the same details and fare_confirmed true. Do not quote the fare again and do not ask whether it is all right — they have already answered that.]',
+    };
+  }
 
   if (pick.kind === 'here') {
     return {

@@ -191,6 +191,10 @@ const STRINGS: Record<Language, Dictionary> = {
 
     opening_taxi_picked:
       'A car it is. 🚕 I will tell you the fare before anything is booked.',
+    fare_book: 'Book it',
+    fare_change: 'Change destination',
+    fare_cancel: 'Cancel',
+    taxi_cancelled: 'No problem — nothing has been booked. Send *menu* when you need us.',
     pick_button: 'Choose a place',
     pick_from_ask: 'Where are we collecting you from?',
     pick_to_ask: 'And where are you going?',
@@ -331,6 +335,10 @@ const STRINGS: Record<Language, Dictionary> = {
 
     opening_taxi_picked:
       'Un coche entonces. 🚕 Le diré la tarifa antes de reservar nada.',
+    fare_book: 'Reservar',
+    fare_change: 'Cambiar destino',
+    fare_cancel: 'Cancelar',
+    taxi_cancelled: 'Sin problema — no se ha reservado nada. Envíe *menu* cuando nos necesite.',
     pick_button: 'Elegir lugar',
     pick_from_ask: '¿De dónde le recogemos?',
     pick_to_ask: '¿Y a dónde va?',
@@ -462,6 +470,10 @@ const STRINGS: Record<Language, Dictionary> = {
 
     opening_taxi_picked:
       'Um carro então. 🚕 Digo-lhe a tarifa antes de reservar seja o que for.',
+    fare_book: 'Reservar',
+    fare_change: 'Mudar destino',
+    fare_cancel: 'Cancelar',
+    taxi_cancelled: 'Sem problema — não foi reservado nada. Envie *menu* quando precisar de nós.',
     pick_button: 'Escolher local',
     pick_from_ask: 'Onde o vamos recolher?',
     pick_to_ask: 'E para onde vai?',
@@ -590,6 +602,10 @@ const STRINGS: Record<Language, Dictionary> = {
     receipt_points: '本次行程获得 *{points} 积分*。',
 
     opening_taxi_picked: '好的，为您叫车。🚕 预订前我会先告诉您车费。',
+    fare_book: '确认预订',
+    fare_change: '更改目的地',
+    fare_cancel: '取消',
+    taxi_cancelled: '没问题，尚未预订任何行程。需要时请发送 *menu*。',
     pick_button: '选择地点',
     pick_from_ask: '请问在哪里接您？',
     pick_to_ask: '您要去哪里？',

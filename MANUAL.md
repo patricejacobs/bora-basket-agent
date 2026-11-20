@@ -1484,6 +1484,35 @@ note naming both places and the fare.
 It appears only where there is a tariff to pick from. A shop on the flat fee
 has no places to list, and gets the old typed question instead.
 
+### The fare, and the three answers to it
+
+Once both ends are known the fare goes out as **three buttons**, which is
+exactly WhatsApp's limit:
+
+```
+Your fare is *$700*, payable to the driver. Waiting after pickup is
+charged separately.
+
+[Book it]  [Change destination]  [Cancel]
+```
+
+**The passenger is not asked whether the fare is all right.** That question
+has two answers and the commonest one is neither of them: somebody who balks
+at a figure usually wants a different destination, not no taxi. Asked as a
+yes/no, they have to type their way back to a list they have already used.
+
+| Tap | What happens |
+|---|---|
+| **Book it** | The car is dispatched. The agent is told the fare is settled, so it neither quotes it again nor asks |
+| **Change destination** | The destination list reopens, priced from the same pickup. **The pickup is kept** — they have not moved |
+| **Cancel** | Both ends and both pins are let go, the service is cleared, and the next message starts fresh |
+
+The buttons are sent **by `book_taxi` itself**, not written by the agent, so a
+fare cannot be quoted without its answers attached and cannot be skipped by a
+turn that forgets to ask. What each button means travels in its **id**, never
+its title: the titles are words in whatever language the passenger writes, and
+matching on those would be matching on a translation.
+
 ### The journey
 
 | Step | Who | What the passenger is told |

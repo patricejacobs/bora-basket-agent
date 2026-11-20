@@ -243,6 +243,11 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
               const row = m.interactive?.list_reply;
               text =
                 (reply?.id ? commandFromButtonId(reply.id) : null) ??
+                // The fare's three answers are buttons, and what they mean is
+                // in the id. Their titles are words in the passenger's own
+                // language, so matching on those would be matching on a
+                // translation.
+                (reply?.id && isPickerId(reply.id) ? reply.id : null) ??
                 reply?.title ??
                 (row?.id && isPickerId(row.id) ? row.id : null) ??
                 row?.title ??

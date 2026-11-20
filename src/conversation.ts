@@ -343,6 +343,18 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       return result.outbound;
     }
 
+    // Called off at the fare. The service goes with it, so the next message
+    // is read as a fresh visit rather than as more of a trip that is not
+    // happening.
+    if (result?.kind === 'cancelled') {
+      repo.setService(msg.phone, null);
+      repo.resetConversation(msg.phone);
+      for (const out of result.outbound) {
+        repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      }
+      return result.outbound;
+    }
+
     if (result?.kind === 'note') {
       text = result.note;
     } else {
