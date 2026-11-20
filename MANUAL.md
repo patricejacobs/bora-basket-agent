@@ -1769,7 +1769,7 @@ nothing overwrites it.
 | What | Where it lives | How to change it |
 |---|---|---|
 | Its name | the shop's own record | `name GROCERY Centro de Gangas` |
-| Its number | the shop's own record | `number GROCERY 5927410186` |
+| Its number | the shop's own record | `number GROCERY 5926767471` |
 | Its hours | the shop's own record | `hours GROCERY 24 hours` |
 | Its minimum | the shop's own record | `minimum GROCERY 1500` |
 | Its delivery fee | the shop's own record | `fee GROCERY 700` |
