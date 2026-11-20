@@ -2426,18 +2426,21 @@ section('Service menu');
   for (const [service, def] of Object.entries(SERVICE_MENU)) {
     check(
       `offers ${service} as number ${def.number}`,
-      menu.includes(`*${def.number}.* ${t(def.labelKey, 'en')}`),
+      menu.includes(`${def.number}. ${t(def.labelKey, 'en')}`),
       menu,
     );
   }
   check('tells them to reply with a number', /reply with the number/i.test(menu));
+  // Plain numbers: the asterisks were WhatsApp's bold marks, which render on
+  // a phone and show as punctuation everywhere else.
+  check('and the numbers carry no formatting marks', !/\*\d\.\*/.test(menu), menu);
 
   // A customer who has ordered before is named, but still gets the menu: the
   // service they want today is not the one they wanted last week.
   repo.saveCustomer('5920009002', { name: 'Anita Persaud', address: 'Somewhere' });
   const returning = welcomeMessage('5920009002');
   check('greets a returning customer by name', returning.includes('Anita'), returning.split('\n')[0]);
-  check('and still shows the menu', returning.includes('*3.*'));
+  check('and still shows the menu', returning.includes('3. Restaurant'));
 
   check('reads a bare number', parseServiceChoice('1') === 'taxi');
   check(
@@ -2484,7 +2487,7 @@ section('Service routing');
   check('and no service is set yet', repo.getService(phone) === null);
 
   const nudge = await send('I want 2kg rice');
-  check('an unchosen service re-shows the menu', /\*1\.\*/.test(nudge[0] ?? ''), nudge[0]?.slice(0, 40));
+  check('an unchosen service re-shows the menu', /^1\. /m.test(nudge[0] ?? ''), nudge[0]?.slice(0, 40));
 
   const picked = await send('2');
   check('a number selects the service', repo.getService(phone) === 'grocery', String(repo.getService(phone)));
@@ -2499,11 +2502,11 @@ section('Service routing');
 
   const back = await send('menu');
   check('"menu" clears the service', repo.getService(phone) === null, String(repo.getService(phone)));
-  check('and shows the menu again', /\*5\.\*/.test(back[0] ?? ''));
+  check('and shows the menu again', /^5\. /m.test(back[0] ?? ''));
 
   // A pin before choosing must not be filed anywhere.
   const pinFirst = await send('', { location: { latitude: 6.8, longitude: -58.1 } });
-  check('a pin before choosing shows the menu', /\*1\.\*/.test(pinFirst[0] ?? ''));
+  check('a pin before choosing shows the menu', /^1\. /m.test(pinFirst[0] ?? ''));
   check('and explains what to do', (pinFirst[1] ?? '').includes('Pick a number first'), pinFirst[1]);
   check('and files nothing', repo.getIdentity(phone).location === null);
 

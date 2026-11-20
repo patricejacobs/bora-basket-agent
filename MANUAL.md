@@ -561,11 +561,11 @@ passenger — and the delivery associates drive these themselves. The full
 journey is [chapter 8](#8-taxis); this is what the customer sees.
 
 ```
-*1.* Taxi
-*2.* Grocery shopping
-*3.* Restaurant ordering
-*4.* Parcel delivery
-*5.* Other
+1. Taxi
+2. Grocery shopping
+3. Restaurant ordering
+4. Parcel delivery
+5. Other
 ```
 
 > A car it is. 🚕 Where are we collecting you from, where are you going, and

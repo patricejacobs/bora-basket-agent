@@ -114,7 +114,11 @@ export function welcomeMessage(phone: string): string {
     '',
     t('how_can_we_help', lang),
     '',
-    ...ORDERED.map((s) => `*${s.number}.* ${t(s.labelKey, lang)}`),
+    // Plain numbers. The asterisks were WhatsApp's bold marks, which render
+    // on a phone and show as punctuation everywhere else — the simulator, a
+    // quoted reply, a client that does not format. A menu is already a list;
+    // it does not need emphasis to be read.
+    ...ORDERED.map((s) => `${s.number}. ${t(s.labelKey, lang)}`),
     '',
     t('reply_with_number', lang),
   ].join('\n');
