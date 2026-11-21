@@ -216,15 +216,39 @@ export function buildConversationContext(phone: string): string {
   // A pin with no name and no orders still counts as knowing them: someone who
   // shared their location last week and never finished should not be asked for
   // it again from scratch.
+  // Whether this conversation has already been going. The shop answers the
+  // place picker itself and writes those turns into the account, so "already
+  // going" means exactly that: words have passed between them, whoever did
+  // the answering.
+  const underway = repo.loadHistory(phone).history.length > 0;
+
   if (!customer.name && !customer.location && !last) {
-    lines.push('This is a new customer with no order history. Introduce the shop briefly.');
+    lines.push(
+      underway
+        ? 'This is a new customer with no order history. They have already been talking to the shop, so do not introduce it again.'
+        : 'This is a new customer with no order history. Introduce the shop briefly.',
+    );
     lines.push(
       'They have shared no location pin. Every delivery needs one — call request_location as soon as they start ordering, and keep shopping going in the meantime.',
     );
     return lines.join('\n');
   }
 
-  if (customer.name) lines.push(`Customer: ${customer.name}. Greet them by first name once.`);
+  // The greeting is spent once, and only at the start.
+  //
+  // It used to say "greet them by first name once" on every turn, and the
+  // once was never spent, because the picker's turns did not reach the agent
+  // and its history came up empty. Six taps into a booking it said good
+  // evening and introduced itself. The instruction is now withdrawn outright
+  // when the conversation is under way, rather than relying on the agent to
+  // notice; sanitizeGreeting in run.ts catches it if it greets anyway.
+  if (customer.name) {
+    lines.push(
+      underway
+        ? `Customer: ${customer.name}. This conversation is already under way: do NOT greet them, do not say good morning or good evening, and do not introduce the shop. Carry straight on.`
+        : `Customer: ${customer.name}. Greet them by first name once.`,
+    );
+  }
 
   // The pin, not the typed address, is what the delivery goes to — so it is
   // what gets read back for confirmation. Said in words, never in coordinates.

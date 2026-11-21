@@ -1602,6 +1602,15 @@ the agent would pick up a conversation whose first half it had no record of,
 and ask where they were going when they had said so two taps earlier. From
 its own account, the booking had just begun.
 
+**The greeting is a guard, not an instruction.** Once a conversation has
+turns in it, the agent is no longer told to greet — it is told plainly not
+to — and if it greets anyway the opening sentence is taken off the reply
+before it is sent. The whole sentence, not just the hello: stopping at the
+comma in *"Good evening, Shawn."* would leave the customer reading *"Shawn.
+I can get a car to you"*, which is worse than the greeting was. The capital
+goes back on what is left. A reply that is nothing but a greeting survives
+untouched, since an empty message is worse than a stray hello.
+
 **The turns the shop answered are written into the agent's account.** A tap
 is recorded as the words the passenger saw — `Zeelugt`, not
 `pick:to:place:Zeelugt` — with the shop's reply beside it, in the same shape

@@ -314,6 +314,50 @@ export async function runAgent(
  * says nothing, nor — as this once did — a bare "share your pin" in place of
  * the answer to what they just asked for.
  */
+/**
+ * Takes a greeting off the front of a reply that should not have one.
+ *
+ * The guard behind the instruction, because an instruction is a request. The
+ * shop told the agent not to greet a conversation already under way and the
+ * agent greeted anyway, six taps into a booking: "Good evening, Shawn. I can
+ * get a car to you..." — and good evening is not a thing you say to somebody
+ * you have been talking to for five minutes.
+ *
+ * Only the opening clause goes, and only when something is left after it.
+ * The rest of the sentence is the actual answer and must survive: "Good
+ * evening, Shawn. I can get a car to you" becomes "I can get a car to you".
+ *
+ * All four languages, because the greeting is written in whichever one the
+ * customer uses.
+ */
+const HELLO =
+  '(?:good\\s+(?:morning|afternoon|evening|day)|hello|hi|hey|welcome(?:\\s+back)?' +
+  '|buen(?:os|as)\\s+(?:d[ií]as|tardes|noches)|hola|bienvenid[oa]' +
+  '|bom\\s+dia|boa\\s+(?:tarde|noite)|ol[áa]|bem[-\\s]vind[oa]' +
+  '|您好|你好|早上好|下午好|晚上好|欢迎(?:回来)?)';
+
+// The whole opening SENTENCE, not just the hello. "Good evening, Shawn." is
+// one greeting, and stopping at the comma would leave the customer reading
+// "Shawn. I can get a car to you" — which is worse than the greeting was.
+// So the run to the first full stop goes with it, and a comma is not a full
+// stop.
+const GREETING = new RegExp('^\\s*' + HELLO + '[^.!?。！\\n—–]{0,40}[.!?。！—–]+\\s*', 'iu');
+
+export function sanitizeGreeting(text: string, underway: boolean): string {
+  if (!underway || !text) return text;
+  const trimmed = text.replace(GREETING, '').trimStart();
+  // A reply that was nothing BUT a greeting stays as it was: removing it
+  // would leave the customer with an empty message, which is worse.
+  if (trimmed.length === 0) return text;
+
+  // The greeting took the capital letter with it — "Hi Shawn — your driver
+  // is on the way" must not come back starting in lower case.
+  const first = trimmed[0]!;
+  return first === first.toLowerCase() && first !== first.toUpperCase()
+    ? first.toUpperCase() + trimmed.slice(1)
+    : trimmed;
+}
+
 export function assembleReply(finalText: string, queued: OutboundMessage[]): OutboundMessage[] {
   const outbound: OutboundMessage[] = [];
   const photoMessages = queued.filter((m) => m.kind === 'image');

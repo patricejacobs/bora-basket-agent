@@ -3509,6 +3509,43 @@ section('Picking a place instead of typing one');
     repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
+  /* --- the greeting is a guard, not a request -------------------------- */
+
+  // It greeted anyway. The shop told it not to greet a conversation already
+  // under way and six taps into a booking it said "Good evening, Shawn" —
+  // which is not a thing you say to somebody you have been talking to for
+  // five minutes. An instruction is a request; this is the guard behind it.
+  {
+    const { sanitizeGreeting } = await import('./agent/run.ts');
+    const cases: [string, string][] = [
+      ['Good evening, Shawn. I can get a car to you.', 'I can get a car to you.'],
+      ['Hi Shawn — your driver is on the way.', 'Your driver is on the way.'],
+      ['Hello! Your fare is $700.', 'Your fare is $700.'],
+      ['Buenas noches, Shawn. Le consigo un coche.', 'Le consigo un coche.'],
+      ['Boa noite, Shawn. Posso arranjar-lhe um carro.', 'Posso arranjar-lhe um carro.'],
+    ];
+    for (const [before, after] of cases) {
+      check(`the greeting comes off "${before.slice(0, 22)}..."`,
+        sanitizeGreeting(before, true) === after, sanitizeGreeting(before, true));
+    }
+
+    // The capital goes with it and has to come back, or the reply reads as
+    // though it started mid-sentence.
+    check('and the sentence keeps its capital',
+      /^Your driver/.test(sanitizeGreeting('Hi Shawn — your driver is on the way.', true)));
+
+    // What it must NOT touch.
+    const plain = 'Your fare is $700, payable to the driver.';
+    check('ordinary text is left alone', sanitizeGreeting(plain, true) === plain);
+    check('a first turn keeps its greeting',
+      sanitizeGreeting('Good evening, Shawn. I can get a car to you.', false)
+        === 'Good evening, Shawn. I can get a car to you.');
+    check('a reply that is nothing but a greeting survives',
+      sanitizeGreeting('Good evening.', true) === 'Good evening.');
+    check('and a place that reads like one is safe',
+      sanitizeGreeting('Your fare to Hi Hope is $2,000.', true) === 'Your fare to Hi Hope is $2,000.');
+  }
+
   /* --- the shop's own turns are in the agent's account ----------------- */
 
   // Reported from the live shop: six taps into a booking, with the

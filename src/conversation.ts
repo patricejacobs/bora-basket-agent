@@ -1,4 +1,9 @@
-import { runAgent, friendlyErrorMessage, SESSION_TTL_MS as CONVERSATION_TTL_MS } from './agent/run.ts';
+import {
+  runAgent,
+  friendlyErrorMessage,
+  sanitizeGreeting,
+  SESSION_TTL_MS as CONVERSATION_TTL_MS,
+} from './agent/run.ts';
 import { detectLanguage, t } from './language.ts';
 import { languageFor } from './services.ts';
 import {
@@ -444,10 +449,20 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
 ${text}` : note;
   }
 
+  // Read BEFORE the agent runs, because running it writes the turn and would
+  // make every conversation look as though it were already going.
+  const underway = repo.loadHistory(msg.phone).history.length > 0;
+
   let outbound: OutboundMessage[];
   try {
     const result = await runAgent(msg.phone, text, msg.image);
-    outbound = result.outbound;
+    // The agent is asked not to greet a conversation already under way. This
+    // is the guard behind the asking: it greeted anyway, six taps into a
+    // booking, and good evening is not a thing you say to somebody you have
+    // been talking to for five minutes.
+    outbound = result.outbound.map((out) =>
+      out.kind === 'text' ? { ...out, text: sanitizeGreeting(out.text, underway) } : out,
+    );
   } catch (err) {
     outbound = [{ kind: 'text', text: friendlyErrorMessage(err) }];
   }
