@@ -478,7 +478,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
               place: named,
             }),
           },
-          endPicker(msg.phone, missing, lang),
+          openEnd(missing, lang),
         ];
         for (const out of onward) {
           repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));

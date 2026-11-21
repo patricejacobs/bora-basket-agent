@@ -3220,6 +3220,20 @@ section('Picking a place instead of typing one');
       m.kind === 'buttons' && m.buttons.every((b) => b.title.length <= 20),
       m.kind === 'buttons' ? JSON.stringify(m.buttons.map((b) => b.title)) : '');
   }
+  // Both ends open the same way, worded for each.
+  const toOpen = openEnd('to');
+  check('the destination opens with two buttons too',
+    toOpen.kind === 'buttons' && toOpen.buttons.length === 2);
+  check('and says pin rather than location',
+    toOpen.kind === 'buttons' && /pin/i.test(toOpen.buttons[1]?.title ?? ''),
+    toOpen.kind === 'buttons' ? toOpen.buttons[1]?.title : '');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const m = openEnd('to', lang);
+    check(`the destination titles fit in ${lang}`,
+      m.kind === 'buttons' && m.buttons.every((b) => b.title.length <= 20),
+      m.kind === 'buttons' ? JSON.stringify(m.buttons.map((b) => b.title)) : '');
+  }
+
   check('Choose a place opens the list',
     handlePick(rider, 'pick:from:list')?.kind === 'reply');
   check('Send location asks for a pin',
@@ -3404,13 +3418,13 @@ section('Picking a place instead of typing one');
     });
     check('a pinned pickup says which end it took',
       onward[0]?.kind === 'text' && /collect you at/i.test(onward[0].text), onward[0]?.kind);
-    check('and asks for the destination with the picker',
-      onward[1]?.kind === 'list' && /where are you going/i.test(onward[1].text),
+    check('and asks for the destination',
+      onward[1]?.kind === 'buttons' && /where are you going/i.test(onward[1].text),
       onward[1]?.kind);
-    check('areas and all',
-      onward[1]?.kind === 'list' && onward[1].rows.some((r) => r.title === 'East Bank Demerara'));
-    check('with the pin row still there',
-      onward[1]?.kind === 'list' && onward[1].rows.some((r) => r.id === 'pick:to:here'));
+    check('with both ways of answering',
+      onward[1]?.kind === 'buttons' &&
+        onward[1].buttons.map((b) => b.id).join(' ') === 'pick:to:list pick:to:here',
+      onward[1]?.kind === 'buttons' ? JSON.stringify(onward[1].buttons.map((b) => b.id)) : '');
     repo.setService(pinFirst, null);
 
     // A bare pin — a live position, which WhatsApp sends with no name.
@@ -3471,6 +3485,11 @@ section('Picking a place instead of typing one');
   repo.clearTaxiPicks(rider);
   const half = handlePick(rider, 'pick:from:place:Diamond');
   check('choosing only the pickup asks for the destination', half?.kind === 'reply');
+  check('with the same two buttons',
+    half?.kind === 'reply' &&
+      half.outbound[0]?.kind === 'buttons' &&
+      /where are you going/i.test(half.outbound[0].text),
+    half?.kind === 'reply' ? half.outbound[0]?.kind : '');
 
   // The escapes. Both leave the picker, and neither books anything.
   const typed = handlePick(rider, 'pick:to:type');
@@ -3531,7 +3550,7 @@ section('Picking a place instead of typing one');
   check('Change destination reopens the list', redo?.kind === 'reply');
   check('asking only where they are going',
     redo?.kind === 'reply' &&
-      redo.outbound[0]?.kind === 'list' &&
+      redo.outbound[0]?.kind === 'buttons' &&
       /where are you going/i.test(redo.outbound[0].text));
   check('the pickup is kept', repo.taxiPicks(rider).from === 'Diamond');
   check('and only the destination is dropped', repo.taxiPicks(rider).to === '');

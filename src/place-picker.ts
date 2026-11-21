@@ -263,7 +263,12 @@ export function openEnd(side: PickSide, lang: Language = 'en'): OutboundMessage 
     text: t(side === 'from' ? 'pick_from_ask' : 'pick_to_ask', lang),
     buttons: [
       { id: `${PREFIX}:${side}:list`, title: t('pick_button', lang) },
-      { id: `${PREFIX}:${side}:here`, title: t('pick_send_location', lang) },
+      {
+        id: `${PREFIX}:${side}:here`,
+        // Worded for the end being asked about, and kept short: a button
+        // title is twenty characters and WhatsApp truncates in silence.
+        title: t(side === 'from' ? 'pick_send_location' : 'pick_send_pin', lang),
+      },
     ],
   };
 }
@@ -445,7 +450,7 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
       // changed, and asking it again would be the picker wasting their time
       // over a figure they did not like.
       repo.setTaxiPick(phone, 'to', '');
-      return { kind: 'reply', outbound: [endPicker(phone, 'to', lang)] };
+      return { kind: 'reply', outbound: [openEnd('to', lang)] };
     }
 
     return {
@@ -505,7 +510,7 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
   repo.setTaxiPick(phone, pick.side, pick.place);
 
   if (pick.side === 'from') {
-    return { kind: 'reply', outbound: [endPicker(phone, 'to', lang)] };
+    return { kind: 'reply', outbound: [openEnd('to', lang)] };
   }
 
   const picks = repo.taxiPicks(phone);

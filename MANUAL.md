@@ -1425,13 +1425,13 @@ are going until they get there.
 
 ### Picking the two ends
 
-Choosing a taxi asks where the passenger is, with **both ways of answering in
-front of them**:
+**Each end is asked the same way**, with both ways of answering in front of
+the passenger:
 
 ```
-Where are we collecting you from?
+Where are we collecting you from?        And where are you going?
 
-[Choose a place]  [📍 Send location]
+[Choose a place]  [📍 Send location]     [Choose a place]  [📍 Send a pin]
 ```
 
 Sending a location was always offered — as the first *row* of a list whose
@@ -1442,8 +1442,9 @@ looking for it. It costs a tap for whoever does want the list: one more tap on
 the path people could already see, against making the other path visible at
 all.
 
-`Choose a place` opens a **place picker** — a tappable list built from the
-delivery tariff:
+The wording differs because the question does: a pickup is usually where you
+are standing, a destination never is. `Choose a place` opens a **place
+picker** — a tappable list built from the delivery tariff:
 
 ```
 Where are we collecting you from?          [ Choose a place ]
