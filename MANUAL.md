@@ -1425,8 +1425,25 @@ are going until they get there.
 
 ### Picking the two ends
 
-Choosing a taxi opens a **place picker** — a tappable list built from the
-delivery tariff — rather than a question in words:
+Choosing a taxi asks where the passenger is, with **both ways of answering in
+front of them**:
+
+```
+Where are we collecting you from?
+
+[Choose a place]  [📍 Send location]
+```
+
+Sending a location was always offered — as the first *row* of a list whose
+button read "Choose a place", so you had to open the place picker to discover
+you needn't use it. A passenger standing on a road with a phone in their hand
+is the likeliest person in the shop to want that and the least likely to go
+looking for it. It costs a tap for whoever does want the list: one more tap on
+the path people could already see, against making the other path visible at
+all.
+
+`Choose a place` opens a **place picker** — a tappable list built from the
+delivery tariff:
 
 ```
 Where are we collecting you from?          [ Choose a place ]

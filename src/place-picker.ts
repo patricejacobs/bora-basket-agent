@@ -76,6 +76,7 @@ export type Pick =
   | { kind: 'corridor'; side: PickSide; corridor: string; page: number }
   | { kind: 'menu'; side: PickSide }
   | { kind: 'back'; side: PickSide }
+  | { kind: 'list'; side: PickSide }
   | { kind: 'fare'; answer: 'book' | 'change' | 'cancel' };
 
 /** True when this is one of our row ids rather than somebody else's. */
@@ -112,6 +113,7 @@ export function readPick(id: string): Pick | null {
   if (kind === 'type') return { kind: 'type', side };
   if (kind === 'menu') return { kind: 'menu', side };
   if (kind === 'back') return { kind: 'back', side };
+  if (kind === 'list') return { kind: 'list', side };
   if (kind === 'place') {
     // The place itself may hold anything but a colon, so it is the whole rest
     // of the id rather than the next field: "Vryheid's Lust" survives, and so
@@ -238,6 +240,31 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
     text: side === 'from' ? t('pick_from_ask', lang) : t('pick_to_ask', lang),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
+  };
+}
+
+/**
+ * The question that opens an end, as two buttons rather than a list.
+ *
+ * Both ways of answering are now visible without opening anything. Sending a
+ * location was always offered — as the first ROW of a list whose button read
+ * "Choose a place", so you had to open the place picker to discover you
+ * needn't use it. A passenger standing on a road with a phone in their hand
+ * is the likeliest person in the shop to want that row and the least likely
+ * to go looking for it.
+ *
+ * It costs a tap for whoever does want the list. That is the trade: one more
+ * tap on the path people can already see, against making the other path
+ * visible at all.
+ */
+export function openEnd(side: PickSide, lang: Language = 'en'): OutboundMessage {
+  return {
+    kind: 'buttons',
+    text: t(side === 'from' ? 'pick_from_ask' : 'pick_to_ask', lang),
+    buttons: [
+      { id: `${PREFIX}:${side}:list`, title: t('pick_button', lang) },
+      { id: `${PREFIX}:${side}:here`, title: t('pick_send_location', lang) },
+    ],
   };
 }
 
@@ -425,6 +452,10 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
       kind: 'note',
       note: '[The passenger tapped *Book it*: they have seen the fare and agreed it. Call book_taxi again with the same details and fare_confirmed true. Do not quote the fare again and do not ask whether it is all right — they have already answered that.]',
     };
+  }
+
+  if (pick.kind === 'list') {
+    return { kind: 'reply', outbound: [endPicker(phone, pick.side, lang)] };
   }
 
   if (pick.kind === 'back') {

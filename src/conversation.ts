@@ -23,7 +23,14 @@ import {
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
-import { areaPicker, endPicker, handlePick, isPickerId, pickerAvailable } from './place-picker.ts';
+import {
+  areaPicker,
+  endPicker,
+  handlePick,
+  isPickerId,
+  openEnd,
+  pickerAvailable,
+} from './place-picker.ts';
 import { findZone } from './zones.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
@@ -334,7 +341,9 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       picked === 'taxi' && pickerAvailable()
         ? [
             { kind: 'text', text: t('opening_taxi_picked', lang) },
-            endPicker(msg.phone, 'from', lang),
+            // Two buttons, not the list: choose a place, or send a location.
+            // Both ways of answering are visible without opening anything.
+            openEnd('from', lang),
           ]
         : [{ kind: 'text', text: serviceOpening(picked, lang) }];
 

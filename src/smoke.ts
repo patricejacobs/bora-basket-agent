@@ -3199,6 +3199,35 @@ section('Picking a place instead of typing one');
 
   check('there is a tariff to pick from', pickerAvailable());
 
+  /* --- the question that opens an end ---------------------------------- */
+
+  // Both ways of answering, visible without opening anything. Sending a
+  // location was always offered — as the first ROW of a list whose button
+  // read "Choose a place", so you had to open the place picker to discover
+  // you needn't use it.
+  const { openEnd } = await import('./place-picker.ts');
+  const opening = openEnd('from');
+  const openOpts = opening.kind === 'buttons' ? opening.buttons : [];
+  check('an end opens with two buttons', openOpts.length === 2, String(openOpts.length));
+  check('choose a place, or send a location',
+    openOpts.map((b) => b.id).join(' ') === 'pick:from:list pick:from:here',
+    JSON.stringify(openOpts.map((b) => b.id)));
+  check('and WhatsApp will accept both titles',
+    openOpts.every((b) => b.title.length <= 20), JSON.stringify(openOpts.map((b) => b.title)));
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const m = openEnd('from', lang);
+    check(`the titles fit in ${lang}`,
+      m.kind === 'buttons' && m.buttons.every((b) => b.title.length <= 20),
+      m.kind === 'buttons' ? JSON.stringify(m.buttons.map((b) => b.title)) : '');
+  }
+  check('Choose a place opens the list',
+    handlePick(rider, 'pick:from:list')?.kind === 'reply');
+  check('Send location asks for a pin',
+    (() => {
+      const r = handlePick(rider, 'pick:from:here');
+      return r?.kind === 'reply' && r.outbound[0]?.kind === 'location_request';
+    })());
+
   /* --- the first screen ------------------------------------------------ */
 
   const from = endPicker(rider, 'from');
