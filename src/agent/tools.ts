@@ -518,7 +518,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'change_destination',
     description:
-      "Send a taxi they have already booked somewhere else. Only works BEFORE they are in the car — once the driver marks them onboard the fare is running and it needs a person, so use request_staff_help instead. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and tells the driver. Never change a destination they have not agreed the new fare for. This does NOT move the pickup — if that is what they want, call request_staff_help.",
+      "Send a taxi they have already booked somewhere else. Works whether the car is still on its way to them or they are already in it. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and tells the driver. Never change a destination they have not agreed the new fare for, and never promise a person will ring about it — this tool is how it is done. This does NOT move the pickup — if that is what they want, call request_staff_help.",
     input_schema: {
       type: 'object',
       properties: {
@@ -2326,15 +2326,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         .map((o) => repo.findOrder(o.orderNo))
         .filter((o): o is repo.OrderRecord => o !== null && o.kind === 'taxi');
 
-      const order = theirs.find((o) => o.status === 'pending' || o.status === 'confirmed');
+      // Including one already under way. It used to stop at the kerb: a
+      // passenger in a moving car was told the fare was running and this was
+      // not theirs to change, and the request went into the help queue for a
+      // person to ring back — which, at a shop with no staff number set, is
+      // a queue with nobody reading it. Meanwhile the driver sitting beside
+      // them could change it in two taps. The passenger asking the shop
+      // directly is the same event as the driver asking on their behalf, and
+      // it goes through the same gate: priced, agreed, then the driver told.
+      const order = theirs.find(
+        (o) => o.status === 'pending' || o.status === 'confirmed' || o.status === 'on_the_way',
+      );
 
       if (!order) {
-        const onboard = theirs.find((o) => o.status === 'on_the_way');
-        return fail(
-          onboard
-            ? `${onboard.orderNo} is already under way with them in the car, so the fare is running and this is not yours to change. Call request_staff_help, tell them the team is on it, and do not say you are unable to do it.`
-            : 'They have no taxi waiting to be collected. If they want a car, book a new one.',
-        );
+        return fail('They have no taxi on the road. If they want a car, book a new one.');
       }
 
       // The tariff's spelling, where what they typed is only a misspelling
@@ -2372,6 +2377,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       repo.changeTaxiDestination(order.orderNo, named, quoted?.fee ?? 0);
       repo.setTaxiFareShown(ctx.phone, -1);
+      // A question the driver raised is overtaken by the passenger settling
+      // it themselves. Leaving it open would put the old place back in front
+      // of them with two buttons, for a trip that has already changed.
+      repo.clearDestProposal(order.orderNo);
 
       // The driver is holding a card for the old destination. Telling them is
       // the whole point — a record that changed quietly is a car that still

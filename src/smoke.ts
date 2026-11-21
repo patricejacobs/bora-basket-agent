@@ -3803,11 +3803,38 @@ section('Picking a place instead of typing one');
     check('the old destination and fare are in the trail',
       /Grove -> Zeelugt/.test(trail) && /70000 -> 5500/.test(trail), trail.slice(0, 120));
 
-    // Onboard is a different thing entirely: the fare is running.
+    // In the car, and still theirs to change. It used to stop here and put
+    // the passenger in the help queue for somebody to ring back — a queue
+    // nobody reads at a shop with no staff number set, while the driver
+    // beside them could do it in two taps.
     repo.setOrderStatus(job.orderNo, 'on_the_way');
-    const late = change({ new_destination: 'Kitty' });
-    check('it refuses once they are in the car', /under way with them in the car/i.test(String(late.error)));
-    check('and sends them to a person', /request_staff_help/.test(String(late.error)));
+    repo.setTaxiFareShown(rider2, -1);
+    const onRoadQuote = change({ new_destination: 'Kitty' });
+    check('a trip under way is quoted, not refused',
+      onRoadQuote.error === undefined && typeof onRoadQuote.new_fare === 'string',
+      JSON.stringify(onRoadQuote).slice(0, 120));
+    check('and nobody is promised a telephone call',
+      !/request_staff_help/.test(JSON.stringify(onRoadQuote)));
+    check('nothing has moved on the strength of a question',
+      repo.findOrder(job.orderNo)?.address === 'Zeelugt', repo.findOrder(job.orderNo)?.address);
+
+    // A question the driver already has out is overtaken by this.
+    repo.proposeDestination(job.orderNo, 'Somewhere else', 9999);
+    const onRoadDone = change({ new_destination: 'Kitty', confirmed: true });
+    check('agreeing changes a trip under way', onRoadDone.changed === true,
+      JSON.stringify(onRoadDone).slice(0, 110));
+    const inCar = repo.findOrder(job.orderNo);
+    check('to the new place', inCar?.address === 'Kitty', inCar?.address);
+    check('still under way, not re-dispatched', inCar?.status === 'on_the_way', inCar?.status);
+    check('the pickup is still behind them', inCar?.pickup?.address === 'Diamond',
+      inCar?.pickup?.address);
+    check("the driver's open question is spent", repo.destProposal(job.orderNo) === null,
+      JSON.stringify(repo.destProposal(job.orderNo)));
+    check('and both figures are in the trail',
+      repo.orderHistory(job.orderNo).some((e) => /Zeelugt -> Kitty/.test(e.detail ?? '')));
+
+    // Put back for the checks below, which are about a car still on its way.
+    repo.changeTaxiDestination(job.orderNo, 'Zeelugt', 5500);
 
     // Reported from the live shop. book_taxi clears the picker when it
     // books, so "actually, Buxton" looked identical to somebody starting a

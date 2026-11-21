@@ -1328,8 +1328,8 @@ gate.
 
 ### Changing where it is going
 
-A passenger can send a booked taxi somewhere else, **before they are in the
-car**. Ask in words — *"actually can we go to Zeelugt instead"* — and the
+A passenger can send a booked taxi somewhere else, whether the car is still
+on its way to them or they are already in it. Ask in words — *"actually can we go to Zeelugt instead"* — and the
 shop re-prices the trip from the same pickup and reads both figures back:
 
 > Going to Zeelugt instead makes the fare $5,500 rather than $700.
@@ -1345,8 +1345,12 @@ is a car that still goes to the wrong place.
 | | |
 |---|---|
 | Before pickup | Changed here |
-| **Onboard** | Refused. The fare is running and the waiting clock with it, so it needs a person |
+| **Onboard** | Changed here too, through the same gate. It used to be refused and sent to the help queue for somebody to ring back — which at a shop with no staff number set is a queue nobody reads, while the driver sitting beside them could do it in two taps. A passenger asking the shop is the same event as the driver asking on their behalf |
 | The **pickup** | Not changed here either. Moving where a car collects from may mean a different driver, which is a different job |
+
+A change the passenger makes themselves also spends any question the driver
+has out: leaving it open would put the old place back in front of them with
+two buttons, for a trip that has already changed.
 
 ### When the driver is the one who hears it
 
