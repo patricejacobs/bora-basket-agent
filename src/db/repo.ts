@@ -469,6 +469,26 @@ export function changeTaxiDestination(
   );
 }
 
+/**
+ * The taxi they already have on the road, if any.
+ *
+ * book_taxi clears the picker the moment it books, so a passenger who then
+ * says "actually, Buxton" looks exactly like one starting a fresh trip —
+ * and the typed place was taken as the pickup of a booking that did not
+ * exist, asked for its exact spot, and then asked where they were going.
+ * They had already said. They were changing it.
+ */
+export function liveTaxi(phone: string): OrderRecord | null {
+  for (const summary of recentOrders(phone, 5)) {
+    const order = findOrder(summary.orderNo);
+    if (!order || order.kind !== 'taxi') continue;
+    if (order.status === 'pending' || order.status === 'confirmed' || order.status === 'on_the_way') {
+      return order;
+    }
+  }
+  return null;
+}
+
 export function clearTaxiPicks(phone: string): void {
   db.prepare(
     `UPDATE customers SET taxi_pick_from = '', taxi_pick_to = '', taxi_fare_shown = -1,

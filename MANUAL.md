@@ -1348,6 +1348,15 @@ is a car that still goes to the wrong place.
 | **Onboard** | Refused. The fare is running and the waiting clock with it, so it needs a person |
 | The **pickup** | Not changed here either. Moving where a car collects from may mean a different driver, which is a different job |
 
+**While a trip is on the road, naming a place changes it.** It does not
+start another. `book_taxi` clears the picker the moment it books, so
+*"actually, Buxton"* looked identical to somebody beginning a fresh
+booking — Buxton was taken as the PICKUP of a trip that did not exist, asked
+for its exact spot in the pickup's own words, and then asked where they were
+going. They had already said; they were changing it. So the picker stands
+down while a taxi is live, and the agent is told which trip is running and
+which tool changes it.
+
 Until this existed, nothing could amend a booked order for any service. The
 only route was `cancel_my_order`, which works while a job is still
 `pending` — for a taxi that is the seconds before a driver accepts.

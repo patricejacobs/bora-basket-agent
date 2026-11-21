@@ -3594,6 +3594,34 @@ section('Picking a place instead of typing one');
     check('it refuses once they are in the car', /under way with them in the car/i.test(String(late.error)));
     check('and sends them to a person', /request_staff_help/.test(String(late.error)));
 
+    // Reported from the live shop. book_taxi clears the picker when it
+    // books, so "actually, Buxton" looked identical to somebody starting a
+    // fresh trip: Buxton was taken as the PICKUP of a booking that did not
+    // exist, asked for its exact spot — in the pickup's words, about a
+    // destination — and then asked where they were going. They had already
+    // said. They were changing it.
+    repo.setOrderStatus(job.orderNo, 'confirmed');
+    repo.clearTaxiPicks(rider2);
+    check('a booked trip is found', repo.liveTaxi(rider2)?.orderNo === job.orderNo);
+
+    const { handleIncoming: incoming } = await import('./conversation.ts');
+    const typedNow = await incoming({ phone: rider2, text: 'buxton', channel: 'smoke' } as never);
+    check('naming a place does not start a second booking',
+      repo.taxiPicks(rider2).from === '' && repo.taxiPicks(rider2).to === '',
+      JSON.stringify(repo.taxiPicks(rider2)));
+    check('and it is not answered with the pickup question',
+      !typedNow.some((m) => m.kind === 'buttons' && /there now/i.test(m.text)));
+    check('the trip is untouched until the fare is agreed',
+      repo.findOrder(job.orderNo)?.address === 'Zeelugt',
+      repo.findOrder(job.orderNo)?.address);
+
+    // And the agent is told which trip it is, so it reaches for the right
+    // tool rather than guessing from an empty picker.
+    const { buildTurnContext } = await import('./agent/context.ts');
+    const brief = buildTurnContext(rider2);
+    check('the agent is told a trip is already booked', /is already booked/.test(brief));
+    check('and which tool changes it', /change_destination/.test(brief));
+
     repo.setOrderStatus(job.orderNo, 'cancelled');
     repo.setDuty(driver2, false);
     repo.upsertAssociate({ phone: driver2, name: 'Driver Two', vehicle: 'PAA 2', active: false });

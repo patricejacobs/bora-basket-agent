@@ -120,6 +120,15 @@ export function buildTurnContext(phone: string): string {
 function taxiLine(phone: string): string | null {
   if (repo.getService(phone) !== 'taxi') return null;
 
+  // A trip already on the road is a different conversation from one being
+  // assembled. Somebody saying "actually, Buxton" about a booked taxi is
+  // changing it, not starting another — and the picker is no help, having
+  // cleared itself the moment the car was booked.
+  const live = repo.liveTaxi(phone);
+  if (live) {
+    return `${live.orderNo} is already booked: ${live.pickup?.address || 'their pickup'} to ${live.address || 'their destination'}${live.quotedFare > 0 ? `, ${money(live.quotedFare)}` : ''}. If they name somewhere else they are CHANGING that trip, not booking another — call change_destination, which re-prices it and tells the driver. Never start a second booking unless they plainly ask for one.`;
+  }
+
   const { from, to } = repo.taxiPicks(phone);
   if (!from && !to) return null;
 

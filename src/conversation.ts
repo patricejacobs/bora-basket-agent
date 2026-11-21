@@ -359,7 +359,16 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // trip prices; anything else is stored as written, and the driver agrees
   // the fare in the car. Either way the exact spot is offered next, which is
   // the whole point of taking an address the shop cannot price.
-  if (chosen === 'taxi' && text && !msg.location && !isPickerId(text)) {
+  // Neither of the two blocks below may run while a taxi is already on the
+  // road. book_taxi clears the picker when it books, so a passenger saying
+  // "actually, Buxton" looks identical to one starting a fresh trip — and
+  // Buxton was taken as the PICKUP of a booking that did not exist, asked
+  // for its exact spot, and then asked where they were going. They had
+  // already said. They were changing it, which is change_destination's job
+  // and therefore the agent's.
+  const onTheRoad = chosen === 'taxi' ? repo.liveTaxi(msg.phone) : null;
+
+  if (chosen === 'taxi' && !onTheRoad && text && !msg.location && !isPickerId(text)) {
     const typing = repo.typingEnd(msg.phone);
     if (typing) {
       const lang = languageFor(msg.phone);
@@ -435,7 +444,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // different question and belongs to the agent. Only a short message, which
   // is what an answer looks like. And only an unambiguous match, so a place
   // the tariff is unsure of is argued out in words rather than assumed.
-  if (chosen === 'taxi' && pickerAvailable() && text && !msg.location) {
+  if (chosen === 'taxi' && !onTheRoad && pickerAvailable() && text && !msg.location) {
     const picks = repo.taxiPicks(msg.phone);
     const missing: 'from' | 'to' | null = !picks.from ? 'from' : !picks.to ? 'to' : null;
     const said = text.trim();
