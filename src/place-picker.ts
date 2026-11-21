@@ -75,6 +75,8 @@ export type Pick =
   | { kind: 'corridor'; side: PickSide; corridor: string; page: number }
   | { kind: 'menu'; side: PickSide }
   | { kind: 'back'; side: PickSide }
+  | { kind: 'spot'; side: PickSide }
+  | { kind: 'skip'; side: PickSide }
   | { kind: 'list'; side: PickSide }
   | { kind: 'fare'; answer: 'book' | 'change' | 'cancel' };
 
@@ -111,6 +113,8 @@ export function readPick(id: string): Pick | null {
   if (kind === 'type') return { kind: 'type', side };
   if (kind === 'menu') return { kind: 'menu', side };
   if (kind === 'back') return { kind: 'back', side };
+  if (kind === 'spot') return { kind: 'spot', side };
+  if (kind === 'skip') return { kind: 'skip', side };
   if (kind === 'list') return { kind: 'list', side };
   if (kind === 'place') {
     // The place itself may hold anything but a colon, so it is the whole rest
@@ -328,6 +332,29 @@ export function fareButtons(fare: string, lang: Language = 'en'): OutboundMessag
 }
 
 /**
+ * Having settled an end by name, ask for the exact spot.
+ *
+ * The NAME prices the trip and the PIN finds the door, and this is where the
+ * second half belongs: after the place is known, so a pin can never muddle
+ * the fare, and before the car is on the road, so the driver has it in time.
+ *
+ * Optional, and said so. A passenger standing in the road can give the
+ * driver a gate instead of a village — Diamond is a large place — and one
+ * booking a car for later has nothing useful to send and should not be made
+ * to pretend otherwise.
+ */
+export function spotAsk(side: PickSide, place: string, lang: Language = 'en'): OutboundMessage {
+  return {
+    kind: 'buttons',
+    text: t(side === 'from' ? 'spot_ask_from' : 'spot_ask_to', lang, { place }),
+    buttons: [
+      { id: `${PREFIX}:${side}:spot`, title: t('spot_send', lang) },
+      { id: `${PREFIX}:${side}:skip`, title: t('spot_skip', lang) },
+    ],
+  };
+}
+
+/**
  * What the booking needs next, once an end has just been settled.
  *
  * ONE place decides it, because the order matters and used to be spread
@@ -426,6 +453,22 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
     return { kind: 'reply', outbound: [endPicker(phone, pick.side, lang)] };
   }
 
+  if (pick.kind === 'spot') {
+    return {
+      kind: 'reply',
+      outbound: [
+        {
+          kind: 'location_request',
+          text: t(pick.side === 'from' ? 'spot_prompt_from' : 'spot_prompt_to', lang),
+        },
+      ],
+    };
+  }
+
+  // Declined, which is a real answer: somebody booking for later has nothing
+  // to send. On to whatever the booking needs next.
+  if (pick.kind === 'skip') return nextStep(phone, lang);
+
   if (pick.kind === 'back') {
     // One step, not all the way out: the end they are choosing starts again
     // and the other end stays exactly where they put it.
@@ -459,7 +502,9 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
   }
 
   repo.setTaxiPick(phone, pick.side, pick.place);
-  return nextStep(phone, lang);
+  // The place prices the trip; now the exact spot, which is the driver's
+  // half of the answer and no part of the fare.
+  return { kind: 'reply', outbound: [spotAsk(pick.side, pick.place, lang)] };
 }
 
 /**

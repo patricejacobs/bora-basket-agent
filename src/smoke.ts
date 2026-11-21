@@ -3349,34 +3349,47 @@ section('Picking a place instead of typing one');
   {
     const { handleIncoming } = await import('./conversation.ts');
 
-    // A bare pin — a live position, which WhatsApp sends with no name at
-    // all. The pin is written down for the driver, and the question it did
-    // not answer is put again. No acknowledgement of a place, because the
-    // shop learned no place.
+    // A pin refines the end just settled. The place was chosen by name and
+    // has already priced the trip, so what a pin adds is the doorstep.
     const bare = '5920009460';
     const sendBare = (extra: Record<string, unknown>) =>
       handleIncoming({ phone: bare, text: '', channel: 'smoke', ...extra } as never);
     await sendBare({ text: 'hello' });
     await sendBare({ text: '1' });
-    const back = await sendBare({ location: { latitude: 6.81, longitude: -58.15 } });
-
-    check('a bare pin asks the pickup again',
-      back[0]?.kind === 'list' && /collecting you from/i.test(back[0].text), back[0]?.kind);
-    check('with no pin row on it',
-      back[0]?.kind === 'list' && !back[0].rows.some((r) => r.id.endsWith(':here')));
-    check('and nothing is settled by it', repo.taxiPicks(bare).from === '',
-      repo.taxiPicks(bare).from);
-    check('without booking anything',
-      repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== bare));
-    check('but the pin is kept for the driver',
-      Boolean(repo.getParcelDraft(bare).pickup));
-
-    // And the booking carries on by name alone.
     await sendBare({ text: 'pick:from:corr:0:Georgetown' });
-    await sendBare({ text: 'pick:from:place:Kitty' });
-    check('a tapped place settles it', repo.taxiPicks(bare).from === 'Kitty',
+
+    const asked = await sendBare({ text: 'pick:from:place:Kitty' });
+    check('choosing a place asks for the exact spot',
+      asked[0]?.kind === 'buttons' && /send your exact location/i.test(asked[0].text),
+      asked[0]?.kind);
+    check('and says which place it took',
+      asked[0]?.kind === 'buttons' && /Kitty/.test(asked[0].text));
+    check('offering to send it, or not', asked[0]?.kind === 'buttons' &&
+      asked[0].buttons.map((b) => b.id).join(' ') === 'pick:from:spot pick:from:skip',
+      asked[0]?.kind === 'buttons' ? JSON.stringify(asked[0].buttons.map((b) => b.id)) : '');
+
+    const prompt = await sendBare({ text: 'pick:from:spot' });
+    check('tapping it asks WhatsApp for the pin',
+      prompt[0]?.kind === 'location_request', prompt[0]?.kind);
+
+    const saved = await sendBare({ location: { latitude: 6.81, longitude: -58.15 } });
+    check('the pin is acknowledged', saved[0]?.kind === 'text' && /driver will have/i.test(saved[0].text));
+    check('and kept against the pickup', Boolean(repo.getParcelDraft(bare).pickup));
+    check('it did not change the place', repo.taxiPicks(bare).from === 'Kitty',
       repo.taxiPicks(bare).from);
-    check('with the pin still on file', Boolean(repo.getParcelDraft(bare).pickup));
+    check('nor the saved address', !repo.getIdentity(bare).address);
+    check('and the destination is asked next',
+      saved[1]?.kind === 'list' && /where are you going/i.test(saved[1].text), saved[1]?.kind);
+
+    // Declining is a real answer: somebody booking for later has nothing to
+    // send.
+    await sendBare({ text: 'pick:to:corr:0:East Bank Demerara' });
+    await sendBare({ text: 'pick:to:place:Grove' });
+    check('the destination is asked for its spot too',
+      repo.taxiPicks(bare).to === 'Grove', repo.taxiPicks(bare).to);
+    const skipped = handlePick(bare, 'pick:to:skip');
+    check('and Skip moves on', skipped?.kind === 'note', skipped?.kind);
+    check('with no destination pin', !repo.getParcelDraft(bare).destination);
 
     repo.setService(bare, null);
   }
@@ -3402,17 +3415,50 @@ section('Picking a place instead of typing one');
 
   /* --- what a finished choice hands the agent -------------------------- */
 
+  // Choosing a place no longer goes straight to the agent: the exact spot is
+  // asked for first, and only Skip or a pin carries the booking on.
   const chose = handlePick(rider, 'pick:to:place:Grove');
-  check('choosing both ends goes to the agent', chose?.kind === 'note');
-  const note = chose?.kind === 'note' ? chose.note : '';
+  check('choosing a place asks for its exact spot', chose?.kind === 'reply');
+  check('naming the place it took',
+    chose?.kind === 'reply' &&
+      chose.outbound[0]?.kind === 'buttons' &&
+      /Grove/.test(chose.outbound[0].text));
+  check('the pick is remembered', repo.taxiPicks(rider).to === 'Grove');
+
+  {
+    const { spotAsk } = await import('./place-picker.ts');
+    for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+      const m = spotAsk('from', 'Diamond', lang);
+      check(`the spot question fits WhatsApp in ${lang}`,
+        m.kind === 'buttons' && m.buttons.every((b) => b.title.length <= 20),
+        m.kind === 'buttons' ? JSON.stringify(m.buttons.map((b) => b.title)) : '');
+    }
+    // The decline button names the ACTION, not a motive. "I'm not there yet"
+    // is a reason, and a passenger standing right there who simply does not
+    // want to share a pin cannot honestly tap it.
+    const en = spotAsk('from', 'Diamond');
+    check('declining is Skip, not a reason',
+      en.kind === 'buttons' && en.buttons[1]?.title === 'Skip',
+      en.kind === 'buttons' ? en.buttons[1]?.title : '');
+    check('and it reads the same at both ends',
+      (() => {
+        const to = spotAsk('to', 'Grove');
+        return en.kind === 'buttons' && to.kind === 'buttons'
+          && en.buttons[1]?.title === to.buttons[1]?.title;
+      })());
+  }
+
+  const onward = handlePick(rider, 'pick:to:skip');
+  check('declining it goes to the agent', onward?.kind === 'note');
+  const note = onward?.kind === 'note' ? onward.note : '';
   check('with both places named', /Diamond/.test(note) && /Grove/.test(note), note);
   check('and the fare already worked out', /\$700/.test(note), note);
-  check('the pick is remembered', repo.taxiPicks(rider).to === 'Grove');
 
   // Half a choice is not a choice: the pickup tap answers with the next
   // screen rather than troubling the agent.
   repo.clearTaxiPicks(rider);
-  const half = handlePick(rider, 'pick:from:place:Diamond');
+  handlePick(rider, 'pick:from:place:Diamond');
+  const half = handlePick(rider, 'pick:from:skip');
   check('choosing only the pickup asks for the destination', half?.kind === 'reply');
   check('with the destination list',
     half?.kind === 'reply' &&

@@ -1499,27 +1499,49 @@ A page that has more behind it also carries one line under the question,
 *"Listed nearest first — tap More places if you do not see yours."* The last
 page has neither the row nor the line, there being nothing left to explain.
 
-### Why no pin
+### The exact spot
 
-The tariff is a list of place **names** with no coordinates in it anywhere, so
-a pin can say where somebody is standing and never what the trip costs.
+Once an end is settled **by name**, the shop asks for the pin — and only
+then:
 
-Pins were offered for a while, at both ends. What it cost was a second
-question: a pin that named a place the tariff knew priced itself, and a live
-position — which WhatsApp sends with no name at all — had to be followed by
-*"which area is it in, so I can work out your fare?"*. Half the pins a
-passenger could send settled an end and half did not, which is a shop
-behaving two ways for one gesture.
+```
+*Diamond* — got it. If you are there now, send your exact location
+and the driver will come straight to you.
 
-So no pin is asked for on a taxi. One sent anyway is **still written down**,
-because a position a passenger volunteered is worth having on the driver's
-card — but it settles neither end, and the question it did not answer is put
-again.
+[📍 Send location]  [Skip]
+```
 
-What this costs is precision at the kerb: the driver gets a village name, not
-a gate, and Diamond is a large place. The way to buy that back is coordinates
-in the tariff, which is a data job rather than a code one — see
-`data/zone-coordinates-review.csv`.
+**The name prices the trip; the pin finds the door.** Asked in this order the
+two never collide: the fare is already known when the pin arrives, so a pin
+can neither price a trip nor fail to. It refines the end that was just
+settled and nothing else — it does not change the place, the fare, or the
+customer's saved address, since where somebody is standing today is not where
+they live.
+
+Both ends are asked. The pickup, because a passenger standing in a road can
+give the driver a gate instead of a village and Diamond is a large place. The
+destination, because somebody who knows the exact spot can save the driver
+hunting for it at the far end.
+
+**Declining is a real answer**, and it is there for a reason: somebody
+booking a car for later this afternoon has nothing useful to send and should
+not be made to pretend otherwise. `Skip` carries the booking straight on to
+the next question.
+
+The label says `Skip` and not a reason. *"I'm not there yet"* and *"Not now"*
+were both tried on paper and both fail the same test: a button should name
+the ACTION, not guess the motive. A passenger standing right at the kerb who
+simply does not want to share a pin cannot honestly tap "I'm not there yet",
+and a button some customers cannot truthfully press is a button that stops
+the booking. `Skip` is true whatever the reason, and reads the same at both
+ends.
+
+This was tried the other way round first — a pin offered INSTEAD of a place.
+It could not work: the tariff is place names with no coordinates in it, so a
+pin that happened to name somewhere priced itself and a live position, which
+WhatsApp sends nameless, had to be followed by "which area is it in?". Half
+the pins a passenger could send settled an end and half did not, which is a
+shop behaving two ways for one gesture.
 
 **The picker prices the trip; it does not find the door.** A village name
 sets the fare and says nothing about which gate, so the pin and the typed

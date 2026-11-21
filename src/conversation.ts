@@ -74,29 +74,6 @@ export function recordParcelPin(phone: string, pin: LocationPin): string {
 }
 
 /**
- * Files a pin into the taxi being arranged.
- *
- * Into the same draft a parcel's pins go into, because that is where book_taxi
- * reads them from — a taxi and a parcel are the same shape of job, two ends
- * and something to carry. Before the place picker nothing ever put a taxi's
- * pin there: it went onto the customer's record as their home address, which
- * is wrong twice over. A pickup is where somebody is standing now, not where
- * they live, and book_taxi never saw it.
- */
-export function recordTaxiPin(
-  phone: string,
-  pin: LocationPin,
-  slotWanted?: 'pickup' | 'destination',
-): string {
-  const slot = repo.addParcelPin(phone, pin, slotWanted);
-  console.log(`[taxi] ${phone} pinned ${slot} ${formatCoordinates(pin)}`);
-
-  const which = slot === 'pickup' ? 'pickup' : 'destination';
-  const label = pin.label ? ` (${pin.label})` : '';
-  return `[The passenger shared a location pin. Saved as the taxi's ${which}${label}. Read back which end you took it as, so a car sent to the wrong end is caught now rather than by the driver.]`;
-}
-
-/**
  * What a sent message looks like in the log.
  *
  * A map card and a "Send location" button have no prose of their own, so
@@ -390,36 +367,53 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // doorstep, and letting it overwrite the customer's saved address would
   // quietly redirect next week's groceries to wherever they last sent a package.
   if (msg.location) {
+    // A TAXI's pin refines an end; it never settles one.
+    //
+    // The place was chosen by name and has already priced the trip, so what
+    // arrives here is the exact spot the driver should stop at. Which end it
+    // belongs to is whichever one was just settled: the pickup while the
+    // destination is still unknown, the destination once both are.
+    //
+    // Handled before the others and on its own, because a taxi's pin must not
+    // also become the customer's saved home address — where somebody is
+    // standing today is not where they live.
+    if (chosen === 'taxi') {
+      const lang = languageFor(msg.phone);
+      const picks = repo.taxiPicks(msg.phone);
+      const slot: 'pickup' | 'destination' = picks.from && !picks.to ? 'pickup' : 'destination';
+      repo.addParcelPin(msg.phone, msg.location, slot);
+      console.log(`[taxi] ${msg.phone} pinned ${slot} ${formatCoordinates(msg.location)}`);
+
+      const onward: OutboundMessage[] = [{ kind: 'text', text: t('spot_saved', lang) }];
+      const step = nextStep(msg.phone, lang);
+      if (step.kind === 'reply') onward.push(...step.outbound);
+      for (const out of onward) {
+        repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      }
+      if (step.kind === 'reply') return onward;
+
+      // Both ends settled and priced: the acknowledgement goes now, and the
+      // agent takes the note from here.
+      text = step.note;
+      const said = onward.slice(0, 1);
+      const rest = await (async () => {
+        try {
+          return (await runAgent(msg.phone, text, msg.image)).outbound;
+        } catch (err) {
+          return [{ kind: 'text', text: friendlyErrorMessage(err) } as OutboundMessage];
+        }
+      })();
+      for (const out of rest) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return [...said, ...rest];
+    }
+
     const note =
       chosen === 'parcel'
         ? recordParcelPin(msg.phone, msg.location)
-        : chosen === 'taxi'
-          ? recordTaxiPin(msg.phone, msg.location)
-          : recordLocationPin(msg.phone, msg.location);
-
-    // A taxi is priced from place NAMES, and the tariff has no coordinates in
-    // it, so a pin can say where somebody is standing and never what the trip
-    // costs. It used to be taken as an end anyway, which only moved the
-    // question: the shop asked for the area one message later.
-    //
-    // So the shop no longer asks for a pin on a taxi, and one that arrives
-    // unasked does not settle either end. It is still written down — a
-    // position the passenger volunteered is worth having on the driver's
-    // card — and then the question it did not answer is put again.
-    if (chosen === 'taxi' && !text) {
-      const back = nextStep(msg.phone, languageFor(msg.phone));
-      if (back.kind === 'reply') {
-        for (const out of back.outbound) {
-          repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
-        }
-        return back.outbound;
-      }
-      text = back.note;
-    } else {
-      text = text ? `${note}
+        : recordLocationPin(msg.phone, msg.location);
+    text = text ? `${note}
 
 ${text}` : note;
-    }
   }
 
   let outbound: OutboundMessage[];
