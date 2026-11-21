@@ -929,6 +929,48 @@ an aisle there is a *Categories* button to bring this page back.
 Inside an aisle, and on every other message while they are shopping, both
 appear.
 
+**The moment something goes in the basket, the buttons change:**
+
+| Where they are | What is offered |
+|---|---|
+| Empty basket, aisle list | `[⬅️ Leave groceries]` |
+| Empty basket, anywhere else | `[🛒 Categories]` `[⬅️ Leave groceries]` |
+| **Full basket, aisle list** | `[🛒 Basket · $7,820]` `[✅ Check out]` `[⬅️ Leave groceries]` |
+| **Full basket, anywhere else** | `[🛒 Basket · $7,820]` `[✅ Check out]` `[🛒 Categories]` |
+| **On the basket** | `[✅ Check out]` `[🛒 Categories]` `[⬅️ Leave groceries]` |
+
+Three is WhatsApp's limit and four things want the room, so what gives way
+is whichever button goes where they already are — *Categories* on the aisle
+list, *Basket* on the basket — and *Leave groceries*, which lives on the
+basket page and has always answered to the word *menu* as well.
+
+**The basket button carries the goods, not the total.** The total includes a
+delivery fee nobody has agreed yet — the flat rate, standing in until a zone
+is settled — and a button quoting it would be quoting a figure the customer
+has never been shown and may never be charged.
+
+```
+🛒 *Your basket*
+
+(a) 2 x Karibee Parboiled Rice — $3,700
+(b) 1 x Sunflower Cooking Oil — $1,420
+(c) 3 x Plantains — $2,700
+
+*Goods $7,820* — delivery is worked out when you say where it goes.
+
+To change something: *a x3* makes it three, *a x0* takes it out. Or just say it.
+   [ ✅ Check out ]  [ 🛒 Categories ]  [ ⬅️ Leave groceries ]
+```
+
+**It is lettered like an aisle, and for the same reason.** `a x2` is how the
+thing got in, so `a x3` is how it changes and `a x0` is how it goes —
+nothing new to learn. The letters are written down as the page is sent, so
+the letter they answer with is the line they were looking at.
+
+**Check out** hands straight to the shop's own sequence — place, pin, price
+— and an empty basket is shown the basket instead, which is kinder than a
+refusal from a tool the customer never called.
+
 **How to answer is explained where the answers are**, at the foot of an
 aisle rather than on the front page three screens before anybody sees a
 letter:

@@ -1003,7 +1003,7 @@ section('The aisles, and the way out of them');
   check('and its title fits WhatsApp', page.buttons.every((b) => b.title.length <= 20));
   check('inside an aisle both are offered',
     JSON.stringify(
-      (withWayOut([{ kind: 'text', text: '(a) Bora — $320' }], 'en')[0] as {
+      (withWayOut(shopper2, [{ kind: 'text', text: '(a) Bora — $320' }], 'en')[0] as {
         buttons: { id: string }[];
       }).buttons.map((b) => b.id),
     ) === JSON.stringify([AISLE_BACK, AISLE_LEAVE]));
@@ -1014,19 +1014,77 @@ section('The aisles, and the way out of them');
     String(repo.numberedList(shopper2).length));
 
   // Every message while they are in the shop carries the way out.
-  const plain = withWayOut([{ kind: 'text', text: 'Rice is in — $1,850 so far.' }], 'en');
+  const plain = withWayOut(shopper2, [{ kind: 'text', text: 'Rice is in — $1,850 so far.' }], 'en');
   check('a plain reply gets the buttons', plain[0]?.kind === 'buttons', plain[0]?.kind);
   check('keeping its words', (plain[0] as { text: string }).text.includes('Rice is in'));
 
   // But never where something is already being asked.
   const asked = withWayOut(
+    shopper2,
     [{ kind: 'buttons', text: 'Place the order?', buttons: [{ id: 'yes', title: 'Yes' }] }],
     'en',
   );
   check('a question keeps its own answers', (asked[0] as { buttons: unknown[] }).buttons.length === 1,
     JSON.stringify(asked));
-  const pinAsk = withWayOut([{ kind: 'location_request', text: 'Share your pin' }], 'en');
+  const pinAsk = withWayOut(shopper2, [{ kind: 'location_request', text: 'Share your pin' }], 'en');
   check('and a pin request is left alone', pinAsk[0]?.kind === 'location_request');
+
+  // ---- once there is something in the basket -----------------------
+  {
+    const { basketPage, AISLE_BASKET, AISLE_CHECKOUT } = await import('./aisles.ts');
+    const riceId = (db.prepare(`SELECT id FROM products WHERE sku='RIC-001'`).get() as { id: number }).id;
+    repo.setService(shopper2, 'grocery');
+    repo.setCartQty(shopper2, riceId, 2);
+
+    const reply = withWayOut(shopper2, [{ kind: 'text', text: 'Rice is in.' }], 'en')[0] as {
+      buttons: { id: string; title: string }[];
+    };
+    check('a full basket changes the buttons',
+      JSON.stringify(reply.buttons.map((b) => b.id)) ===
+        JSON.stringify([AISLE_BASKET, AISLE_CHECKOUT, AISLE_BACK]),
+      JSON.stringify(reply.buttons.map((b) => b.id)));
+    check('the basket button carries the GOODS, not a delivery nobody agreed',
+      reply.buttons[0]!.title.includes('3,700') && !reply.buttons[0]!.title.includes('4,200'),
+      reply.buttons[0]!.title);
+    check('and still fits WhatsApp', reply.buttons.every((b) => b.title.length <= 20),
+      JSON.stringify(reply.buttons.map((b) => b.title.length)));
+
+    const full = aislesMessage(shopper2, 'en') as { buttons: { id: string }[] };
+    check('the aisle list swaps Categories for the basket and the door',
+      JSON.stringify(full.buttons.map((b) => b.id)) ===
+        JSON.stringify([AISLE_BASKET, AISLE_CHECKOUT, AISLE_LEAVE]),
+      JSON.stringify(full.buttons.map((b) => b.id)));
+
+    const basket = basketPage(shopper2, 'en') as {
+      text: string; buttons: { id: string }[];
+    };
+    check('the basket lists what is in it', /2 x Karibee Parboiled Rice/.test(basket.text),
+      basket.text.slice(0, 80));
+    check('lettered like an aisle, so a x3 means something',
+      /^\(a\) /m.test(basket.text), basket.text.slice(0, 60));
+    check('with the goods total and no invented delivery',
+      /Goods \$3,700/.test(basket.text), basket.text);
+    check('and how to change it', /a x0/.test(basket.text), basket.text);
+    check('the letters are written down', repo.numberedList(shopper2).length === 1);
+    check('the basket offers the way out it displaces',
+      JSON.stringify(basket.buttons.map((b) => b.id)) ===
+        JSON.stringify([AISLE_CHECKOUT, AISLE_BACK, AISLE_LEAVE]),
+      JSON.stringify(basket.buttons.map((b) => b.id)));
+
+    // Check out hands to the shop's own sequence.
+    const out = await shopping({ phone: shopper2, text: AISLE_CHECKOUT, channel: 'smoke' } as never);
+    check('checking out asks where it is going', (out[0] as { kind: string }).kind === 'list',
+      JSON.stringify(out[0]).slice(0, 60));
+    check('and puts them in checkout', repo.checkoutStep(shopper2) === 'place',
+      repo.checkoutStep(shopper2));
+
+    repo.clearCart(shopper2);
+    repo.setCheckoutStep(shopper2, '');
+    const emptyOut = await shopping({ phone: shopper2, text: AISLE_CHECKOUT, channel: 'smoke' } as never);
+    check('an empty basket cannot check out and is told so',
+      /empty/i.test((emptyOut[0] as { text?: string }).text ?? ''),
+      (emptyOut[0] as { text?: string }).text);
+  }
 
   // The ids, and what they do.
   check('the ids are ours', isAisleId(AISLE_BACK) && isAisleId(AISLE_LEAVE) && !isAisleId('yes'));

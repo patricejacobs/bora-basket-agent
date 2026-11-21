@@ -16,16 +16,24 @@
  */
 import * as repo from './db/repo.ts';
 import { t, type Language } from './language.ts';
+import { money } from './config.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 const nl = String.fromCharCode(10);
 
 export const AISLE_BACK = 'aisle:categories';
 export const AISLE_LEAVE = 'aisle:leave';
+export const AISLE_BASKET = 'aisle:basket';
+export const AISLE_CHECKOUT = 'aisle:checkout';
 
 export function isAisleId(id: string): boolean {
   const said = String(id ?? '').trim();
-  return said === AISLE_BACK || said === AISLE_LEAVE;
+  return (
+    said === AISLE_BACK ||
+    said === AISLE_LEAVE ||
+    said === AISLE_BASKET ||
+    said === AISLE_CHECKOUT
+  );
 }
 
 /**
@@ -36,11 +44,82 @@ export function isAisleId(id: string): boolean {
  * standing at the front of the shop might want is the door.
  */
 export function wayOutButtons(
+  phone: string,
   lang: Language,
-  { onTheAisleList = false } = {},
+  { onTheAisleList = false, onTheBasket = false } = {},
 ): { id: string; title: string }[] {
   const leave = { id: AISLE_LEAVE, title: t('aisle_leave', lang) };
-  return onTheAisleList ? [leave] : [{ id: AISLE_BACK, title: t('aisle_back', lang) }, leave];
+  const back = { id: AISLE_BACK, title: t('aisle_back', lang) };
+  const cart = repo.getCart(phone);
+
+  // Nothing in the basket: the two that were always there.
+  if (cart.lines.length === 0) return onTheAisleList ? [leave] : [back, leave];
+
+  // Something in it, and three buttons to fit four things into. The basket
+  // carries its own total, so it is a figure AND a way in; checkout is the
+  // thing they are here to do. What gives way is the button that would go
+  // where they already are - Categories on the aisle list, the basket on
+  // the basket - and Leave, which lives on the basket page and has always
+  // answered to the word "menu" as well.
+  const basket = {
+    id: AISLE_BASKET,
+    // The GOODS, not the total. `total` carries a delivery fee that nobody
+    // has agreed to yet - the shop's flat rate, standing in until a zone is
+    // settled - and a button that quotes it is quoting a figure the
+    // customer has never been shown and may never be charged.
+    title: t('aisle_basket', lang, { total: money(cart.subtotal) }).slice(0, 20),
+  };
+  const checkout = { id: AISLE_CHECKOUT, title: t('aisle_checkout', lang) };
+
+  if (onTheBasket) return [checkout, back, leave];
+  if (onTheAisleList) return [basket, checkout, leave];
+  return [basket, checkout, back];
+}
+
+/**
+ * The basket, as something to read and to change.
+ *
+ * Lettered like an aisle, and for the same reason: `a x2` is how the thing
+ * got in, so `a x3` and `a x0` are how it changes and goes. Nothing new to
+ * learn, and the letters are written down as the page is sent so the letter
+ * they answer with is the line they were looking at.
+ */
+export function basketPage(phone: string, lang: Language = 'en'): OutboundMessage {
+  const cart = repo.getCart(phone);
+  if (cart.lines.length === 0) {
+    return { kind: 'buttons', text: t('basket_empty', lang), buttons: wayOutButtons(phone, lang) };
+  }
+
+  repo.rememberNumberedList(
+    phone,
+    'product',
+    cart.lines.map((l) => ({ value: l.product.sku, label: l.product.name })),
+  );
+
+  return {
+    kind: 'buttons',
+    text: [
+      t('basket_head', lang),
+      '',
+      ...cart.lines.map(
+        (l, i) =>
+          `(${letterFor(i)}) ${l.qty} x ${l.product.name}` +
+          `${l.optionsSummary ? ` — _${l.optionsSummary}_` : ''} — ${money(l.lineTotal)}`,
+      ),
+      '',
+      t('basket_total', lang, { goods: money(cart.subtotal) }),
+      '',
+      t('basket_how', lang),
+    ].join(nl),
+    buttons: wayOutButtons(phone, lang, { onTheBasket: true }),
+  };
+}
+
+/** a, b, c … then aa, ab, for a basket nobody should have but might. */
+function letterFor(i: number): string {
+  return i < 26
+    ? String.fromCharCode(97 + i)
+    : `${String.fromCharCode(96 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`;
 }
 
 /**
@@ -74,7 +153,7 @@ export function aislesMessage(phone: string, lang: Language = 'en'): OutboundMes
       '',
       t('aisles_how', lang, { last: String(aisles.length), nl }),
     ].join(nl),
-    buttons: wayOutButtons(lang, { onTheAisleList: true }),
+    buttons: wayOutButtons(phone, lang, { onTheAisleList: true }),
   };
 }
 
@@ -90,7 +169,11 @@ export function aislesMessage(phone: string, lang: Language = 'en'): OutboundMes
  * left at the bottom of their screen, and a button higher up the chat is a
  * button nobody finds.
  */
-export function withWayOut(outbound: OutboundMessage[], lang: Language): OutboundMessage[] {
+export function withWayOut(
+  phone: string,
+  outbound: OutboundMessage[],
+  lang: Language,
+): OutboundMessage[] {
   if (outbound.some((m) => m.kind === 'buttons' || m.kind === 'list' || m.kind === 'location_request')) {
     return outbound;
   }
@@ -100,6 +183,6 @@ export function withWayOut(outbound: OutboundMessage[], lang: Language): Outboun
 
   const said = outbound[last] as { kind: 'text'; text: string };
   return outbound.map((m, i) =>
-    i === last ? { kind: 'buttons', text: said.text, buttons: wayOutButtons(lang) } : m,
+    i === last ? { kind: 'buttons', text: said.text, buttons: wayOutButtons(phone, lang) } : m,
   );
 }

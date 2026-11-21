@@ -30,7 +30,15 @@ import {
 } from './services.ts';
 import { findZone } from './zones.ts';
 import { destAnswerFromButtonId } from './order-status.ts';
-import { AISLE_LEAVE, aislesMessage, isAisleId, withWayOut } from './aisles.ts';
+import {
+  AISLE_BASKET,
+  AISLE_CHECKOUT,
+  AISLE_LEAVE,
+  aislesMessage,
+  basketPage,
+  isAisleId,
+  withWayOut,
+} from './aisles.ts';
 import { settleDeliveryPlace } from './delivery-place.ts';
 import {
   GATE_CANCEL,
@@ -675,6 +683,18 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       for (const out of menu) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
       return menu;
     }
+    if (text === AISLE_BASKET) {
+      return shopAnswered(msg, [basketPage(msg.phone, lang)], describeTap(text));
+    }
+    if (text === AISLE_CHECKOUT) {
+      // The same handover the agent makes, made by a tap. An empty basket
+      // cannot check out, and saying so is kinder than a refusal from a
+      // tool the customer never called.
+      if (repo.getCart(msg.phone).lines.length === 0) {
+        return shopAnswered(msg, [basketPage(msg.phone, lang)], describeTap(text));
+      }
+      return shopAnswered(msg, [askPlace(msg.phone, lang)], describeTap(text));
+    }
     return shopAnswered(msg, [aislesMessage(msg.phone, lang)], describeTap(text));
   }
 
@@ -854,7 +874,7 @@ ${text}` : note;
   // by typing something and hoping, and a button higher up the chat is a
   // button nobody finds - so it rides on the last thing they are sent.
   if (repo.getService(msg.phone) === 'grocery') {
-    outbound = withWayOut(outbound, languageFor(msg.phone));
+    outbound = withWayOut(msg.phone, outbound, languageFor(msg.phone));
   }
 
   for (const out of outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
