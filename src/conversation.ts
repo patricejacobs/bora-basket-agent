@@ -34,12 +34,12 @@ import { settleDeliveryPlace } from './delivery-place.ts';
 import {
   GATE_CANCEL,
   GATE_CHANGE,
-  NOTE_NONE,
   askPlace,
   endCheckout,
   isCheckoutId,
   isGateId,
   nextAfter,
+  priceGate,
   placeTheOrder,
 } from './delivery-checkout.ts';
 import {
@@ -560,12 +560,6 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         return shopAnswered(msg, placed, text);
       }
 
-      // Nothing to add at the door.
-      if (text === NOTE_NONE && step === 'note') {
-        repo.setCheckoutNote(msg.phone, '');
-        return ask(nextAfter(msg.phone, 'note', lang), describeTap(text));
-      }
-
       // A row off the list of places.
       if (isPickerId(text)) {
         const tapped = readPick(text);
@@ -638,13 +632,24 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           }
           return ask(nextAfter(msg.phone, 'street', lang), text);
         }
-        if (step === 'note') {
+        // Typed where the pin was offered: that is the doorstep note, and
+        // it goes down as one. The three answers to that message are a pin,
+        // Skip, or words - asking for the words separately was a fourth
+        // question between a village and a price.
+        if (step === 'pin' || step === 'note') {
           repo.setCheckoutNote(msg.phone, text);
           return ask(nextAfter(msg.phone, 'note', lang), text);
         }
         if (step === 'name') {
           repo.saveCustomer(msg.phone, { name: text.slice(0, 60) });
           return ask(nextAfter(msg.phone, 'name', lang), text);
+        }
+        // Words while the price is on the screen. The question stands, so
+        // it is put again rather than handed to the agent - which is where
+        // it used to go, and the agent has no idea an order is waiting on
+        // a tap.
+        if (step === 'gate') {
+          return ask(priceGate(msg.phone, lang), text);
         }
       }
     }

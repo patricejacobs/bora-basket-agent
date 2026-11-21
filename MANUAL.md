@@ -1258,11 +1258,23 @@ a language model: slower, priced per message, and different every time.
 | | |
 |---|---|
 | **1. the place** | The list, as the taxi's — or type the name |
-| **2. the exact spot** | `[📍 Send location]` `[Skip]` |
-| **3. the street** | Only when they skipped and the shop holds no pin |
-| **4. the door** | *Anything the associate should know?* with `[Nothing to add]` |
-| **5. the name** | Only when the shop does not know it |
-| **6. the price** | The whole amount, with `[Book it]` `[Change destination]` `[Cancel]` |
+| **2. the exact spot** | `[📍 Send location]` `[Skip]` — **or type anything the associate should know** |
+| **3. the price** | The whole amount, with `[Book it]` `[Change destination]` `[Cancel]` |
+
+Two questions before the figure, and that is the point. A street is asked
+only when they skip the pin and the shop holds no address; a name only when
+the shop does not know it. Both are exceptions rather than steps — walking
+it showed that four messages between choosing a village and seeing a price
+is three too many.
+
+**The doorstep note rides on the pin message.** That message has three
+answers, not two: send the spot, skip it, or just type *“blue gate, ring
+twice”* — which is written down as the note and goes straight on to the
+price. It used to be a question of its own.
+
+**Words while the price is on the screen put the price up again.** They used
+to go to the agent, which has no idea an order is sitting one tap from being
+placed.
 
 ```
 1 x Chicken Curry with Roti — $1,400

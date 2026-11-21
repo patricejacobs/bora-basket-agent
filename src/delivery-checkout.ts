@@ -39,9 +39,6 @@ export const GATE_BOOK = 'drop:gate:book';
 export const GATE_CHANGE = 'drop:gate:change';
 export const GATE_CANCEL = 'drop:gate:cancel';
 
-/** The one button on the note question: having nothing to say. */
-export const NOTE_NONE = 'drop:note:none';
-
 export function isGateId(id: string): boolean {
   const said = String(id ?? '').trim();
   return said === GATE_BOOK || said === GATE_CHANGE || said === GATE_CANCEL;
@@ -53,7 +50,7 @@ export function isGateId(id: string): boolean {
  * language; the meaning is in the id.
  */
 export function isCheckoutId(id: string): boolean {
-  return isGateId(id) || String(id ?? '').trim() === NOTE_NONE;
+  return isGateId(id);
 }
 
 /** The list of places, and the first step. */
@@ -66,21 +63,6 @@ export function askPlace(phone: string, lang: Language): OutboundMessage {
 export function askStreet(phone: string, place: string, lang: Language): OutboundMessage {
   repo.setCheckoutStep(phone, 'street');
   return { kind: 'text', text: t('checkout_street_ask', lang, { place }) };
-}
-
-/**
- * Anything for the person at the door.
- *
- * With a button for having nothing to say, because the commonest answer to
- * this question is "no" and typing it is a message for nothing.
- */
-export function askNote(phone: string, lang: Language): OutboundMessage {
-  repo.setCheckoutStep(phone, 'note');
-  return {
-    kind: 'buttons',
-    text: t('checkout_note_ask', lang),
-    buttons: [{ id: NOTE_NONE, title: t('checkout_note_none', lang) }],
-  };
 }
 
 export function askName(phone: string, lang: Language): OutboundMessage {
@@ -200,21 +182,28 @@ export function nextAfter(
     : (customer.address ?? '').trim() !== '';
   const hasPin = parcel ? draft?.destination !== null : customer.location !== null;
 
+  // Nothing stands between the address and the price that is not strictly
+  // needed to place the order. A name is asked only when the shop has none;
+  // a street only when there is neither a pin nor an address on file. Both
+  // are exceptions, not steps: walking it showed that four questions
+  // between choosing a village and seeing the figure is three too many.
+  const toThePrice = (): OutboundMessage =>
+    hasName ? priceGate(phone, lang) : askName(phone, lang);
+
   switch (done) {
     case 'pin':
-      return askNote(phone, lang);
+    case 'note':
+      return toThePrice();
     case 'skip':
       // A pin they sent EARLIER is still a door. Asking for a lot number
       // from somebody whose exact spot the shop already holds is asking
       // them to say it twice, and skipping a second time - after changing
       // the address, say - is not a reason to start demanding streets.
       return hasPin || hasStreet
-        ? askNote(phone, lang)
+        ? toThePrice()
         : askStreet(phone, (parcel ? draft?.zone : customer.deliveryZone) || '', lang);
     case 'street':
-      return askNote(phone, lang);
-    case 'note':
-      return hasName ? priceGate(phone, lang) : askName(phone, lang);
+      return toThePrice();
     case 'name':
       return priceGate(phone, lang);
     default:

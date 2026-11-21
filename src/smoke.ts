@@ -1016,19 +1016,12 @@ section("The shop's own checkout");
     location: { latitude: 6.7725, longitude: -58.0636, label: 'BV' },
   });
   check('a pin is saved by checkout itself', repo.getCustomer(buyer).location !== null);
-  check('and the next question is the door note',
-    /associate should know/i.test(afterPin[0]?.text ?? ''), afterPin[0]?.text?.slice(0, 50));
-  check('with a button for having nothing to say',
-    (afterPin[0]?.buttons ?? []).length === 1, JSON.stringify(afterPin[0]?.buttons));
+  check('and nothing stands between the pin and the price but a missing name',
+    /what name/i.test(afterPin[0]?.text ?? ''), afterPin[0]?.text?.slice(0, 50));
 
-  // 3. the note, 4. the name
-  const afterNote = await sayTo('Blue gate, ring twice');
-  check('the note is kept', repo.checkoutNote(buyer) === 'Blue gate, ring twice',
-    repo.checkoutNote(buyer));
-  check('and a nameless customer is asked their name',
-    /what name/i.test(afterNote[0]?.text ?? ''), afterNote[0]?.text);
-
-  // 5. the gate
+  // The name, and then the price. No question about the door: that was a
+  // fourth message between a village and a figure, and it is offered on
+  // the pin message instead.
   const gate = await sayTo('Marcia Younge');
   const gateText = gate[0]?.text ?? '';
   check('the price comes with three answers', (gate[0]?.buttons ?? []).length === 3,
@@ -1045,11 +1038,22 @@ section("The shop's own checkout");
   check('and leaves the basket alone', repo.getCart(buyer).lines.length > 0);
   await sayTo('pick:drop:place:Beterverwagting');
   await sayTo('pick:drop:skip');
-  check('skipping the pin when a pin is already held does not ask for a street',
-    repo.checkoutStep(buyer) === 'note', repo.checkoutStep(buyer));
-  await sayTo('drop:note:none');
-  check('nothing to add is an answer', repo.checkoutNote(buyer) === '', repo.checkoutNote(buyer));
-  check('and the gate follows it', repo.checkoutStep(buyer) === 'gate', repo.checkoutStep(buyer));
+  check('skipping the pin when a pin is already held goes straight to the price',
+    repo.checkoutStep(buyer) === 'gate', repo.checkoutStep(buyer));
+
+  // Words where the pin was offered are the doorstep note.
+  await sayTo('drop:gate:change');
+  await sayTo('pick:drop:place:Beterverwagting');
+  const typed = await sayTo('Blue gate, ring twice');
+  check('typing at the pin step is taken as the door note',
+    repo.checkoutNote(buyer) === 'Blue gate, ring twice', repo.checkoutNote(buyer));
+  check('and the price follows it immediately',
+    (typed[0]?.buttons ?? []).length === 3, JSON.stringify(typed[0]?.buttons));
+
+  // Words while the price is up: the question is put again, not handed off.
+  const again = await sayTo('how long will it take?');
+  check('typing at the price asks again rather than wandering off',
+    (again[0]?.buttons ?? []).length === 3, JSON.stringify(again[0]).slice(0, 80));
 
   // Book it.
   const before = repo.recentOrders(buyer, 1).length;
@@ -1057,7 +1061,8 @@ section("The shop's own checkout");
   check('the tap places the order', repo.recentOrders(buyer, 1).length > before);
   const made = repo.findOrder(repo.recentOrders(buyer, 1)[0]!.orderNo)!;
   check('priced as quoted', made.deliveryFee === 1200, String(made.deliveryFee));
-  check('with the door note on it', made.deliveryNote === '', made.deliveryNote);
+  check('with the door note on it', made.deliveryNote === 'Blue gate, ring twice',
+    made.deliveryNote);
   check('the customer is told the order number',
     new RegExp(made.orderNo).test(booked[booked.length - 1]?.text ?? ''),
     booked[booked.length - 1]?.text);
@@ -1104,6 +1109,7 @@ section("The shop's own checkout");
     check('and not on the customer', repo.getCustomer(sender).location === null,
       JSON.stringify(repo.getCustomer(sender).location));
 
+    await sayParcel('pick:drop:skip');
     const gate = await sayParcel('Ring the bell twice');
     const text = gate[0]?.text ?? '';
     check('the parcel gate names what is being carried', /A box of documents/.test(text), text);
