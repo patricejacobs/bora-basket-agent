@@ -1075,7 +1075,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // offering: the shop looks like it is losing things.
           const camera = productImageUrl(p.sku, p.imageUrl) ? ' 📷' : '';
           return `(${label}) ${p.name} — ${money(p.price)} (${p.unit})${note}${camera}`;
-        }),
+        }).concat(
+          // How to answer, where the letters actually are. It used to be on
+          // the front page of the shop, three screens before anybody saw a
+          // letter - which is the wrong place to explain lettering, and made
+          // a page somebody reads once into a page somebody scrolls past.
+          ['', t('aisle_items_how', languageFor(ctx.phone))],
+        ),
         // Still itemised, for talking about one of them - "the milk is $780"
         // - but never for rebuilding the list.
         items: items.map((p, i) => ({

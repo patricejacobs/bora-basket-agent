@@ -990,8 +990,11 @@ section('The aisles, and the way out of them');
   check('numbered, so a reply resolves', /^1\. /m.test(page.text), page.text.slice(0, 40));
   check('with how many things are in each', /\(\d+\)/.test(page.text), page.text.slice(0, 80));
   check('it says how to open one', /Reply with an aisle number/.test(page.text));
-  check('that items are lettered, not numbered', /lettered/.test(page.text));
-  check('that they can simply type what they want', /type what you want/.test(page.text));
+  // Not on the front page: lettering is explained where the letters are.
+  check('lettering is NOT explained three screens early',
+    !/lettered/.test(page.text), page.text);
+  check('nor is typing a list, which belongs beside the shelves',
+    !/type what you want/.test(page.text), page.text);
   check('and how to get back or get out',
     /Categories/.test(page.text) && /Leave groceries/.test(page.text));
   check('the two buttons are those two',
@@ -6412,7 +6415,14 @@ section('Shopping by number');
   // "(a) Name — price (unit)" is a request, and the brackets came and went
   // with it.
   const lines = aisle.lines as string[];
-  check('the lines come written out', Array.isArray(lines) && lines.length === items.length, JSON.stringify(lines?.slice(0, 2)));
+  // One line per thing on the shelf, then a blank and how to answer: the
+  // lettering is explained where the letters are rather than on the front
+  // page of the shop, three screens before anybody sees one.
+  check('the lines come written out',
+    Array.isArray(lines) && lines.length === items.length + 2,
+    JSON.stringify(lines?.slice(0, 2)));
+  check('and end with how to answer them',
+    /a x2/.test(lines[lines.length - 1] ?? ''), String(lines[lines.length - 1]));
   check('with the letter in brackets', /^\(a\) /.test(lines[0] ?? ''), String(lines[0]));
   check('the name, the price and the size', /— \$[0-9,]+ \(/.test(lines[0] ?? ''), String(lines[0]));
   check('and the model is told to send them as they are', /exactly as they are/.test(String(aisle.say)), String(aisle.say));

@@ -919,17 +919,26 @@ they want and a blank wall to somebody who does not. A shop's answer to
 
 Reply with an aisle number — *1* to *11* — to see what is in it.
 
-Inside an aisle the items are *lettered*, so *a x2* puts two of item (a) in
-your basket. A number is always an aisle and a letter is always a thing on a
-shelf, so you can never land in the wrong list.
-
-You do not have to use the aisles at all: type what you want — *“two bags of
-rice and a dozen eggs”* — or send a photo of your list.
-
 Tap *Categories* any time to come back to this page, or *Leave groceries* to
 go back to the main menu.
    [ 🛒 Categories ]  [ ⬅️ Leave groceries ]
 ```
+
+**How to answer is explained where the answers are**, at the foot of an
+aisle rather than on the front page three screens before anybody sees a
+letter:
+
+```
+(a) Bora — $320 (bundle)
+(b) Plantains — $900 (bunch)
+(c) Tomatoes — $420 (per kg)
+
+_Reply with a letter and how many — *a x2* — or just type what you want.
+A number is always an aisle and a letter is always a thing on a shelf._
+```
+
+That last line is written by the shop and sent with the list, not left to
+the model to remember.
 
 **Those two buttons are on every message the shop sends while they are
 shopping.** A customer three lists deep had no way back to the front of the
