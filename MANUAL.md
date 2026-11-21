@@ -1530,17 +1530,33 @@ is a list of place names with no coordinates in it anywhere, so:
 | What arrives | What happens |
 |---|---|
 | A shared **place** — WhatsApp sends its name and address, e.g. *Ogle Airport, Ogle* | The name is matched against the tariff and the trip prices itself |
-| A **live position** — WhatsApp sends coordinates and no name at all | The pin is kept for the driver, and the shop asks one question: *which area is it in, so I can work out your fare?* |
+| A **live position** — WhatsApp sends coordinates and no name at all | The pin is kept for the driver, and the area is asked for later, when the fare needs it |
 
-That question **names the end it is asking about** — *"the driver will collect
-you right there"* for a pickup, *"will take you right there"* for a
-destination. Without it, "which area is that" reads as the destination
-question to somebody who has just pinned their pickup, and they answer it
-with where they are going.
+### Both ends first, then the price
 
-It carries a pin row too. Left off, a passenger whose first pin landed on the
-wrong spot, or who pinned one end and wanted to pin the other, had nothing on
-that screen but a list of areas.
+An end is **settled** when the shop knows where it is — tapped off the tariff
+or pinned on a map — and **priceable** only when it has a name the tariff
+carries. The booking collects the journey first and asks about price last:
+
+```
+pin the pickup  →  "And where are you going?"   [Choose a place] [📍 Send a pin]
+choose Grove    →  "One last thing before I can price this —
+                     the pin for where we collect you: which area is it in?"
+answer it       →  the fare, with Book it / Change destination / Cancel
+```
+
+The area used to be asked the moment a nameless pin arrived, so dropping a
+pin on a map was answered with *"which area is that?"* — which is not what
+somebody booking a car is thinking about, and was read as the destination
+question and answered with where they were going.
+
+One question per unpriced end, asked immediately before the fare that needs
+it, and it names which pin it means. Two bare pins means two questions, one
+at a time. The gate is unchanged: nothing is quoted or booked while an end
+has no price. The question only moved to where it belongs.
+
+The area screen carries a pin row too. Left off, a passenger whose first pin
+landed on the wrong spot had nothing there but a list of areas.
 
 That question is the fare gate doing its job. Before it, a bare pin booked a
 car with no figure ever quoted — and the row offering it sat first on the

@@ -24,10 +24,10 @@ import {
   wantsServiceMenu,
 } from './services.ts';
 import {
-  areaPicker,
   endPicker,
   handlePick,
   isPickerId,
+  nextStep,
   openEnd,
   pickerAvailable,
 } from './place-picker.ts';
@@ -450,42 +450,34 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       const lang = languageFor(msg.phone);
       const named = placeFromPin(msg.location);
 
-      // No name on the pin, so nothing to price it with. Ask the one
-      // question that turns it into a fare.
-      if (!named) {
-        const ask = [areaPicker(taxiSide, lang)];
-        for (const out of ask) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
-        return ask;
-      }
+      // A name on the pin prices it. One without is still a perfectly good
+      // place to be collected from — it just cannot be priced yet, and the
+      // asking waits until the fare needs it. See nextStep.
+      if (named) repo.setTaxiPick(msg.phone, taxiSide, named);
 
-      repo.setTaxiPick(msg.phone, taxiSide, named);
+      // Say which end was taken, then whatever the booking needs next —
+      // which is the OTHER end, not a question about this one. Pinning your
+      // pickup on a map was answered with "which area is that?", and
+      // somebody who has just dropped a pin is thinking about where they are
+      // going, not about how the shop prices things.
+      const ack: OutboundMessage = {
+        kind: 'text',
+        text: named
+          ? t(taxiSide === 'from' ? 'pin_taken_from' : 'pin_taken_to', lang, { place: named })
+          : t(taxiSide === 'from' ? 'pin_bare_from' : 'pin_bare_to', lang),
+      };
 
-      // And then carry on exactly as a TAPPED place does: say which end was
-      // taken, and ask for the end still missing with the picker.
-      //
-      // This is where a pinned pickup used to part company with a tapped
-      // one. Tapping Diamond handed back the list of areas for the
-      // destination; pinning the same place fell through to the agent, which
-      // asked "where are we taking you?" in prose — no areas, no pin row,
-      // nothing to tap. Same journey, same answer, two different shops.
-      const settledNow = repo.taxiPicks(msg.phone);
-      const missing = !settledNow.from ? 'from' : !settledNow.to ? 'to' : null;
-      if (missing) {
-        const onward: OutboundMessage[] = [
-          {
-            kind: 'text',
-            text: t(taxiSide === 'from' ? 'pin_taken_from' : 'pin_taken_to', lang, {
-              place: named,
-            }),
-          },
-          openEnd(missing, lang),
-        ];
+      const step = nextStep(msg.phone, lang);
+      if (step.kind === 'reply') {
+        const onward = [ack, ...step.outbound];
         for (const out of onward) {
           repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
         }
         return onward;
       }
-      // Both ends known: the agent reads the note, quotes and books.
+
+      // Both ends known and priced: the agent reads the note, quotes, books.
+      text = step.note;
     }
 
     text = text ? `${note}\n\n${text}` : note;

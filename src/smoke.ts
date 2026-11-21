@@ -3290,13 +3290,13 @@ section('Picking a place instead of typing one');
   check('offering every area', area.kind === 'list' &&
     area.rows.filter((r) => r.id.includes(':corr:')).length === 5);
 
-  // The question has to say WHICH end it is about. "Which area is that" reads
-  // as the destination question to somebody who has just pinned their
-  // pickup, and they answer it with where they are going.
-  check('and the destination one says it will take you there',
-    area.kind === 'list' && /take you/i.test(area.text), area.kind === 'list' ? area.text : '');
+  // The question has to say WHICH pin it is about, since by the time it is
+  // asked both ends are settled and either could be the unpriced one.
+  check('and the destination one says so',
+    area.kind === 'list' && /where you are going/i.test(area.text),
+    area.kind === 'list' ? area.text : '');
   const areaFrom = areaPicker('from');
-  check('while the pickup one says it will collect you',
+  check('while the pickup one says where we collect you',
     areaFrom.kind === 'list' && /collect you/i.test(areaFrom.text),
     areaFrom.kind === 'list' ? areaFrom.text : '');
 
@@ -3454,18 +3454,37 @@ section('Picking a place instead of typing one');
     await sendBare({ text: '1' });
     const back = await sendBare({ location: { latitude: 6.81, longitude: -58.15 } });
 
-    check('a pin with no name asks which area it is',
-      back[0]?.kind === 'list' && /which area/i.test(back[0].text), back[0]?.kind);
+    // Both ends FIRST, then the price. A pin with no name is still a
+    // perfectly good place to be collected from; what it cannot do is price
+    // the trip, and that is not what somebody who has just dropped a pin is
+    // thinking about.
+    check('a pin with no name says it was taken',
+      back[0]?.kind === 'text' && /collect you right there/i.test(back[0].text), back[0]?.kind);
+    check('and asks where they are going next',
+      back[1]?.kind === 'buttons' && /where are you going/i.test(back[1].text), back[1]?.kind);
+    check('not which area the pin is in',
+      !(back[1]?.kind === 'list' && /which area/i.test(back[1].text)));
     check('without booking anything',
       repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== bare));
     check('and the pin is kept for the driver',
       Boolean(repo.getParcelDraft(bare).pickup));
 
+    // Destination chosen, so now the fare needs the end it cannot price.
+    await sendBare({ text: 'pick:to:corr:0:East Bank Demerara' });
+    const priced = await sendBare({ text: 'pick:to:place:Grove' });
+    check('the area is asked once both ends are known',
+      priced[0]?.kind === 'list' && /before I can price/i.test(priced[0].text),
+      priced[0]?.kind === 'list' ? priced[0].text : priced[0]?.kind);
+    check('and it is the pickup being asked about',
+      priced[0]?.kind === 'list' && /collect you/i.test(priced[0].text));
+
     await sendBare({ text: 'pick:from:corr:0:Georgetown' });
     await sendBare({ text: 'pick:from:place:Kitty' });
-    check('answering the area gives the fare its end', repo.taxiPicks(bare).from === 'Kitty',
+    check('answering it gives the fare its end', repo.taxiPicks(bare).from === 'Kitty',
       repo.taxiPicks(bare).from);
     check('with the pin still on file', Boolean(repo.getParcelDraft(bare).pickup));
+    check('and the destination kept throughout', repo.taxiPicks(bare).to === 'Grove',
+      repo.taxiPicks(bare).to);
 
     repo.setService(pinner, null);
     repo.setService(bare, null);

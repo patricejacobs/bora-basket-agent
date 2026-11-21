@@ -421,6 +421,53 @@ export function fareButtons(fare: string, lang: Language = 'en'): OutboundMessag
   };
 }
 
+/**
+ * What the booking needs next, once an end has just been settled.
+ *
+ * ONE place decides it, because the order matters and used to be spread
+ * across the callers. A pin with no name had the area asked the moment it
+ * arrived — so pinning your pickup on a map was answered with "which area is
+ * that?" instead of "where are you going?", which is not what somebody
+ * booking a car is thinking about and was read as the destination question.
+ *
+ * Both ends first, then the price. An end is SETTLED when the shop knows
+ * where it is — tapped off the tariff or pinned on a map — and PRICEABLE
+ * only when it has a name the tariff carries. So the journey is collected
+ * first, and anything that cannot be priced is asked about last, one end at
+ * a time, immediately before the fare that needs it.
+ *
+ * The gate is unchanged: nothing is quoted or booked while an end has no
+ * price. The question only moved to where it belongs.
+ */
+export function nextStep(
+  phone: string,
+  lang: Language = 'en',
+): Extract<PickResult, { kind: 'reply' } | { kind: 'note' }> {
+  const picks = repo.taxiPicks(phone);
+  const pins = repo.getParcelDraft(phone);
+
+  if (!picks.from && !pins.pickup) return { kind: 'reply', outbound: [openEnd('from', lang)] };
+  if (!picks.to && !pins.destination) return { kind: 'reply', outbound: [openEnd('to', lang)] };
+
+  // Both ends known. Now the ones the tariff cannot price.
+  if (!picks.from) return { kind: 'reply', outbound: [areaPicker('from', lang)] };
+  if (!picks.to) return { kind: 'reply', outbound: [areaPicker('to', lang)] };
+
+  const fare = fareBetween(picks.from, picks.to);
+  return {
+    kind: 'note',
+    note: [
+      `[The passenger has given both ends of the trip: pickup *${picks.from}*, destination *${picks.to}*.`,
+      fare
+        ? `The tariff prices that at ${money(fare.fee)}.`
+        : 'The tariff cannot price that pair, so the driver will agree the fare.',
+      'Ask how many are travelling and anything the driver should know, then call book_taxi with',
+      `pickup_address "${picks.from}" and destination_address "${picks.to}" exactly as written here.`,
+      'Quote the fare and get a yes before booking, as always.]',
+    ].join(' '),
+  };
+}
+
 /** What a tap did, for the caller to act on. */
 export type PickResult =
   /** Send these and stop; the agent is not involved. */
@@ -519,30 +566,7 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
   }
 
   repo.setTaxiPick(phone, pick.side, pick.place);
-
-  if (pick.side === 'from') {
-    return { kind: 'reply', outbound: [openEnd('to', lang)] };
-  }
-
-  const picks = repo.taxiPicks(phone);
-  const fare = picks.from ? fareBetween(picks.from, picks.to) : null;
-
-  // The note tells the agent what it would otherwise have to guess, including
-  // the fare — so it reads back a figure this module worked out rather than
-  // one it invented. It still has to call book_taxi to get the fare properly
-  // and book anything; nothing here books a car.
-  return {
-    kind: 'note',
-    note: [
-      `[The passenger chose their trip from the place picker: pickup *${picks.from}*, destination *${picks.to}*.`,
-      fare
-        ? `The tariff prices that at ${money(fare.fee)}.`
-        : 'The tariff cannot price that pair, so the driver will agree the fare.',
-      'Ask how many are travelling and anything the driver should know, then call book_taxi with',
-      `pickup_address "${picks.from}" and destination_address "${picks.to}" exactly as written here.`,
-      'Quote the fare and get a yes before booking, as always.]',
-    ].join(' '),
-  };
+  return nextStep(phone, lang);
 }
 
 /**
