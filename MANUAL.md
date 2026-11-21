@@ -1535,6 +1535,16 @@ and the driver will come straight to you.
 [📍 Send location]  [Skip]
 ```
 
+**A typed place answers exactly as a tapped one does** — it settles the end,
+gets the same offer of the exact spot, and is passed to the agent the same
+way. For a while only a tap did that, so anybody who typed their destination
+was never asked for its pin, and nor was anybody who typed their pickup.
+
+Typed text is only read as a place while an end is still missing, when the
+message is short enough to be an answer, and when the tariff is sure which
+place it means. Once both ends are known, *"2 of us"* is an answer to a
+different question and goes to the agent untouched.
+
 **The name prices the trip; the pin finds the door.** Asked in this order the
 two never collide: the fare is already known when the pin arrives, so a pin
 can neither price a trip nor fail to. It refines the end that was just

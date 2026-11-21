@@ -28,6 +28,7 @@ import {
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
+import { findZone } from './zones.ts';
 import {
   describeTap,
   endPicker,
@@ -35,6 +36,7 @@ import {
   isPickerId,
   nextStep,
   pickerAvailable,
+  spotAsk,
 } from './place-picker.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
@@ -387,6 +389,35 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // guessing at a place — a car sent to the wrong village is a worse
       // answer than one more question.
       return shopAnswered(msg, [endPicker(msg.phone, 'from', lang)], describeTap(text));
+    }
+  }
+
+  // A TYPED place answers the same question a tapped one does.
+  //
+  // Only a tap settled an end, so typing "Meadow Bank" went to the agent
+  // instead — and with it went everything the tap would have brought: the
+  // offer of the exact spot for the driver, the line telling the agent what
+  // was chosen, and the stored place book_taxi falls back on. Somebody who
+  // typed their destination was never asked for its pin, and nor was
+  // somebody who typed their pickup.
+  //
+  // Guarded three ways, because this intercepts free text. Only while an end
+  // is still missing — once both are known, "2 of us" is an answer to a
+  // different question and belongs to the agent. Only a short message, which
+  // is what an answer looks like. And only an unambiguous match, so a place
+  // the tariff is unsure of is argued out in words rather than assumed.
+  if (chosen === 'taxi' && pickerAvailable() && text && !msg.location) {
+    const picks = repo.taxiPicks(msg.phone);
+    const missing: 'from' | 'to' | null = !picks.from ? 'from' : !picks.to ? 'to' : null;
+    const said = text.trim();
+
+    if (missing && said.length <= 40) {
+      const found = findZone(said);
+      if (found.kind === 'found') {
+        const lang = languageFor(msg.phone);
+        repo.setTaxiPick(msg.phone, missing, found.match.place);
+        return shopAnswered(msg, [spotAsk(missing, found.match.place, lang)], said);
+      }
     }
   }
 

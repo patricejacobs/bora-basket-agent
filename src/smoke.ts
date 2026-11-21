@@ -3531,6 +3531,52 @@ section('Picking a place instead of typing one');
     repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
+  /* --- a typed place answers like a tapped one ------------------------- */
+
+  // Only a tap settled an end, so typing "Meadow Bank" went to the agent
+  // instead — and with it went the offer of the exact spot for the driver,
+  // the line telling the agent what was chosen, and the stored place
+  // book_taxi falls back on. Somebody who typed their destination was never
+  // asked for its pin, and nor was somebody who typed their pickup.
+  {
+    const { handleIncoming } = await import('./conversation.ts');
+    const typer = '5920009500';
+    const send = (text: string) =>
+      handleIncoming({ phone: typer, text, channel: 'smoke' } as never);
+
+    repo.resetConversation(typer);
+    repo.clearTaxiPicks(typer);
+    await send('hello');
+    await send('1');
+
+    const pickup = await send('meadow bank');
+    check('a typed pickup settles the end', repo.taxiPicks(typer).from === 'Meadow Bank',
+      repo.taxiPicks(typer).from);
+    check('and is offered the exact spot',
+      pickup[0]?.kind === 'buttons' && /send your exact location/i.test(pickup[0].text),
+      pickup[0]?.kind);
+
+    await send('pick:from:skip');
+    // Misspelt, because the matcher forgives one and the row says so.
+    const dest = await send('zeelught');
+    check('a typed destination settles too', repo.taxiPicks(typer).to === 'Zeelugt',
+      repo.taxiPicks(typer).to);
+    check('and is offered its spot as well',
+      dest[0]?.kind === 'buttons' && /exact spot/i.test(dest[0].text), dest[0]?.kind);
+
+    // Once both ends are known, free text is an answer to something else and
+    // belongs to the agent — "2 of us" must not be read as a place.
+    const both = repo.taxiPicks(typer);
+    await send('2 of us');
+    check('and nothing is re-read once both ends are known',
+      repo.taxiPicks(typer).from === both.from && repo.taxiPicks(typer).to === both.to,
+      JSON.stringify(repo.taxiPicks(typer)));
+
+    repo.setService(typer, null);
+    repo.clearTaxiPicks(typer);
+    repo.resetConversation(typer);
+  }
+
   /* --- the greeting is a guard, not a request -------------------------- */
 
   // It greeted anyway. The shop told it not to greet a conversation already
