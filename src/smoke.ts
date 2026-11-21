@@ -3531,6 +3531,75 @@ section('Picking a place instead of typing one');
     repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
+  /* --- changing where a booked taxi is going ---------------------------- */
+
+  // Nothing could amend a booked job, for any service — the only route was
+  // cancel, and only while still pending, which for a taxi is seconds. A
+  // passenger changing where they are going while the car is on its way to
+  // them is an ordinary thing to do.
+  {
+    const { executeTool } = await import('./agent/tools.ts');
+    const rider2 = '5920009520';
+    const driver2 = '5926009520';
+    repo.saveCustomer(rider2, { name: 'Shawn', contactPhone: rider2 });
+    repo.setService(rider2, 'taxi');
+    repo.upsertAssociate({ phone: driver2, name: 'Driver Two', vehicle: 'PAA 2', active: true });
+    repo.setDuty(driver2, true);
+
+    const job = repo.createTaxiJob({
+      phone: rider2, fare: 70000, passengerName: 'Shawn', passengerPhone: rider2,
+      pickup: null, pickupAddress: 'Diamond', destination: null, destinationAddress: 'Grove',
+      note: '', wantedAt: '', wantedNote: '',
+    });
+    repo.assignDriver(job.orderNo, driver2);
+    repo.setOrderStatus(job.orderNo, 'confirmed');
+
+    const ctx2: ToolContext = { phone: rider2, outbound: [] };
+    const change = (input: unknown): any =>
+      JSON.parse(executeTool('change_destination', input, ctx2));
+
+    repo.setTaxiFareShown(rider2, -1);
+    const quote = change({ new_destination: 'Zeelugt' });
+    check('asking quotes rather than changing', quote.changed !== true && typeof quote.new_fare === 'string',
+      JSON.stringify(quote).slice(0, 110));
+    check('and names both figures', /Grove/.test(String(quote.was)) && /\$/.test(String(quote.old_fare)));
+    check('with nothing changed yet', repo.findOrder(job.orderNo)?.address === 'Grove',
+      repo.findOrder(job.orderNo)?.address);
+
+    // The same gate booking has. `confirmed` is a field the model fills in.
+    repo.setTaxiFareShown(rider2, -1);
+    const jumped = change({ new_destination: 'Zeelugt', confirmed: true });
+    check('a fare they were not shown does not change it', jumped.changed !== true);
+    check('and is quoted instead', typeof jumped.new_fare === 'string', String(jumped.new_fare));
+    check('the trip is still going where it was',
+      repo.findOrder(job.orderNo)?.address === 'Grove', repo.findOrder(job.orderNo)?.address);
+
+    const done = change({ new_destination: 'Zeelugt', confirmed: true });
+    check('once agreed, it changes', done.changed === true, JSON.stringify(done).slice(0, 100));
+    const moved = repo.findOrder(job.orderNo);
+    check('the destination is the new one', moved?.address === 'Zeelugt', moved?.address);
+    check('and the fare is re-priced from the same pickup', moved?.quotedFare === 5500,
+      String(moved?.quotedFare));
+    check('the pickup is untouched', moved?.pickup?.address === 'Diamond', moved?.pickup?.address);
+
+    // Both figures survive in the trail: a passenger disputing a fare is
+    // disputing one of two, and the shop has to say which was agreed when.
+    const trail = repo.orderHistory(job.orderNo).map((e) => `${e.event} ${e.detail}`).join(' | ');
+    check('the old destination and fare are in the trail',
+      /Grove -> Zeelugt/.test(trail) && /70000 -> 5500/.test(trail), trail.slice(0, 120));
+
+    // Onboard is a different thing entirely: the fare is running.
+    repo.setOrderStatus(job.orderNo, 'on_the_way');
+    const late = change({ new_destination: 'Kitty' });
+    check('it refuses once they are in the car', /under way with them in the car/i.test(String(late.error)));
+    check('and sends them to a person', /request_staff_help/.test(String(late.error)));
+
+    repo.setOrderStatus(job.orderNo, 'cancelled');
+    repo.setDuty(driver2, false);
+    repo.upsertAssociate({ phone: driver2, name: 'Driver Two', vehicle: 'PAA 2', active: false });
+    repo.setService(rider2, null);
+  }
+
   /* --- a typed place answers like a tapped one ------------------------- */
 
   // Only a tap settled an end, so typing "Meadow Bank" went to the agent

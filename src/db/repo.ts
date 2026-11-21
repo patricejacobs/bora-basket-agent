@@ -436,6 +436,39 @@ export function typingEnd(phone: string): 'from' | 'to' | '' {
   return row?.side === 'from' || row?.side === 'to' ? row.side : '';
 }
 
+/**
+ * Sends a booked taxi somewhere else.
+ *
+ * Only the destination, and only before the passenger is in the car — the
+ * tool enforces both. The pickup is deliberately not touched here: moving
+ * where a car is going is a change of plan, moving where it collects from
+ * may belong to a different driver, and the two are not one feature.
+ *
+ * The old destination and the old fare go into the trail rather than being
+ * overwritten quietly, because a passenger who disputes a fare is disputing
+ * one of two figures and the shop has to be able to say which was agreed
+ * when.
+ */
+export function changeTaxiDestination(
+  orderNo: string,
+  destination: string,
+  fare: number,
+): void {
+  const before = findOrder(orderNo);
+  db.prepare(
+    `UPDATE orders SET address = ?, quoted_fare = ?, latitude = NULL, longitude = NULL,
+       location_label = '', updated_at = ? WHERE order_no = ?`,
+  ).run(destination, Math.max(0, Math.round(fare)), nowIso(), orderNo);
+  recordEvent(
+    orderNo,
+    'destination changed',
+    '',
+    before
+      ? `${before.address || 'unstated'} -> ${destination}; fare ${before.quotedFare} -> ${Math.round(fare)}`
+      : destination,
+  );
+}
+
 export function clearTaxiPicks(phone: string): void {
   db.prepare(
     `UPDATE customers SET taxi_pick_from = '', taxi_pick_to = '', taxi_fare_shown = -1,

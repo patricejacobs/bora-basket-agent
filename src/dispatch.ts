@@ -432,6 +432,30 @@ export function taxiPickupCard(order: repo.OrderRecord): string {
   ].join(String.fromCharCode(10));
 }
 
+/**
+ * Tells the driver their trip now ends somewhere else.
+ *
+ * The record changing is not the point; the driver is. They are on the road
+ * holding a card for the old destination, and a job that changed quietly is
+ * a car that still goes to the wrong place.
+ *
+ * The whole card again rather than a line about the change, because that is
+ * what they will look at when they arrive, and half a card is worse than the
+ * one they already have.
+ */
+export async function tellDriverOfNewDestination(orderNo: string): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order || order.kind !== 'taxi' || !order.driverPhone) return false;
+
+  const where = order.address || 'somewhere they will tell you';
+  return sendText(
+    order.driverPhone,
+    [`⚠️ *${order.orderNo} — the passenger changed where they are going.*`, '', `Now: *${where}*`, '', 'The pickup has not changed.', '', taxiPickupCard(order)].join(
+      String.fromCharCode(10),
+    ),
+  );
+}
+
 export function parcelOfferCard(order: repo.OrderRecord): string {
   const pickup = order.pickup;
   const pickupPin =

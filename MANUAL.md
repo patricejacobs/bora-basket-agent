@@ -1326,6 +1326,32 @@ Each end can be a **location pin, an address in words, or both**. Where both
 exist, both are printed: the words get somebody to the street, the pin to the
 gate.
 
+### Changing where it is going
+
+A passenger can send a booked taxi somewhere else, **before they are in the
+car**. Ask in words — *"actually can we go to Zeelugt instead"* — and the
+shop re-prices the trip from the same pickup and reads both figures back:
+
+> Going to Zeelugt instead makes the fare $5,500 rather than $700.
+
+Nothing changes until they agree the new figure, and the gate is the same
+one booking has: the shop checks the fare against what it actually sent, not
+against the agent's belief that it came up. Once agreed, the record changes,
+the old destination and the old fare go into the trail rather than being
+overwritten quietly, and **the driver is sent the card again** — they are on
+the road holding one for the old destination, and a job that changed quietly
+is a car that still goes to the wrong place.
+
+| | |
+|---|---|
+| Before pickup | Changed here |
+| **Onboard** | Refused. The fare is running and the waiting clock with it, so it needs a person |
+| The **pickup** | Not changed here either. Moving where a car collects from may mean a different driver, which is a different job |
+
+Until this existed, nothing could amend a booked order for any service. The
+only route was `cancel_my_order`, which works while a job is still
+`pending` — for a taxi that is the seconds before a driver accepts.
+
 ### The journey
 
 | Step | Who |

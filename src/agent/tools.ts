@@ -2,7 +2,12 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import type { OutboundMessage } from '../channels/types.ts';
-import { announceNewOrder, offerNearestFirst, tellKitchenCancelled } from '../dispatch.ts';
+import {
+  announceNewOrder,
+  offerNearestFirst,
+  tellDriverOfNewDestination,
+  tellKitchenCancelled,
+} from '../dispatch.ts';
 import { notifyStaffOfRequest } from '../notifications.ts';
 import { quoteParcel, flatParcelQuote, checkContents } from '../parcels.ts';
 import { productImageUrl } from '../product-images.ts';
@@ -500,6 +505,27 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           description: 'Their own words about the time — "in an hour", "after work".',
         },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'change_destination',
+    description:
+      "Send a taxi they have already booked somewhere else. Only works BEFORE they are in the car — once the driver marks them onboard the fare is running and it needs a person, so use request_staff_help instead. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and tells the driver. Never change a destination they have not agreed the new fare for. This does NOT move the pickup — if that is what they want, call request_staff_help.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        new_destination: {
+          type: 'string',
+          description: 'Where they want to go instead, in words, as they said it.',
+        },
+        confirmed: {
+          type: 'boolean',
+          description:
+            'True only once you have told them the new fare and they have agreed it. Never on the same turn you first saw the figure.',
+        },
+      },
+      required: ['new_destination'],
       additionalProperties: false,
     },
   },
@@ -2266,6 +2292,81 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
               say: `${job.orderNo} is in. I am looking for a car now.`,
               next: 'Tell them the job number, and that the driver agrees the fare with them — the tariff could not price this trip, so the shop has no figure. Do not promise a car, a time or a fare.',
             }),
+      });
+    }
+
+    case 'change_destination': {
+      const wrong = requireService(ctx.phone, 'taxi');
+      if (wrong) return fail(wrong);
+
+      const wanted = asString(input.new_destination).trim().slice(0, 160);
+      if (!wanted) return fail('Ask where they want to go instead, and pass it as new_destination.');
+
+      // The live trip, which is the only one worth changing. A taxi is
+      // dispatched the moment it is booked, so this is nearly always
+      // 'confirmed' — a driver on the road to a pickup that has not changed.
+      // recentOrders is a summary and does not say what KIND a job is, so
+      // each one is read in full before it is judged.
+      const theirs = repo
+        .recentOrders(ctx.phone, 5)
+        .map((o) => repo.findOrder(o.orderNo))
+        .filter((o): o is repo.OrderRecord => o !== null && o.kind === 'taxi');
+
+      const order = theirs.find((o) => o.status === 'pending' || o.status === 'confirmed');
+
+      if (!order) {
+        const onboard = theirs.find((o) => o.status === 'on_the_way');
+        return fail(
+          onboard
+            ? `${onboard.orderNo} is already under way with them in the car, so the fare is running and this is not yours to change. Call request_staff_help, tell them the team is on it, and do not say you are unable to do it.`
+            : 'They have no taxi waiting to be collected. If they want a car, book a new one.',
+        );
+      }
+
+      const from = order.pickup?.address || '';
+      const quoted = taxiFare(from, wanted);
+
+      // The same gate booking has: the shop will not act on a figure it has
+      // not put in front of them. `confirmed` is a field the model fills in,
+      // and after an exchange about where they would rather go it will fill
+      // it in believing the fare came up somewhere.
+      const shown = repo.taxiFareShown(ctx.phone);
+      const seen = quoted !== null && shown === quoted.fee;
+
+      if (quoted && (input.confirmed !== true || !seen)) {
+        repo.setTaxiFareShown(ctx.phone, quoted.fee);
+        return ok({
+          was: order.address || 'unstated',
+          now: wanted,
+          old_fare: order.quotedFare > 0 ? money(order.quotedFare) : 'not priced',
+          new_fare: money(quoted.fee),
+          priced_by: quoted.say,
+          say: `Going to ${wanted} instead makes the fare ${money(quoted.fee)} rather than ${money(order.quotedFare)}.`,
+          next: 'Read both figures back and get a clear yes, then call change_destination again with the same new_destination and confirmed true. Change nothing until they have agreed the new fare.',
+        });
+      }
+
+      repo.changeTaxiDestination(order.orderNo, wanted, quoted?.fee ?? 0);
+      repo.setTaxiFareShown(ctx.phone, -1);
+
+      // The driver is holding a card for the old destination. Telling them is
+      // the whole point — a record that changed quietly is a car that still
+      // goes to the wrong place.
+      void tellDriverOfNewDestination(order.orderNo).catch((err) =>
+        console.error('[tools] could not tell the driver the destination changed:', err),
+      );
+
+      return ok({
+        changed: true,
+        job_number: order.orderNo,
+        destination: wanted,
+        ...(quoted
+          ? { fare: money(quoted.fee), say: `${order.orderNo} now goes to ${wanted}, ${money(quoted.fee)}.` }
+          : {
+              fare: 'to be agreed with the driver',
+              say: `${order.orderNo} now goes to ${wanted}. The tariff cannot price that one, so the driver will agree the fare with them.`,
+            }),
+        next: 'Tell them it is changed and that the driver has been told. Do not promise a new time.',
       });
     }
 
