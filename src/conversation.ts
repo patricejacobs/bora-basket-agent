@@ -30,6 +30,7 @@ import {
 } from './services.ts';
 import { findZone } from './zones.ts';
 import { destAnswerFromButtonId } from './order-status.ts';
+import { AISLE_LEAVE, aislesMessage, isAisleId, withWayOut } from './aisles.ts';
 import { settleDeliveryPlace } from './delivery-place.ts';
 import {
   GATE_CANCEL,
@@ -415,7 +416,14 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
             { kind: 'text', text: t('opening_taxi_picked', lang) },
             endPicker(msg.phone, 'from', lang),
           ]
-        : [{ kind: 'text', text: serviceOpening(picked, lang) }];
+        : picked === 'grocery'
+          ? // A shop's answer to "what do you sell?" is its aisles. The
+            // sentence that used to open this - "tell me what you need" -
+            // is an invitation to somebody who already knows and a blank
+            // wall to somebody who does not, so the shelves come first and
+            // the invitation is one line inside them.
+            [aislesMessage(msg.phone, lang)]
+          : [{ kind: 'text', text: serviceOpening(picked, lang) }];
 
     // Last trip's ends must never start this one.
     if (picked === 'taxi') repo.clearTaxiPicks(msg.phone);
@@ -655,6 +663,21 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     }
   }
 
+  // The two ways out of the shop, which are on every message sent while
+  // somebody is in it.
+  if (chosen === 'grocery' && isAisleId(text)) {
+    const lang = languageFor(msg.phone);
+    if (text === AISLE_LEAVE) {
+      repo.setService(msg.phone, null);
+      repo.setBrowsingOutlet(msg.phone, null);
+      repo.resetConversation(msg.phone);
+      const menu = serviceMenuReply(msg.phone);
+      for (const out of menu) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return menu;
+    }
+    return shopAnswered(msg, [aislesMessage(msg.phone, lang)], describeTap(text));
+  }
+
   // The delivery list, which is the same list asked by a different service.
   // Read here for the same reason the taxi's is: the id carries a corridor
   // and a page, the places come straight out of the tariff, and there is
@@ -824,6 +847,14 @@ ${text}` : note;
     );
   } catch (err) {
     outbound = [{ kind: 'text', text: friendlyErrorMessage(err) }];
+  }
+
+  // The way back to the aisles, on every message sent while they are in the
+  // shop. A customer three lists deep had no way to the front of it except
+  // by typing something and hoping, and a button higher up the chat is a
+  // button nobody finds - so it rides on the last thing they are sent.
+  if (repo.getService(msg.phone) === 'grocery') {
+    outbound = withWayOut(outbound, languageFor(msg.phone));
   }
 
   for (const out of outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));

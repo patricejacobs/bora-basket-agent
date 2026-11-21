@@ -3,6 +3,7 @@ import { commandFromButtonId, isDestAnswerId } from '../order-status.ts';
 import { isPickerId } from '../place-picker.ts';
 import { isLanguageId } from '../language-choice.ts';
 import { isCheckoutId } from '../delivery-checkout.ts';
+import { isAisleId } from '../aisles.ts';
 import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
@@ -265,6 +266,8 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
                 // And checkout's own: the three answers to a price, and the
                 // button for having nothing to add at the door.
                 (reply?.id && isCheckoutId(reply.id) ? reply.id : null) ??
+                // The two that are on every message in the grocery.
+                (reply?.id && isAisleId(reply.id) ? reply.id : null) ??
                 reply?.title ??
                 (row?.id && isPickerId(row.id) ? row.id : null) ??
                 row?.title ??

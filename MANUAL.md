@@ -900,6 +900,48 @@ are eleven aisles and twelve things in Fresh Produce. A written list costs
 nothing, fits any length, and lets somebody answer three lines of it in one
 message — which is how a person writes a shopping list anyway.
 
+### Choosing groceries opens the shop
+
+**Picking 2 shows every aisle**, numbered, with how many things are in each
+and how to move around them. It used to open with a sentence — *“tell me
+what you need”* — which is an invitation to somebody who already knows what
+they want and a blank wall to somebody who does not. A shop's answer to
+*what do you sell?* is its aisles.
+
+```
+🛒 *The shop* — 11 aisles. Here is everything we carry:
+
+1. Fresh Produce (12)
+2. Meat, Fish & Poultry (8)
+3. Dairy & Eggs (5)
+   …
+11. Baby (2)
+
+Reply with an aisle number — *1* to *11* — to see what is in it.
+
+Inside an aisle the items are *lettered*, so *a x2* puts two of item (a) in
+your basket. A number is always an aisle and a letter is always a thing on a
+shelf, so you can never land in the wrong list.
+
+You do not have to use the aisles at all: type what you want — *“two bags of
+rice and a dozen eggs”* — or send a photo of your list.
+
+Tap *Categories* any time to come back to this page, or *Leave groceries* to
+go back to the main menu.
+   [ 🛒 Categories ]  [ ⬅️ Leave groceries ]
+```
+
+**Those two buttons are on every message the shop sends while they are
+shopping.** A customer three lists deep had no way back to the front of the
+shop except by typing something and hoping. They ride on the last message of
+each turn, because a button higher up a chat is a button nobody finds — and
+they are left off any message that is already asking something, where two
+extra answers would make the question ambiguous.
+
+The numbering is written down as it is sent, so the number they reply with is
+the number the shop resolves. A list renumbered in the retelling sends
+somebody to the wrong aisle.
+
 ### The grocery aisles
 
 Eleven, in the order somebody shops rather than by first letter:

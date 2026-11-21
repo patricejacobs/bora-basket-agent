@@ -969,6 +969,69 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* ------------------------------------------------------- the aisles */
+
+section('The aisles, and the way out of them');
+{
+  const { aislesMessage, withWayOut, isAisleId, AISLE_BACK, AISLE_LEAVE } =
+    await import('./aisles.ts');
+  const { handleIncoming: shopping } = await import('./conversation.ts');
+  const shopper2 = '5920007900';
+  repo.chooseLanguage(shopper2, 'en');
+
+  const page = aislesMessage(shopper2, 'en') as {
+    kind: string; text: string; buttons: { id: string; title: string }[];
+  };
+  check('the aisles come as a message with buttons', page.kind === 'buttons', page.kind);
+  check('every aisle is on it',
+    repo.listCategories(repo.defaultGrocery()?.id ?? null)
+      .every((a) => page.text.includes(a.category)),
+    page.text.slice(0, 80));
+  check('numbered, so a reply resolves', /^1\. /m.test(page.text), page.text.slice(0, 40));
+  check('with how many things are in each', /\(\d+\)/.test(page.text), page.text.slice(0, 80));
+  check('it says how to open one', /Reply with an aisle number/.test(page.text));
+  check('that items are lettered, not numbered', /lettered/.test(page.text));
+  check('that they can simply type what they want', /type what you want/.test(page.text));
+  check('and how to get back or get out',
+    /Categories/.test(page.text) && /Leave groceries/.test(page.text));
+  check('the two buttons are those two',
+    JSON.stringify(page.buttons.map((b) => b.id)) === JSON.stringify([AISLE_BACK, AISLE_LEAVE]),
+    JSON.stringify(page.buttons));
+  check('and their titles fit WhatsApp', page.buttons.every((b) => b.title.length <= 20));
+
+  // The numbering is written down as it is sent, or a reply of "1" means
+  // nothing.
+  check('the numbering is remembered', repo.numberedList(shopper2).length > 0,
+    String(repo.numberedList(shopper2).length));
+
+  // Every message while they are in the shop carries the way out.
+  const plain = withWayOut([{ kind: 'text', text: 'Rice is in — $1,850 so far.' }], 'en');
+  check('a plain reply gets the buttons', plain[0]?.kind === 'buttons', plain[0]?.kind);
+  check('keeping its words', (plain[0] as { text: string }).text.includes('Rice is in'));
+
+  // But never where something is already being asked.
+  const asked = withWayOut(
+    [{ kind: 'buttons', text: 'Place the order?', buttons: [{ id: 'yes', title: 'Yes' }] }],
+    'en',
+  );
+  check('a question keeps its own answers', (asked[0] as { buttons: unknown[] }).buttons.length === 1,
+    JSON.stringify(asked));
+  const pinAsk = withWayOut([{ kind: 'location_request', text: 'Share your pin' }], 'en');
+  check('and a pin request is left alone', pinAsk[0]?.kind === 'location_request');
+
+  // The ids, and what they do.
+  check('the ids are ours', isAisleId(AISLE_BACK) && isAisleId(AISLE_LEAVE) && !isAisleId('yes'));
+  repo.setService(shopper2, 'grocery');
+  const back = await shopping({ phone: shopper2, text: AISLE_BACK, channel: 'smoke' } as never);
+  check('Categories brings the aisles back', (back[0] as { kind: string }).kind === 'buttons',
+    JSON.stringify(back[0]).slice(0, 60));
+  const left = await shopping({ phone: shopper2, text: AISLE_LEAVE, channel: 'smoke' } as never);
+  check('Leave groceries goes to the main menu',
+    /1\. Taxi/.test((left[0] as { text?: string }).text ?? ''),
+    (left[0] as { text?: string }).text?.slice(0, 40));
+  check('and lets the service go', repo.getService(shopper2) === null);
+}
+
 /* ------------------------------------- an address changed on the road */
 
 section('Changing where a delivery is going');
