@@ -581,6 +581,12 @@ addColumnIfMissing('associates', 'on_duty_at', "TEXT NOT NULL DEFAULT ''");
 // shop needs both.
 addColumnIfMissing('associates', 'base_place', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
+// When they PICKED one off the opening screen, as opposed to a language
+// noticed from what they happened to write. The two are different things: a
+// guess is worth overriding the moment better evidence turns up, a choice is
+// not, and only a choice means the screen has been answered and must never
+// be shown to this person again.
+addColumnIfMissing('customers', 'language_chosen_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");

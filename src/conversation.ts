@@ -30,6 +30,12 @@ import {
 } from './services.ts';
 import { findZone } from './zones.ts';
 import { destAnswerFromButtonId } from './order-status.ts';
+import {
+  languageScreen,
+  readLanguageId,
+  shouldAskLanguage,
+  wantsLanguageScreen,
+} from './language-choice.ts';
 import { tellDriverOfNewDestination, tellDriverDestKept } from './dispatch.ts';
 import { money } from './config.ts';
 import {
@@ -214,6 +220,33 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   if (msg.profileName) repo.setProfileName(msg.phone, msg.profileName);
 
   let text = msg.text.trim();
+
+  /* ------------------------------------------------------------ language */
+
+  // Before everything. A customer who cannot read the question cannot answer
+  // it, so the first screen is the same three greetings in three languages
+  // and three buttons — and until one is tapped there is nothing else worth
+  // sending them, the service menu least of all.
+  {
+    const tapped = readLanguageId(text);
+    if (tapped) {
+      repo.chooseLanguage(msg.phone, tapped);
+      // Straight on to the menu, in what they just picked. The tap is an
+      // answer, not a conversation, so nothing goes to the model.
+      return shopAnswered(msg, serviceMenuReply(msg.phone), text);
+    }
+
+    const asked = shouldAskLanguage(
+      repo.languageChosen(msg.phone),
+      repo.inboundCount(msg.phone),
+      repo.recentOrders(msg.phone, 1).length,
+    );
+    // Asking for it back by name, which is the way out for somebody who
+    // tapped the wrong one and cannot read a word of what came next.
+    if (asked || wantsLanguageScreen(text)) {
+      return shopAnswered(msg, [languageScreen(config.store.name)], text);
+    }
+  }
 
   // Small operator escape hatch, useful during testing and when a customer is stuck.
   if (/^(reset|restart|start over)$/i.test(text)) {

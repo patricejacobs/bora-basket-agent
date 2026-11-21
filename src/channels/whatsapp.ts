@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { commandFromButtonId, isDestAnswerId } from '../order-status.ts';
 import { isPickerId } from '../place-picker.ts';
+import { isLanguageId } from '../language-choice.ts';
 import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
@@ -254,6 +255,12 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
                 // nothing behind it drops to the title below, which is a
                 // button that appears to work and does nothing.
                 (reply?.id && isDestAnswerId(reply.id) ? reply.id : null) ??
+                // And the opening screen's three. Their titles are the
+                // language names themselves - English, Espanol, Portugues -
+                // which is the one case where the title would nearly work;
+                // the id is read anyway, so that what the shop acts on is
+                // never a word somebody could type by accident.
+                (reply?.id && isLanguageId(reply.id) ? reply.id : null) ??
                 reply?.title ??
                 (row?.id && isPickerId(row.id) ? row.id : null) ??
                 row?.title ??

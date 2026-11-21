@@ -171,7 +171,10 @@ export function poorRatingAlert(orderNo: string): string {
   const driver = order.driverName || (order.driverPhone ? `+${order.driverPhone}` : '');
   const nl = String.fromCharCode(10);
   return [
-    `⚠️ *${'⭐'.repeat(rated.stars)} on ${order.orderNo}* — ${order.customerName} +${order.contactPhone || order.phone}`,
+    // Clamped, because `repeat` THROWS on a negative count. A rating that
+    // was never given comes back as -1, and an alert to the shop is the last
+    // place that should be able to crash on its own punctuation.
+    `⚠️ *${'⭐'.repeat(Math.max(0, rated.stars))} on ${order.orderNo}* — ${order.customerName} +${order.contactPhone || order.phone}`,
     ...(rated.comment ? [`"${rated.comment}"`] : ['_No words yet — they were asked._']),
     [order.outlet?.name, driver ? `delivered by ${driver}` : '']
       .filter(Boolean)

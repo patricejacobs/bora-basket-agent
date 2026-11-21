@@ -965,6 +965,105 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* --------------------------------------------------------------- language */
+
+section('The opening screen');
+{
+  const { handleIncoming: opens } = await import('./conversation.ts');
+  const { languageScreen, isLanguageId, readLanguageId, wantsLanguageScreen } =
+    await import('./language-choice.ts');
+
+  const screen = languageScreen('Next Minute Delivery');
+  check('it is three buttons', screen.kind === 'buttons' && screen.buttons.length === 3,
+    JSON.stringify(screen.buttons?.map((b) => b.title)));
+  check('each one named in its own language',
+    JSON.stringify(screen.buttons.map((b) => b.title)) ===
+      JSON.stringify(['English', 'Español', 'Português']),
+    JSON.stringify(screen.buttons.map((b) => b.title)));
+  check('every title fits WhatsApp', screen.buttons.every((b) => b.title.length <= 20));
+  check('and the question is asked in all three',
+    /Please select your language/.test(screen.text) &&
+      /elija su idioma/.test(screen.text) &&
+      /escolha o seu idioma/i.test(screen.text),
+    screen.text);
+  check('the shop is named, not hardcoded', /Next Minute Delivery/.test(screen.text));
+
+  check('the ids are ours', isLanguageId('lang:pt') && !isLanguageId('option_1'));
+  check('and say which language', readLanguageId('lang:pt') === 'pt');
+  check('a tap on nothing of ours is nothing', readLanguageId('yes') === null);
+
+  // A stranger. The very first thing they send gets the screen and NOT the
+  // service menu: a menu in a language they cannot read is five numbers and
+  // no information.
+  const stranger = '5920007100';
+  // "hi" on purpose: it gives nothing away, so no row exists for them yet
+  // when they tap. An UPDATE in chooseLanguage matched nothing for exactly
+  // these people, and "hello" - which the detector reads as English - had
+  // quietly created the row this test then relied on.
+  const first = await opens({ phone: stranger, text: 'hi', channel: 'smoke' } as never);
+  check('and no row has been made for them yet',
+    repo.customerLanguage(stranger) === '', repo.customerLanguage(stranger));
+  check('a first message gets the screen', first[0]?.kind === 'buttons', first[0]?.kind);
+  check('and not the service menu', !/1\. Taxi/.test((first[0] as { text?: string }).text ?? ''));
+  check('nothing has been chosen yet', repo.languageChosen(stranger) === false);
+
+  // The tap.
+  const picked = await opens({ phone: stranger, text: 'lang:pt', channel: 'smoke' } as never);
+  check('the tap is remembered as a CHOICE', repo.languageChosen(stranger), 'not chosen');
+  check('and sets the language', repo.customerLanguage(stranger) === 'pt',
+    repo.customerLanguage(stranger));
+  check('the menu follows in that language',
+    /Bem-vindo/.test((picked[0] as { text?: string }).text ?? '') &&
+      /1\. Táxi/.test((picked[0] as { text?: string }).text ?? ''),
+    (picked[0] as { text?: string }).text?.slice(0, 60));
+
+  // And never again.
+  const after = await opens({ phone: stranger, text: 'oi', channel: 'smoke' } as never);
+  check('a later message never sees it again',
+    !(after[0]?.kind === 'buttons' && /elija su idioma/.test((after[0] as { text?: string }).text ?? '')),
+    JSON.stringify(after[0]).slice(0, 80));
+
+  // Asked for by name, which is the way back for somebody who tapped the
+  // wrong one and cannot read a word of what came after it.
+  check('it is asked for in any of them',
+    wantsLanguageScreen('language') && wantsLanguageScreen('Idioma') &&
+      wantsLanguageScreen(' 语言 ') && !wantsLanguageScreen('what language do you speak'));
+  const again = await opens({ phone: stranger, text: 'idioma', channel: 'smoke' } as never);
+  check('and comes back when it is', again[0]?.kind === 'buttons', again[0]?.kind);
+
+  // Somebody already talking to the shop is not a stranger, whatever the
+  // language column says. Without this every customer it already has would
+  // be stopped for a language screen on their next message.
+  const midway = '5920007200';
+  repo.logMessage(midway, 'in', 'whatsapp', 'a message from before all this');
+  const ongoing = await opens({ phone: midway, text: 'hello', channel: 'smoke' } as never);
+  check('a conversation already under way is left alone',
+    !(ongoing[0]?.kind === 'buttons' && /elija su idioma/.test((ongoing[0] as { text?: string }).text ?? '')),
+    JSON.stringify(ongoing[0]).slice(0, 80));
+
+  // Nor is somebody whose number a dispatcher wrote down, whose parcel is
+  // already on a van.
+  const hasJob = '5920007300';
+  repo.createTaxiJob({
+    phone: hasJob, fare: 700, passengerName: 'Someone', passengerPhone: hasJob,
+    pickup: null, pickupAddress: 'Diamond', destination: null, destinationAddress: 'Grove',
+    note: '', wantedAt: '', wantedNote: '',
+  });
+  const booked = await opens({ phone: hasJob, text: 'hello', channel: 'smoke' } as never);
+  check('nor is somebody who already has a job on the books',
+    !(booked[0]?.kind === 'buttons' && /elija su idioma/.test((booked[0] as { text?: string }).text ?? '')),
+    JSON.stringify(booked[0]).slice(0, 80));
+
+  // The tap has to survive the wire, like every other id-carrying button.
+  const tapOnWire = parseWebhook({
+    entry: [{ changes: [{ value: { messages: [
+      { from: '592', id: 'wamid.lang', type: 'interactive',
+        interactive: { button_reply: { id: 'lang:es', title: 'Español' } } },
+    ] } }] }],
+  });
+  check('the tap survives the webhook', tapOnWire[0]?.text === 'lang:es', tapOnWire[0]?.text);
+}
+
 /* --------------------------------------------------------------- identity */
 
 section('Customer identity');

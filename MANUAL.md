@@ -550,9 +550,50 @@ has accepted is to leave the button off until then.
 
 ### Languages
 
-English, Spanish, Portuguese and Chinese, chosen from how they write and kept
-for the whole order — including the menu. **Staff, associates and kitchens
-always work in English.**
+English, Spanish, Portuguese and Chinese, kept for the whole order —
+including the menu. **Staff, associates and kitchens always work in English.**
+
+**The first screen anybody sees is the language, asked in all three.** Before
+the service menu and before the model, because a customer who cannot read the
+question cannot answer it:
+
+```
+👋 *Welcome to Next Minute Delivery.*
+Please select your language.
+
+👋 *Bienvenido a Next Minute Delivery.*
+Por favor, elija su idioma.
+
+👋 *Bem-vindo a Next Minute Delivery.*
+Escolha o seu idioma, por favor.
+
+   [ English ]   [ Español ]   [ Português ]
+```
+
+The tap sets the language and the service menu follows in it immediately —
+*Bem-vindo*, `1. Táxi`, *Responda com o número*.
+
+**Once, on first contact, and never again.** The choice is kept against the
+number, and unlike the service menu it does not come back when a conversation
+goes cold. Three things have to be true for it to appear: nobody has ever
+answered it from this number, this is the first message that number has ever
+sent, and there is no job of theirs on the books. Without the last two, every
+customer the shop already has would be stopped for a language screen on their
+next message, some of them midway through booking a car, and somebody whose
+number a dispatcher wrote down would be greeted as a stranger while their
+parcel was on a van.
+
+**Typing `language`, `idioma`, `língua` or `语言` brings it back**, from
+anywhere. That is the way out for somebody who taps the wrong button and
+cannot read a word of what comes next.
+
+**Chinese has no button on purpose.** WhatsApp allows three; the shop speaks
+four. The fourth is the one whose speakers can declare it without help —
+anybody who writes a single Chinese character is switched to Chinese by
+detection, which is a surer signal than a tap. Detection still runs for all
+four, and still only ever sets a language, never clears one: `ok` and a
+thumbs up give nothing away. What it cannot do is override a CHOICE, which is
+the difference between the two records the shop keeps.
 
 ### Taxi
 

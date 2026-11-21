@@ -816,6 +816,54 @@ export function setCustomerLanguage(phone: string, language: string): void {
   ).run(phone, language, nowIso(), nowIso());
 }
 
+/**
+ * The language they PICKED, off the opening screen.
+ *
+ * Recorded apart from the one detected in passing, because the two answer
+ * different questions. Detection answers "what are they writing in", and is
+ * a guess worth replacing the moment a better one comes along. This answers
+ * "have they been asked", and the answer is yes forever: the screen is shown
+ * once, on first contact, and a customer who has chosen must never be made
+ * to choose again.
+ */
+export function chooseLanguage(phone: string, language: string): void {
+  // An upsert, and it has to be. This is answered on a stranger's SECOND
+  // message, before they have given a name or an address, and there is a row
+  // for them only if something they wrote happened to give their language
+  // away first. An UPDATE here matched nothing for anybody who opened with
+  // "hi" — the tap was accepted, the menu came back in English, and the
+  // screen would have asked them again.
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO customers (phone, name, address, language, language_chosen_at, created_at, updated_at)
+     VALUES (?, '', '', ?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET language = excluded.language,
+       language_chosen_at = excluded.language_chosen_at, updated_at = excluded.updated_at`,
+  ).run(phone, language, now, now, now);
+}
+
+/** Whether they have ever answered the opening screen. */
+export function languageChosen(phone: string): boolean {
+  const row = db.prepare(`SELECT language_chosen_at FROM customers WHERE phone = ?`).get(phone) as
+    | { language_chosen_at: string }
+    | undefined;
+  return (row?.language_chosen_at ?? '') !== '';
+}
+
+/**
+ * How many times this number has written to the shop.
+ *
+ * What makes a first contact first. The inbound message being handled is
+ * already logged by the time this is asked, so one is nobody and two is a
+ * returning customer.
+ */
+export function inboundCount(phone: string): number {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS n FROM message_log WHERE phone = ? AND direction = 'in'`)
+    .get(phone) as { n: number } | undefined;
+  return row?.n ?? 0;
+}
+
 export function customerLanguage(phone: string): string {
   const row = db.prepare(`SELECT language FROM customers WHERE phone = ?`).get(phone) as
     | { language: string }
