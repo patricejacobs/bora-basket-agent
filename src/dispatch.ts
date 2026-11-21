@@ -599,6 +599,31 @@ export async function tellDriverDestKept(orderNo: string): Promise<boolean> {
     : sendText(order.driverPhone, body);
 }
 
+/**
+ * Puts the customer's two notes into English, once, and writes them down.
+ *
+ * Never throws and never blocks anything that matters: a failure leaves the
+ * cards exactly as they are today, carrying the customer's own words alone.
+ */
+export async function englishNotesFor(orderNo: string): Promise<void> {
+  const order = repo.findOrder(orderNo);
+  if (!order) return;
+
+  const lang = languageFor(order.phone);
+  if (lang === 'en') return;
+  if (!order.deliveryNote && !order.kitchenNote) return;
+  // Done already - a re-sent card must not pay for the same translation
+  // twice, and must not overwrite one that is already right.
+  if (order.deliveryNoteEn || order.kitchenNoteEn) return;
+
+  const { noteInEnglish } = await import('./translate-notes.ts');
+  const [delivery, kitchen] = await Promise.all([
+    noteInEnglish(order.deliveryNote, lang),
+    noteInEnglish(order.kitchenNote, lang),
+  ]);
+  if (delivery || kitchen) repo.setEnglishNotes(orderNo, { delivery, kitchen });
+}
+
 export function parcelOfferCard(order: repo.OrderRecord): string {
   const pickup = order.pickup;
   const pickupPin =
@@ -628,6 +653,10 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
 }
 
 export async function announceNewOrder(orderNo: string): Promise<void> {
+  // Before any card is built, and only here. This path is already talking to
+  // WhatsApp, so the wait costs a customer nothing - their confirmation went
+  // out the moment the order was written down, and this runs behind it.
+  await englishNotesFor(orderNo);
   await notifyStaffOfNewOrder(orderNo);
   // One call for every shop. A grocery used to need a second route of its own,
   // because it was not an outlet and had nowhere for a ticket to go; it is one
@@ -648,6 +677,21 @@ export async function announceNewOrder(orderNo: string): Promise<void> {
  * the sender's own words instead. Anything reading an order has to cope with
  * both, or a parcel prints as an empty list.
  */
+/**
+ * One of the customer's notes, as a card prints it.
+ *
+ * The English on top because it is the line that will be acted on, the
+ * original underneath in brackets because it is the one that is certainly
+ * right. Nothing but the original where there is no translation - no key, no
+ * network, or a customer who wrote in English to begin with.
+ */
+export function noteLines(note: string, english: string): string[] {
+  const said = note.trim();
+  if (!said) return [];
+  const translated = english.trim();
+  return translated ? [translated, `_(${said})_`] : [said];
+}
+
 function itemLines(order: repo.OrderRecord): string[] {
   if (order.kind === 'parcel') {
     return [`📦 ${order.parcelDetails || 'Parcel (contents not described)'}`];
@@ -695,6 +739,9 @@ export function pickingTicket(order: repo.OrderRecord): string {
     `🛒 *Order ${order.orderNo}* — please pick`,
     '',
     ...itemLines(order),
+    ...(order.kitchenNote
+      ? ['', '📝 *Note:*', ...noteLines(order.kitchenNote, order.kitchenNoteEn)]
+      : []),
     '',
     // What the goods come to, not the order total. The delivery fee is not
     // theirs to collect and not theirs to be asked about.
@@ -757,6 +804,12 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
         `👨‍🍳 *Order ${order.orderNo}* — please prepare`,
         '',
         ...itemLines(order),
+        // What the customer asked of the people making it. A kitchen is
+        // shown no address and no telephone number, which is right, and
+        // which meant "no onion" and "allergic to peanuts" reached nobody.
+        ...(order.kitchenNote
+          ? ['', '📝 *Note:*', ...noteLines(order.kitchenNote, order.kitchenNoteEn)]
+          : []),
         '',
         `Food total ${money(order.items.reduce((sum, i) => sum + i.lineTotal, 0))}`,
         ...(wantedBy(order) ? [wantedBy(order)] : []),
@@ -1008,7 +1061,13 @@ export function dropLines(order: repo.OrderRecord): string[] {
     ...(written ? [written] : []),
     // What the customer said about finding the door. It was going to staff
     // and not to the person standing outside, which is the wrong way round.
-    ...(noteAdds ? [order.deliveryNote] : []),
+    //
+    // In English first where the customer wrote in something else, with
+    // their own words underneath. Both, because a translation nobody can
+    // check is worse than no translation: the driver reads the English, and
+    // if it makes no sense the line beneath it is what to show somebody or
+    // read down the telephone.
+    ...(noteAdds ? noteLines(order.deliveryNote, order.deliveryNoteEn) : []),
     atTheDoor,
     ...(showPin && order.location
       ? [...(labelAdds ? [pinLabel] : []), 'Click the link below for the delivery address:', mapsLink(order.location)]

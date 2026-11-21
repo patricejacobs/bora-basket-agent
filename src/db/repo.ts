@@ -805,6 +805,18 @@ export function getCustomer(phone: string): Customer {
  * cleared by a message that gives nothing away - "ok" is not evidence that
  * somebody has switched to English.
  */
+/** The customer's own words, in English, written beside the originals. */
+export function setEnglishNotes(
+  orderNo: string,
+  notes: { delivery?: string; kitchen?: string },
+): void {
+  db.prepare(
+    `UPDATE orders SET delivery_note_en = COALESCE(?, delivery_note_en),
+       kitchen_note_en = COALESCE(?, kitchen_note_en), updated_at = ?
+     WHERE order_no = ?`,
+  ).run(notes.delivery ?? null, notes.kitchen ?? null, nowIso(), orderNo);
+}
+
 export function setCustomerLanguage(phone: string, language: string): void {
   // Upsert, because a language is usually learned from somebody's very first
   // message - before they have given a name or an address, and so before
@@ -1256,6 +1268,13 @@ export function placeOrder(args: {
   address: string;
   contactPhone: string;
   deliveryNote: string;
+  /**
+   * For the people making the food. Separate from the doorstep note because
+   * they are read by different people in different buildings: a kitchen is
+   * shown no address and no telephone number, so a note about a gate is
+   * noise to it and a note about an allergy never reached it at all.
+   */
+  kitchenNote?: string;
   paymentMethod: string;
   /**
    * Where to deliver, or null when the customer could not send a pin and gave
@@ -1411,6 +1430,16 @@ export function placeOrder(args: {
       );
 
     const orderId = Number(info.lastInsertRowid);
+
+    // Written separately rather than threaded through a thirty-argument
+    // insert, where one misplaced comma silently shifts every column after
+    // it. It belongs to the same transaction either way.
+    if ((args.kitchenNote ?? '').trim()) {
+      db.prepare(`UPDATE orders SET kitchen_note = ? WHERE id = ?`).run(
+        args.kitchenNote!.trim().slice(0, 120),
+        orderId,
+      );
+    }
     const insertItem = db.prepare(
       `INSERT INTO order_items (order_id, sku, name, unit, options, qty, unit_price, line_total)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1768,6 +1797,16 @@ export type OrderRecord = {
   address: string;
   contactPhone: string;
   deliveryNote: string;
+  /**
+   * The two notes in English, where the customer wrote them in something
+   * else. Empty when there is nothing to add - either they wrote in English
+   * or the translation did not happen - so a card can tell "here is the
+   * English" from "there is no English", and never prints one line twice.
+   */
+  deliveryNoteEn: string;
+  /** For the people making the food: "no onion", "allergic to peanuts". */
+  kitchenNote: string;
+  kitchenNoteEn: string;
   /** What the goods came to, before delivery. */
   subtotal: number;
   /** What was charged to bring them. `total` is the two added up. */
@@ -1917,6 +1956,9 @@ function hydrateOrder(row: {
     address: row.address,
     contactPhone: row.contact_phone || row.phone,
     deliveryNote: row.delivery_note,
+    deliveryNoteEn: (row as { delivery_note_en?: string }).delivery_note_en ?? '',
+    kitchenNote: (row as { kitchen_note?: string }).kitchen_note ?? '',
+    kitchenNoteEn: (row as { kitchen_note_en?: string }).kitchen_note_en ?? '',
     deliveryZone: row.delivery_zone ?? '',
     deliverAt: row.deliver_at ?? '',
     deliverNote: row.deliver_note ?? '',

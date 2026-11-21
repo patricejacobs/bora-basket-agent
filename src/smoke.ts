@@ -21,6 +21,10 @@ for (const suffix of ['', '-wal', '-shm']) {
 }
 process.env.DATABASE_PATH = TEST_DB;
 process.env.WHATSAPP_APP_SECRET = 'smoke-test-secret';
+// No key, so nothing here can reach the API by accident. The suite says at
+// the top that it costs nothing to run, and a translation added to the
+// dispatch path is exactly the sort of thing that quietly makes that untrue.
+process.env.ANTHROPIC_API_KEY = '';
 process.env.STAFF_NUMBERS = '5926497570';
 // Two, because a job changing hands between associates is a thing the suite
 // has to be able to exercise - with one number there is nobody to hand it to.
@@ -963,6 +967,73 @@ section('Service window');
   check('and the prefix typed is not held against anyone',
     repo.findOrder('ORD-00001')?.orderNo === 'GRO-00001' && repo.findOrder('txi-1')?.orderNo === 'GRO-00001');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
+}
+
+/* ------------------------------------------------------------ their words */
+
+section("The customer's own words, in English");
+{
+  const { noteLines, englishNotesFor } = await import('./dispatch.ts');
+  const { noteInEnglish } = await import('./translate-notes.ts');
+
+  // The card. English on top because it is what will be acted on, the
+  // original underneath because it is what is certainly right.
+  check('both lines, English first',
+    JSON.stringify(noteLines('Ligue quando chegar', 'Ring when you arrive')) ===
+      JSON.stringify(['Ring when you arrive', '_(Ligue quando chegar)_']),
+    JSON.stringify(noteLines('Ligue quando chegar', 'Ring when you arrive')));
+  check('the original alone when there is no English',
+    JSON.stringify(noteLines('Ligue quando chegar', '')) ===
+      JSON.stringify(['Ligue quando chegar']));
+  check('and nothing at all when there is no note',
+    noteLines('', 'Ring when you arrive').length === 0);
+
+  // No key, no call. The shop works exactly as it did.
+  const noKey = await noteInEnglish('Ligue quando chegar', 'pt');
+  check('without an API key nothing is translated and nothing throws',
+    typeof noKey === 'string');
+  check('and English in is nothing out', (await noteInEnglish('Ring twice', 'en')) === '');
+  check('as is an empty note', (await noteInEnglish('   ', 'pt')) === '');
+
+  // The record, and the one thing that must never happen to it: the
+  // customer's own words overwritten.
+  const noteBuyer = '5920007400';
+  repo.saveCustomer(noteBuyer, { name: 'Marcia', contactPhone: noteBuyer, address: 'Lot 8 BV' });
+  repo.chooseLanguage(noteBuyer, 'pt');
+  const riceId = (
+    db.prepare(`SELECT id FROM products WHERE sku = 'RIC-001'`).get() as { id: number }
+  ).id;
+  repo.setCartQty(noteBuyer, riceId, 1);
+  repo.setFeeAgreed(noteBuyer, repo.getCart(noteBuyer).deliveryFee);
+  const noted = repo.placeOrder({
+    phone: noteBuyer, customerName: 'Marcia', address: 'Lot 8 BV', contactPhone: noteBuyer,
+    deliveryNote: 'Ligue quando chegar', kitchenNote: 'sem cebola',
+    paymentMethod: 'cash_on_delivery', location: null,
+  } as never);
+
+  const stored = repo.findOrder(noted.orderNo)!;
+  check('the kitchen note is kept', stored.kitchenNote === 'sem cebola', stored.kitchenNote);
+  check('in their own words', stored.deliveryNote === 'Ligue quando chegar', stored.deliveryNote);
+  check('with no English yet', stored.deliveryNoteEn === '' && stored.kitchenNoteEn === '');
+
+  repo.setEnglishNotes(noted.orderNo, { delivery: 'Ring when you arrive', kitchen: 'no onion' });
+  const both = repo.findOrder(noted.orderNo)!;
+  check('the English is written beside it', both.deliveryNoteEn === 'Ring when you arrive',
+    both.deliveryNoteEn);
+  check('and NEVER over it', both.deliveryNote === 'Ligue quando chegar', both.deliveryNote);
+
+  // Translated once. A re-sent card must not pay for it again.
+  await englishNotesFor(noted.orderNo);
+  check('a second pass leaves it alone',
+    repo.findOrder(noted.orderNo)?.deliveryNoteEn === 'Ring when you arrive');
+
+  // And it reaches the people it is for.
+  const { pickingTicket } = await import('./dispatch.ts');
+  const ticket = pickingTicket(both);
+  check('the picking ticket carries the note', /no onion/.test(ticket), ticket);
+  check('with the original under it', /sem cebola/.test(ticket), ticket);
+  check('and not the doorstep note, which is not theirs',
+    !/Ligue quando chegar/.test(ticket), ticket);
 }
 
 /* --------------------------------------------------------------- language */

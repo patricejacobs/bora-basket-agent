@@ -434,6 +434,11 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
           description:
             'One short line of doorstep detail, and only that: "white fence, upstairs", "blue gate, ring twice". Under 80 characters. It is NOT a place to repeat the address, the names, the phone numbers, or whether there is a pin — the delivery associate\'s card prints all of those itself, and anything repeated here is read twice and trusted less. Leave it out when there is nothing to add.',
         },
+        kitchen_note: {
+          type: 'string',
+          description:
+            'What the customer asked of the people MAKING it: "no onion", "well done", "allergic to peanuts", "pick the green plantains". Under 80 characters. This goes on the kitchen or picking ticket, which carries no address and no telephone number — so anything about the door belongs in delivery_note instead, and put here it would never reach the person standing at that door. Where the menu offers the choice properly, set the item\'s options and not this. Pass it in the customer\'s own words: the shop puts it into English for the kitchen itself.',
+        },
       },
       required: ['payment_method'],
       additionalProperties: false,
@@ -1854,6 +1859,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // the card, so it is never in the record either. The tool schema asks
       // the model not to do this; this is what happens when it does anyway.
       const deliveryNote = saysTheSamePlace(deliveryAddress, noteAsked) ? '' : noteAsked;
+      // Capped the same way and for the same reason. Kept in the customer's
+      // own words: the English is made once, at dispatch, and written down
+      // beside this rather than over it.
+      const kitchenNote = asString(input.kitchen_note).trim().slice(0, 120);
 
       // When they asked for it, checked rather than trusted.
       //
@@ -1901,6 +1910,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           address: deliveryAddress,
           contactPhone: customer.contactPhone ?? ctx.phone,
           deliveryNote,
+          kitchenNote,
           deliverAt,
           deliverNote: wantedNote,
           paymentMethod,

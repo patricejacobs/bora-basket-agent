@@ -553,6 +553,37 @@ has accepted is to leave the button off until then.
 English, Spanish, Portuguese and Chinese, kept for the whole order —
 including the menu. **Staff, associates and kitchens always work in English.**
 
+**The shop's words to a driver or a kitchen are always English. The
+customer's own words are translated for them and kept.** A doorstep note and
+a note to the kitchen are the two things on a staff card the customer wrote
+themselves, and they used to arrive exactly as typed — which left a driver
+holding *Ligue quando chegar* and a cook holding *sou alérgica a amendoim*:
+
+```
+📝 *Note:*
+No onion, I'm allergic to peanuts.
+_(sem cebola, sou alérgica a amendoim)_
+```
+
+Both lines, always. The English is what gets acted on; the customer's own
+words underneath are what is certainly right, to show somebody or read down
+the telephone when the English reads oddly. **The original is never replaced.**
+
+Translated once, when the order is dispatched — a path that is already
+talking to WhatsApp, so no customer waits on it — and written down, so a
+re-sent card costs nothing. If there is no API key, no network, or the model
+is slow, the card goes out with the customer's own words alone, exactly as
+before.
+
+**Never an address.** `Lot 8 BV` is not a sentence, and a place name
+translated is a driver sent somewhere else.
+
+A kitchen note is a separate field from a doorstep note because they are read
+by different people in different buildings: a kitchen is shown no address and
+no telephone number, so *"no onion"* never reached it and *"blue gate"* would
+be noise if it did. Where the menu offers the choice properly — size, side,
+how it is cooked — that is an item option and not a note.
+
 **The first screen anybody sees is the language, asked in all three.** Before
 the service menu and before the model, because a customer who cannot read the
 question cannot answer it:

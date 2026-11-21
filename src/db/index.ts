@@ -592,6 +592,18 @@ addColumnIfMissing('customers', 'language_chosen_at', "TEXT NOT NULL DEFAULT ''"
 // other way to tell a stranger from a customer of long standing is that a
 // stranger has sent nothing before, and that is true exactly once.
 addColumnIfMissing('customers', 'language_asked_at', "TEXT NOT NULL DEFAULT ''");
+
+// The customer's own words, in English, for the people who act on them. Two
+// notes, two translations, kept BESIDE the originals and never over them: a
+// driver who cannot make sense of the English has what the customer actually
+// wrote underneath, to show somebody or read down the telephone.
+addColumnIfMissing('orders', 'delivery_note_en', "TEXT NOT NULL DEFAULT ''");
+// A note for the people making the food, which had nowhere to live. A
+// kitchen is shown no address and no telephone number, so the doorstep note
+// never reached it - and "no onion" and "allergic to peanuts" are not
+// doorstep notes.
+addColumnIfMissing('orders', 'kitchen_note', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'kitchen_note_en', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
