@@ -341,6 +341,36 @@ function allowance(name: string): number {
  * considered, and only against windows of the same word count, so a long
  * address cannot drift into a short village name.
  */
+/**
+ * The tariff's own spelling of a place somebody typed.
+ *
+ * The near-matcher has always been able to price a misspelling — `Bagotvile`
+ * is priced as Bagotville and always was — but what got written down, read
+ * back and put in front of the passenger was the typing. So a passenger was
+ * asked to agree to `Bagotvile`: a place that does not exist, at a price
+ * they cannot check against anything, with no way to tell whether the shop
+ * had understood them or guessed.
+ *
+ * Only a SPELLING match is rewritten, which is what `exact: false` means
+ * here. The other way a lookup succeeds is by containing the place —
+ * `14 Delph Street, Campbellville` finds Campbellville — and rewriting that
+ * one would throw away the street and leave a driver with a village to
+ * search. So:
+ *
+ *   Bagotvile                       -> Bagotville   (corrected)
+ *   14 Delph Street, Campbellville  -> unchanged
+ *   Diamond                         -> unchanged
+ *   somewhere nobody has heard of   -> unchanged
+ */
+export function asTariffPlace(text: string): { place: string; corrected: boolean } {
+  const said = String(text ?? '').trim();
+  const found = findZone(said);
+  if (found.kind !== 'found' || found.match.exact !== false) {
+    return { place: said, corrected: false };
+  }
+  return { place: found.match.place, corrected: found.match.place !== said };
+}
+
 export function findZone(text: string): ZoneLookup {
   const table = zones();
   if (table.length === 0) return { kind: 'unknown' };

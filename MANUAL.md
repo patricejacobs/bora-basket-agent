@@ -1727,6 +1727,21 @@ further than that goes unmatched and the agent asks, which is the right way
 round for a fare: a question costs a message, a wrong village costs the
 difference and nobody notices until the car arrives. *Mahdia* is not *Mahaica*.
 
+**What is matched is also what gets written down.** The matcher could always
+*price* a misspelling — `Bagotvile` is Bagotville and costs what Bagotville
+costs — but the typing was what went into the record, onto the driver's card
+and into the question put to the passenger, who was then asked to agree to a
+place that does not exist at a figure they could not check against anything.
+A trip is now booked, repriced and read back under the tariff's own spelling,
+and whoever typed it is told what it was read as, so a wrong guess is caught
+by the person who knows the answer.
+
+Only a **spelling** match is rewritten. The other way a lookup succeeds is by
+containing the place — `14 Delph Street, Campbellville` finds Campbellville —
+and rewriting that would throw away the street and leave a driver with a
+village to search. The zone is how a trip is *priced*; the address is where
+the driver goes.
+
 Ordering is by fare from the chosen pickup, which is nearest-first in the only
 sense a passenger cares about and needs no trading history to be right. From
 Diamond that puts Farm and Great Diamond on page one; ordering by distance

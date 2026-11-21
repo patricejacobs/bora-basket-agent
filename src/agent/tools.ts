@@ -21,7 +21,14 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
-import { findZone, zoneCount, describeZone, zoneFeeFor, fareBetween } from '../zones.ts';
+import {
+  asTariffPlace,
+  findZone,
+  zoneCount,
+  describeZone,
+  zoneFeeFor,
+  fareBetween,
+} from '../zones.ts';
 import { fareButtons } from '../place-picker.ts';
 import { itemLabel, labelPosition } from '../categories.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
@@ -2142,10 +2149,17 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // place forward, which would otherwise lose a choice the passenger
       // already made and send the conversation round again.
       const picks = repo.taxiPicks(ctx.phone);
-      const pickupAddress =
-        asString(input.pickup_address).trim().slice(0, 160) || picks.from;
-      const destinationAddress =
-        asString(input.destination_address).trim().slice(0, 160) || picks.to;
+      // Through the tariff's own spelling on the way in, so a trip is booked
+      // to a place that exists. Only a misspelling is rewritten - an address
+      // with a street on it keeps every word of it, because the zone is how
+      // the trip is PRICED and the street is where the driver goes. A tapped
+      // place is already canonical and passes through untouched.
+      const pickupAddress = asTariffPlace(
+        asString(input.pickup_address).trim().slice(0, 160) || picks.from,
+      ).place;
+      const destinationAddress = asTariffPlace(
+        asString(input.destination_address).trim().slice(0, 160) || picks.to,
+      ).place;
 
       if (!draft.pickup && !pickupAddress) {
         return fail(
@@ -2323,8 +2337,15 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         );
       }
 
+      // The tariff's spelling, where what they typed is only a misspelling
+      // of one. A fare quoted for Bagotville must be read back as Bagotville,
+      // not as the typing it was recognised from. An address with a street on
+      // it is left exactly as given - the zone is how it is PRICED, not what
+      // the driver is sent to find.
+      const { place: named, corrected } = asTariffPlace(wanted);
+
       const from = order.pickup?.address || '';
-      const quoted = taxiFare(from, wanted);
+      const quoted = taxiFare(from, named);
 
       // The same gate booking has: the shop will not act on a figure it has
       // not put in front of them. `confirmed` is a field the model fills in,
@@ -2337,16 +2358,19 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         repo.setTaxiFareShown(ctx.phone, quoted.fee);
         return ok({
           was: order.address || 'unstated',
-          now: wanted,
+          now: named,
+          ...(corrected ? { read_from: wanted } : {}),
           old_fare: order.quotedFare > 0 ? money(order.quotedFare) : 'not priced',
           new_fare: money(quoted.fee),
           priced_by: quoted.say,
-          say: `Going to ${wanted} instead makes the fare ${money(quoted.fee)} rather than ${money(order.quotedFare)}.`,
-          next: 'Read both figures back and get a clear yes, then call change_destination again with the same new_destination and confirmed true. Change nothing until they have agreed the new fare.',
+          say: `Going to ${named} instead makes the fare ${money(quoted.fee)} rather than ${money(order.quotedFare)}.`,
+          next: corrected
+            ? `They typed "${wanted}" and the tariff knows it as ${named}. Read BOTH figures and that name back, so they can catch it if it is the wrong place, then call change_destination again with confirmed true once they have agreed.`
+            : 'Read both figures back and get a clear yes, then call change_destination again with the same new_destination and confirmed true. Change nothing until they have agreed the new fare.',
         });
       }
 
-      repo.changeTaxiDestination(order.orderNo, wanted, quoted?.fee ?? 0);
+      repo.changeTaxiDestination(order.orderNo, named, quoted?.fee ?? 0);
       repo.setTaxiFareShown(ctx.phone, -1);
 
       // The driver is holding a card for the old destination. Telling them is
@@ -2359,12 +2383,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       return ok({
         changed: true,
         job_number: order.orderNo,
-        destination: wanted,
+        destination: named,
         ...(quoted
-          ? { fare: money(quoted.fee), say: `${order.orderNo} now goes to ${wanted}, ${money(quoted.fee)}.` }
+          ? { fare: money(quoted.fee), say: `${order.orderNo} now goes to ${named}, ${money(quoted.fee)}.` }
           : {
               fare: 'to be agreed with the driver',
-              say: `${order.orderNo} now goes to ${wanted}. The tariff cannot price that one, so the driver will agree the fare with them.`,
+              say: `${order.orderNo} now goes to ${named}. The tariff cannot price that one, so the driver will agree the fare with them.`,
             }),
         next: 'Tell them it is changed and that the driver has been told. Do not promise a new time.',
       });

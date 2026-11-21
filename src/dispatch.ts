@@ -34,6 +34,7 @@ import {
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 import { jobStartsAt, stagePool, standings, describeStage, type Stage } from './nearby.ts';
 import { waitingLine, taxiFare } from './taxi.ts';
+import { asTariffPlace } from './zones.ts';
 import { languageFor } from './services.ts';
 import { t } from './language.ts';
 
@@ -548,9 +549,15 @@ export async function proposeDestinationToPassenger(
     return `${orderNo} is no longer under way, so nothing was changed.`;
   }
 
+  // The tariff's spelling, not the driver's. The near-matcher could always
+  // price `Bagotvile` — it is Bagotville and costs what Bagotville costs —
+  // but the typing was what got written down and put to the passenger, who
+  // was then asked to agree to a place that does not exist.
+  const { place: named, corrected } = asTariffPlace(place);
+
   const from = order.pickup?.address ?? '';
-  const quoted = taxiFare(from, place);
-  repo.proposeDestination(orderNo, place, quoted?.fee ?? -1);
+  const quoted = taxiFare(from, named);
+  repo.proposeDestination(orderNo, named, quoted?.fee ?? -1);
 
   const lang = languageFor(order.phone);
   const was = order.quotedFare > 0 ? money(order.quotedFare) : t('taxi_fare_with_driver', lang);
@@ -558,14 +565,18 @@ export async function proposeDestinationToPassenger(
 
   await sendButtons(
     order.phone,
-    t('dest_ask', lang, { place, was, now }),
+    t('dest_ask', lang, { place: named, was, now }),
     // Built where they are read, so the id and the pattern that matches it
     // cannot drift apart in two files.
     destAnswerButtons(repo.orderDigits(orderNo), t('dest_ack', lang), t('dest_keep', lang)),
   );
 
   return [
-    `Asked them about *${place}*${quoted ? ` — ${money(quoted.fee)}` : ''}.`,
+    `Asked them about *${named}*${quoted ? ` — ${money(quoted.fee)}` : ''}.`,
+    // Said out loud when it is not what they typed, so a wrong guess is
+    // caught by the person who knows the answer rather than by the
+    // passenger, who has only the shop's word for where they are going.
+    ...(corrected ? [`(read from "${place}" — raise it again if that is wrong)`] : []),
     '',
     'Carry on to where you were going until they answer.',
   ].join(String.fromCharCode(10));

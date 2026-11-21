@@ -3682,6 +3682,33 @@ section('Picking a place instead of typing one');
       liveTripActions({ orderNo: 'ORD-00001', kind: 'grocery', status: 'on_the_way', waitingSince: '' })
         .length === 0);
 
+    // ---- a misspelling is written down as the place it is -------------
+    // The matcher could always PRICE `Bagotvile`. What went out was the
+    // typing, so a passenger was asked to agree to a place that does not
+    // exist, at a figure they could not check against anything.
+    const { asTariffPlace } = await import('./zones.ts');
+    check('a misspelling becomes the place it means',
+      asTariffPlace('Bagotvile').place === 'Bagotville', asTariffPlace('Bagotvile').place);
+    check('and says that it was corrected', asTariffPlace('Bagotvile').corrected === true);
+    check('a name spelled right is left alone',
+      asTariffPlace('Bagotville').corrected === false);
+    check('an address keeps its street',
+      asTariffPlace('14 Delph Street, Campbellville').place === '14 Delph Street, Campbellville',
+      asTariffPlace('14 Delph Street, Campbellville').place);
+    check('and a place the tariff never heard of is left as said',
+      asTariffPlace('round by the sea wall').place === 'round by the sea wall');
+
+    repo.setOrderStatus(ride.orderNo, 'on_the_way');
+    await driverSays(tapped(`changedest_${digits}`, 'Change destination', drv), drv);
+    const spelled = await driverSays('Bagotvile', drv);
+    check('the proposal holds the real place',
+      repo.destProposal(ride.orderNo)?.place === 'Bagotville',
+      repo.destProposal(ride.orderNo)?.place);
+    check('and the driver is told what it was read as',
+      /read from "Bagotvile"/.test((spelled[0] as { text?: string }).text ?? ''),
+      (spelled[0] as { text?: string }).text);
+    repo.clearDestProposal(ride.orderNo);
+
     // ---- the safety code is said once -------------------------------
     // A destination that changes mid-trip used to re-send the whole pickup
     // card, which repeats the code the passenger has already checked. It is
