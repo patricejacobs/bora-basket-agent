@@ -40,6 +40,7 @@ import {
 import { tellDriverOfNewDestination, tellDriverDestKept } from './dispatch.ts';
 import { money } from './config.ts';
 import {
+  handleDropPick,
   describeTap,
   endPicker,
   handlePick,
@@ -513,6 +514,30 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // themselves come straight out of the tariff — so there is nothing for a
   // language model to add except the chance of a different village coming
   // back. Only a finished choice reaches the agent, as a note.
+  // The delivery list, which is the same list asked by a different service.
+  // Read here for the same reason the taxi's is: the id carries a corridor
+  // and a page, the places come straight out of the tariff, and there is
+  // nothing for a model to add except the chance of a different village.
+  if (chosen && chosen !== 'taxi' && isPickerId(text)) {
+    const lang = languageFor(msg.phone);
+    const result = handleDropPick(msg.phone, text, lang);
+
+    if (result?.kind === 'reply') return shopAnswered(msg, result.outbound, describeTap(text));
+
+    if (result?.kind === 'menu') {
+      repo.setService(msg.phone, null);
+      repo.setBrowsingOutlet(msg.phone, null);
+      repo.resetConversation(msg.phone);
+      const menu = serviceMenuReply(msg.phone);
+      for (const out of menu) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return menu;
+    }
+
+    // Settled, or handed back: the agent is told what happened in place of
+    // the row id, which would mean nothing to it.
+    if (result?.kind === 'note') text = result.note;
+  }
+
   if (chosen === 'taxi' && isPickerId(text)) {
     const lang = languageFor(msg.phone);
     const result = handlePick(msg.phone, text, lang);

@@ -21,6 +21,8 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
+import { settleDeliveryPlace } from '../delivery-place.ts';
+import { endPicker } from '../place-picker.ts';
 import {
   asTariffPlace,
   findZone,
@@ -2034,39 +2036,24 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             `"${place}" is not a place in the tariff. Look it up with \`text\` first and use the name the shop gives back.`,
           );
         }
-        // A parcel's zone belongs to the parcel, not to the customer.
-        //
-        // A parcel goes where the customer is not. Writing the recipient's
-        // zone onto the customer record would price their own shopping next
-        // week as if they lived at the far end of a delivery they paid for
-        // once - and nobody would connect the two.
+        // Settled in one place for both routes into it - this, and the
+        // customer tapping their village off the list. Two ways to the same
+        // answer must price identically, and a parcel's rules (both ends,
+        // and the zone belongs to the parcel rather than to the customer)
+        // are exactly what gets copied wrong when they live in two files.
         const forParcel = repo.getService(ctx.phone) === 'parcel';
-        if (forParcel) repo.setParcelZone(ctx.phone, known.match.place);
-        else repo.setDeliveryZone(ctx.phone, known.match.place);
-
-        // The figure they are about to hear has to be the figure they will
-        // be charged. A parcel is priced from both ends, so a sender in
-        // Parika reading back "Diamond, $1,800" would have been billed
-        // $6,300 — the exact shape of complaint this read-back exists to
-        // prevent, introduced by the thing that made the pricing fairer.
-        const sender = forParcel ? repo.getParcelDraft(ctx.phone).sender.address : '';
-        const bothEnds = forParcel && sender ? fareBetween(sender, known.match.place) : null;
-        const charge = bothEnds ? bothEnds.fee : known.match.fee;
-
-        // Written down as agreed. place_order and create_parcel_job refuse to
-        // charge more than this, so the quote is a promise rather than a
-        // courtesy.
-        repo.setFeeAgreed(ctx.phone, charge);
+        const settled = settleDeliveryPlace(ctx.phone, known.match.place)!;
+        const charge = settled.fee;
 
         return ok({
           confirmed: true,
-          place: known.match.place,
-          zone: known.match.zone,
+          place: settled.place,
+          zone: settled.zone,
           delivery_fee: money(charge),
-          ...(bothEnds ? { priced_by: bothEnds.explanation } : {}),
-          say: bothEnds
-            ? `Delivery from ${bothEnds.from.place} to ${bothEnds.to.place} is ${money(charge)}.`
-            : `Delivery to ${known.match.place} is ${money(charge)}.`,
+          ...(settled.pricedBy ? { priced_by: settled.pricedBy } : {}),
+          say: settled.pricedBy
+            ? `Delivery ${settled.pricedBy} is ${money(charge)}.`
+            : `Delivery to ${settled.place} is ${money(charge)}.`,
           next: forParcel
             ? 'Now you may quote it. create_parcel_job will charge exactly this and will refuse to charge more.'
             : 'Now you may quote it. It is already in the cart total, and place_order will refuse to charge more.',
@@ -2078,22 +2065,53 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       const found = findZone(text);
 
+      // The two ways this fails, and the one answer to both: show them the
+      // places. Asking again in words is what used to happen, and it is the
+      // worst moment in the conversation - somebody who has already typed
+      // their village twice is asked to type it a third time, and the shop
+      // has no better idea what to do with the third attempt than the first.
+      //
+      // The list is sent by the SHOP, from here, so it cannot be skipped by
+      // a turn that decides to ask in words instead. Tapping a row settles
+      // the place and the charge together: the figure is printed on the row
+      // they chose, which is a clearer agreement than any read-back.
       if (found.kind === 'unknown') {
+        ctx.outbound.push(endPicker(ctx.phone, 'drop', languageFor(ctx.phone)));
         return ok({
           priced: false,
           matched: null,
+          offered_the_list: true,
           flat_fee: money(unmatchedFee(ctx.phone)),
-          note: `Nothing in the tariff is close to "${text}". Ask which village or area it is, in their own words — do not guess. If they say it again and it still does not match, tell them delivery is the standard ${money(unmatchedFee(ctx.phone))} and, once they agree, call delivery_zone with confirmed true and no place.`,
+          note: `Nothing in the tariff is close to "${text}", so they have ALREADY been sent a list of places to tap. Do not ask where they are again and do not name places yourself — say one short line at most, and wait for the tap. If they type something instead of tapping, call delivery_zone again with it. If nothing matches in the end, delivery is the standard ${money(unmatchedFee(ctx.phone))} and they must agree it before you call delivery_zone with confirmed true and no place.`,
         });
       }
 
       if (found.kind === 'ambiguous') {
+        // Not the whole corridor list here: the tariff has already narrowed
+        // it to a handful, and a list of four beats a list of five corridors
+        // when the only question left is WHICH of the four.
+        //
+        // A LIST and not buttons, though there are only a few. A button
+        // title is cut at twenty characters, and these places are alike by
+        // definition - "Golden Grove East Co" and "Golden Grove East Ba"
+        // are the same word to anybody reading them. A row gets
+        // twenty-four and a line underneath, so the price that makes them
+        // different is on the screen beside the names that do not.
+        ctx.outbound.push({
+          kind: 'list',
+          text: t('pick_which_place', languageFor(ctx.phone), { said: text }),
+          button: t('pick_button', languageFor(ctx.phone)),
+          rows: found.candidates.slice(0, 4).map((c) => ({
+            id: `pick:drop:place:${c.place}`,
+            title: c.place.slice(0, 24),
+            description: `${money(c.fee)} — ${c.zone}`,
+          })),
+        });
         return ok({
           priced: false,
-          // Said as a question, with the prices, because the difference
-          // between them is the whole reason this is being asked.
+          offered_the_list: true,
           ask: found.candidates.map((c) => `${c.place} (${describeZone(c)})`),
-          note: `More than one place fits "${text}" and they are not the same price. Ask which one, naming them. Quote nothing until they answer.`,
+          note: `More than one place fits "${text}" and they are not the same price. They have ALREADY been sent the choice as buttons — say nothing further about it and wait for the tap.`,
         });
       }
 

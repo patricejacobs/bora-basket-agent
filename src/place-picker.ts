@@ -32,6 +32,7 @@ import { config, money } from './config.ts';
 import { t, type Language } from './language.ts';
 import * as repo from './db/repo.ts';
 import { corridors, placesIn, fareBetween, findZone } from './zones.ts';
+import { settleDeliveryPlace } from './delivery-place.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 /**
@@ -67,7 +68,16 @@ const MAX_ROWS = 10;
  */
 const PREFIX = 'pick';
 
-export type PickSide = 'from' | 'to';
+/**
+ * Which end of the question a row belongs to.
+ *
+ * `from` and `to` are a taxi's two ends. `drop` is a DELIVERY address, which
+ * is neither: there is one end, the shop is the other, and the figure on a
+ * row is the delivery charge rather than a fare. It shares every row, every
+ * page and every way out with the other two, because it is the same question
+ * - which of these places do you mean - asked by a different service.
+ */
+export type PickSide = 'from' | 'to' | 'drop';
 
 export type Pick =
   | { kind: 'type'; side: PickSide }
@@ -140,7 +150,8 @@ export function readPick(id: string): Pick | null {
     return null;
   }
 
-  const side = parts[1] === 'to' ? 'to' : parts[1] === 'from' ? 'from' : null;
+  const side: PickSide | null =
+    parts[1] === 'to' ? 'to' : parts[1] === 'from' ? 'from' : parts[1] === 'drop' ? 'drop' : null;
   if (!side) return null;
 
   const kind = parts[2] ?? '';
@@ -232,7 +243,7 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
     rows.push(placeRow(side, savedZone.match.place, t('pick_saved', lang)));
   }
 
-  for (const place of repo.recentTaxiPlaces(phone, 2)) {
+  for (const place of side === 'drop' ? [] : repo.recentTaxiPlaces(phone, 2)) {
     const found = findZone(place);
     if (found.kind !== 'found') continue;
     if (rows.some((r) => r.title === found.match.place.slice(0, 24))) continue;
@@ -251,7 +262,12 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
 
   return {
     kind: 'list',
-    text: side === 'from' ? t('pick_from_ask', lang) : t('pick_to_ask', lang),
+    text:
+      side === 'drop'
+        ? t('pick_drop_ask', lang)
+        : side === 'from'
+          ? t('pick_from_ask', lang)
+          : t('pick_to_ask', lang),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
   };
@@ -317,7 +333,7 @@ export function corridorPicker(
     placeRow(
       side,
       r.place,
-      side === 'to' && r.fare !== null ? money(r.fare) : undefined,
+      side !== 'from' && r.fare !== null ? money(r.fare) : undefined,
     ),
   );
 
@@ -337,7 +353,7 @@ export function corridorPicker(
       // "Nearest first" is only true where a fare did the sorting. On a
       // pickup page nothing is priced, so it says how many, and nothing it
       // cannot stand behind.
-      description: t(side === 'to' ? 'pick_more_hint' : 'pick_more_plain', lang, {
+      description: t(side === 'from' ? 'pick_more_plain' : 'pick_more_hint', lang, {
         n: String(left - take),
       }),
     });
@@ -592,4 +608,88 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
  */
 export function pickerAvailable(): boolean {
   return corridors().length > 0 && Boolean(config.store.zonesPath);
+}
+
+/**
+ * A tapped row on the DELIVERY list.
+ *
+ * Kept apart from handlePick, which is a taxi's two ends and its fare gate.
+ * This one has a single end and a different meaning for settling it: the
+ * place is written down as the delivery zone, the charge is recorded as
+ * agreed, and the next question is the pin rather than the other end of a
+ * journey.
+ *
+ * A tap IS the agreement to the fee. They chose a row with the figure
+ * printed on it, which is a clearer yes than any read-back in words.
+ */
+export function handleDropPick(
+  phone: string,
+  id: string,
+  lang: Language = 'en',
+): PickResult | null {
+  const pick = readPick(id);
+  if (!pick || pick.kind === 'fare' || pick.side !== 'drop') return null;
+
+  if (pick.kind === 'menu') return { kind: 'menu' };
+  if (pick.kind === 'back' || pick.kind === 'list') {
+    return { kind: 'reply', outbound: [endPicker(phone, 'drop', lang)] };
+  }
+
+  if (pick.kind === 'corridor') {
+    const page = corridorPicker(phone, 'drop', pick.corridor, pick.page, lang);
+    // Off the end of a corridor is not an error, it is the end of the list.
+    return { kind: 'reply', outbound: [page ?? endPicker(phone, 'drop', lang)] };
+  }
+
+  if (pick.kind === 'type') {
+    return {
+      kind: 'note',
+      note:
+        '[They tapped *Type the address* on the delivery list, so the places shown are NOT where they are going. ' +
+        'Ask for the address in words, then call delivery_zone with it.]',
+    };
+  }
+
+  if (pick.kind === 'spot') {
+    return {
+      kind: 'reply',
+      outbound: [{ kind: 'location_request', text: t('spot_prompt_to', lang) }],
+    };
+  }
+
+  if (pick.kind === 'skip') {
+    return {
+      kind: 'note',
+      note:
+        '[They chose not to send a pin for the delivery. The place and the delivery charge are settled — ' +
+        'do not ask for either again. Carry on with the order, and take the street address in words.]',
+    };
+  }
+
+  // A place, which is the whole point of the list.
+  const settled = settleDeliveryPlace(phone, pick.place);
+  if (!settled) {
+    // The row named a place the tariff no longer carries - a list sent
+    // before a deploy, tapped after it. Ask again rather than guess.
+    return { kind: 'reply', outbound: [endPicker(phone, 'drop', lang)] };
+  }
+
+  return {
+    kind: 'reply',
+    outbound: [
+      spotAsk2(settled.place, money(settled.fee), lang),
+    ],
+  };
+}
+
+/** The delivery's own version of the exact-spot offer, with the charge on it. */
+function spotAsk2(place: string, fee: string, lang: Language): OutboundMessage {
+  return {
+    kind: 'buttons',
+    text: t('spot_ask_drop', lang, { place, fee }),
+    buttons: [
+      { id: `${PREFIX}:drop:spot`, title: t('spot_send', lang) },
+      { id: `${PREFIX}:drop:skip`, title: t('spot_skip', lang) },
+    ],
+  };
 }

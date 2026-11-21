@@ -969,6 +969,91 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* ------------------------------------------------- the delivery address */
+
+section('Tapping the delivery address');
+{
+  const { endPicker, handleDropPick } = await import('./place-picker.ts');
+  const { settleDeliveryPlace } = await import('./delivery-place.ts');
+
+  const shopper = '5920007500';
+  repo.saveCustomer(shopper, { name: 'Marcia', contactPhone: shopper });
+  repo.chooseLanguage(shopper, 'en');
+  repo.setService(shopper, 'grocery');
+
+  // The list a delivery customer gets is the taxi's list asked by another
+  // service: the same rows, the same ways out, priced from the DELIVERY
+  // tariff because no pickup is set.
+  const list = endPicker(shopper, 'drop', 'en');
+  check('the delivery list is a list', list.kind === 'list', list.kind);
+  check('and asks about delivering, not collecting',
+    /deliver/i.test(list.text) && !/collect/i.test(list.text), list.text);
+  check('it offers a way to type instead',
+    list.rows.some((r) => /type/i.test(r.title)), JSON.stringify(list.rows.map((r) => r.title)));
+
+  const page = handleDropPick(shopper, 'pick:drop:corr:0:East Coast Demerara', 'en');
+  const rows = page?.kind === 'reply' ? (page.outbound[0] as { rows: { description?: string }[] }).rows : [];
+  check('a corridor page shows the delivery charge',
+    rows.some((r) => /\$/.test(r.description ?? '')),
+    JSON.stringify(rows.map((r) => r.description)));
+
+  // The tap IS the agreement: the figure was printed on the row.
+  const tapped = handleDropPick(shopper, 'pick:drop:place:Beterverwagting', 'en');
+  check('tapping settles the zone', repo.getCustomer(shopper).deliveryZone === 'Beterverwagting',
+    repo.getCustomer(shopper).deliveryZone);
+  check('and records the charge as agreed', repo.feeAgreed(shopper) === 1200,
+    String(repo.feeAgreed(shopper)));
+  check('then asks for the exact spot',
+    tapped?.kind === 'reply' && tapped.outbound[0]?.kind === 'buttons' &&
+      /Beterverwagting/.test((tapped.outbound[0] as { text: string }).text),
+    JSON.stringify(tapped).slice(0, 120));
+  check('with the charge on it, so nobody is surprised later',
+    tapped?.kind === 'reply' && /\$1,200/.test((tapped.outbound[0] as { text: string }).text),
+    JSON.stringify(tapped).slice(0, 140));
+
+  // Skip is an answer, not a failure.
+  const skipped = handleDropPick(shopper, 'pick:drop:skip', 'en');
+  check('skipping the pin hands back to the agent', skipped?.kind === 'note', skipped?.kind);
+  check('telling it the place is settled',
+    skipped?.kind === 'note' && /do not ask for either again/i.test(skipped.note), '');
+
+  // The same settling, from either route, priced the same way.
+  const typedRoute = '5920007510';
+  repo.saveCustomer(typedRoute, { name: 'Ravi', contactPhone: typedRoute });
+  repo.setService(typedRoute, 'grocery');
+  const settled = settleDeliveryPlace(typedRoute, 'bv');
+  check('the shared settler takes a short form', settled?.place === 'Beterverwagting',
+    settled?.place);
+  check('and prices it the same as the tap', settled?.fee === 1200, String(settled?.fee));
+  check('a place the tariff never heard of settles nothing',
+    settleDeliveryPlace(typedRoute, 'by the big mango tree') === null);
+
+  // And the moment it is for: an address nobody can place.
+  const lost = '5920007520';
+  repo.saveCustomer(lost, { name: 'Ann', contactPhone: lost });
+  repo.setService(lost, 'grocery');
+  const ctxLost: ToolContext = { phone: lost, outbound: [] };
+  const answered = JSON.parse(executeTool('delivery_zone', { text: 'by the big mango tree' }, ctxLost));
+  check('an unplaceable address sends the list itself',
+    ctxLost.outbound[0]?.kind === 'list', JSON.stringify(ctxLost.outbound).slice(0, 80));
+  check('and the model is told not to ask again',
+    answered.offered_the_list === true && /ALREADY been sent/.test(String(answered.note)),
+    String(answered.note).slice(0, 80));
+
+  // Two places of the same name: a LIST, because a button title is cut at
+  // twenty characters and these are alike by definition.
+  const twins: ToolContext = { phone: lost, outbound: [] };
+  executeTool('delivery_zone', { text: 'golden grove' }, twins);
+  const choice = twins.outbound[0] as { kind: string; rows?: { title: string; description?: string }[] };
+  check('lookalike places come as rows, not buttons', choice?.kind === 'list', choice?.kind);
+  check('each one priced, which is what tells them apart',
+    (choice.rows ?? []).every((r) => /\$/.test(r.description ?? '')),
+    JSON.stringify(choice.rows));
+  check('and their names survive the row width',
+    (choice.rows ?? []).every((r) => r.title.length <= 24 && !/East B$|East C$/.test(r.title)),
+    JSON.stringify((choice.rows ?? []).map((r) => r.title)));
+}
+
 /* ------------------------------------------------------------ their words */
 
 section("The customer's own words, in English");

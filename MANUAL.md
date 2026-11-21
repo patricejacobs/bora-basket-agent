@@ -1248,6 +1248,72 @@ Bank, is that right?"* — and only then is the figure quotable. The tool will
 not hand over a fee until that has happened, and will not accept a place name
 the shop never offered.
 
+**When the shop cannot place what they typed, it shows them the list.** This
+is the taxi's place picker, asked by another service: the same rows, the same
+corridors, the same ways out — and priced from the delivery tariff, which is
+the figure those rows have always carried. It is sent by the shop itself, not
+by the agent, so it cannot be replaced by a third round of *"which area is
+that?"*
+
+```
+them ▸ by the big mango tree
+
+   Where are we delivering?
+     ▸ Georgetown
+     ▸ East Coast Demerara
+     ▸ East Bank Demerara
+     ▸ West Bank Demerara
+     ▸ West Coast Demerara
+     ▸ ✏️ Type the name      Quicker than scrolling — any spelling will do
+     ▸ ⬅️ Main menu
+
+   Which part of East Coast Demerara?
+     ▸ Better Hope          $1,000
+     ▸ La Bonne Intention   $1,000
+     ▸ Plaisance            $1,000
+     ▸ More places          45 more places, nearest first
+```
+
+**A tap is the agreement.** The charge is printed on the row they chose,
+which is a plainer yes than any read-back in words — so the place and the fee
+are settled together, and the gate that refuses to charge more than was
+quoted is satisfied by the tap itself.
+
+**Then the pin, straight away**, while they are still thinking about where
+they are:
+
+```
+*Beterverwagting* — got it, delivery is $1,200. Send your exact spot on the
+map and the associate will come straight to your door.
+   [ 📍 Send location ]   [ Skip ]
+```
+
+Asked here rather than at checkout, which is where it was missed often enough
+that `⚠️ NO PIN — ring before you set off` is on a great many associate cards.
+Skip is an answer: the place and the charge stay settled and the street
+address is taken in words.
+
+**Two places of one name come as a list, not buttons.** A button title is cut
+at twenty characters, and *Golden Grove East Coast* and *Golden Grove East
+Bank* are the same word by then. A row gets twenty-four and a line under it,
+so the price that tells them apart is on the screen beside the names that do
+not:
+
+```
+There is more than one *golden grove*, and they are not the same price.
+Which one?
+   ▸ Golden Grove East Coast   $2,800 — East Coast far
+   ▸ Golden Grove East Bank    $2,000 — East Bank
+```
+
+**One function settles a delivery place, whichever way it was chosen** —
+`settleDeliveryPlace` in `delivery-place.ts`. A tapped row and a typed
+address that was read back arrive at the same code, so they cannot drift
+apart on price. It carries the rule that is easiest to get wrong twice: a
+**parcel** is priced from both ends, and its zone belongs to the parcel
+rather than to the customer, because a parcel goes where the customer is
+not.
+
 **Spelling is not what the customer is being asked about.** Names are matched
 on how they sound, so all of these reach the same village:
 
