@@ -2096,7 +2096,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // WOULD be, and handing the model a field called `delivery_fee`
         // before the place is agreed is how it ends up in a sentence.
         would_be: money(m.fee),
-        spelling: m.exact ? 'as they wrote it' : 'a near spelling, matched on sound',
+        spelling: m.exact
+          ? 'as they wrote it'
+          : 'not what they wrote — a short form such as BV, or a near spelling matched on sound',
         say: `Read the place back and get a yes: "that's ${m.place}, is that right?"`,
         next: `Say nothing about the price yet. When they agree, call delivery_zone again with place "${m.place}" and confirmed true.`,
       });

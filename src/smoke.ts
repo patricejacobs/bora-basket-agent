@@ -3722,6 +3722,40 @@ section('Picking a place instead of typing one');
     // typing, so a passenger was asked to agree to a place that does not
     // exist, at a figure they could not check against anything.
     const { asTariffPlace } = await import('./zones.ts');
+    // ---- the names people actually use --------------------------------
+    // Nobody asks for a car to Beterverwagting. The tariff had never heard
+    // of BV, so the lookup came back unknown and the passenger was asked
+    // again for a place they had already named correctly.
+    const { findZone: zoneOf } = await import('./zones.ts');
+    const bv = zoneOf('BV');
+    check('BV is Beterverwagting',
+      bv.kind === 'found' && bv.match.place === 'Beterverwagting',
+      JSON.stringify(bv).slice(0, 80));
+    const gt = zoneOf('gt');
+    check('GT is Georgetown',
+      gt.kind === 'found' && gt.match.place === 'Georgetown', JSON.stringify(gt).slice(0, 80));
+    const dotted = zoneOf('B.V.');
+    check('and the full stops make no difference',
+      dotted.kind === 'found' && dotted.match.place === 'Beterverwagting',
+      JSON.stringify(dotted).slice(0, 80));
+
+    const { taxiFare: fareOf } = await import('./taxi.ts');
+    check('a trip can be priced from one to the other', fareOf('GT', 'BV') !== null,
+      JSON.stringify(fareOf('GT', 'BV')));
+
+    // On its own it is the place, so the trip is written down under the name.
+    check('on its own it is written down as the place',
+      asTariffPlace('BV').place === 'Beterverwagting', asTariffPlace('BV').place);
+    // Inside an address it is a word like any other, and the address stands:
+    // "Lot 8 BV" is where the driver goes, Beterverwagting is only how the
+    // trip is priced.
+    check('inside an address the address stands',
+      asTariffPlace('Lot 8 BV').place === 'Lot 8 BV', asTariffPlace('Lot 8 BV').place);
+    const inAddress = zoneOf('Lot 8 BV');
+    check('and is still priced by the place it names',
+      inAddress.kind === 'found' && inAddress.match.place === 'Beterverwagting',
+      JSON.stringify(inAddress).slice(0, 80));
+
     check('a misspelling becomes the place it means',
       asTariffPlace('Bagotvile').place === 'Bagotville', asTariffPlace('Bagotvile').place);
     check('and says that it was corrected', asTariffPlace('Bagotvile').corrected === true);

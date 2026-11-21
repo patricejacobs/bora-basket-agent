@@ -371,11 +371,66 @@ export function asTariffPlace(text: string): { place: string; corrected: boolean
   return { place: found.match.place, corrected: found.match.place !== said };
 }
 
+/**
+ * What a place is called by the people who go there.
+ *
+ * Not nicknames and not slang: these are the ordinary names. Nobody asks for
+ * a car to Beterverwagting, they ask for BV, and the tariff had never heard
+ * of it — the lookup came back `unknown` and the passenger was asked again
+ * for a place they had already named correctly. The gazetteer these names
+ * were geocoded against does not list them either, because it lists what is
+ * on a map rather than what is in a mouth.
+ *
+ * Keyed and valued in the plain form, and substituted WORD BY WORD, so "BV
+ * public road" and "GT" both land. Added only on the word of somebody who
+ * lives there — a wrong alias is a car sent to the wrong village, and
+ * nothing downstream would question it.
+ */
+const ALIASES: Record<string, string> = {
+  bv: 'beterverwagting',
+  gt: 'georgetown',
+};
+
+const expandAliases = (said: string): string =>
+  said
+    .split(' ')
+    .map((word) => ALIASES[word] ?? word)
+    .join(' ');
+
+/**
+ * The tariff's answer to what somebody typed.
+ *
+ * A short form is swapped for the name before anything else happens, and
+ * what comes back is marked as not being what they wrote — which is true,
+ * and is what has the trip written down as Beterverwagting rather than as
+ * BV. See asTariffPlace, which is where that matters.
+ */
 export function findZone(text: string): ZoneLookup {
+  const said = plain(text);
+
+  // The short form ON ITS OWN is the place, and is not what the place is
+  // called, so the trip gets written down under the name. `B.V.` arrives
+  // here as `b v`, which is why the spaces come out before the lookup.
+  const alone = ALIASES[said.replace(/\s+/g, '')];
+  if (alone) {
+    const found = lookupZone(alone);
+    return found.kind === 'found'
+      ? { kind: 'found', match: { ...found.match, exact: false } }
+      : found;
+  }
+
+  // Inside a longer address it is a word like any other: swapped so the
+  // matcher can read the rest, and the address kept exactly as written.
+  // `Lot 8 BV` is where a driver is going; `Beterverwagting` is only how
+  // the trip is priced, and overwriting one with the other loses the lot
+  // number.
+  return lookupZone(expandAliases(said));
+}
+
+function lookupZone(said: string): ZoneLookup {
   const table = zones();
   if (table.length === 0) return { kind: 'unknown' };
 
-  const said = plain(text);
   if (!said) return { kind: 'unknown' };
   const saidWords = said.split(' ');
 

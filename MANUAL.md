@@ -1731,6 +1731,23 @@ further than that goes unmatched and the agent asks, which is the right way
 round for a fare: a question costs a message, a wrong village costs the
 difference and nobody notices until the car arrives. *Mahdia* is not *Mahaica*.
 
+**The names people actually use are in the tariff.** Nobody asks for a car to
+Beterverwagting; they ask for **BV**. Nobody says Georgetown; they say **GT**.
+The tariff had never heard of either, so the lookup came back empty and the
+passenger was asked again for a place they had already named correctly — the
+gazetteer those places were geocoded against lists what is on a map, not what
+is in a mouth.
+
+| What they type | What happens |
+|---|---|
+| `BV`, `bv`, `B.V.` | Beterverwagting. On its own the short form **is** the place, so the trip is written down under the name |
+| `GT` | Georgetown, the same way |
+| `Lot 8 BV` | Priced as Beterverwagting, **written down as `Lot 8 BV`** — that is where the driver goes; the village is only how it is priced |
+
+The list lives in `ALIASES` in `zones.ts` and grows only on the word of
+somebody who lives there. A wrong alias is a car sent to the wrong village,
+and nothing downstream would question it.
+
 **What is matched is also what gets written down.** The matcher could always
 *price* a misspelling — `Bagotvile` is Bagotville and costs what Bagotville
 costs — but the typing was what went into the record, onto the driver's card
