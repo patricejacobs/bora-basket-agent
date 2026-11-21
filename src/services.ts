@@ -264,7 +264,7 @@ export function serviceMenuReply(phone: string): OutboundMessage[] {
 export function serviceContextLine(service: Service): string {
   const lines: Record<Service, string> = {
     taxi:
-      'Service chosen: *taxi*. No catalogue and no cart: two ends and a passenger. Get where they are being collected from and where they are going — each a pin or an address in words — ask who is travelling and anything the driver should know, then call book_taxi. The delivery associates drive these, and the job goes out to them the moment it is booked. Never quote a fare: the driver agrees it with the passenger. If they ask for groceries, food or a parcel instead, call switch_service.',
+      'Service chosen: *taxi*. No catalogue and no cart: two ends and a passenger. The shop asks for both ends itself, off a list of places built from the delivery tariff, and tells you what was chosen — so do not ask for an end it has already given you. Your part is what the list cannot ask: how many are travelling, and anything the driver should know. Then call book_taxi, which quotes the fare and sends it with its own buttons; the passenger taps Book it. Do not quote, repeat or guess a fare yourself — the figure belongs to the tariff, not to you, and book_taxi is the only thing that may say it. The delivery associates drive these, and the job goes out the moment it is booked. If they ask for groceries, food or a parcel instead, call switch_service.',
     grocery:
       "Service chosen: *grocery shopping* from the shop's own catalogue. Do not offer restaurant menus or parcel delivery unasked — but if they ask for one, switch_service takes them there in the same breath.",
     restaurant:

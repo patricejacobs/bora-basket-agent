@@ -1590,6 +1590,33 @@ note naming both places and the fare.
 It appears only where there is a tariff to pick from. A shop on the flat fee
 has no places to list, and gets the old typed question instead.
 
+### What the agent is told it already has
+
+The picker answers its own taps. A passenger choosing Meadow Bank off a list
+and then being asked for the exact spot has had three or four exchanges with
+the **shop** and none with the agent — those turns never reach the agent, so
+they are not in its history.
+
+So the moment anything hands over — a typed address, a question, an "ok" —
+the agent would pick up a conversation whose first half it had no record of,
+and ask where they were going when they had said so two taps earlier. From
+its own account, the booking had just begun.
+
+Every turn now carries a line saying what the shop actually holds:
+
+> This taxi already has its pickup *Meadow Bank*, destination *Zeelugt*,
+> chosen off the place picker — treat that as said and do not ask for it
+> again. The tariff prices the trip at $4,200; book_taxi quotes it properly.
+
+The same correction `openJobsLine` makes for finished orders, and for the
+same reason: an agent answering from a stale account is not being stubborn,
+it is answering from the only account it has.
+
+The standing taxi brief was corrected to match the shop it describes. It
+said **"never quote a fare: the driver agrees it with the passenger"** —
+true when a taxi had no tariff, and flatly contradicting `book_taxi`, which
+had been quoting one beside it ever since.
+
 ### The fare, and the three answers to it
 
 Once both ends are known the fare goes out as **three buttons**, which is

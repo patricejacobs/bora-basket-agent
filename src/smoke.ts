@@ -3509,6 +3509,46 @@ section('Picking a place instead of typing one');
     repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
+  /* --- what the agent is told it already has --------------------------- */
+
+  // The picker answers its own taps, so those turns never reach the agent at
+  // all. The moment anything hands over — a typed address, a question, an
+  // "ok" — it picks up a conversation whose first half it has no record of,
+  // and asks where they are going when they said so two taps earlier.
+  {
+    const { buildTurnContext } = await import('./agent/context.ts');
+    const told = '5920009480';
+    repo.setService(told, 'taxi');
+    repo.clearTaxiPicks(told);
+    check('nothing is claimed before anything is chosen',
+      !/already has its/.test(buildTurnContext(told)));
+
+    repo.setTaxiPick(told, 'from', 'Meadow Bank');
+    const half = buildTurnContext(told);
+    check('one end is passed on', /pickup \*Meadow Bank\*/.test(half), half.slice(-170));
+    check('and the other is named as missing', /Still needed: the destination/.test(half));
+
+    repo.setTaxiPick(told, 'to', 'Zeelugt');
+    const whole = buildTurnContext(told);
+    check('both ends are passed on',
+      /pickup \*Meadow Bank\*/.test(whole) && /destination \*Zeelugt\*/.test(whole));
+    check('with the fare the tariff gives', /\$4,200/.test(whole), whole.slice(-170));
+    check('and told not to ask again', /do not ask for it again/.test(whole));
+
+    // The standing instruction must not contradict the shop it describes.
+    // It used to say "never quote a fare", written when a taxi had no
+    // tariff — while book_taxi was quoting one beside it.
+    const { serviceContextLine } = await import('./services.ts');
+    const taxiLine = serviceContextLine('taxi');
+    check('the taxi brief does not forbid the fare it now quotes',
+      !/Never quote a fare/i.test(taxiLine));
+    check('it says book_taxi owns the figure', /book_taxi is the only thing that may say it/.test(taxiLine));
+    check('and that the shop asks for the ends', /the shop asks for both ends itself/i.test(taxiLine));
+
+    repo.setService(told, null);
+    repo.clearTaxiPicks(told);
+  }
+
   /* --- the picks feed the booking -------------------------------------- */
 
   repo.clearTaxiPicks(rider);

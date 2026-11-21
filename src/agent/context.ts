@@ -10,6 +10,7 @@ export { shopStatus, hoursStatus, type ShopStatus } from '../hours.ts';
 const isService = (v: string): v is Service => (SERVICES as readonly string[]).includes(v);
 import { checkRange, formatDistance } from '../location.ts';
 import { CUSTOMER_STATUS } from '../order-status.ts';
+import { fareBetween } from '../zones.ts';
 
 /**
  * Per-conversation context: what time it is locally, and who this customer is.
@@ -91,10 +92,50 @@ export function buildTurnContext(phone: string): string {
     languageLine(phone),
     serviceLine(phone),
     parkedLine(phone),
+    taxiLine(phone),
     openJobsLine(phone),
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * The ends of a taxi the passenger has already chosen.
+ *
+ * The same failure as openJobsLine below, and worth spelling out separately
+ * because it bit harder. The place picker answers its own taps: a passenger
+ * choosing Meadow Bank off a list, then being asked for the exact spot, has
+ * had three or four exchanges with the SHOP and none of them with the agent.
+ * Those turns never reach saveHistory, because they never reach the agent.
+ *
+ * So the moment anything hands over — a typed address, a question, an "ok" —
+ * the agent picks up a conversation whose first half it has no record of. It
+ * asked where they were going when they had said so two taps earlier, and
+ * answered as though the booking had just begun. From its own account it
+ * had.
+ *
+ * The account is corrected here, every turn, from what the shop actually has
+ * on file.
+ */
+function taxiLine(phone: string): string | null {
+  if (repo.getService(phone) !== 'taxi') return null;
+
+  const { from, to } = repo.taxiPicks(phone);
+  if (!from && !to) return null;
+
+  const fare = from && to ? fareBetween(from, to) : null;
+  const settled = [from ? `pickup *${from}*` : null, to ? `destination *${to}*` : null]
+    .filter(Boolean)
+    .join(', ');
+
+  return [
+    `This taxi already has its ${settled}, chosen off the place picker — treat that as said and do not ask for it again.`,
+    from && to
+      ? fare
+        ? `The tariff prices the trip at ${money(fare.fee)}; book_taxi quotes it properly.`
+        : 'The tariff cannot price that pair, so the driver agrees the fare.'
+      : `Still needed: the ${from ? 'destination' : 'pickup'}.`,
+  ].join(' ');
 }
 
 /**
