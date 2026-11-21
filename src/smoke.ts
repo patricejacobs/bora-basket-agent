@@ -3249,6 +3249,42 @@ section('Picking a place instead of typing one');
   // pushed typing or the way out off the end would be the picker becoming a
   // gate, which is the one thing it must never be.
   check('there is a way on to the next page', p0.some((r) => r.id.includes(':corr:1:')));
+
+  /* --- saying how to get at a place that is not on the page ------------ */
+
+  // "More…" on its own tells a passenger nothing. The East Coast runs to
+  // eight pages, so somebody heading for Belfield taps it five times without
+  // ever being told that is what they are in for. The count is the
+  // instruction — and it is honest about the length, which is the point:
+  // seeing "45 more places" is what tells somebody far out to type instead.
+  const moreRow = p0.find((r) => r.id.includes(':corr:1:'));
+  check('the More row says how much is behind it',
+    /^\d+ more places/.test(moreRow?.description ?? ''), moreRow?.description);
+  check('and the question says what to do',
+    /tap More places if you do not see yours/i.test(page0?.kind === 'list' ? page0.text : ''),
+    page0?.kind === 'list' ? page0.text : '');
+  check('typing says why you would',
+    /not on this list/i.test(p0.find((r) => r.id === 'pick:to:type')?.description ?? ''));
+
+  // The count falls as the pages go by, and the last page has neither the
+  // row nor the line — there is nothing left to explain.
+  const deep = corridorPicker(rider, 'to', 'East Coast Demerara', 1);
+  const deepRows = deep?.kind === 'list' ? deep.rows : [];
+  const countOn = (rs: typeof p0) =>
+    Number((rs.find((r) => r.id.includes(':corr:'))?.description ?? '0').match(/\d+/)?.[0] ?? 0);
+  const firstPage = corridorPicker(rider, 'to', 'East Coast Demerara', 0);
+  check('the count falls page by page',
+    countOn(deepRows) < countOn(firstPage?.kind === 'list' ? firstPage.rows : []),
+    `${countOn(firstPage?.kind === 'list' ? firstPage.rows : [])} then ${countOn(deepRows)}`);
+
+  let last = 0;
+  while (corridorPicker(rider, 'to', 'East Coast Demerara', last + 1)) last++;
+  const tail = corridorPicker(rider, 'to', 'East Coast Demerara', last);
+  const tailRows = tail?.kind === 'list' ? tail.rows : [];
+  check('the last page offers no More row', !tailRows.some((r) => r.id.includes(':corr:')));
+  check('and drops the line that explains it',
+    !/tap More places/i.test(tail?.kind === 'list' ? tail.text : ''),
+    tail?.kind === 'list' ? tail.text : '');
   check('typing is still offered', p0.some((r) => r.id === 'pick:to:type'));
   check('and the way out is the last row', p0.at(-1)?.id === 'pick:to:menu', p0.at(-1)?.id);
   check('the first screen offers it too', rows.at(-1)?.id === 'pick:from:menu', rows.at(-1)?.id);

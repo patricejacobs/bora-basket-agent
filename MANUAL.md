@@ -1461,10 +1461,30 @@ Which part of East Bank Demerara?          [ Choose a place ]
 ```
 
 Three rows end **every** screen of the picker and are never paged away:
-`More…` where there is more, `Type the address`, and `Main menu`. That is why
-a page holds seven places — ten rows, less those three. Tapping `Main menu`
-drops the trip and goes back to the front door: a pickup left on file would
-have the next taxi start wherever this one was going to.
+`More places` where there is more, `Type the address`, and `Main menu`. That
+is why a page holds seven places — ten rows, less those three. Tapping
+`Main menu` drops the trip and goes back to the front door: a pickup left on
+file would have the next taxi start wherever this one was going to.
+
+**Each of those rows says what it is for**, because a row nobody understands
+is a row nobody taps:
+
+```
+  More places              45 more places, nearest first
+  ✏️ Type the address      If your place is not on this list
+  ⬅️ Main menu
+```
+
+The count on `More places` matters most. The East Coast runs to **eight
+pages**, and `More…` on its own told a passenger nothing — somebody heading
+for Belfield tapped it five times without ever learning that was what they
+were in for. The number falls page by page (45, then 38, then 10) and is
+deliberately honest about the length: seeing "45 more places" is what tells
+somebody going far out to type the address instead.
+
+A page that has more behind it also carries one line under the question,
+*"Listed nearest first — tap More places if you do not see yours."* The last
+page has neither the row nor the line, there being nothing left to explain.
 
 **The picker prices the trip; it does not find the door.** A village name
 sets the fare and says nothing about which gate, so the pin and the typed

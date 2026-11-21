@@ -137,7 +137,13 @@ const placeRow = (side: PickSide, place: string, description?: string) => ({
  * all fit under WhatsApp's ten.
  */
 const wayOutRows = (side: PickSide, lang: Language) => [
-  { id: `${PREFIX}:${side}:type`, title: t('pick_type', lang) },
+  // The description is the instruction: it says WHY you would tap this, and
+  // it is read before anybody is stuck rather than after.
+  {
+    id: `${PREFIX}:${side}:type`,
+    title: t('pick_type', lang),
+    description: t('pick_type_hint', lang),
+  },
   { id: `${PREFIX}:${side}:menu`, title: t('pick_menu', lang) },
 ];
 
@@ -249,7 +255,18 @@ export function corridorPicker(
   if (left > take) {
     // The same id a corridor row carries, one page on — but it has to READ as
     // more, not as the corridor over again.
-    rows.push({ ...corridorRow(side, corridor, page + 1), title: t('pick_more', lang) });
+    //
+    // And it says HOW MUCH more. "More…" on its own tells a passenger
+    // nothing: the East Coast runs to eight pages, so somebody heading for
+    // Belfield taps it five times without ever being told that is what they
+    // are in for. The count is the instruction, and it is honest about the
+    // length — seeing "45 more places" is what tells somebody far out to
+    // type the address instead.
+    rows.push({
+      ...corridorRow(side, corridor, page + 1),
+      title: t('pick_more', lang),
+      description: t('pick_more_hint', lang, { n: String(left - take) }),
+    });
   }
 
   // Last, and on every page. See PER_PAGE.
@@ -257,7 +274,14 @@ export function corridorPicker(
 
   return {
     kind: 'list',
-    text: t('pick_corridor_ask', lang, { corridor }),
+    // The question, then one line saying how the list works. Said once, where
+    // the eye already is, and only on a page that HAS more behind it — a
+    // corridor that fits on one screen has nothing to explain.
+    text:
+      left > take
+        ? `${t('pick_corridor_ask', lang, { corridor })}
+${t('pick_corridor_help', lang)}`
+        : t('pick_corridor_ask', lang, { corridor }),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
   };
