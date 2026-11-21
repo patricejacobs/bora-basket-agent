@@ -3293,10 +3293,32 @@ section('Picking a place instead of typing one');
   check('the More row says how much is behind it',
     /^\d+ more places/.test(moreRow?.description ?? ''), moreRow?.description);
   check('and the question says what to do',
-    /tap More places if you do not see yours/i.test(page0?.kind === 'list' ? page0.text : ''),
+    /type the name/i.test(page0?.kind === 'list' ? page0.text : ''),
     page0?.kind === 'list' ? page0.text : '');
-  check('typing says why you would',
-    /not on this list/i.test(p0.find((r) => r.id === 'pick:to:type')?.description ?? ''));
+  check('typing is offered as the quick way',
+    /quicker than scrolling/i.test(p0.find((r) => r.id === 'pick:to:type')?.description ?? ''),
+    p0.find((r) => r.id === 'pick:to:type')?.description);
+
+  // "Nearest first" is only true where a fare did the sorting. On a pickup
+  // page nothing is priced, the sort ties and falls through to the alphabet
+  // — page one of Georgetown is Alberttown, Albouystown and four Bel Airs,
+  // which is neither nearest nor useful. So the pickup page stops claiming
+  // an order it does not have and points at the thing that does find a
+  // place: typing it.
+  {
+    const fromPage = corridorPicker(rider, 'from', 'Georgetown', 0);
+    const text = fromPage?.kind === 'list' ? fromPage.text : '';
+    const fp = fromPage?.kind === 'list' ? fromPage.rows : [];
+    check('a pickup page claims no ordering', !/nearest first/i.test(text), text);
+    check('and tells them to type instead', /type the name/i.test(text), text);
+    check('nor does its More row claim one',
+      !/nearest first/i.test(fp.find((r) => r.id.includes(':corr:'))?.description ?? ''),
+      fp.find((r) => r.id.includes(':corr:'))?.description);
+    check('a destination page still says nearest first, where it is true',
+      /nearest first/i.test(page0?.kind === 'list' ? page0.text : '') === false
+        ? /nearest first/i.test(p0.find((r) => r.id.includes(':corr:'))?.description ?? '')
+        : true);
+  }
 
   // The count falls as the pages go by, and the last page has neither the
   // row nor the line — there is nothing left to explain.

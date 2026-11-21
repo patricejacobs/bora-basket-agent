@@ -1496,9 +1496,32 @@ were in for. The number falls page by page (45, then 38, then 10) and is
 deliberately honest about the length: seeing "45 more places" is what tells
 somebody going far out to type the address instead.
 
-A page that has more behind it also carries one line under the question,
-*"Listed nearest first — tap More places if you do not see yours."* The last
-page has neither the row nor the line, there being nothing left to explain.
+A page that has more behind it also carries one line under the question, and
+that line is the most valuable thing on the screen — it shows in the chat
+**before** anybody opens the list. What it says depends on which end is being
+asked about:
+
+| Page | The line |
+|---|---|
+| Destination | *Nearest first. Tap More places, or just type the name — that is quicker.* |
+| Pickup | *Do not scroll for it — just type the name of the place and I will find it.* |
+
+The difference is honesty. On a destination page the fare does the sorting
+and nearest-first is true. On a pickup page nothing is priced, so the sort
+ties and falls through to the alphabet — page one of Georgetown is
+Alberttown, Albouystown and four Bel Airs, which is neither nearest nor
+useful. Claiming an order the list does not have sends somebody scrolling for
+a page that will never come.
+
+**Typing is the search box.** `✏️ Type the name` reads *"Quicker than
+scrolling — any spelling will do"*, because it is: the matcher forgives a
+misspelling and a swapped pair of letters, so *medow bank* and *zeelught*
+both land. Meadow Bank is four taps down the Georgetown list and one short
+message away. It was labelled "if your place is not on this list", which made
+it sound like a fallback for when the shop fails, so nobody used it.
+
+The last page has neither the More row nor the line, there being nothing left
+to explain.
 
 ### The exact spot
 

@@ -334,7 +334,12 @@ export function corridorPicker(
     rows.push({
       ...corridorRow(side, corridor, page + 1),
       title: t('pick_more', lang),
-      description: t('pick_more_hint', lang, { n: String(left - take) }),
+      // "Nearest first" is only true where a fare did the sorting. On a
+      // pickup page nothing is priced, so it says how many, and nothing it
+      // cannot stand behind.
+      description: t(side === 'to' ? 'pick_more_hint' : 'pick_more_plain', lang, {
+        n: String(left - take),
+      }),
     });
   }
 
@@ -346,10 +351,22 @@ export function corridorPicker(
     // The question, then one line saying how the list works. Said once, where
     // the eye already is, and only on a page that HAS more behind it — a
     // corridor that fits on one screen has nothing to explain.
+    // The line under the question, and the most valuable words on the
+    // screen: it shows in the chat BEFORE anybody opens the list.
+    //
+    // It used to claim the places were "listed nearest first". On a
+    // DESTINATION page that is true, the fare does the sorting. On a PICKUP
+    // page nothing is priced, so the sort ties and falls through to the
+    // alphabet — page one of Georgetown is Alberttown, Albouystown and four
+    // Bel Airs, which is a wasted screen and not nearest anything.
+    //
+    // So the pickup line stops describing an order it does not have and
+    // points at the thing that actually finds a place: typing it. Meadow
+    // Bank is four taps down this list and one short message away.
     text:
       left > take
         ? `${t('pick_corridor_ask', lang, { corridor })}
-${t('pick_corridor_help', lang)}`
+${t(side === 'to' ? 'pick_corridor_help_to' : 'pick_corridor_help_from', lang)}`
         : t('pick_corridor_ask', lang, { corridor }),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
