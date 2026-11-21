@@ -1293,6 +1293,30 @@ stock, the reward points, the quote gate and the dispatch are one set of
 rules rather than two. The only difference is who calls it: a tap on the
 price rather than a model judging that the moment has come.
 
+**A parcel goes through the same six steps**, with three differences that
+matter. The agent still collects the two halves and the contents first — a
+name and a telephone number are given in conversation and nowhere else — and
+`start_delivery` refuses until it has them. The place, the pin and the street
+belong to the **recipient**, so they are written to the parcel draft and
+never to the customer, who is somewhere else entirely; a pin saved the wrong
+way would quietly move where next week's groceries go. And the fee is
+collected from the **sender** at the pickup, so the gate says so:
+
+```
+📦 A box of documents, about 2 kg
+To *Ravi Persaud* at Lot 12 Second Street, the yellow house
+*Delivery $1,800*, collected from you when it is picked up.
+
+Shall I book it?
+   [ Book it ]  [ Change destination ]  [ Cancel ]
+```
+
+It books through `create_parcel_job`, as a basket books through
+`place_order`: one set of rules per kind of job, one sequence in front of
+both. A parcel has no kitchen to confirm it either, so what the customer is
+told is that it is booked and that an associate taking it is the next thing
+that happens.
+
 **A tap that arrives at the wrong step is never written down as an answer.**
 A button from a message further back — `Nothing to add`, tapped while the
 street was being asked for — used to become somebody's address, and the

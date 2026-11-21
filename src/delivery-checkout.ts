@@ -106,6 +106,9 @@ export function priceGate(phone: string, lang: Language): OutboundMessage {
         `${l.optionsSummary ? ` — _${l.optionsSummary}_` : ''} — ${money(l.lineTotal)}`,
     )
     .join(nl);
+  const parcel = repo.getService(phone) === 'parcel';
+  if (parcel) return parcelGate(phone, lang);
+
   const customer = repo.getCustomer(phone);
   const place = customer.deliveryZone || '';
   // The read-back, which a tap then answers. Who it is for and where it is
@@ -137,6 +140,36 @@ export function priceGate(phone: string, lang: Language): OutboundMessage {
 }
 
 /**
+ * The same gate, for a parcel.
+ *
+ * There is no basket: what is being carried is one line in the sender's own
+ * words, and the money is collected from THEM at the pickup rather than from
+ * the person at the other end. Saying "cash at your door" to somebody
+ * sending a parcel would be telling them the wrong thing twice over.
+ */
+function parcelGate(phone: string, lang: Language): OutboundMessage {
+  const draft = repo.getParcelDraft(phone);
+  const fee = repo.feeAgreed(phone);
+
+  return {
+    kind: 'buttons',
+    text: t('checkout_gate_parcel', lang, {
+      contents: draft.contents || '',
+      to: draft.recipient.name || '',
+      place: draft.zone || draft.recipient.address || '',
+      where: draft.recipient.address || draft.zone || '',
+      fee: money(fee),
+      nl,
+    }),
+    buttons: [
+      { id: GATE_BOOK, title: t('fare_book', lang) },
+      { id: GATE_CHANGE, title: t('fare_change', lang) },
+      { id: GATE_CANCEL, title: t('fare_cancel', lang) },
+    ],
+  };
+}
+
+/**
  * What comes next, given what was just answered.
  *
  * Driven by the step that finished rather than by guessing from the record,
@@ -153,9 +186,19 @@ export function nextAfter(
   done: 'place' | 'pin' | 'skip' | 'street' | 'note' | 'name',
   lang: Language,
 ): OutboundMessage {
+  const parcel = repo.getService(phone) === 'parcel';
   const customer = repo.getCustomer(phone);
-  const hasName = (customer.name ?? '').trim() !== '';
-  const hasStreet = (customer.address ?? '').trim() !== '';
+  const draft = parcel ? repo.getParcelDraft(phone) : null;
+
+  // A parcel's door is the RECIPIENT's, and their name is already written
+  // down - it was agreed one half at a time before any of this started. So
+  // the name step never applies to one, and the street and the pin belong to
+  // the draft rather than to the customer, who is somewhere else entirely.
+  const hasName = parcel ? true : (customer.name ?? '').trim() !== '';
+  const hasStreet = parcel
+    ? (draft?.recipient.address ?? '').trim() !== ''
+    : (customer.address ?? '').trim() !== '';
+  const hasPin = parcel ? draft?.destination !== null : customer.location !== null;
 
   switch (done) {
     case 'pin':
@@ -165,9 +208,9 @@ export function nextAfter(
       // from somebody whose exact spot the shop already holds is asking
       // them to say it twice, and skipping a second time - after changing
       // the address, say - is not a reason to start demanding streets.
-      return customer.location || hasStreet
+      return hasPin || hasStreet
         ? askNote(phone, lang)
-        : askStreet(phone, customer.deliveryZone || '', lang);
+        : askStreet(phone, (parcel ? draft?.zone : customer.deliveryZone) || '', lang);
     case 'street':
       return askNote(phone, lang);
     case 'note':
@@ -206,17 +249,39 @@ export async function placeTheOrder(phone: string, lang: Language): Promise<Outb
   // message it came from, which is exactly what this gate asks for.
   repo.confirmIdentity(phone);
 
+  // A parcel is booked by its own tool, for the same reason a basket is
+  // booked by place_order: one set of rules per kind of job. What they
+  // share is this sequence and this gate.
+  const parcel = repo.getService(phone) === 'parcel';
+  const draft = repo.getParcelDraft(phone);
+  const note = repo.checkoutNote(phone);
+
   const answer = JSON.parse(
-    executeTool(
-      'place_order',
-      { payment_method: 'cash_on_delivery', delivery_note: repo.checkoutNote(phone) },
-      ctx as never,
-    ),
-  ) as { placed?: boolean; order_number?: string; error?: string };
+    parcel
+      ? executeTool(
+          'create_parcel_job',
+          {
+            contents: draft.contents,
+            sender_name: draft.sender.name,
+            sender_phone: draft.sender.phone,
+            recipient_name: draft.recipient.name,
+            recipient_phone: draft.recipient.phone,
+            pickup_note: draft.sender.address,
+            destination_note: [draft.recipient.address, note].filter(Boolean).join(' — '),
+          },
+          ctx as never,
+        )
+      : executeTool(
+          'place_order',
+          { payment_method: 'cash_on_delivery', delivery_note: note },
+          ctx as never,
+        ),
+  ) as { placed?: boolean; booked?: boolean; order_number?: string; job_number?: string; error?: string };
 
   endCheckout(phone);
 
-  if (answer.placed !== true || !answer.order_number) {
+  const orderNo = answer.order_number ?? answer.job_number;
+  if ((answer.placed !== true && answer.booked !== true) || !orderNo) {
     // The reason goes to the log, not to the customer: it is written for a
     // model and reads like it. The basket is untouched, so the agent can
     // pick it up on the next turn.
@@ -224,15 +289,20 @@ export async function placeTheOrder(phone: string, lang: Language): Promise<Outb
     return [{ kind: 'text', text: t('checkout_failed', lang) }];
   }
 
-  const order = repo.findOrder(answer.order_number);
+  const order = repo.findOrder(orderNo);
   return [
     ...ctx.outbound,
     {
       kind: 'text',
-      text: t('checkout_placed', lang, {
-        order: answer.order_number,
-        kitchen: order?.outlet?.name || t('checkout_the_shop', lang),
-      }),
+      // A parcel has no kitchen to confirm it. It is offered to the
+      // associates, and the next thing that happens is one of them taking
+      // it - so saying a shop will confirm it is a promise nobody made.
+      text: parcel
+        ? t('checkout_booked_parcel', lang, { order: orderNo })
+        : t('checkout_placed', lang, {
+            order: orderNo,
+            kitchen: order?.outlet?.name || t('checkout_the_shop', lang),
+          }),
     },
   ];
 }

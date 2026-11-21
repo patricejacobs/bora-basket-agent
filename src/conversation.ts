@@ -598,7 +598,11 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // moved on without writing it down reached the gate with nothing for
       // the associate to steer by, which place_order rightly refuses.
       if (msg.location && step === 'pin') {
-        recordLocationPin(msg.phone, msg.location);
+        // A parcel's pin is the RECIPIENT's door, not the customer's. Saving
+        // it against the customer would quietly move where next week's
+        // groceries go, which is the fault this split exists to prevent.
+        if (chosen === 'parcel') repo.addParcelPin(msg.phone, msg.location, 'destination');
+        else recordLocationPin(msg.phone, msg.location);
         return ask(nextAfter(msg.phone, 'pin', lang), '(sent their location)');
       }
 
@@ -626,7 +630,12 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           return ask(askPlace(msg.phone, lang), text);
         }
         if (step === 'street') {
-          repo.saveCustomer(msg.phone, { address: text.slice(0, 160) });
+          const written = text.slice(0, 160);
+          if (chosen === 'parcel') {
+            repo.saveParcelParty(msg.phone, 'recipient', { address: written });
+          } else {
+            repo.saveCustomer(msg.phone, { address: written });
+          }
           return ask(nextAfter(msg.phone, 'street', lang), text);
         }
         if (step === 'note') {

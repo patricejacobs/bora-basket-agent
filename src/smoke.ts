@@ -1064,6 +1064,63 @@ section("The shop's own checkout");
   check('and checkout is over', repo.checkoutStep(buyer) === '', repo.checkoutStep(buyer));
   check('the basket is empty, as after any order', repo.getCart(buyer).lines.length === 0);
   void outletRow;
+
+  // ---- a parcel, through the same six steps -------------------------
+  {
+    const sender = '5920007700';
+    const sayParcel = async (text: string, extra: Record<string, unknown> = {}) =>
+      (await (await import('./conversation.ts')).handleIncoming({
+        phone: sender, text, channel: 'smoke', ...extra,
+      } as never)) as { kind: string; text?: string; buttons?: { title: string }[] }[];
+
+    repo.chooseLanguage(sender, 'en');
+    repo.setService(sender, 'parcel');
+    repo.saveCustomer(sender, { name: 'Marcia', contactPhone: sender });
+
+    const tooSoon: ToolContext = { phone: sender, outbound: [] };
+    const notYet = JSON.parse(executeTool('start_delivery', {}, tooSoon));
+    check('a parcel with no halves cannot be handed over',
+      /the sender/.test(String(notYet.error)) && /the recipient/.test(String(notYet.error)),
+      String(notYet.error).slice(0, 90));
+
+    repo.saveParcelParty(sender, 'sender', { name: 'Marcia', phone: sender, address: 'Georgetown' });
+    repo.saveParcelParty(sender, 'recipient', { name: 'Ravi', phone: '5926103333' });
+    repo.saveParcelContents(sender, 'A box of documents');
+
+    const over: ToolContext = { phone: sender, outbound: [] };
+    JSON.parse(executeTool('start_delivery', {}, over));
+    check('once both halves are agreed the list goes out', over.outbound[0]?.kind === 'list',
+      JSON.stringify(over.outbound).slice(0, 60));
+
+    await sayParcel('pick:drop:place:Diamond');
+    check("the parcel's zone is the parcel's, not the customer's",
+      repo.getParcelDraft(sender).zone === 'Diamond' &&
+        repo.getCustomer(sender).deliveryZone !== 'Diamond',
+      `${repo.getParcelDraft(sender).zone} / ${repo.getCustomer(sender).deliveryZone}`);
+
+    // A pin here is the RECIPIENT's door.
+    await sayParcel('', { location: { latitude: 6.76, longitude: -58.17, label: 'Diamond' } });
+    check("a parcel's pin lands on the draft", repo.getParcelDraft(sender).destination !== null);
+    check('and not on the customer', repo.getCustomer(sender).location === null,
+      JSON.stringify(repo.getCustomer(sender).location));
+
+    const gate = await sayParcel('Ring the bell twice');
+    const text = gate[0]?.text ?? '';
+    check('the parcel gate names what is being carried', /A box of documents/.test(text), text);
+    check('and who it is for', /Ravi/.test(text), text);
+    check('the fee is collected from the sender, not at the door',
+      /collected from you/.test(text) && !/cash to the associate/.test(text), text);
+    check('with the same three answers', (gate[0]?.buttons ?? []).length === 3);
+
+    const booked = await sayParcel('drop:gate:book');
+    const job = repo.recentOrders(sender, 1)[0];
+    check('the tap books the parcel', /^PCL-/.test(job?.orderNo ?? ''), job?.orderNo);
+    check('and it is not called an order confirmed by a kitchen',
+      /booked/i.test(booked[booked.length - 1]?.text ?? '') &&
+        !/will confirm/.test(booked[booked.length - 1]?.text ?? ''),
+      booked[booked.length - 1]?.text);
+    check('checkout is over', repo.checkoutStep(sender) === '');
+  }
 }
 
 /* ------------------------------------------------- the delivery address */

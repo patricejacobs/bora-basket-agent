@@ -450,7 +450,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'start_delivery',
     description:
-      "Hand the order over to the shop's own checkout, and stop. Call this the moment the customer has finished choosing and the basket is right — instead of asking for an address, a pin, a name or a total yourself. The shop then asks for all of it in a fixed order and places the order when they tap, so you say NOTHING further about where it is going, what it costs, or whether to confirm: your turn is over. Only for a restaurant or grocery order with something in the basket. If they come back wanting to change what they are buying, the basket is untouched and you carry on as normal.",
+      "Hand the order over to the shop's own checkout, and stop. For a PARCEL, call it once both halves are agreed with parcel_party and you know what is being sent — the shop asks where it is going, for a pin, for anything about the door, and puts the fee to them. For a basket, call it the moment the customer has finished choosing and the basket is right — instead of asking for an address, a pin, a name or a total yourself. The shop then asks for all of it in a fixed order and places the order when they tap, so you say NOTHING further about where it is going, what it costs, or whether to confirm: your turn is over. Only for a restaurant or grocery order with something in the basket. If they come back wanting to change what they are buying, the basket is untouched and you carry on as normal.",
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
@@ -2005,13 +2005,26 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * associate has to defend at a gate, with the order already in the bag.
      */
     case 'start_delivery': {
-      const cart = repo.getCart(ctx.phone);
-      if (cart.lines.length === 0) {
+      // A parcel has no basket. What it must have is both halves agreed and
+      // something written down about what is in it - the facts a model is
+      // actually needed for, since a name and a telephone number are given
+      // in conversation and nowhere else.
+      if (repo.getService(ctx.phone) === 'parcel') {
+        const draft = repo.getParcelDraft(ctx.phone);
+        const missing = [
+          draft.sender.name && draft.sender.phone ? '' : 'the sender',
+          draft.recipient.name && draft.recipient.phone ? '' : 'the recipient',
+          draft.contents ? '' : 'what is in it',
+        ].filter(Boolean);
+        if (missing.length > 0) {
+          return fail(
+            `Still needed before the shop can take over: ${missing.join(', ')}. Use parcel_party for a name and a number, and ask what is being sent.`,
+          );
+        }
+      } else if (repo.getCart(ctx.phone).lines.length === 0) {
         return fail('Their basket is empty — there is nothing to check out yet.');
       }
-      if (repo.getService(ctx.phone) === 'parcel') {
-        return fail('A parcel is booked with create_parcel_job, not through this.');
-      }
+      void 0;
 
       ctx.outbound.push(askPlace(ctx.phone, languageFor(ctx.phone)));
       return ok({
