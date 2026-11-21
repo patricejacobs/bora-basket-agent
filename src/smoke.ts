@@ -3577,6 +3577,57 @@ section('Picking a place instead of typing one');
     repo.resetConversation(typer);
   }
 
+  /* --- an address the tariff has never heard of ------------------------ */
+
+  // "Lot 5 Public Road" is a perfectly good pickup and the tariff cannot
+  // price it. Matching was the only way an end got settled, so a typed
+  // address it did not recognise fell through to the agent and the
+  // passenger was never offered the pin — which is the case where a pin
+  // matters most, the shop having no idea where they mean.
+  {
+    const { handleIncoming } = await import('./conversation.ts');
+    const odd = '5920009510';
+    const send = (text: string, location?: unknown) =>
+      handleIncoming({ phone: odd, text, channel: 'smoke', location } as never);
+
+    repo.resetConversation(odd);
+    repo.clearTaxiPicks(odd);
+    await send('hello');
+    await send('1');
+    await send('pick:from:type');
+
+    const taken = await send('Lot 5 Public Road, behind the market');
+    check('an unmatched address still settles the end',
+      repo.taxiPicks(odd).from === 'Lot 5 Public Road, behind the market',
+      repo.taxiPicks(odd).from);
+    check('and is offered the exact spot',
+      taken[0]?.kind === 'buttons' && /send your exact location/i.test(taken[0].text),
+      taken[0]?.kind);
+
+    await send('', { latitude: 6.79, longitude: -58.16 });
+    check('the pin is kept for the driver', Boolean(repo.getParcelDraft(odd).pickup));
+
+    // A destination list cannot price its rows against a pickup the tariff
+    // does not know, and a column of "fare agreed with the driver" down
+    // every row says less than no column at all.
+    const page = corridorPicker(odd, 'to', 'West Coast Demerara', 0);
+    const rows = page?.kind === 'list' ? page.rows.filter((r) => r.id.includes(':place:')) : [];
+    check('and the destination rows quote nothing',
+      rows.length > 0 && rows.every((r) => !r.description),
+      JSON.stringify(rows.map((r) => r.description)));
+
+    // The marker is one-shot: the tap arms it, the next message spends it.
+    await send('pick:to:type');
+    await send('zeelught');
+    check('a misspelt name is still corrected to the tariff’s spelling',
+      repo.taxiPicks(odd).to === 'Zeelugt', repo.taxiPicks(odd).to);
+    check('and the marker is spent', repo.typingEnd(odd) === '', repo.typingEnd(odd));
+
+    repo.setService(odd, null);
+    repo.clearTaxiPicks(odd);
+    repo.resetConversation(odd);
+  }
+
   /* --- the greeting is a guard, not a request -------------------------- */
 
   // It greeted anyway. The shop told it not to greet a conversation already

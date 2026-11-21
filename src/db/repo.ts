@@ -412,10 +412,34 @@ export function setTaxiPick(phone: string, side: 'from' | 'to', place: string): 
   );
 }
 
+/**
+ * Which end they are typing, if the shop just asked them to type one.
+ *
+ * A one-shot: set when "Type the name" is tapped, read and cleared by the
+ * next thing they send. It is what lets an address the tariff has never
+ * heard of still answer the question — "Lot 5 Public Road" is a perfectly
+ * good pickup, it simply cannot be priced.
+ */
+export function setTypingEnd(phone: string, side: 'from' | 'to' | ''): void {
+  db.prepare(
+    `INSERT INTO customers (phone, taxi_typing_end, created_at, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET taxi_typing_end = excluded.taxi_typing_end,
+       updated_at = excluded.updated_at`,
+  ).run(phone, side, nowIso(), nowIso());
+}
+
+export function typingEnd(phone: string): 'from' | 'to' | '' {
+  const row = db.prepare(`SELECT taxi_typing_end AS side FROM customers WHERE phone = ?`).get(phone) as
+    | { side: string }
+    | undefined;
+  return row?.side === 'from' || row?.side === 'to' ? row.side : '';
+}
+
 export function clearTaxiPicks(phone: string): void {
   db.prepare(
     `UPDATE customers SET taxi_pick_from = '', taxi_pick_to = '', taxi_fare_shown = -1,
-       updated_at = ? WHERE phone = ?`,
+       taxi_typing_end = '', updated_at = ? WHERE phone = ?`,
   ).run(nowIso(), phone);
 }
 

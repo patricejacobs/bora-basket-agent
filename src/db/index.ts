@@ -515,6 +515,15 @@ addColumnIfMissing('customers', 'taxi_pick_to', "TEXT NOT NULL DEFAULT ''");
 // model's recollection.
 addColumnIfMissing('customers', 'taxi_fare_shown', 'INTEGER NOT NULL DEFAULT -1');
 
+// Which end of a taxi the passenger is in the middle of TYPING, if any.
+//
+// Set when they tap "Type the name" and spent by the next thing they send.
+// Without it the shop has to guess whether a line of text is an answer to
+// its question or a question of its own, and guessing wrong either swallows
+// "how much is it?" as a pickup or ignores "Lot 5 Public Road" because the
+// tariff has never heard of it.
+addColumnIfMissing('customers', 'taxi_typing_end', "TEXT NOT NULL DEFAULT ''");
+
 // A parcel has a sender and a recipient, and they are different people in
 // different places. The customer is the sender; these are who receives it.
 addColumnIfMissing('orders', 'recipient_name', "TEXT NOT NULL DEFAULT ''");

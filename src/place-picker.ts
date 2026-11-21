@@ -286,6 +286,10 @@ export function corridorPicker(
       // used to be, and a passenger choosing where to be collected from saw
       // "Diamond $1,800" and read it as the cost of their trip. It is what a
       // DELIVERY to Diamond costs, which is nothing they asked about.
+      // Only when the pickup is a place the tariff carries. A typed address
+      // it has never heard of — "Lot 5 Public Road" — is a perfectly good
+      // pickup and prices nothing, and a column of "fare agreed with the
+      // driver" down every row says less than no column at all.
       const fare = from ? (fareBetween(from, z.place)?.fee ?? null) : z.fee;
       return { place: z.place, fare };
     })
@@ -313,11 +317,7 @@ export function corridorPicker(
     placeRow(
       side,
       r.place,
-      side === 'to'
-        ? r.fare === null
-          ? t('pick_fare_unknown', lang)
-          : money(r.fare)
-        : undefined,
+      side === 'to' && r.fare !== null ? money(r.fare) : undefined,
     ),
   );
 
@@ -560,6 +560,8 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
     // model reads. book_taxi falls back to that stored place too, so the
     // trip could have been booked to the village they had just rejected.
     repo.setTaxiPick(phone, pick.side, '');
+    // The next thing they send is this end, whatever it turns out to be.
+    repo.setTypingEnd(phone, pick.side);
 
     const end = pick.side === 'from' ? 'pickup' : 'destination';
     return {

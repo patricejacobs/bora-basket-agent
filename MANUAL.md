@@ -1540,10 +1540,22 @@ gets the same offer of the exact spot, and is passed to the agent the same
 way. For a while only a tap did that, so anybody who typed their destination
 was never asked for its pin, and nor was anybody who typed their pickup.
 
-Typed text is only read as a place while an end is still missing, when the
-message is short enough to be an answer, and when the tariff is sure which
-place it means. Once both ends are known, *"2 of us"* is an answer to a
-different question and goes to the agent untouched.
+**And an address the tariff has never heard of still answers.** Tapping
+`✏️ Type the name` arms a one-shot marker, so the next thing sent is taken
+as that end whatever it says: *"Lot 5 Public Road, behind the market"* is a
+perfectly good pickup. A name the tariff does know is stored as the tariff
+spells it, so the trip prices; anything else is stored as written and the
+driver agrees the fare in the car. Either way the exact spot is offered
+next — which is the whole point of taking an address the shop cannot place.
+
+A destination list shown against an unpriceable pickup quotes nothing, since
+a column of "fare agreed with the driver" down every row says less than no
+column at all.
+
+Without the marker, typed text is only read as a place while an end is still
+missing, when the message is short enough to be an answer, and when the
+tariff is sure which place it means. Once both ends are known, *"2 of us"* is
+an answer to a different question and goes to the agent untouched.
 
 **The name prices the trip; the pin finds the door.** Asked in this order the
 two never collide: the fare is already known when the pin arrives, so a pin

@@ -346,6 +346,35 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
 
   /* --------------------------------------------------- taxi place picker */
 
+  // An end the passenger was asked to TYPE, answered.
+  //
+  // Read BEFORE the tapped rows below, and only for text that is not a tap.
+  // Tapping "Type the name" is what sets the marker, and its own reply is a
+  // note to the agent — so running this first, on a tap, would have the
+  // shop swallow its own instructions as the address.
+  //
+  // Taken whatever it says, because they were asked for it: "Lot 5 Public
+  // Road" is a perfectly good pickup and the tariff has never heard of it.
+  // A name the tariff does know is stored as the tariff spells it, so the
+  // trip prices; anything else is stored as written, and the driver agrees
+  // the fare in the car. Either way the exact spot is offered next, which is
+  // the whole point of taking an address the shop cannot price.
+  if (chosen === 'taxi' && text && !msg.location && !isPickerId(text)) {
+    const typing = repo.typingEnd(msg.phone);
+    if (typing) {
+      const lang = languageFor(msg.phone);
+      const said = text.trim().slice(0, 160);
+      const found = findZone(said);
+      const place = found.kind === 'found' ? found.match.place : said;
+
+      repo.setTypingEnd(msg.phone, '');
+      repo.setTaxiPick(msg.phone, typing, place);
+      return shopAnswered(msg, [spotAsk(typing, place, lang)], said);
+    }
+  }
+
+
+
   // A tapped row, read here rather than by the model. The id carries a
   // corridor and a page, which no 24-character title could, and the places
   // themselves come straight out of the tariff — so there is nothing for a
