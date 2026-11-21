@@ -1442,8 +1442,9 @@ Where are we collecting you from?          [ Choose a place ]
   ⬅️ Main menu
 ```
 
-Tapping a corridor opens the places on it, **priced from the pickup already
-chosen, cheapest first**:
+Tapping a corridor opens the places on it. On the **destination** list each
+row carries its own fare, worked out from the pickup already chosen, cheapest
+first:
 
 ```
 Which part of East Bank Demerara?          [ Choose a place ]
@@ -1549,6 +1550,12 @@ address are still how a driver is told where to stop — the picker replaces the
 *pricing* question only. `Type the address` and, for a pickup, `Where I am
 now` are on **every** screen and are never paged away: somebody going
 somewhere the tariff has never heard of must still be able to book a car.
+
+**A pickup list quotes nothing.** Half the journey is unknown at that point,
+so there is no fare to show. It used to show the tariff's own figure — what
+a DELIVERY to that place costs — and a passenger choosing where to be
+collected from read "Diamond $1,800" as the cost of their trip. The figure is
+still used, but only to order the list by distance from town.
 
 A typed place is matched on sound, not spelling, and forgiven **one letter
 per seven of each word** — counted so that a swapped pair of letters costs one,

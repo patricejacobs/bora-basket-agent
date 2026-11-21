@@ -243,6 +243,15 @@ export function corridorPicker(
 
   const priced = placesIn(corridor)
     .map((z) => {
+      // For a DESTINATION this is the real fare, from the pickup already
+      // chosen, and it goes on the row.
+      //
+      // For a PICKUP there is no fare to show, because half the journey is
+      // still unknown — so the tariff's own figure stands in, purely to
+      // order the list by distance from town, and is never displayed. It
+      // used to be, and a passenger choosing where to be collected from saw
+      // "Diamond $1,800" and read it as the cost of their trip. It is what a
+      // DELIVERY to Diamond costs, which is nothing they asked about.
       const fare = from ? (fareBetween(from, z.place)?.fee ?? null) : z.fee;
       return { place: z.place, fare };
     })
@@ -267,7 +276,15 @@ export function corridorPicker(
   const slice = priced.slice(start, start + take);
 
   const rows = slice.map((r) =>
-    placeRow(side, r.place, r.fare === null ? t('pick_fare_unknown', lang) : money(r.fare)),
+    placeRow(
+      side,
+      r.place,
+      side === 'to'
+        ? r.fare === null
+          ? t('pick_fare_unknown', lang)
+          : money(r.fare)
+        : undefined,
+    ),
   );
 
   if (left > take) {

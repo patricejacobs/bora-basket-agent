@@ -3255,6 +3255,22 @@ section('Picking a place instead of typing one');
   check('not the ones nearest town',
     !p0.some((r) => r.title === 'Agricola' || r.title === 'McDoom'),
     JSON.stringify(p0.map((r) => r.title)));
+  // A PICKUP page shows no price at all. Half the journey is still unknown,
+  // so there is no fare to show — and what used to be shown was the tariff's
+  // own figure, which is what a DELIVERY to that place costs. A passenger
+  // choosing where to be collected from read "Diamond $1,800" as the cost of
+  // their trip.
+  {
+    const fromPage = corridorPicker(rider, 'from', 'East Bank Demerara', 0);
+    const fp = fromPage?.kind === 'list' ? fromPage.rows : [];
+    check('a pickup page quotes nothing',
+      fp.filter((r) => r.id.includes(':place:')).every((r) => !r.description),
+      JSON.stringify(fp.map((r) => r.description).filter(Boolean)));
+    check('and no row carries a money figure',
+      !fp.some((r) => /\$[0-9]/.test(r.description ?? '')),
+      JSON.stringify(fp.map((r) => r.description)));
+  }
+
   check('each row carries its own fare',
     p0.filter((r) => r.id.includes(':place:')).every((r) => /^\$[0-9,]+$/.test(r.description ?? '')),
     JSON.stringify(p0.map((r) => r.description)));
