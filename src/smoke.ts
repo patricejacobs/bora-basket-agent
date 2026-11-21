@@ -3682,6 +3682,30 @@ section('Picking a place instead of typing one');
       liveTripActions({ orderNo: 'ORD-00001', kind: 'grocery', status: 'on_the_way', waitingSince: '' })
         .length === 0);
 
+    // ---- the safety code is said once -------------------------------
+    // A destination that changes mid-trip used to re-send the whole pickup
+    // card, which repeats the code the passenger has already checked. It is
+    // a gate, and a gate offered twice is a decoration.
+    const { taxiOnboardCard, taxiPickupCard } = await import('./dispatch.ts');
+    const onRoad = repo.findOrder(ride.orderNo)!;
+    const safety = repo.safetyCodeFor(ride.orderNo);
+    const midTrip = taxiOnboardCard(onRoad, 'head');
+    check('the trip has a safety code to leave out', safety.length > 0, safety);
+    check('a mid-trip card does not repeat it', !midTrip.includes(safety), midTrip);
+    check('nor tell them to say it before the passenger gets in',
+      !/before they get in/i.test(midTrip), midTrip);
+    check('nor hand them a job they are already driving',
+      !/is yours/i.test(midTrip) && !/\*Collect:\*/.test(midTrip), midTrip);
+    check('it says where they are going now',
+      /Now taking .+ to:/.test(midTrip) && midTrip.includes('Buxton'), midTrip);
+    check('and what to collect when they arrive', midTrip.includes(money(3100)), midTrip);
+    check('the caller supplies the heading', midTrip.startsWith('head'), midTrip.slice(0, 20));
+    // Unchanged where it belongs: a driver still on the way to the pickup
+    // has not met the passenger and needs all of it.
+    check('the pickup card still carries the code',
+      taxiPickupCard(onRoad).includes(safety) &&
+        /before they get in/i.test(taxiPickupCard(onRoad)));
+
     // And the driver cannot raise one before they are in the car.
     repo.setOrderStatus(ride.orderNo, 'confirmed');
     const early = await driverSays(`${digits} change destination`, drv);

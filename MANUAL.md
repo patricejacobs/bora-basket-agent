@@ -1382,6 +1382,27 @@ the fare as well.
 
 It cannot be raised before pickup: there is nobody in the car to have asked.
 
+**The safety code is said once.** A destination that changed mid-trip
+re-sent the whole pickup card, which repeats three things that have stopped
+being true: that the job *is yours*, who to *collect* and from where, and the
+safety code with instructions to say it before the passenger gets in. That
+code is the one thing on the card checked against the passenger's own screen,
+and a gate offered twice is a decoration. A driver carrying somebody gets
+only what is still ahead of them:
+
+```
+⚠️ *TXI-00001 — the destination has changed.*
+
+*Now taking Marcia to:* Buxton
+
+*Fare $3,100* — the passenger has agreed this. Collect it from them.
+⏱ *Waiting:* $30 a minute, from the first minute.
+[Waiting]  [Change destination]  [Passenger arrived]
+```
+
+A driver still on the way to the pickup gets the card in full, code included
+— they have not met the passenger yet, which is exactly when it is needed.
+
 **The card stays under the driver's thumb the whole trip.** A WhatsApp reply
 button is spent the moment it is tapped — the message keeps its words and
 loses its buttons — so a driver who tapped `Change destination` and was then

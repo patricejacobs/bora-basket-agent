@@ -35,6 +35,7 @@ const repo = await import('./src/db/repo.ts');
 const { handleDriverMessage } = await import('./src/staff.ts');
 const { handleIncoming } = await import('./src/conversation.ts');
 const { nextActions } = await import('./src/order-status.ts');
+const { taxiOnboardCard } = await import('./src/dispatch.ts');
 const { parseWebhook } = await import('./src/channels/whatsapp.ts');
 const { taxiFare } = await import('./src/taxi.ts');
 const { money } = await import('./src/config.ts');
@@ -211,10 +212,22 @@ for (const e of repo.orderHistory(ride.orderNo)) {
 rule('8. What he is left holding, after the change went through');
 
 const afterCard = nextActions(ride.orderNo, 'on_the_way', 'driver', { canWait: true });
-gets('Rider One', `⚠️ ${ride.orderNo} — the passenger changed where they are going.`);
+gets(
+  'Rider One',
+  taxiOnboardCard(live()!, `⚠️ *${ride.orderNo} — the destination has changed.*`),
+);
 buttons(afterCard);
 console.log('');
-console.log('  This is the fix. A WhatsApp button is spent the moment it is tapped,');
+console.log('  No safety code on it. She checked those four digits against her own');
+console.log('  screen before she got in, and a gate offered twice is a decoration.');
+console.log('  Nothing about collecting her either, nor that the job "is yours" —');
+console.log('  he has been driving it for twenty minutes. Only where he is going');
+console.log('  now and what to collect when he gets there.');
+console.log('');
+console.log('  A driver still on his way to a pickup gets the whole card, code');
+console.log('  included: he has not met her yet.');
+console.log('');
+console.log('  This is the other fix. A WhatsApp button is spent the moment it is tapped,');
 console.log('  so answering him in plain text left him with nothing to tap and no');
 console.log('  way to ask for a SECOND change. Every message to a driver carrying');
 console.log('  somebody now ends in the card for that moment.');

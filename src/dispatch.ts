@@ -441,6 +441,44 @@ export function taxiPickupCard(order: repo.OrderRecord): string {
 }
 
 /**
+ * The same trip, for a driver who already has the passenger in the car.
+ *
+ * The pickup card is the wrong message once somebody is aboard, and sending
+ * it anyway said three things that were no longer true: that the job *is
+ * yours* when they have been working it for twenty minutes, who to *collect*
+ * and where from when they have already collected them, and — worst — the
+ * safety code, with instructions to say it before the passenger gets in.
+ *
+ * That code is spent. It is the one thing on the card that is checked
+ * against the passenger's own screen, and repeating it afterwards teaches a
+ * driver it is a decoration rather than a gate. A passenger reading over a
+ * shoulder sees four digits they have already used being offered again.
+ *
+ * What is left is what a driver mid-trip actually needs: where they are
+ * going now, and what to collect when they get there.
+ */
+export function taxiOnboardCard(order: repo.OrderRecord, head?: string): string {
+  const firstName = order.customerName.split(/\s+/)[0] || 'the passenger';
+
+  return [
+    // The caller's own first line, where it has one, rather than this card's
+    // under it. Two headings on one message means the order number twice and
+    // the new destination twice, which is how a short message stops being
+    // read at all.
+    head ?? `🚕 *${order.orderNo}* — ${firstName} is in the car.`,
+    '',
+    `*Now taking ${firstName} to:* ${order.address || 'wherever they direct you'}`,
+    ...(order.location ? ['Click the link below for the drop-off:', mapsLink(order.location)] : []),
+    ...(order.parcelDetails ? ['', order.parcelDetails] : []),
+    '',
+    order.quotedFare > 0
+      ? `*Fare ${money(order.quotedFare)}* — the passenger has agreed this. Collect it from them.`
+      : '*Fare not set* — agree it with the passenger.',
+    ...(waitingLine() ? [waitingLine()] : []),
+  ].join(String.fromCharCode(10));
+}
+
+/**
  * Tells the driver their trip now ends somewhere else.
  *
  * The record changing is not the point; the driver is. They are on the road
@@ -456,15 +494,24 @@ export async function tellDriverOfNewDestination(orderNo: string): Promise<boole
   if (!order || order.kind !== 'taxi' || !order.driverPhone) return false;
 
   const where = order.address || 'somewhere they will tell you';
-  const body = [
-    `⚠️ *${order.orderNo} — the passenger changed where they are going.*`,
-    '',
-    `Now: *${where}*`,
-    '',
-    'The pickup has not changed.',
-    '',
-    taxiPickupCard(order),
-  ].join(String.fromCharCode(10));
+  const warning = `⚠️ *${order.orderNo} — the destination has changed.*`;
+
+  // Two messages, because the driver is in two different places. On the way
+  // to the pickup they have not met the passenger yet and need the whole
+  // card, the safety code included. With somebody already in the car they
+  // need the new destination and the fare, and nothing that is behind them.
+  const body =
+    order.status === 'on_the_way'
+      ? taxiOnboardCard(order, warning)
+      : [
+          warning,
+          '',
+          `Now: *${where}*`,
+          '',
+          'The pickup has not changed.',
+          '',
+          taxiPickupCard(order),
+        ].join(String.fromCharCode(10));
 
   // With the card's own buttons on it. This is the message that left a
   // driver stranded: they tapped Change destination, the change went
