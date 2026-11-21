@@ -19,7 +19,8 @@
     "photos:find": "node --env-file-if-exists=.env src/photos-openfoodfacts.ts",
     "backup": "node --env-file-if-exists=.env src/backup.ts",
     "photos:wanted": "node --env-file-if-exists=.env src/photos-wanted.ts",
-    "zones:matrix": "node --env-file-if-exists=.env src/zone-matrix.ts"
+    "zones:matrix": "node --env-file-if-exists=.env src/zone-matrix.ts",
+    "tariff:check": "node --env-file-if-exists=.env src/tariff-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
