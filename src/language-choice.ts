@@ -98,6 +98,35 @@ export function shouldAskLanguage(
   chosen: boolean,
   inboundSoFar: number,
   ordersSoFar: number,
+  alreadyAsked: boolean,
 ): boolean {
-  return !chosen && inboundSoFar <= 1 && ordersSoFar === 0;
+  if (chosen || ordersSoFar > 0) return false;
+  // Asked until answered: once the question has been put to somebody it
+  // keeps coming back, because a customer who types past it has not chosen
+  // anything and the whole conversation after it is a guess.
+  return inboundSoFar <= 1 || alreadyAsked;
+}
+
+/**
+ * The answer typed instead of tapped.
+ *
+ * Needed only because the screen now keeps coming back: without it, somebody
+ * whose WhatsApp will not render buttons — or who simply writes the word —
+ * meets the same screen for ever. Read only while the question is open, so
+ * "english" from somebody already in a conversation is just a word.
+ *
+ * The whole message or nothing. Somebody writing a sentence about Spanish is
+ * not answering a question about languages.
+ */
+export function readTypedLanguage(text: string): Language | null {
+  const said = String(text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?？。]+$/u, '');
+
+  if (/^(english|ingles|inglés|inglês)$/u.test(said)) return 'en';
+  if (/^(spanish|espanol|español|espanhol|castellano)$/u.test(said)) return 'es';
+  if (/^(portuguese|portugues|português|portugués)$/u.test(said)) return 'pt';
+  if (/^(chinese|中文|中国话|chino|chinês)$/u.test(said)) return 'zh';
+  return null;
 }

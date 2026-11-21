@@ -33,6 +33,7 @@ import { destAnswerFromButtonId } from './order-status.ts';
 import {
   languageScreen,
   readLanguageId,
+  readTypedLanguage,
   shouldAskLanguage,
   wantsLanguageScreen,
 } from './language-choice.ts';
@@ -240,10 +241,24 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       repo.languageChosen(msg.phone),
       repo.inboundCount(msg.phone),
       repo.recentOrders(msg.phone, 1).length,
+      repo.languageAsked(msg.phone),
     );
+
+    // Written rather than tapped, and only while the question is open: the
+    // screen comes back until it is answered, so a customer whose WhatsApp
+    // will not draw buttons has to have some way to answer it in words.
+    const written = asked ? readTypedLanguage(text) : null;
+    if (written) {
+      repo.chooseLanguage(msg.phone, written);
+      return shopAnswered(msg, serviceMenuReply(msg.phone), text);
+    }
+
     // Asking for it back by name, which is the way out for somebody who
     // tapped the wrong one and cannot read a word of what came next.
     if (asked || wantsLanguageScreen(text)) {
+      // Written down the first time, which is what lets it be asked again
+      // without the question ever starting for a customer of long standing.
+      repo.markLanguageAsked(msg.phone);
       return shopAnswered(msg, [languageScreen(config.store.name)], text);
     }
   }

@@ -573,15 +573,27 @@ Escolha o seu idioma, por favor.
 The tap sets the language and the service menu follows in it immediately —
 *Bem-vindo*, `1. Táxi`, *Responda com o número*.
 
-**Once, on first contact, and never again.** The choice is kept against the
-number, and unlike the service menu it does not come back when a conversation
-goes cold. Three things have to be true for it to appear: nobody has ever
-answered it from this number, this is the first message that number has ever
-sent, and there is no job of theirs on the books. Without the last two, every
-customer the shop already has would be stopped for a language screen on their
-next message, some of them midway through booking a car, and somebody whose
-number a dispatcher wrote down would be greeted as a stranger while their
-parcel was on a van.
+**It keeps coming back until it is answered.** A customer who types past it
+has chosen nothing, and everything the shop says after that is a guess at
+what they read — so the screen is the answer to their second message too,
+and their third. The choice is kept against the number, and unlike the
+service menu it does not come back once it is made, however cold the
+conversation goes.
+
+**It never starts for a customer the shop already has.** Three things decide
+it: nobody has answered it from this number, and either this is the first
+message that number has ever sent or the screen has been put to them before,
+and there is no job of theirs on the books. The question begins on a
+stranger's first message and on nobody else's — otherwise every customer on
+the books would be stopped for a language screen on their next message, some
+of them midway through booking a car, and somebody whose number a dispatcher
+wrote down would be greeted as a stranger while their parcel was on a van.
+
+**The answer can be written as well as tapped.** `English`, `Español`,
+`Português`, `中文` and the ordinary spellings of each — on their own, as the
+whole message. Needed because the screen now repeats: somebody whose WhatsApp
+will not draw buttons would otherwise meet it for ever. Read only while the
+question is open, so `english` from a customer long past it is just a word.
 
 **Typing `language`, `idioma`, `língua` or `语言` brings it back**, from
 anywhere. That is the way out for somebody who taps the wrong button and

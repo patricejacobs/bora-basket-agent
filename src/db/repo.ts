@@ -842,6 +842,35 @@ export function chooseLanguage(phone: string, language: string): void {
   ).run(phone, language, now, now, now);
 }
 
+/**
+ * Writes down that the screen has been put to them.
+ *
+ * The screen keeps coming back until it is answered, and this is what makes
+ * that possible without catching everybody: a customer of long standing has
+ * never been asked, so the question never starts for them. An upsert for the
+ * same reason as the choice — this happens on a stranger's first message,
+ * before there is anything else to know about them.
+ */
+export function markLanguageAsked(phone: string): void {
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO customers (phone, name, address, language_asked_at, created_at, updated_at)
+     VALUES (?, '', '', ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET
+       language_asked_at = CASE WHEN customers.language_asked_at = ''
+         THEN excluded.language_asked_at ELSE customers.language_asked_at END,
+       updated_at = excluded.updated_at`,
+  ).run(phone, now, now, now);
+}
+
+/** Whether the screen has ever been put to them. */
+export function languageAsked(phone: string): boolean {
+  const row = db.prepare(`SELECT language_asked_at FROM customers WHERE phone = ?`).get(phone) as
+    | { language_asked_at: string }
+    | undefined;
+  return (row?.language_asked_at ?? '') !== '';
+}
+
 /** Whether they have ever answered the opening screen. */
 export function languageChosen(phone: string): boolean {
   const row = db.prepare(`SELECT language_chosen_at FROM customers WHERE phone = ?`).get(phone) as

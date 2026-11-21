@@ -1031,12 +1031,45 @@ section('The opening screen');
   const again = await opens({ phone: stranger, text: 'idioma', channel: 'smoke' } as never);
   check('and comes back when it is', again[0]?.kind === 'buttons', again[0]?.kind);
 
+  // Typed past rather than answered: it comes back. A customer who writes
+  // their way around the screen has chosen nothing, and everything after it
+  // would be a guess at what they read.
+  const dodger = '5920007150';
+  await opens({ phone: dodger, text: 'hi', channel: 'smoke' } as never);
+  const dodged = await opens({ phone: dodger, text: 'i want a taxi', channel: 'smoke' } as never);
+  check('typing past it asks again', dodged[0]?.kind === 'buttons', dodged[0]?.kind);
+  const dodgedTwice = await opens({ phone: dodger, text: 'hello?', channel: 'smoke' } as never);
+  check('and again', dodgedTwice[0]?.kind === 'buttons', dodgedTwice[0]?.kind);
+  check('nothing was booked on the way past', repo.getService(dodger) === null,
+    JSON.stringify(repo.getService(dodger)));
+
+  // Which is why the answer can be written. Somebody whose WhatsApp will not
+  // draw buttons would otherwise meet the same screen for ever.
+  const written = await opens({ phone: dodger, text: 'português', channel: 'smoke' } as never);
+  check('a written answer counts', repo.languageChosen(dodger), 'not chosen');
+  check('and is the language they wrote', repo.customerLanguage(dodger) === 'pt',
+    repo.customerLanguage(dodger));
+  check('the menu follows it too',
+    /Responda com o número/.test((written[0] as { text?: string }).text ?? ''),
+    (written[0] as { text?: string }).text?.slice(0, 60));
+
+  // But only while the question is open: a customer long past it who says
+  // "english" is saying a word, not answering anything.
+  check('and is not read from anybody else',
+    (await opens({ phone: dodger, text: 'english', channel: 'smoke' } as never)).every(
+      (m) => !/Please select your language/.test((m as { text?: string }).text ?? ''),
+    ) && repo.customerLanguage(dodger) === 'pt',
+    repo.customerLanguage(dodger));
+
   // Somebody already talking to the shop is not a stranger, whatever the
   // language column says. Without this every customer it already has would
   // be stopped for a language screen on their next message.
   const midway = '5920007200';
   repo.logMessage(midway, 'in', 'whatsapp', 'a message from before all this');
   const ongoing = await opens({ phone: midway, text: 'hello', channel: 'smoke' } as never);
+  await opens({ phone: midway, text: 'and another', channel: 'smoke' } as never);
+  check('and is never asked, however many messages later',
+    repo.languageAsked(midway) === false, 'asked');
   check('a conversation already under way is left alone',
     !(ongoing[0]?.kind === 'buttons' && /elija su idioma/.test((ongoing[0] as { text?: string }).text ?? '')),
     JSON.stringify(ongoing[0]).slice(0, 80));
@@ -2611,6 +2644,10 @@ section('Service routing');
 {
   const { handleIncoming } = await import('./conversation.ts');
   const phone = '5920009100';
+  // Past the opening screen, as anybody with a conversation to route is.
+  // The screen itself has its own section; here it would answer every
+  // message with the same three greetings.
+  repo.chooseLanguage(phone, 'en');
   const send = async (text: string, extra: Record<string, unknown> = {}) =>
     (await handleIncoming({ phone, text, channel: 'smoke', ...extra } as never)).map(
       (m: { text?: string }) => m.text ?? '',
@@ -3328,6 +3365,7 @@ section('Picking a place instead of typing one');
   } = await import('./place-picker.ts');
 
   const rider = '5920009400';
+    repo.chooseLanguage(rider, 'en');
   repo.setService(rider, 'taxi');
   repo.clearTaxiPicks(rider);
 
@@ -3499,6 +3537,7 @@ section('Picking a place instead of typing one');
   {
     const { handleIncoming } = await import('./conversation.ts');
     const pinner = '5920009450';
+    repo.chooseLanguage(pinner, 'en');
     const send = (extra: Record<string, unknown>) =>
       handleIncoming({ phone: pinner, text: '', channel: 'smoke', ...extra } as never);
 
@@ -3524,6 +3563,7 @@ section('Picking a place instead of typing one');
     // A pin refines the end just settled. The place was chosen by name and
     // has already priced the trip, so what a pin adds is the doorstep.
     const bare = '5920009460';
+    repo.chooseLanguage(bare, 'en');
     const sendBare = (extra: Record<string, unknown>) =>
       handleIncoming({ phone: bare, text: '', channel: 'smoke', ...extra } as never);
     await sendBare({ text: 'hello' });
@@ -4048,6 +4088,7 @@ section('Picking a place instead of typing one');
   {
     const { handleIncoming } = await import('./conversation.ts');
     const typer = '5920009500';
+    repo.chooseLanguage(typer, 'en');
     const send = (text: string) =>
       handleIncoming({ phone: typer, text, channel: 'smoke' } as never);
 
@@ -4094,6 +4135,7 @@ section('Picking a place instead of typing one');
   {
     const { handleIncoming } = await import('./conversation.ts');
     const odd = '5920009510';
+    repo.chooseLanguage(odd, 'en');
     const send = (text: string, location?: unknown) =>
       handleIncoming({ phone: odd, text, channel: 'smoke', location } as never);
 
@@ -4183,6 +4225,7 @@ section('Picking a place instead of typing one');
   {
     const { handleIncoming } = await import('./conversation.ts');
     const booked = '5920009490';
+    repo.chooseLanguage(booked, 'en');
     const tap = (text: string) =>
       handleIncoming({ phone: booked, text, channel: 'smoke' } as never);
 
@@ -4227,6 +4270,7 @@ section('Picking a place instead of typing one');
   {
     const { buildTurnContext } = await import('./agent/context.ts');
     const told = '5920009480';
+    repo.chooseLanguage(told, 'en');
     repo.setService(told, 'taxi');
     repo.clearTaxiPicks(told);
     check('nothing is claimed before anything is chosen',
@@ -7468,6 +7512,7 @@ section('The picking ticket for a grocery order');
   // Confirm no longer has to be staff — and adding them to STAFF_NUMBERS would
   // have quietly outranked their other role.
   const picker = '5926497123';
+    repo.chooseLanguage(picker, 'en');
   repo.upsertOutlet({ code: 'GROCERY', name: config.store.name, kind: 'grocery', hours: '24 hours', whatsapp: picker });
   check('the picking number need not be staff', !config.staffNumbers.includes(picker));
   check('and the shop is reached through its own record', repo.outletByWhatsapp(picker)?.code === 'GROCERY');

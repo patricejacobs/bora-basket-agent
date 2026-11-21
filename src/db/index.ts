@@ -587,6 +587,11 @@ addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 // not, and only a choice means the screen has been answered and must never
 // be shown to this person again.
 addColumnIfMissing('customers', 'language_chosen_at', "TEXT NOT NULL DEFAULT ''");
+// When the screen was first PUT to them, which is what lets it be asked
+// again. Without it, asking twice would mean asking everybody: the only
+// other way to tell a stranger from a customer of long standing is that a
+// stranger has sent nothing before, and that is true exactly once.
+addColumnIfMissing('customers', 'language_asked_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
