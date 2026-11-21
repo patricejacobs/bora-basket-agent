@@ -16,7 +16,7 @@
  */
 import * as repo from './db/repo.ts';
 import { t, type Language } from './language.ts';
-import { money } from './config.ts';
+import { config, money } from './config.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 const nl = String.fromCharCode(10);
@@ -113,6 +113,31 @@ export function basketPage(phone: string, lang: Language = 'en'): OutboundMessag
     ].join(nl),
     buttons: wayOutButtons(phone, lang, { onTheBasket: true }),
   };
+}
+
+/**
+ * What stands between this basket and checkout, said to the customer.
+ *
+ * Empty when nothing does. The minimum used to be enforced only by
+ * `place_order`, at the last tap of the sequence, so a basket under it was
+ * taken through the place, the pin, the name and a price with *Book it* on
+ * it and then refused - which a customer reads as the shop breaking rather
+ * than as a rule they could have met by adding a tin of milk.
+ */
+export function cannotCheckOutYet(phone: string, lang: Language): string {
+  const cart = repo.getCart(phone);
+  if (cart.lines.length === 0) return t('basket_empty', lang);
+
+  const least = cart.outlet && cart.outlet.minOrder > 0
+    ? cart.outlet.minOrder
+    : config.store.minOrderTotal;
+  if (least <= 0 || cart.subtotal >= least) return '';
+
+  return t('basket_minimum', lang, {
+    goods: money(cart.subtotal),
+    least: money(least),
+    short: money(least - cart.subtotal),
+  });
 }
 
 /** a, b, c … then aa, ab, for a basket nobody should have but might. */

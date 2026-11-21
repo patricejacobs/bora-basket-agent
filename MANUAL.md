@@ -968,8 +968,21 @@ nothing new to learn. The letters are written down as the page is sent, so
 the letter they answer with is the line they were looking at.
 
 **Check out** hands straight to the shop's own sequence — place, pin, price
-— and an empty basket is shown the basket instead, which is kinder than a
-refusal from a tool the customer never called.
+— unless something stands in the way, in which case that is said here with
+the figure:
+
+```
+🛒 Your basket is *$640*, and the smallest order we can send out is
+*$1,000* — *$360* to go. Add anything and we are away.
+   [ 🛒 Basket · $640 ]  [ ✅ Check out ]  [ 🛒 Categories ]
+```
+
+**The minimum is checked before the sequence, not at the end of it.** It
+used to be enforced only by `place_order` — the very last tap — so a basket
+under it was taken through the place, the pin, the name and a price with
+*Book it* on it, and then refused. A customer reads that as the shop
+breaking. A rule they can meet by adding a tin of milk belongs in front of
+them while they are still shopping.
 
 **How to answer is explained where the answers are**, at the foot of an
 aisle rather than on the front page three screens before anybody sees a

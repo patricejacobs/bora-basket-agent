@@ -36,6 +36,8 @@ import {
   AISLE_LEAVE,
   aislesMessage,
   basketPage,
+  cannotCheckOutYet,
+  wayOutButtons,
   isAisleId,
   withWayOut,
 } from './aisles.ts';
@@ -687,11 +689,17 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       return shopAnswered(msg, [basketPage(msg.phone, lang)], describeTap(text));
     }
     if (text === AISLE_CHECKOUT) {
-      // The same handover the agent makes, made by a tap. An empty basket
-      // cannot check out, and saying so is kinder than a refusal from a
-      // tool the customer never called.
-      if (repo.getCart(msg.phone).lines.length === 0) {
-        return shopAnswered(msg, [basketPage(msg.phone, lang)], describeTap(text));
+      // The same handover the agent makes, made by a tap. Whatever stands in
+      // the way - an empty basket, or one under the shop's minimum - is said
+      // here, with the figure, rather than discovered at the last tap of a
+      // sequence they have already answered five questions of.
+      const blocked = cannotCheckOutYet(msg.phone, lang);
+      if (blocked) {
+        return shopAnswered(
+          msg,
+          [{ kind: 'buttons', text: blocked, buttons: wayOutButtons(msg.phone, lang) }],
+          describeTap(text),
+        );
       }
       return shopAnswered(msg, [askPlace(msg.phone, lang)], describeTap(text));
     }

@@ -2028,8 +2028,23 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             `Still needed before the shop can take over: ${missing.join(', ')}. Use parcel_party for a name and a number, and ask what is being sent.`,
           );
         }
-      } else if (repo.getCart(ctx.phone).lines.length === 0) {
-        return fail('Their basket is empty — there is nothing to check out yet.');
+      } else {
+        const cart = repo.getCart(ctx.phone);
+        if (cart.lines.length === 0) {
+          return fail('Their basket is empty — there is nothing to check out yet.');
+        }
+        // The minimum, checked HERE rather than at the last tap. It used to
+        // be enforced only by place_order, so a basket under it went through
+        // the whole sequence - place, pin, name, the price with Book it on
+        // it - and was refused on the tap, which the customer reads as the
+        // shop breaking. A rule they can do something about belongs in front
+        // of them while they are still shopping.
+        const least = minimumFor(cart.outlet);
+        if (least > 0 && cart.subtotal < least) {
+          return fail(
+            `Their basket is ${money(cart.subtotal)} and the minimum is ${money(least)} — ${money(least - cart.subtotal)} short. Tell them that figure, warmly, and suggest they add something. Do not call this again until they have.`,
+          );
+        }
       }
       void 0;
 

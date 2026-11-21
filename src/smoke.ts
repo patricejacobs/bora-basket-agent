@@ -1084,6 +1084,40 @@ section('The aisles, and the way out of them');
     check('an empty basket cannot check out and is told so',
       /empty/i.test((emptyOut[0] as { text?: string }).text ?? ''),
       (emptyOut[0] as { text?: string }).text);
+
+    // The minimum, said while they are still shopping. It used to be
+    // enforced only by place_order - at the LAST tap of the sequence, after
+    // the place, the pin, the name and a price with Book it on it - and the
+    // customer read the refusal as the shop breaking.
+    const { cannotCheckOutYet } = await import('./aisles.ts');
+    // Set on the SHOP for this check, because the suite runs with no
+    // MIN_ORDER_TOTAL and a rule nobody exercises is a rule nobody has.
+    const houseShop = repo.defaultGrocery()!;
+    repo.upsertOutlet({ ...houseShop, minOrder: 5000 } as never);
+    repo.setBrowsingOutlet(shopper2, houseShop.id);
+    const least = 5000;
+    {
+      repo.setCartQty(shopper2, riceId, 1);
+      const cheap = repo.getCart(shopper2);
+      if (cheap.subtotal < least) {
+        const stopped = await shopping({
+          phone: shopper2, text: AISLE_CHECKOUT, channel: 'smoke',
+        } as never);
+        const said = (stopped[0] as { text?: string }).text ?? '';
+        check('a basket under the minimum is stopped before the sequence',
+          repo.checkoutStep(shopper2) === '', repo.checkoutStep(shopper2));
+        check('and told what it is short by',
+          said.includes(money(least - cheap.subtotal)) && said.includes(money(least)), said);
+        check('the way out stays on the message',
+          ((stopped[0] as { buttons?: unknown[] }).buttons ?? []).length > 0);
+      }
+      repo.setCartQty(shopper2, riceId, 20);
+      check('a basket over it has nothing in the way',
+        cannotCheckOutYet(shopper2, 'en') === '', cannotCheckOutYet(shopper2, 'en'));
+      repo.clearCart(shopper2);
+      repo.upsertOutlet({ ...houseShop, minOrder: 0 } as never);
+      repo.setBrowsingOutlet(shopper2, null);
+    }
   }
 
   // The ids, and what they do.
