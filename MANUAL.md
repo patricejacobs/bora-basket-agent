@@ -1518,6 +1518,13 @@ That question is the fare gate doing its job. Before it, a bare pin booked a
 car with no figure ever quoted — and the row offering it sat first on the
 pickup screen, so it was the easiest path to the quiet failure.
 
+**A pinned end carries on exactly as a tapped one does**: the shop says which
+end it took — *"Got it — we will collect you at Ogle."* — and asks for the
+end still missing with the picker, areas and pin row and all. Without that,
+pinning the pickup handed the conversation to the agent, which asked "where
+are we taking you?" in prose with nothing to tap, while tapping the same
+place handed back a list. Same journey, same answer, two different shops.
+
 Which end a pin belongs to is decided by **what is already settled, tapped or
 pinned alike**, not by which pin arrived first. A passenger can choose Diamond
 off the picker and then send a pin for where they are going; the parcel rule

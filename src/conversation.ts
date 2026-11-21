@@ -438,15 +438,45 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     // question that turns a pin into a fare. Deterministically, before the
     // agent, because it is the fare gate doing its job.
     if (chosen === 'taxi' && !text) {
+      const lang = languageFor(msg.phone);
       const named = placeFromPin(msg.location);
 
-      if (named) {
-        repo.setTaxiPick(msg.phone, taxiSide, named);
-      } else {
-        const ask = [areaPicker(taxiSide, languageFor(msg.phone))];
+      // No name on the pin, so nothing to price it with. Ask the one
+      // question that turns it into a fare.
+      if (!named) {
+        const ask = [areaPicker(taxiSide, lang)];
         for (const out of ask) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
         return ask;
       }
+
+      repo.setTaxiPick(msg.phone, taxiSide, named);
+
+      // And then carry on exactly as a TAPPED place does: say which end was
+      // taken, and ask for the end still missing with the picker.
+      //
+      // This is where a pinned pickup used to part company with a tapped
+      // one. Tapping Diamond handed back the list of areas for the
+      // destination; pinning the same place fell through to the agent, which
+      // asked "where are we taking you?" in prose — no areas, no pin row,
+      // nothing to tap. Same journey, same answer, two different shops.
+      const settledNow = repo.taxiPicks(msg.phone);
+      const missing = !settledNow.from ? 'from' : !settledNow.to ? 'to' : null;
+      if (missing) {
+        const onward: OutboundMessage[] = [
+          {
+            kind: 'text',
+            text: t(taxiSide === 'from' ? 'pin_taken_from' : 'pin_taken_to', lang, {
+              place: named,
+            }),
+          },
+          endPicker(msg.phone, missing, lang),
+        ];
+        for (const out of onward) {
+          repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+        }
+        return onward;
+      }
+      // Both ends known: the agent reads the note, quotes and books.
     }
 
     text = text ? `${note}\n\n${text}` : note;

@@ -3361,6 +3361,29 @@ section('Picking a place instead of typing one');
     const { taxiFare } = await import('./taxi.ts');
     check('so the trip prices', taxiFare(both.from, both.to) !== null);
 
+    // Reported from the live shop: pinning the pickup asked "where are we
+    // taking you?" in prose, with no areas, no pin row and nothing to tap.
+    // A TAPPED pickup handed back the list; a PINNED one fell through to the
+    // agent. Same journey, same answer, two different shops.
+    const pinFirst = '5920009470';
+    const sendPin = (extra: Record<string, unknown>) =>
+      handleIncoming({ phone: pinFirst, text: '', channel: 'smoke', ...extra } as never);
+    await sendPin({ text: 'hello' });
+    await sendPin({ text: '1' });
+    const onward = await sendPin({
+      location: { latitude: 6.8, longitude: -58.1, label: 'Ogle Airport — Ogle, East Coast Demerara' },
+    });
+    check('a pinned pickup says which end it took',
+      onward[0]?.kind === 'text' && /collect you at/i.test(onward[0].text), onward[0]?.kind);
+    check('and asks for the destination with the picker',
+      onward[1]?.kind === 'list' && /where are you going/i.test(onward[1].text),
+      onward[1]?.kind);
+    check('areas and all',
+      onward[1]?.kind === 'list' && onward[1].rows.some((r) => r.title === 'East Bank Demerara'));
+    check('with the pin row still there',
+      onward[1]?.kind === 'list' && onward[1].rows.some((r) => r.id === 'pick:to:here'));
+    repo.setService(pinFirst, null);
+
     // A bare pin — a live position, which WhatsApp sends with no name.
     const bare = '5920009460';
     const sendBare = (extra: Record<string, unknown>) =>
