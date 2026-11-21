@@ -3509,6 +3509,52 @@ section('Picking a place instead of typing one');
     repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
+  /* --- the shop's own turns are in the agent's account ----------------- */
+
+  // Reported from the live shop: six taps into a booking, with the
+  // destination already chosen, the agent said "Good evening, Shawn" and
+  // offered to settle the pickup. The picker answers its own taps and
+  // returns before the agent is called, so none of those turns reached
+  // saveHistory — the agent opened an empty conversation and behaved
+  // exactly as it should on an empty conversation.
+  {
+    const { handleIncoming } = await import('./conversation.ts');
+    const booked = '5920009490';
+    const tap = (text: string) =>
+      handleIncoming({ phone: booked, text, channel: 'smoke' } as never);
+
+    repo.resetConversation(booked);
+    await tap('hello');
+    await tap('1');
+    await tap('pick:from:corr:0:Georgetown');
+    await tap('pick:from:place:Meadow Bank');
+    await tap('pick:from:skip');
+    await tap('pick:to:corr:0:West Coast Demerara');
+    await tap('pick:to:place:Zeelugt');
+
+    const { history } = repo.loadHistory(booked);
+    const said = history
+      .map((m) => {
+        const turn = m as { role?: string; content?: unknown };
+        return typeof turn.content === 'string' ? `${turn.role}: ${turn.content}` : '';
+      })
+      .join(String.fromCharCode(10));
+
+    check('the picker turns reach the agent account', history.length >= 10,
+      String(history.length));
+    check('with the places as the passenger saw them',
+      /user: Meadow Bank/.test(said) && /user: Zeelugt/.test(said), said.slice(0, 120));
+    check('not as row ids', !/pick:to:place/.test(said));
+    check('and the shop’s own replies beside them',
+      /assistant: .*where are you going/i.test(said));
+    check('so the agent is not opening a fresh conversation',
+      history.filter((m) => (m as { role?: string }).role === 'user').length >= 5);
+
+    repo.setService(booked, null);
+    repo.clearTaxiPicks(booked);
+    repo.resetConversation(booked);
+  }
+
   /* --- what the agent is told it already has --------------------------- */
 
   // The picker answers its own taps, so those turns never reach the agent at

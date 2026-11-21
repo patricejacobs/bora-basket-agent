@@ -1602,7 +1602,15 @@ the agent would pick up a conversation whose first half it had no record of,
 and ask where they were going when they had said so two taps earlier. From
 its own account, the booking had just begun.
 
-Every turn now carries a line saying what the shop actually holds:
+**The turns the shop answered are written into the agent's account.** A tap
+is recorded as the words the passenger saw — `Zeelugt`, not
+`pick:to:place:Zeelugt` — with the shop's reply beside it, in the same shape
+the agent's own turns are stored in. Without that, six taps into a booking
+with the destination already chosen, the agent said *"Good evening, Shawn"*
+and offered to settle the pickup: it was opening an empty conversation,
+because as far as its history went the conversation was empty.
+
+And every turn carries a line saying what the shop actually holds:
 
 > This taxi already has its pickup *Meadow Bank*, destination *Zeelugt*,
 > chosen off the place picker — treat that as said and do not ask for it

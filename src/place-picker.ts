@@ -80,6 +80,40 @@ export type Pick =
   | { kind: 'list'; side: PickSide }
   | { kind: 'fare'; answer: 'book' | 'change' | 'cancel' };
 
+/**
+ * A tapped row in the words the passenger actually saw.
+ *
+ * The id means nothing to a reader: "pick:to:place:Zeelugt" is not what
+ * anybody tapped, "Zeelugt" is. Used when the exchange is written into the
+ * agent's account, so what it reads back is a conversation and not a log.
+ */
+export function describeTap(id: string): string {
+  const pick = readPick(id);
+  if (!pick) return '';
+  switch (pick.kind) {
+    case 'place':
+      return pick.place;
+    case 'corridor':
+      return pick.page > 0 ? 'More places' : pick.corridor;
+    case 'type':
+      return 'Type the address';
+    case 'menu':
+      return 'Main menu';
+    case 'back':
+      return 'Back to the areas';
+    case 'list':
+      return 'Choose a place';
+    case 'spot':
+      return 'Send location';
+    case 'skip':
+      return 'Skip';
+    case 'fare':
+      return pick.answer === 'book' ? 'Book it' : pick.answer === 'change' ? 'Change destination' : 'Cancel';
+    default:
+      return '';
+  }
+}
+
 /** True when this is one of our row ids rather than somebody else's. */
 export function isPickerId(id: string): boolean {
   return typeof id === 'string' && id.startsWith(`${PREFIX}:`);

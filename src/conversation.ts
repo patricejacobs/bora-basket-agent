@@ -23,7 +23,14 @@ import {
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
-import { endPicker, handlePick, isPickerId, nextStep, pickerAvailable } from './place-picker.ts';
+import {
+  describeTap,
+  endPicker,
+  handlePick,
+  isPickerId,
+  nextStep,
+  pickerAvailable,
+} from './place-picker.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
 /**
@@ -87,6 +94,31 @@ function outboundLogBody(msg: OutboundMessage): string {
   if (msg.kind === 'location_request') return `[send-location button] ${msg.text}`;
   if (msg.kind === 'list') return `[list: ${msg.button}] ${msg.text}`;
   return msg.text;
+}
+
+/**
+ * Sends what the SHOP answered, and writes it into the agent's account.
+ *
+ * The second half is the point. A picker tap is answered here and returns
+ * before the agent is ever called, so without this the agent's history skips
+ * every one of those turns — and on the next turn it opens an empty
+ * conversation, says good evening, and offers to settle a pickup the
+ * passenger chose four taps ago. It is not confused; it is answering from
+ * the only account it has.
+ *
+ * `said` is what the passenger actually saw themselves tap, not the row id:
+ * "Zeelugt", not "pick:to:place:Zeelugt".
+ */
+const chr10 = String.fromCharCode(10);
+
+function shopAnswered(
+  msg: IncomingMessage,
+  outbound: OutboundMessage[],
+  said: string,
+): OutboundMessage[] {
+  for (const out of outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+  repo.rememberExchange(msg.phone, said, outbound.map(outboundLogBody).join(chr10));
+  return outbound;
 }
 
 /** Serialises per-customer work so two fast messages can't race on the same cart. */
@@ -302,8 +334,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
 
     // Last trip's ends must never start this one.
     if (picked === 'taxi') repo.clearTaxiPicks(msg.phone);
-    for (const out of reply) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
-    return reply;
+    return shopAnswered(msg, reply, text);
   }
 
   /* --------------------------------------------------- taxi place picker */
@@ -318,10 +349,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     const result = handlePick(msg.phone, text, lang);
 
     if (result?.kind === 'reply') {
-      for (const out of result.outbound) {
-        repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
-      }
-      return result.outbound;
+      return shopAnswered(msg, result.outbound, describeTap(text));
     }
 
     // Straight back to the front door, from any screen of the picker.
@@ -353,9 +381,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // or one that arrived mangled. Start that end again rather than
       // guessing at a place — a car sent to the wrong village is a worse
       // answer than one more question.
-      const again = [endPicker(msg.phone, 'from', lang)];
-      for (const out of again) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
-      return again;
+      return shopAnswered(msg, [endPicker(msg.phone, 'from', lang)], describeTap(text));
     }
   }
 
@@ -386,11 +412,13 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
 
       const onward: OutboundMessage[] = [{ kind: 'text', text: t('spot_saved', lang) }];
       const step = nextStep(msg.phone, lang);
-      if (step.kind === 'reply') onward.push(...step.outbound);
+      if (step.kind === 'reply') {
+        onward.push(...step.outbound);
+        return shopAnswered(msg, onward, '(sent their location)');
+      }
       for (const out of onward) {
         repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
       }
-      if (step.kind === 'reply') return onward;
 
       // Both ends settled and priced: the acknowledgement goes now, and the
       // agent takes the note from here.

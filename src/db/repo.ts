@@ -1292,6 +1292,32 @@ export function saveHistory(phone: string, history: unknown[]): void {
   ).run(phone, JSON.stringify(history), nowIso());
 }
 
+/**
+ * Writes an exchange the AGENT never saw into the account it reads.
+ *
+ * The place picker answers its own taps, so those turns return before the
+ * agent is ever called and never reach saveHistory. The agent then opens the
+ * next turn on an empty history and behaves exactly as it should on an empty
+ * history: it says good evening, introduces the shop, and offers to settle a
+ * pickup the passenger chose four taps ago.
+ *
+ * It is not confused. It is answering from the only account it has, and the
+ * account is missing half the conversation. So the half the shop handled is
+ * written down here, in the same shape the agent's own turns are stored in.
+ *
+ * Capped, because this appends outside the agent's own trimming.
+ */
+export function rememberExchange(phone: string, said: string, replied: string): void {
+  if (!said.trim() && !replied.trim()) return;
+  const { history } = loadHistory(phone);
+  const grown = [
+    ...history,
+    { role: 'user', content: said.trim() || '(tapped a button)' },
+    { role: 'assistant', content: replied.trim() || '(sent a list)' },
+  ];
+  saveHistory(phone, grown.slice(-40));
+}
+
 export function resetConversation(phone: string): void {
   db.prepare(`DELETE FROM conversations WHERE phone = ?`).run(phone);
 }
