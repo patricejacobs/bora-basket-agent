@@ -15,7 +15,7 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
-import { acceptButton, nextActions, wantedBy } from './order-status.ts';
+import { acceptButton, destAnswerButtons, nextActions, wantedBy } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import {
   checkRange,
@@ -491,10 +491,13 @@ export async function proposeDestinationToPassenger(
   const was = order.quotedFare > 0 ? money(order.quotedFare) : t('taxi_fare_with_driver', lang);
   const now = quoted ? money(quoted.fee) : t('taxi_fare_with_driver', lang);
 
-  await sendButtons(order.phone, t('dest_ask', lang, { place, was, now }), [
-    { id: `dest_ok_${repo.orderDigits(orderNo)}`, title: t('dest_ack', lang) },
-    { id: `dest_no_${repo.orderDigits(orderNo)}`, title: t('dest_keep', lang) },
-  ]);
+  await sendButtons(
+    order.phone,
+    t('dest_ask', lang, { place, was, now }),
+    // Built where they are read, so the id and the pattern that matches it
+    // cannot drift apart in two files.
+    destAnswerButtons(repo.orderDigits(orderNo), t('dest_ack', lang), t('dest_keep', lang)),
+  );
 
   return [
     `Asked them about *${place}*${quoted ? ` — ${money(quoted.fee)}` : ''}.`,

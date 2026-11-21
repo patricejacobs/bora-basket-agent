@@ -29,6 +29,7 @@ import {
   wantsServiceMenu,
 } from './services.ts';
 import { findZone } from './zones.ts';
+import { destAnswerFromButtonId } from './order-status.ts';
 import { tellDriverOfNewDestination, tellDriverDestKept } from './dispatch.ts';
 import { money } from './config.ts';
 import {
@@ -126,9 +127,9 @@ function outboundLogBody(msg: OutboundMessage): string {
  * file should be matching on.
  */
 function destAnswer(text: string): { ok: boolean; said: string } | null {
-  const tapped = text.trim().match(new RegExp('^dest_(ok|no)_[0-9]+$', 'i'));
+  const tapped = destAnswerFromButtonId(text);
   if (!tapped) return null;
-  return { ok: tapped[1]?.toLowerCase() === 'ok', said: tapped[1] === 'ok' ? 'Acknowledged' : 'No, as booked' };
+  return { ok: tapped.ok, said: tapped.ok ? 'Acknowledged' : 'No, as booked' };
 }
 
 const chr10 = String.fromCharCode(10);

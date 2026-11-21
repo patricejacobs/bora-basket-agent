@@ -326,6 +326,46 @@ export function commandFromButtonId(id: string): string | null {
 }
 
 /**
+ * A passenger's answer to a destination their driver raised.
+ *
+ * Kept here, beside the ids it is the twin of, rather than where it is read.
+ * The meaning is in the id because the TITLES are translated - "Acknowledged"
+ * in Portuguese is not a string any router should match on - and an id whose
+ * meaning nothing reads is a button that silently does nothing.
+ *
+ * Deliberately not part of `commandFromButtonId`: that turns a tap into a
+ * STAFF command, and this is a customer tapping. The two must stay apart, or
+ * a passenger's answer arrives at the staff parser.
+ */
+const DEST_ANSWER = /^dest_(ok|no)_(\d+)$/i;
+
+/** The ids above, for the channel that has to pass them through untranslated. */
+export function isDestAnswerId(id: string): boolean {
+  return typeof id === 'string' && DEST_ANSWER.test(id.trim());
+}
+
+/** What one of them means, or null. */
+export function destAnswerFromButtonId(
+  id: string,
+): { ok: boolean; digits: string } | null {
+  const tapped = DEST_ANSWER.exec(String(id).trim());
+  if (!tapped) return null;
+  return { ok: (tapped[1] ?? '').toLowerCase() === 'ok', digits: tapped[2] ?? '' };
+}
+
+/** The two buttons a passenger is given, so the ids are built where they are read. */
+export function destAnswerButtons(
+  digits: string,
+  ackTitle: string,
+  keepTitle: string,
+): { id: string; title: string }[] {
+  return [
+    { id: `dest_ok_${digits}`, title: ackTitle },
+    { id: `dest_no_${digits}`, title: keepTitle },
+  ];
+}
+
+/**
  * The way past a delivery code nobody can produce.
  *
  * A separate button rather than a word to type, because the person tapping it

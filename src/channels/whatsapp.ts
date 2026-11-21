@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { commandFromButtonId } from '../order-status.ts';
+import { commandFromButtonId, isDestAnswerId } from '../order-status.ts';
 import { isPickerId } from '../place-picker.ts';
 import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
@@ -248,6 +248,12 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
                 // language, so matching on those would be matching on a
                 // translation.
                 (reply?.id && isPickerId(reply.id) ? reply.id : null) ??
+                // And a passenger answering the destination their driver
+                // raised, for the same reason. Every id passed through here
+                // needs something downstream that reads it; an id with
+                // nothing behind it drops to the title below, which is a
+                // button that appears to work and does nothing.
+                (reply?.id && isDestAnswerId(reply.id) ? reply.id : null) ??
                 reply?.title ??
                 (row?.id && isPickerId(row.id) ? row.id : null) ??
                 row?.title ??

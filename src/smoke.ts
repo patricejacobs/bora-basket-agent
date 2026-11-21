@@ -3588,17 +3588,34 @@ section('Picking a place instead of typing one');
         repo.findOrder(ride.orderNo)?.quotedFare === 700,
       `${repo.findOrder(ride.orderNo)?.address} ${repo.findOrder(ride.orderNo)?.quotedFare}`);
 
+    // What a REAL tap produces. The id goes through the webhook parser, which
+    // is where a button whose id nothing reads quietly becomes its own TITLE -
+    // and a title is a translated word, which no router should match on. Both
+    // halves of this flow had that fault, and both were invisible to a test
+    // that fed the id straight in.
+    const tapped = (buttonId: string, title: string, from: string): string =>
+      parseWebhook({
+        entry: [{ changes: [{ value: { messages: [
+          { from, id: 'wamid.tap', type: 'interactive',
+            interactive: { button_reply: { id: buttonId, title } } },
+        ] } }] }],
+      })[0]?.text ?? '';
+
     // Declining leaves the trip exactly as booked.
-    await paxSays({ phone: pax, text: `dest_no_${digits}`, channel: 'smoke' } as never);
+    const declined = tapped(`dest_no_${digits}`, 'No, as booked', pax);
+    check('a passenger answer survives the webhook', declined === `dest_no_${digits}`, declined);
+    await paxSays({ phone: pax, text: declined, channel: 'smoke' } as never);
     check('declining keeps it as booked',
       repo.findOrder(ride.orderNo)?.address === 'Grove' &&
         repo.findOrder(ride.orderNo)?.quotedFare === 700);
     check('and the proposal is spent', repo.destProposal(ride.orderNo) === null);
 
     // Acknowledging is what moves it.
-    await driverSays(`${digits} change destination`, drv);
+    await driverSays(tapped(`changedest_${digits}`, 'Change destination', drv), drv);
     await driverSays('Buxton', drv);
-    await paxSays({ phone: pax, text: `dest_ok_${digits}`, channel: 'smoke' } as never);
+    await paxSays({
+      phone: pax, text: tapped(`dest_ok_${digits}`, 'Acknowledged', pax), channel: 'smoke',
+    } as never);
     const moved2 = repo.findOrder(ride.orderNo);
     check('acknowledging changes the trip', moved2?.address === 'Buxton', moved2?.address);
     check('and re-prices it', moved2?.quotedFare === 3100, String(moved2?.quotedFare));
@@ -3607,7 +3624,9 @@ section('Picking a place instead of typing one');
       repo.orderHistory(ride.orderNo).some((e) => /Grove -> Buxton/.test(e.detail ?? '')));
 
     // A tap on a proposal that is already settled must not act on anything.
-    const stale = await paxSays({ phone: pax, text: `dest_ok_${digits}`, channel: 'smoke' } as never);
+    const stale = await paxSays({
+      phone: pax, text: tapped(`dest_ok_${digits}`, 'Acknowledged', pax), channel: 'smoke',
+    } as never);
     check('a second tap is refused', /already settled/i.test((stale[0] as { text?: string }).text ?? ''),
       (stale[0] as { text?: string }).text);
 
