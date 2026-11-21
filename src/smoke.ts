@@ -510,6 +510,41 @@ section('Reply assembly');
 
   const silent = assembleReply('', []);
   check('never sends an empty turn', silent.length === 1 && silent[0]?.kind === 'text');
+
+  // ---- the shop's own plumbing, taken back out ----------------------
+  // Reported from a live trip. The tool's note to the model said the fare
+  // and its three buttons had gone to the passenger; the model passed that
+  // on to the passenger, who does not know what a button message is and
+  // could see the thing itself arriving underneath.
+  const { stripMechanism } = await import('./agent/run.ts');
+  const leaked =
+    "That's Meadow Bank to Belfield, five of you — the fare's just gone over with buttons, so tap Book it when you're ready.";
+  check('the narration goes', !/button|tap/i.test(stripMechanism(leaked)), stripMechanism(leaked));
+  check('and the read-back stays',
+    /Meadow Bank to Belfield/.test(stripMechanism(leaked)) && /five of you/.test(stripMechanism(leaked)),
+    stripMechanism(leaked));
+  check('it ends like a sentence', /[.!?]$/.test(stripMechanism(leaked)), stripMechanism(leaked));
+  check('prose with no plumbing in it is untouched',
+    stripMechanism('Only 3 snapper left, so I put 3 in.') === 'Only 3 snapper left, so I put 3 in.');
+  check('a line that is nothing BUT plumbing becomes nothing',
+    stripMechanism('Tap Book it when you are ready.') === '',
+    stripMechanism('Tap Book it when you are ready.'));
+
+  const narrated = assembleReply(leaked, [
+    { kind: 'buttons', text: 'Meadow Bank to Belfield — $3,400.', buttons },
+  ]);
+  const saidAloud = narrated.find((m) => m.kind === 'text')?.text ?? '';
+  check('so none of it reaches the passenger', !/button|tap/i.test(saidAloud), saidAloud);
+
+  // And a reply that was ONLY narration is measured without it, so it drops
+  // out as the filler it was rather than counting its own plumbing as
+  // substance.
+  const allPlumbing = assembleReply(
+    'The fare has gone over to you with three buttons on it, so just tap Book it whenever you are ready to go.',
+    [{ kind: 'buttons', text: 'Meadow Bank to Belfield — $3,400.', buttons }],
+  );
+  check('a reply that was all plumbing is dropped',
+    allPlumbing.every((m) => m.kind !== 'text'), JSON.stringify(allPlumbing).slice(0, 120));
 }
 
 /* ---------------------------------------------------------------- webhooks */

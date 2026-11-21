@@ -2251,7 +2251,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
                 note: 'You passed fare_confirmed, but this passenger had not been sent this fare. They have it now. Wait for the tap.',
               }
             : {}),
-          next: 'The fare and its three buttons have already gone to the passenger. Say nothing further about the fare and do not ask whether it is all right — wait for the tap. Book nothing until Book it comes back.',
+          next: "The passenger is already being shown the fare and how to answer it; it is the next thing they will see. Do not repeat the figure, do not ask whether it is all right, and do not describe what is arriving or how they should answer it — they can see it. Say only what is NEW, such as reading their trip back, or nothing at all. Book nothing until they have agreed.",
         });
       }
       if (quoted) repo.setFeeAgreed(ctx.phone, quoted.fee);

@@ -358,6 +358,59 @@ export function sanitizeGreeting(text: string, underway: boolean): string {
     : trimmed;
 }
 
+/**
+ * Words about the shop's own plumbing, which a customer never needs.
+ *
+ * Reported from a live trip: *"That's Meadow Bank to Belfield, five of you —
+ * the fare's just gone over with buttons, so tap Book it when you're ready."*
+ * The first half is a proper read-back. The second half is the tool's own
+ * note to the model — `the fare and its three buttons have already gone` —
+ * repeated to the passenger, who does not know what a button message is and
+ * can see the thing itself arriving underneath.
+ *
+ * The instruction said to say nothing further about the fare, and it was
+ * followed to the letter: no figure was repeated. A prompt is a request,
+ * not a guard.
+ */
+const MECHANISM = /\b(button|buttons|tap|taps|tapping|tapped|press|click|clicking)\b/i;
+
+/** Where one clause of a sentence ends and the next begins. */
+const CLAUSES = /\s*(?:[—–]|;|,\s*(?:so|and then)\b)\s*/;
+
+/**
+ * Takes the plumbing back out of a reply that is going out WITH buttons.
+ *
+ * Clause by clause, not sentence by sentence, because the offending half is
+ * usually hung off a perfectly good one with a dash. What is left keeps its
+ * meaning: the read-back survives, the narration goes.
+ *
+ * Only when buttons are actually attached. Elsewhere "tap the link" may be
+ * the only instruction a customer has, and a guard that eats it would be
+ * worse than the thing it guards against.
+ */
+export function stripMechanism(text: string): string {
+  if (!text || !MECHANISM.test(text)) return text;
+
+  const kept = text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => {
+      if (!MECHANISM.test(sentence)) return sentence;
+      const clauses = sentence.split(CLAUSES).filter((c) => c.trim() !== '');
+      const left = clauses.filter((c) => !MECHANISM.test(c));
+      if (left.length === 0) return '';
+      // The terminator went with the clause that carried it.
+      const rejoined = left.join(' — ').replace(/[\s,;—–]+$/, '');
+      return /[.!?]$/.test(rejoined) ? rejoined : `${rejoined}.`;
+    })
+    .filter((s) => s.trim() !== '')
+    .join(' ')
+    .trim();
+
+  // Nothing but plumbing: the buttons are the whole message, which is what
+  // they are for.
+  return kept;
+}
+
 export function assembleReply(finalText: string, queued: OutboundMessage[]): OutboundMessage[] {
   const outbound: OutboundMessage[] = [];
   const photoMessages = queued.filter((m) => m.kind === 'image');
@@ -365,19 +418,22 @@ export function assembleReply(finalText: string, queued: OutboundMessage[]): Out
   const locationRequests = queued.filter((m) => m.kind === 'location_request');
 
   /** True when the prose only says again what the prompt's own body already says. */
-  const restates = (body: string): boolean => {
+  const restates = (body: string, prose: string = finalText): boolean => {
     const bodyNorm = normalize(body);
-    const textNorm = normalize(finalText);
+    const textNorm = normalize(prose);
     return textNorm.length === 0 || bodyNorm.includes(textNorm) || textNorm.includes(bodyNorm);
   };
 
   if (buttonMessages.length > 0) {
     const lastBody = buttonMessages[buttonMessages.length - 1]?.text ?? '';
+    // Without the narration, and measured without it too: a line that is
+    // only plumbing becomes nothing and is dropped as the filler it was.
+    const said = stripMechanism(finalText);
     // A short line alongside buttons is almost always filler ("I'll place it once
     // you confirm") and costs the customer a second notification for nothing.
     // Anything substantial enough to carry new information survives.
-    const isFiller = normalize(finalText).length < FILLER_TEXT_LIMIT;
-    if (!restates(lastBody) && !isFiller) outbound.push({ kind: 'text', text: finalText });
+    const isFiller = normalize(said).length < FILLER_TEXT_LIMIT;
+    if (!restates(lastBody, said) && !isFiller) outbound.push({ kind: 'text', text: said });
     outbound.push(...photoMessages);
     outbound.push(...buttonMessages);
     outbound.push(...locationRequests);
