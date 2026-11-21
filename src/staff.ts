@@ -1914,6 +1914,24 @@ export async function handleDriverMessage(
   // A place the shop asked this driver to name, for a trip the passenger
   // wants redirected. Read BEFORE the order-number parse below, or "Buxton"
   // is scanned for digits and refused.
+  // The customer's new address, answered by the person carrying it. Read
+  // before the order-number parse, because what arrives is a button id and
+  // the digits in it are the order's, not a command.
+  {
+    const { destAnswerFromButtonId } = await import('./order-status.ts');
+    const answered = destAnswerFromButtonId(trimmed);
+    if (answered) {
+      const order = repo.findOrder(answered.digits);
+      const proposal = order ? repo.destProposal(order.orderNo) : null;
+      if (!order || !proposal) {
+        return reply('That one is already settled — nothing further to answer.');
+      }
+
+      const { settleProposedAddress } = await import('./dispatch.ts');
+      return reply(await settleProposedAddress(order.orderNo, answered.ok));
+    }
+  }
+
   {
     const pending = repo.awaitingDestFrom(phone);
     const pendingOrder = pending ? repo.findOrder(pending) : null;

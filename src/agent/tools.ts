@@ -23,6 +23,7 @@ import { parseOptionSpec, describeOptions, applySelection } from '../menu-option
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { settleDeliveryPlace } from '../delivery-place.ts';
 import { endPicker } from '../place-picker.ts';
+import { proposeAddressToAssociate } from '../dispatch.ts';
 import { askPlace } from '../delivery-checkout.ts';
 import {
   asTariffPlace,
@@ -532,7 +533,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'change_destination',
     description:
-      "Send a taxi they have already booked somewhere else. Works whether the car is still on its way to them or they are already in it. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and tells the driver. Never change a destination they have not agreed the new fare for, and never promise a person will ring about it — this tool is how it is done. This does NOT move the pickup — if that is what they want, call request_staff_help.",
+      "Send a taxi, or a delivery on the road, somewhere else. A TAXI: works whether the car is on its way to them or they are already in it, and the passenger settles it. A DELIVERY: the customer may change where it is going as often as they like, but the ASSOCIATE carrying it has to agree first — this tool puts it to them and nothing moves until they do, so never tell the customer it has changed. Same two calls either way. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and tells the driver. Never change a destination they have not agreed the new fare for, and never promise a person will ring about it — this tool is how it is done. This does NOT move the pickup — if that is what they want, call request_staff_help.",
     input_schema: {
       type: 'object',
       properties: {
@@ -2376,9 +2377,11 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     }
 
     case 'change_destination': {
-      const wrong = requireService(ctx.phone, 'taxi');
-      if (wrong) return fail(wrong);
-
+      // The service check comes AFTER the search below, not before it. This
+      // tool now serves two: a taxi's destination and a delivery's address,
+      // and a customer who is in the grocery service with a bag on the road
+      // was refused for not being in the taxi one - which is true, and
+      // nothing to do with what they asked.
       const wanted = asString(input.new_destination).trim().slice(0, 160);
       if (!wanted) return fail('Ask where they want to go instead, and pass it as new_destination.');
 
@@ -2387,10 +2390,74 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // 'confirmed' — a driver on the road to a pickup that has not changed.
       // recentOrders is a summary and does not say what KIND a job is, so
       // each one is read in full before it is judged.
-      const theirs = repo
+      // The tariff's spelling, where what they typed is only a misspelling
+      // of one. A fare quoted for Bagotville must be read back as Bagotville,
+      // not as the typing it was recognised from. An address with a street on
+      // it is left exactly as given - the zone is how it is PRICED, not what
+      // the driver is sent to find.
+      const { place: named, corrected } = asTariffPlace(wanted);
+
+      const recent = repo
         .recentOrders(ctx.phone, 5)
         .map((o) => repo.findOrder(o.orderNo))
-        .filter((o): o is repo.OrderRecord => o !== null && o.kind === 'taxi');
+        .filter((o): o is repo.OrderRecord => o !== null);
+
+      // A delivery on the road is changed the other way round from a taxi:
+      // the customer raises it and the ASSOCIATE settles it. They may be two
+      // streets from the old door or on a run of five drops this would
+      // break, and they are the only one who knows. So the new place is put
+      // to them, nothing moves until they tap, and the customer is told that
+      // is what is happening.
+      const live = recent.find(
+        (o) =>
+          o.kind !== 'taxi' &&
+          (o.status === 'confirmed' || o.status === 'ready' || o.status === 'on_the_way'),
+      );
+      if (live) {
+        const quoted = findZone(named);
+        if (quoted.kind !== 'found') {
+          return fail(
+            `The tariff has never heard of "${named}", so it cannot be priced. Ask which village or area it is and pass that.`,
+          );
+        }
+        const newFee = quoted.match.fee;
+        const shownFee = repo.taxiFareShown(ctx.phone);
+
+        if (input.confirmed !== true || shownFee !== newFee) {
+          repo.setTaxiFareShown(ctx.phone, newFee);
+          return ok({
+            was: live.address || 'unstated',
+            now: quoted.match.place,
+            old_delivery: money(live.deliveryFee),
+            new_delivery: money(newFee),
+            say: `Taking it to ${quoted.match.place} instead makes the delivery ${money(newFee)} rather than ${money(live.deliveryFee)}.`,
+            next: 'Read both figures back and get a clear yes, then call change_destination again with the same new_destination and confirmed true. Nothing moves until their associate agrees to it either, and you will be told to say so.',
+          });
+        }
+
+        repo.setTaxiFareShown(ctx.phone, -1);
+        if (!live.driverPhone) {
+          return fail(
+            `${live.orderNo} has no associate carrying it yet, so there is nobody to agree to a new address. Call request_staff_help.`,
+          );
+        }
+
+        void proposeAddressToAssociate(live.orderNo, quoted.match.place, newFee).catch((err) =>
+          console.error('[tools] could not put the new address to the associate:', err),
+        );
+        return ok({
+          asked: true,
+          job_number: live.orderNo,
+          place: quoted.match.place,
+          say: t('addr_asked', languageFor(ctx.phone), { place: quoted.match.place }),
+          next: 'Say only that. Nothing has changed yet and must not be described as changed — their associate answers, and the shop tells them either way without you.',
+        });
+      }
+
+      const wrong = requireService(ctx.phone, 'taxi');
+      if (wrong) return fail(wrong);
+
+      const theirs = recent.filter((o) => o.kind === 'taxi');
 
       // Including one already under way. It used to stop at the kerb: a
       // passenger in a moving car was told the fare was running and this was
@@ -2407,13 +2474,6 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!order) {
         return fail('They have no taxi on the road. If they want a car, book a new one.');
       }
-
-      // The tariff's spelling, where what they typed is only a misspelling
-      // of one. A fare quoted for Bagotville must be read back as Bagotville,
-      // not as the typing it was recognised from. An address with a street on
-      // it is left exactly as given - the zone is how it is PRICED, not what
-      // the driver is sent to find.
-      const { place: named, corrected } = asTariffPlace(wanted);
 
       const from = order.pickup?.address || '';
       const quoted = taxiFare(from, named);

@@ -34,7 +34,7 @@ import {
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 import { jobStartsAt, stagePool, standings, describeStage, type Stage } from './nearby.ts';
 import { waitingLine, taxiFare } from './taxi.ts';
-import { asTariffPlace } from './zones.ts';
+import { asTariffPlace, findZone } from './zones.ts';
 import { languageFor } from './services.ts';
 import { t } from './language.ts';
 
@@ -490,6 +490,49 @@ export function taxiOnboardCard(order: repo.OrderRecord, head?: string): string 
  * what they will look at when they arrive, and half a card is worse than the
  * one they already have.
  */
+/**
+ * Puts a customer's new address to the associate carrying their order.
+ *
+ * The customer raises it and the associate settles it, which is the mirror
+ * of a taxi's destination change and settled for the opposite reason. A
+ * passenger cannot be driven somewhere the driver has not agreed to; a bag
+ * cannot be taken somewhere the person holding it has not agreed to either
+ * - they may be two streets from the old door, or on a run of five drops
+ * this would break, and they are the only one who knows.
+ *
+ * Nothing moves until they tap. Until then the order is exactly as booked,
+ * which is what the customer is told.
+ */
+export async function proposeAddressToAssociate(
+  orderNo: string,
+  place: string,
+  fee: number,
+): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order || !order.driverPhone) return false;
+
+  repo.proposeDestination(orderNo, place, fee);
+
+  const was = order.address || 'where it was going';
+  const body = [
+    `⚠️ *${order.orderNo} — the customer wants it taken somewhere else.*`,
+    '',
+    `Now: *${place}*`,
+    `Was: ${was}`,
+    ...(fee !== order.deliveryFee
+      ? ['', `Delivery ${money(order.deliveryFee)} → *${money(fee)}*`]
+      : []),
+    '',
+    'Nothing has changed yet. Tap *Acknowledged* only if you can take it there.',
+  ].join(String.fromCharCode(10));
+
+  return sendButtons(
+    order.driverPhone,
+    body,
+    destAnswerButtons(repo.orderDigits(orderNo), 'Acknowledged', 'No, as booked'),
+  );
+}
+
 export async function tellDriverOfNewDestination(orderNo: string): Promise<boolean> {
   const order = repo.findOrder(orderNo);
   if (!order || order.kind !== 'taxi' || !order.driverPhone) return false;
@@ -1013,20 +1056,21 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // pin for the recipient during that order.
   const pinIsForThisDoor = order.location !== null && (!toSomebodyElse || order.recipientPin);
 
-  // One way to the door, not two.
+  // Both, where both exist.
   //
-  // A written address and a map link were both printed, and an associate
-  // reading a card had to decide which to believe. They are not the same
-  // claim: the address is what the customer typed, the pin is where they
-  // happened to be standing, and when they disagree the card says so without
-  // saying which is right.
+  // The address used to win and the link was printed only when there was
+  // nothing written to go on - on the reasoning that two ways to one door
+  // leave an associate deciding which to believe, the address being what the
+  // customer MEANT and the pin being where they happened to be standing.
   //
-  // So the address wins where there is one, because it is what the customer
-  // meant to say, and the link appears only when there is nothing written to
-  // go on. That is the shop's rule, and this is the one place it has to hold:
-  // the card somebody drives from.
+  // That reasoning is spent. Checkout now asks for the pin as the door, in
+  // those words - "send your exact spot so the associate comes straight to
+  // your door" - so a pin on an order is a deliberate answer to that
+  // question rather than an accident of where somebody stood. Suppressing it
+  // threw away the better of the two directions, and the associate was left
+  // reading a lot number for a house they could have been driven to.
   const written = withoutPhone(order.address, receiverPhone);
-  const showPin = pinIsForThisDoor && order.location !== null && !written;
+  const showPin = pinIsForThisDoor && order.location !== null;
 
   // The note earns its line by adding something the address does not.
   //
@@ -1408,4 +1452,58 @@ export async function dispatchToDrivers(
   }
 
   return 'sent';
+}
+
+/**
+ * The associate's answer, applied.
+ *
+ * Both outcomes end with everybody holding the same story: the order says
+ * where it is going, the customer is told what was decided, and the
+ * associate gets the card again rather than being left to remember what
+ * changed. A delivery where two people believe two different addresses is
+ * the one failure this whole exchange exists to prevent.
+ *
+ * Returns what to tell the associate, which is the reply to their tap.
+ */
+export async function settleProposedAddress(orderNo: string, agreed: boolean): Promise<string> {
+  const order = repo.findOrder(orderNo);
+  const proposal = order ? repo.destProposal(orderNo) : null;
+  if (!order || !proposal) return 'That one is already settled.';
+
+  const lang = languageFor(order.phone);
+  repo.clearDestProposal(orderNo);
+
+  if (!agreed) {
+    await sendText(
+      order.phone,
+      t('addr_kept', lang, { place: order.address || '', order: order.orderNo }),
+    );
+    return `${order.orderNo} — left as booked. The customer has been told.`;
+  }
+
+  const zone = findZone(proposal.place);
+  repo.changeDeliveryAddress(
+    orderNo,
+    proposal.place,
+    zone.kind === 'found' ? zone.match.place : '',
+    proposal.fare >= 0 ? proposal.fare : order.deliveryFee,
+  );
+
+  const now = repo.findOrder(orderNo)!;
+  await sendText(
+    order.phone,
+    t('addr_changed', lang, {
+      place: now.address,
+      order: now.orderNo,
+      total: money(now.total),
+    }),
+  );
+
+  // The card again, in full, because it is what they will work from at the
+  // door and half a card is worse than the one they already have.
+  return [
+    `${now.orderNo} — changed to *${now.address}*. The customer has been told.`,
+    '',
+    ...dropLines(now),
+  ].join(String.fromCharCode(10));
 }

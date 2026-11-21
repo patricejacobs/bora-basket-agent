@@ -449,6 +449,43 @@ export function typingEnd(phone: string): 'from' | 'to' | '' {
  * one of two figures and the shop has to be able to say which was agreed
  * when.
  */
+/**
+ * Takes a delivery somewhere else.
+ *
+ * The fee moves with the address, and so does the total: a bag going twice
+ * as far costs what twice as far costs, and an order whose address changed
+ * while its money did not is a figure the associate has to argue about at a
+ * gate.
+ *
+ * The PIN goes. It was dropped on the old door, and a map link pointing at
+ * an address nobody is going to any more is worse than no link at all -
+ * which is the one thing on the card an associate would otherwise trust
+ * over the words beside it.
+ */
+export function changeDeliveryAddress(
+  orderNo: string,
+  address: string,
+  zone: string,
+  fee: number,
+): void {
+  const before = findOrder(orderNo);
+  if (!before) return;
+  const charge = Math.max(0, Math.round(fee));
+
+  db.prepare(
+    `UPDATE orders SET address = ?, delivery_zone = ?, delivery_fee = ?,
+       total = ? , latitude = NULL, longitude = NULL, location_label = '',
+       updated_at = ? WHERE order_no = ?`,
+  ).run(address, zone, charge, before.subtotal + charge, nowIso(), orderNo);
+
+  recordEvent(
+    orderNo,
+    'address changed',
+    '',
+    `${before.address || 'unstated'} -> ${address}; delivery ${before.deliveryFee} -> ${charge}`,
+  );
+}
+
 export function changeTaxiDestination(
   orderNo: string,
   destination: string,

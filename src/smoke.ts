@@ -969,6 +969,94 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* ------------------------------------- an address changed on the road */
+
+section('Changing where a delivery is going');
+{
+  const { settleProposedAddress, proposeAddressToAssociate } = await import('./dispatch.ts');
+  const { handleDriverMessage: driverSaysNow } = await import('./staff.ts');
+
+  const buyer2 = '5920007800';
+  const rider2 = '5926002222';
+  repo.saveCustomer(buyer2, { name: 'Ann', contactPhone: buyer2, address: 'Diamond' });
+  repo.chooseLanguage(buyer2, 'en');
+  repo.setService(buyer2, 'grocery');
+  repo.upsertAssociate({ phone: rider2, name: 'Rider Two', vehicle: 'PAA 2', active: true });
+  repo.setDuty(rider2, true);
+
+  const rice2 = (db.prepare(`SELECT id FROM products WHERE sku = 'RIC-001'`).get() as { id: number }).id;
+  repo.setCartQty(buyer2, rice2, 1);
+  repo.setDeliveryZone(buyer2, 'Diamond');
+  repo.setFeeAgreed(buyer2, 1800);
+  const job = repo.placeOrder({
+    phone: buyer2, customerName: 'Ann', address: 'Diamond', contactPhone: buyer2,
+    deliveryNote: '', paymentMethod: 'cash_on_delivery',
+    location: { latitude: 6.76, longitude: -58.17, label: 'Diamond' },
+  } as never);
+  repo.assignDriver(job.orderNo, rider2);
+  repo.setOrderStatus(job.orderNo, 'on_the_way');
+  const digits2 = repo.orderDigits(job.orderNo);
+
+  const before = repo.findOrder(job.orderNo)!;
+  check('the order starts where it was booked', before.address === 'Diamond', before.address);
+
+  // The customer raises it.
+  const ctx2: ToolContext = { phone: buyer2, outbound: [] };
+  repo.setTaxiFareShown(buyer2, -1);
+  const quoted = JSON.parse(executeTool('change_destination', { new_destination: 'Buxton' }, ctx2));
+  check('a live delivery is quoted, not refused',
+    quoted.error === undefined && typeof quoted.new_delivery === 'string',
+    JSON.stringify(quoted).slice(0, 110));
+  check('and nothing has moved on a question',
+    repo.findOrder(job.orderNo)?.address === 'Diamond');
+
+  const asked = JSON.parse(
+    executeTool('change_destination', { new_destination: 'Buxton', confirmed: true }, ctx2),
+  );
+  check('agreeing asks the ASSOCIATE rather than changing it',
+    asked.asked === true && repo.findOrder(job.orderNo)?.address === 'Diamond',
+    JSON.stringify(asked).slice(0, 110));
+  check('the model is told not to call it done',
+    /must not be described as changed/.test(String(asked.next)));
+  check('and the proposal is on the order', repo.destProposal(job.orderNo)?.place === 'Buxton',
+    JSON.stringify(repo.destProposal(job.orderNo)));
+
+  // The associate says no.
+  const refused = await driverSaysNow(`dest_no_${digits2}`, rider2);
+  check('a refusal leaves it as booked',
+    repo.findOrder(job.orderNo)?.address === 'Diamond', repo.findOrder(job.orderNo)?.address);
+  check('and the associate is told so',
+    /left as booked/i.test((refused[0] as { text?: string }).text ?? ''),
+    (refused[0] as { text?: string }).text);
+  check('the proposal is spent', repo.destProposal(job.orderNo) === null);
+
+  // And again, because they may change it as often as they like.
+  await proposeAddressToAssociate(job.orderNo, 'Buxton', 1800);
+  const agreed = await driverSaysNow(`dest_ok_${digits2}`, rider2);
+  const moved = repo.findOrder(job.orderNo)!;
+  check('acknowledging moves the order', moved.address === 'Buxton', moved.address);
+  check('and re-prices the delivery', moved.deliveryFee === 1800, String(moved.deliveryFee));
+  check('the total follows the fee', moved.total === moved.subtotal + moved.deliveryFee,
+    `${moved.total} vs ${moved.subtotal}+${moved.deliveryFee}`);
+  check('the old pin is dropped with the old door', moved.location === null,
+    JSON.stringify(moved.location));
+  check('the associate gets the card again',
+    /Deliver to:/.test((agreed[0] as { text?: string }).text ?? ''),
+    (agreed[0] as { text?: string }).text?.slice(0, 80));
+  check('and both figures are in the trail',
+    repo.orderHistory(job.orderNo).some((e) => /Diamond -> Buxton/.test(e.detail ?? '')));
+
+  // A tap on something already settled acts on nothing.
+  const stale2 = await driverSaysNow(`dest_ok_${digits2}`, rider2);
+  check('a second tap is refused',
+    /already settled/i.test((stale2[0] as { text?: string }).text ?? ''),
+    (stale2[0] as { text?: string }).text);
+
+  repo.setOrderStatus(job.orderNo, 'delivered');
+  repo.setDuty(rider2, false);
+  repo.setService(buyer2, null);
+}
+
 /* ------------------------------------------------ the shop's own checkout */
 
 section("The shop's own checkout");
@@ -5402,12 +5490,14 @@ section('The pin label earns its line or loses it');
     return dropLines(repo.findOrder(o.orderNo)!);
   };
 
-  // A written address answers the question, so the pin and its label are not
-  // printed beside it. One way to the door, not two.
+  // An address AND a pin: both are printed now. The pin is asked for as the
+  // door in so many words, so it is an answer rather than an accident of
+  // where somebody stood, and dropping it threw away the better of the two
+  // directions.
   const written = card('Lot 4 Section C, Diamond — white fence, upstairs', '', 'Diamond', 0);
-  check('a written address keeps the card to itself', written.some((l) => l.includes('Lot 4 Section C')), JSON.stringify(written));
-  check('with no link under it', !written.some((l) => l.includes('maps?q=')), JSON.stringify(written));
-  check('and no pin label either', !written.includes('Diamond'), JSON.stringify(written));
+  check('a written address is on the card', written.some((l) => l.includes('Lot 4 Section C')), JSON.stringify(written));
+  check('and the link is under it', written.some((l) => l.includes('maps?q=')), JSON.stringify(written));
+  check('the label stays off, being the address again', !written.includes('Diamond'), JSON.stringify(written));
 
   // Nothing written, so the pin is the answer and its label is worth a line.
   const pinned = card('', '', 'Diamond', 1);
@@ -8425,7 +8515,7 @@ section('An address instead of a pin');
   // A pin, and a written address as well. The address is what is printed:
   // one way to the door, not two. The pin still earns its keep by silencing
   // the NO PIN warning above — there is one, it simply is not the answer here.
-  check('and no link beside its written address', !/http/.test(normal), normal);
+  check('and the link beside its written address', /http/.test(normal), normal);
   check('which is what carries it', normal.includes('Lot 12, blue door, Kitty'), normal);
 }
 
@@ -9239,7 +9329,7 @@ section('Whose number, whose address, whose pin');
   // already reading is the second way.
   make('ORD-91002', { label: 'Beside the mosque', contact: '5926108888' });
   const useful = dropLines(repo.findOrder('ORD-91002')!).join('\n');
-  check('a label goes with the pin it belongs to', !useful.includes('Beside the mosque'), useful);
+  check('a label that adds something is printed', useful.includes('Beside the mosque'), useful);
   check('leaving the written address to do the work', useful.includes('Lot 4 Section C, Diamond'), useful);
 
   /* --- whose pin is it ------------------------------------------------ */
@@ -9264,7 +9354,7 @@ section('Whose number, whose address, whose pin');
   // gives one way to the door. What the pin changes is the warning: nobody is
   // told to ring before setting off, because the address is an answer rather
   // than a gap.
-  check('a written address still wins', !/http/.test(shared), shared);
+  check('the link is there as well as the address', /http/.test(shared), shared);
   check('and the NO PIN flag is gone', !/NO PIN/.test(shared), shared);
   check('the address is what they drive to', shared.includes('Lot 4 Section C, Diamond'), shared);
   check('with the recipient\'s own number at the door', /\+5926100099 — ring at the door/.test(shared), shared);
@@ -9274,7 +9364,7 @@ section('Whose number, whose address, whose pin');
   make('ORD-91004', { contact: '5926108888', label: 'Diamond' });
   const plain = dropLines(repo.findOrder('ORD-91004')!).join('\n');
   check('a self-delivery names nobody else', !/Ordered by/.test(plain), plain);
-  check('shows no link beside its address', !/http/.test(plain), plain);
+  check('shows the link beside its address', /http/.test(plain), plain);
   check('and the address instead', plain.includes('Lot 4 Section C, Diamond'), plain);
   check('and is not flagged', !/NO PIN/.test(plain), plain);
 
@@ -9633,7 +9723,7 @@ section('A parcel end can be a pin, words, or both');
   // is set by the booking path — which is what keeps NO PIN off this card.
   // The pin is not printed, because an address was written down and the card
   // gives one way to the door.
-  check('and no pin beside it', !/maps\?q=6\.812400/.test(dropFull), dropFull);
+  check('and the pin beside it', /maps\?q=6\.812400/.test(dropFull), dropFull);
   check('nor a warning about one', !/NO PIN/.test(dropFull), dropFull);
   check('with no false NO PIN warning', !/NO PIN/.test(dropFull), dropFull);
 

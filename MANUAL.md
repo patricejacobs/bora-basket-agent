@@ -1272,6 +1272,47 @@ answers, not two: send the spot, skip it, or just type *“blue gate, ring
 twice”* — which is written down as the note and goes straight on to the
 price. It used to be a question of its own.
 
+### Changing where a delivery is going
+
+**A customer may move a delivery as often as they like, and the associate
+carrying it settles every one.** The mirror of a taxi's destination change,
+and settled from the opposite side for the opposite reason: a passenger
+cannot be driven somewhere the driver has not agreed to, and a bag cannot be
+taken somewhere the person holding it has not agreed to either — they may be
+two streets from the old door, or on a run of five drops this would break,
+and they are the only one who knows.
+
+```
+Customer ▸ "can you send it to Buxton instead"
+Shop     ▸ "Taking it to Buxton instead makes the delivery $1,800
+            rather than $1,200."
+Customer ▸ "yes"
+Shop     ▸ "Asked your associate about *Buxton* — nothing changes until
+            they say they can take it there. I will tell you either way."
+
+Associate ▸ ⚠️ *GRO-00002 — the customer wants it taken somewhere else.*
+            Now: *Buxton*
+            Was: Diamond
+            Delivery $1,200 → *$1,800*
+            Nothing has changed yet. Tap *Acknowledged* only if you can
+            take it there.
+            [Acknowledged]  [No, as booked]
+```
+
+**Acknowledged** moves the order, re-prices the delivery, carries the total
+with it, and sends the associate the whole card again — it is what they will
+work from at the door. **No, as booked** leaves everything where it was. The
+customer is told either way, in their own language, without the agent being
+involved.
+
+**The old pin goes with the old door.** It was dropped on an address nobody
+is going to any more, and a map link is the one thing on a card an associate
+would trust over the words beside it.
+
+**The fee and the total move together.** A bag going twice as far costs what
+twice as far costs, and an order whose address changed while its money did
+not is a figure somebody has to argue about at a gate.
+
 **Words while the price is on the screen put the price up again.** They used
 to go to the agent, which has no idea an order is sitting one tap from being
 placed.
@@ -2779,27 +2820,37 @@ the order closes, recorded permanently as delivered with the code never
 confirmed. A code cannot hold a delivery open for ever, and an associate who
 cannot close a job will close it some other way.
 
-### One way to the door
+### The pin is always on the card
 
-A delivery card gives the associate **either** a written address **or** a map
-link, never both. If the customer wrote an address down, that is what is
-printed; the pin is kept on the order but stays off the card.
+**If a pin was sent for a delivery, the card carries it** — beside the
+written address, not instead of it.
 
 | What the order has | What the card shows |
 |---|---|
 | An address | the address |
 | A pin only | the pin's label and the link |
-| An address and a pin | **the address** |
+| An address and a pin | **both** |
 | Neither | ⚠️ *NO PIN — ring before you set off* |
 
-The pin still does work when it is not printed. It silences that warning —
-there *is* a pin, it simply is not the answer being given — and it is still
-what the out-of-area check measures, so an associate is told when a drop is
-beyond the delivery area whether or not a link appears.
+It used to be one or the other, and the address won. The reasoning was that
+two ways to one door leave an associate deciding which to believe: the
+address is what the customer *meant*, the pin is where they happened to be
+standing.
 
-This applies to a parcel's destination and to an order going to somebody else,
-including one where the buyer deliberately shared a pin for the recipient's
-door. If an address was written, the address is what the card gives.
+That reasoning is spent. Checkout now asks for the pin **as the door**, in
+those words — *“send your exact spot so the associate comes straight to your
+door”* — so a pin on an order is a deliberate answer rather than an accident
+of geography. Suppressing it threw away the better of the two directions and
+left somebody reading a lot number for a house they could have been driven
+to.
+
+The pin does its other work regardless: it silences the NO PIN warning, and
+it is what the out-of-area check measures, so an associate is still told
+when a drop is beyond the delivery area.
+
+This applies to a parcel's destination and to an order going to somebody
+else, including one where the buyer deliberately shared a pin for the
+recipient's door.
 
 ### The cash, and what it is made of
 
