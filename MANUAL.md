@@ -1461,10 +1461,17 @@ Which part of East Bank Demerara?          [ Choose a place ]
 ```
 
 Three rows end **every** screen of the picker and are never paged away:
-`More places` where there is more, `Type the address`, and `Main menu`. That
-is why a page holds seven places — ten rows, less those three. Tapping
-`Main menu` drops the trip and goes back to the front door: a pickup left on
-file would have the next taxi start wherever this one was going to.
+`More places` where there is more, `Type the address`, and a way back. That
+is why a page holds seven places — ten rows, less those three.
+
+**Which way back depends on where you are.** On the first screen of each end
+there is nowhere back to go, so the row is `Main menu`: it drops the trip and
+returns to the services, because a pickup left on file would have the next
+taxi start wherever this one was going to. Inside a corridor the useful move
+is one step rather than all the way out, so the row is `Back to the areas` —
+picking the wrong road then costs a tap to undo instead of the whole booking,
+the end being chosen starts again, the other end stays exactly where it was,
+and the front door is still one tap further on.
 
 **Each of those rows says what it is for**, because a row nobody understands
 is a row nobody taps:
@@ -1485,6 +1492,31 @@ somebody going far out to type the address instead.
 A page that has more behind it also carries one line under the question,
 *"Listed nearest first — tap More places if you do not see yours."* The last
 page has neither the row nor the line, there being nothing left to explain.
+
+### A pin, at either end
+
+Both screens offer one — `📍 Where I am now` for the pickup, `📍 Send a pin`
+for the destination. WhatsApp's attachment lets somebody search a place and
+send its pin, which is how a hotel, an office or a gate the tariff has never
+heard of gets named exactly.
+
+**A pin says where to stop. It does not say what the trip costs.** The tariff
+is a list of place names with no coordinates in it anywhere, so:
+
+| What arrives | What happens |
+|---|---|
+| A shared **place** — WhatsApp sends its name and address, e.g. *Ogle Airport, Ogle* | The name is matched against the tariff and the trip prices itself |
+| A **live position** — WhatsApp sends coordinates and no name at all | The pin is kept for the driver, and the shop asks one question: *which area is that, so I can work out your fare?* |
+
+That question is the fare gate doing its job. Before it, a bare pin booked a
+car with no figure ever quoted — and the row offering it sat first on the
+pickup screen, so it was the easiest path to the quiet failure.
+
+Which end a pin belongs to is decided by **what is already settled, tapped or
+pinned alike**, not by which pin arrived first. A passenger can choose Diamond
+off the picker and then send a pin for where they are going; the parcel rule
+of "the first pin is the pickup" would file that as the pickup and send the
+car to the wrong end.
 
 **The picker prices the trip; it does not find the door.** A village name
 sets the fare and says nothing about which gate, so the pin and the typed

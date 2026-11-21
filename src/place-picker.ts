@@ -69,6 +69,7 @@ export type Pick =
   | { kind: 'place'; side: PickSide; place: string }
   | { kind: 'corridor'; side: PickSide; corridor: string; page: number }
   | { kind: 'menu'; side: PickSide }
+  | { kind: 'back'; side: PickSide }
   | { kind: 'fare'; answer: 'book' | 'change' | 'cancel' };
 
 /** True when this is one of our row ids rather than somebody else's. */
@@ -104,6 +105,7 @@ export function readPick(id: string): Pick | null {
   if (kind === 'here') return { kind: 'here', side };
   if (kind === 'type') return { kind: 'type', side };
   if (kind === 'menu') return { kind: 'menu', side };
+  if (kind === 'back') return { kind: 'back', side };
   if (kind === 'place') {
     // The place itself may hold anything but a colon, so it is the whole rest
     // of the id rather than the next field: "Vryheid's Lust" survives, and so
@@ -136,7 +138,7 @@ const placeRow = (side: PickSide, place: string, description?: string) => ({
  * paged away — see PER_PAGE, which is seven so that these two and "More…"
  * all fit under WhatsApp's ten.
  */
-const wayOutRows = (side: PickSide, lang: Language) => [
+const wayOutRows = (side: PickSide, lang: Language, within: 'corridor' | 'top' = 'top') => [
   // The description is the instruction: it says WHY you would tap this, and
   // it is read before anybody is stuck rather than after.
   {
@@ -144,7 +146,16 @@ const wayOutRows = (side: PickSide, lang: Language) => [
     title: t('pick_type', lang),
     description: t('pick_type_hint', lang),
   },
-  { id: `${PREFIX}:${side}:menu`, title: t('pick_menu', lang) },
+  // Where the row sits matters more than where it goes.
+  //
+  // Deep in a corridor the useful move is one step back to the list of
+  // areas: picking the wrong road then costs a tap to undo rather than the
+  // whole booking, and the front door is still one tap further on from
+  // there. On the first screen there is nowhere back to go, so that row IS
+  // the way out of the service.
+  within === 'corridor'
+    ? { id: `${PREFIX}:${side}:back`, title: t('pick_back', lang) }
+    : { id: `${PREFIX}:${side}:menu`, title: t('pick_menu', lang) },
 ];
 
 const corridorRow = (side: PickSide, corridor: string, page = 0) => ({
@@ -162,15 +173,25 @@ const corridorRow = (side: PickSide, corridor: string, page = 0) => ({
 export function endPicker(phone: string, side: PickSide, lang: Language = 'en'): OutboundMessage {
   const rows: { id: string; title: string; description?: string }[] = [];
 
-  // Only for a pickup. Nobody shares a pin for where they are going, and a
-  // row that cannot be meant is a row in the way.
-  if (side === 'from') {
-    rows.push({
-      id: `${PREFIX}:from:here`,
-      title: t('pick_here', lang),
-      description: t('pick_here_hint', lang),
-    });
-  }
+  // A pin, offered at both ends but worded for each.
+  //
+  // It used to be the pickup only, on the reasoning that nobody shares a pin
+  // for where they are GOING. That was too narrow: WhatsApp's attachment
+  // lets you search a place and send its pin, which is exactly how somebody
+  // specifies a hotel, an office or a gate the tariff has no name for.
+  rows.push(
+    side === 'from'
+      ? {
+          id: `${PREFIX}:from:here`,
+          title: t('pick_here', lang),
+          description: t('pick_here_hint', lang),
+        }
+      : {
+          id: `${PREFIX}:to:here`,
+          title: t('pick_pin', lang),
+          description: t('pick_pin_hint', lang),
+        },
+  );
 
   const saved = repo.getIdentity(phone).address?.trim() ?? '';
   // Only when the tariff can price it. An address the picker cannot turn into
@@ -200,6 +221,34 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
   return {
     kind: 'list',
     text: side === 'from' ? t('pick_from_ask', lang) : t('pick_to_ask', lang),
+    button: t('pick_button', lang),
+    rows: rows.slice(0, MAX_ROWS),
+  };
+}
+
+/**
+ * The areas alone, for a pin the tariff cannot price.
+ *
+ * A pin says where to stop; it does not say what the trip costs. WhatsApp
+ * sends a name and address when somebody shares a PLACE — "Ogle Airport,
+ * Ogle" prices perfectly — but a live position carries no name at all, and
+ * the tariff is a list of place names with no coordinates anywhere in it. So
+ * a bare pin used to book a car with no fare, which is the quiet failure the
+ * fare gate exists to prevent.
+ *
+ * The pin is kept, because it is the best thing the driver will get. This
+ * asks the one question that turns it into a price. No pin row and no saved
+ * addresses: they have just given their location, and the only thing missing
+ * is which area it is in.
+ */
+export function areaPicker(side: PickSide, lang: Language = 'en'): OutboundMessage {
+  const rows = corridors()
+    .slice(0, MAX_ROWS - 2)
+    .map((corridor) => corridorRow(side, corridor));
+  rows.push(...wayOutRows(side, lang));
+  return {
+    kind: 'list',
+    text: t('pick_area_ask', lang),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
   };
@@ -270,7 +319,7 @@ export function corridorPicker(
   }
 
   // Last, and on every page. See PER_PAGE.
-  rows.push(...wayOutRows(side, lang));
+  rows.push(...wayOutRows(side, lang, 'corridor'));
 
   return {
     kind: 'list',
@@ -362,6 +411,12 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
     };
   }
 
+  if (pick.kind === 'back') {
+    // One step, not all the way out: the end they are choosing starts again
+    // and the other end stays exactly where they put it.
+    return { kind: 'reply', outbound: [endPicker(phone, pick.side, lang)] };
+  }
+
   if (pick.kind === 'menu') {
     // The trip goes with them. Somebody who has walked back to the front door
     // is not half way through choosing a car any more, and leaving a pickup
@@ -374,7 +429,12 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
   if (pick.kind === 'here') {
     return {
       kind: 'reply',
-      outbound: [{ kind: 'location_request', text: t('pick_here_prompt', lang) }],
+      outbound: [
+        {
+          kind: 'location_request',
+          text: t(pick.side === 'from' ? 'pick_here_prompt' : 'pick_pin_prompt', lang),
+        },
+      ],
     };
   }
 

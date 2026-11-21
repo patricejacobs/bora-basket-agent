@@ -23,7 +23,8 @@ import {
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
-import { endPicker, handlePick, isPickerId, pickerAvailable } from './place-picker.ts';
+import { areaPicker, endPicker, handlePick, isPickerId, pickerAvailable } from './place-picker.ts';
+import { findZone } from './zones.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
 /**
@@ -83,13 +84,31 @@ export function recordParcelPin(phone: string, pin: LocationPin): string {
  * is wrong twice over. A pickup is where somebody is standing now, not where
  * they live, and book_taxi never saw it.
  */
-export function recordTaxiPin(phone: string, pin: LocationPin): string {
-  const slot = repo.addParcelPin(phone, pin);
+export function recordTaxiPin(
+  phone: string,
+  pin: LocationPin,
+  slotWanted?: 'pickup' | 'destination',
+): string {
+  const slot = repo.addParcelPin(phone, pin, slotWanted);
   console.log(`[taxi] ${phone} pinned ${slot} ${formatCoordinates(pin)}`);
 
   const which = slot === 'pickup' ? 'pickup' : 'destination';
   const label = pin.label ? ` (${pin.label})` : '';
   return `[The passenger shared a location pin. Saved as the taxi's ${which}${label}. Read back which end you took it as, so a car sent to the wrong end is caught now rather than by the driver.]`;
+}
+
+/**
+ * The place a pin names, when it names one the tariff knows.
+ *
+ * WhatsApp sends a name and an address when somebody shares a PLACE, and
+ * nothing at all when they share their live position. So a searched pin
+ * prices itself and a live one cannot: the tariff is place names, with no
+ * coordinates in it anywhere.
+ */
+function placeFromPin(pin: LocationPin): string {
+  if (!pin.label?.trim()) return '';
+  const found = findZone(pin.label);
+  return found.kind === 'found' ? found.match.place : '';
 }
 
 /**
@@ -386,12 +405,50 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // doorstep, and letting it overwrite the customer's saved address would
   // quietly redirect next week's groceries to wherever they last sent a package.
   if (msg.location) {
+    // Which end of a taxi a pin answers.
+    //
+    // Not "the first pin is the pickup", which is how a parcel reads them:
+    // a passenger can choose Diamond off the picker and THEN send a pin for
+    // where they are going, and that pin has no pin before it to come
+    // second to. What is already settled decides it, tapped or pinned
+    // alike — so a pin arriving when the pickup is known is the
+    // destination.
+    const settled = chosen === 'taxi' ? repo.taxiPicks(msg.phone) : { from: '', to: '' };
+    const pinned = chosen === 'taxi' ? repo.getParcelDraft(msg.phone) : null;
+    const taxiSide: 'from' | 'to' =
+      (settled.from || pinned?.pickup) && !(settled.to || pinned?.destination) ? 'to' : 'from';
+
     const note =
       chosen === 'parcel'
         ? recordParcelPin(msg.phone, msg.location)
         : chosen === 'taxi'
-          ? recordTaxiPin(msg.phone, msg.location)
+          ? recordTaxiPin(msg.phone, msg.location, taxiSide === 'to' ? 'destination' : 'pickup')
           : recordLocationPin(msg.phone, msg.location);
+
+    // A taxi's pin has to become a price as well as a place.
+    //
+    // The pin is what the driver steers by and is kept whatever happens. But
+    // the fare comes from the tariff, which is place names and no
+    // coordinates — so a pin that names somewhere it knows ("Ogle Airport,
+    // Ogle") prices itself, and a live position, which WhatsApp sends with no
+    // name at all, prices nothing. Booking on the second kind is how a car
+    // reaches the road with no figure ever quoted.
+    //
+    // So: take the place when the pin names one, and otherwise ask the one
+    // question that turns a pin into a fare. Deterministically, before the
+    // agent, because it is the fare gate doing its job.
+    if (chosen === 'taxi' && !text) {
+      const named = placeFromPin(msg.location);
+
+      if (named) {
+        repo.setTaxiPick(msg.phone, taxiSide, named);
+      } else {
+        const ask = [areaPicker(taxiSide, languageFor(msg.phone))];
+        for (const out of ask) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+        return ask;
+      }
+    }
+
     text = text ? `${note}\n\n${text}` : note;
   }
 

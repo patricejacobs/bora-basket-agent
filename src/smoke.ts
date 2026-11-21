@@ -3218,8 +3218,34 @@ section('Picking a place instead of typing one');
 
   // Nobody shares a pin for where they are GOING, so that row is not offered.
   const to = endPicker(rider, 'to');
-  check('the destination screen has no location row',
-    to.kind === 'list' && !to.rows.some((r) => r.id.endsWith(':here')));
+  // A pin at BOTH ends, worded for each. It used to be the pickup only, on
+  // the reasoning that nobody pins where they are going — too narrow, since
+  // WhatsApp lets you search a place and send its pin, which is how somebody
+  // names a hotel or a gate the tariff has never heard of.
+  check('the destination screen offers a pin too',
+    to.kind === 'list' && to.rows[0]?.id === 'pick:to:here', to.kind === 'list' ? to.rows[0]?.id : '');
+  check('worded for where they are going',
+    to.kind === 'list' && /going to/i.test(to.rows[0]?.description ?? ''),
+    to.kind === 'list' ? to.rows[0]?.description : '');
+  check('and the pickup one still says where I am now',
+    /where i am now/i.test(rows[0]?.title ?? ''), rows[0]?.title);
+
+  const asked = handlePick(rider, 'pick:to:here');
+  check('asking for it names the right end',
+    asked?.kind === 'reply' &&
+      asked.outbound[0]?.kind === 'location_request' &&
+      /where you are going/i.test(asked.outbound[0].text),
+    asked?.kind === 'reply' ? (asked.outbound[0] as { text?: string }).text : '');
+
+  // A pin says where to stop; the tariff says what it costs, and the tariff
+  // is place names with no coordinates in it. So a pin that names somewhere
+  // prices itself and a bare one cannot.
+  const { areaPicker } = await import('./place-picker.ts');
+  const area = areaPicker('to');
+  check('a pin the tariff cannot price asks for the area',
+    area.kind === 'list' && /which area/i.test(area.text), area.kind === 'list' ? area.text : '');
+  check('offering the areas and nothing else',
+    area.kind === 'list' && !area.rows.some((r) => r.id.endsWith(':here')));
 
   /* --- a corridor, priced from the pickup ------------------------------ */
 
@@ -3286,8 +3312,72 @@ section('Picking a place instead of typing one');
     !/tap More places/i.test(tail?.kind === 'list' ? tail.text : ''),
     tail?.kind === 'list' ? tail.text : '');
   check('typing is still offered', p0.some((r) => r.id === 'pick:to:type'));
-  check('and the way out is the last row', p0.at(-1)?.id === 'pick:to:menu', p0.at(-1)?.id);
-  check('the first screen offers it too', rows.at(-1)?.id === 'pick:from:menu', rows.at(-1)?.id);
+
+  // Deep in a corridor the useful move is one step back, not all the way
+  // out: picking the wrong road costs a tap to undo rather than the whole
+  // booking. The front door is still one tap further on from there.
+  check('a corridor page ends with the way back', p0.at(-1)?.id === 'pick:to:back', p0.at(-1)?.id);
+  check('and the first screen ends with the way out',
+    rows.at(-1)?.id === 'pick:from:menu', rows.at(-1)?.id);
+
+  const stepped = handlePick(rider, 'pick:to:back');
+  check('Back reopens the areas', stepped?.kind === 'reply');
+  check('asking the same end again',
+    stepped?.kind === 'reply' &&
+      stepped.outbound[0]?.kind === 'list' &&
+      /where are you going/i.test(stepped.outbound[0].text));
+  check('and the pickup is untouched', repo.taxiPicks(rider).from === 'Diamond',
+    repo.taxiPicks(rider).from);
+
+  /* --- a pin, through the whole conversation --------------------------- */
+
+  {
+    const { handleIncoming } = await import('./conversation.ts');
+    const pinner = '5920009450';
+    const send = (extra: Record<string, unknown>) =>
+      handleIncoming({ phone: pinner, text: '', channel: 'smoke', ...extra } as never);
+
+    await send({ text: 'hello' });
+    await send({ text: '1' });
+    await send({ text: 'pick:from:place:Diamond' });
+
+    // A pin that NAMES somewhere. It is the second end, because the first is
+    // already settled — tapped, not pinned, which is exactly the case the
+    // parcel rule of "first pin is the pickup" gets wrong.
+    await send({ location: { latitude: 6.8, longitude: -58.1, label: 'Ogle Airport — Ogle, East Coast Demerara' } });
+    const both = repo.taxiPicks(pinner);
+    check('a named pin is taken as the end still missing',
+      both.from === 'Diamond' && both.to === 'Ogle', JSON.stringify(both));
+    check('and is filed as the destination pin',
+      Boolean(repo.getParcelDraft(pinner).destination) && !repo.getParcelDraft(pinner).pickup);
+
+    const { taxiFare } = await import('./taxi.ts');
+    check('so the trip prices', taxiFare(both.from, both.to) !== null);
+
+    // A bare pin — a live position, which WhatsApp sends with no name.
+    const bare = '5920009460';
+    const sendBare = (extra: Record<string, unknown>) =>
+      handleIncoming({ phone: bare, text: '', channel: 'smoke', ...extra } as never);
+    await sendBare({ text: 'hello' });
+    await sendBare({ text: '1' });
+    const back = await sendBare({ location: { latitude: 6.81, longitude: -58.15 } });
+
+    check('a pin with no name asks which area it is',
+      back[0]?.kind === 'list' && /which area/i.test(back[0].text), back[0]?.kind);
+    check('without booking anything',
+      repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== bare));
+    check('and the pin is kept for the driver',
+      Boolean(repo.getParcelDraft(bare).pickup));
+
+    await sendBare({ text: 'pick:from:corr:0:Georgetown' });
+    await sendBare({ text: 'pick:from:place:Kitty' });
+    check('answering the area gives the fare its end', repo.taxiPicks(bare).from === 'Kitty',
+      repo.taxiPicks(bare).from);
+    check('with the pin still on file', Boolean(repo.getParcelDraft(bare).pickup));
+
+    repo.setService(pinner, null);
+    repo.setService(bare, null);
+  }
 
   /* --- paging never loses or repeats a place --------------------------- */
 
