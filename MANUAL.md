@@ -919,10 +919,15 @@ they want and a blank wall to somebody who does not. A shop's answer to
 
 Reply with an aisle number — *1* to *11* — to see what is in it.
 
-Tap *Categories* any time to come back to this page, or *Leave groceries* to
-go back to the main menu.
-   [ 🛒 Categories ]  [ ⬅️ Leave groceries ]
+Tap *Leave groceries* at any point to go back to the main menu; from inside
+an aisle there is a *Categories* button to bring this page back.
+   [ ⬅️ Leave groceries ]
 ```
+
+**One button here, two everywhere else.** On the aisle list itself
+*Categories* would go where they already are, so only the door is offered.
+Inside an aisle, and on every other message while they are shopping, both
+appear.
 
 **How to answer is explained where the answers are**, at the foot of an
 aisle rather than on the front page three screens before anybody sees a
@@ -935,13 +940,14 @@ letter:
 
 _Reply with a letter and how many — *a x2* — or just type what you want.
 A number is always an aisle and a letter is always a thing on a shelf._
+
+   [ 🛒 Categories ]  [ ⬅️ Leave groceries ]
 ```
 
 That last line is written by the shop and sent with the list, not left to
 the model to remember.
 
-**Those two buttons are on every message the shop sends while they are
-shopping.** A customer three lists deep had no way back to the front of the
+**The way out is on every message the shop sends while they are shopping.** A customer three lists deep had no way back to the front of the
 shop except by typing something and hoping. They ride on the last message of
 each turn, because a button higher up a chat is a button nobody finds — and
 they are left off any message that is already asking something, where two

@@ -28,12 +28,19 @@ export function isAisleId(id: string): boolean {
   return said === AISLE_BACK || said === AISLE_LEAVE;
 }
 
-/** The two buttons, which are the same two wherever they appear. */
-export function wayOutButtons(lang: Language): { id: string; title: string }[] {
-  return [
-    { id: AISLE_BACK, title: t('aisle_back', lang) },
-    { id: AISLE_LEAVE, title: t('aisle_leave', lang) },
-  ];
+/**
+ * The way out, and the way back to the aisles.
+ *
+ * Both, except on the aisle list itself: a button that goes where you
+ * already are is a button that does nothing, and the one thing somebody
+ * standing at the front of the shop might want is the door.
+ */
+export function wayOutButtons(
+  lang: Language,
+  { onTheAisleList = false } = {},
+): { id: string; title: string }[] {
+  const leave = { id: AISLE_LEAVE, title: t('aisle_leave', lang) };
+  return onTheAisleList ? [leave] : [{ id: AISLE_BACK, title: t('aisle_back', lang) }, leave];
 }
 
 /**
@@ -67,7 +74,7 @@ export function aislesMessage(phone: string, lang: Language = 'en'): OutboundMes
       '',
       t('aisles_how', lang, { last: String(aisles.length), nl }),
     ].join(nl),
-    buttons: wayOutButtons(lang),
+    buttons: wayOutButtons(lang, { onTheAisleList: true }),
   };
 }
 

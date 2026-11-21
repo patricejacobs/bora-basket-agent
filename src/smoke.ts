@@ -995,12 +995,18 @@ section('The aisles, and the way out of them');
     !/lettered/.test(page.text), page.text);
   check('nor is typing a list, which belongs beside the shelves',
     !/type what you want/.test(page.text), page.text);
-  check('and how to get back or get out',
-    /Categories/.test(page.text) && /Leave groceries/.test(page.text));
-  check('the two buttons are those two',
-    JSON.stringify(page.buttons.map((b) => b.id)) === JSON.stringify([AISLE_BACK, AISLE_LEAVE]),
+  check('and how to get out', /Leave groceries/.test(page.text), page.text.slice(-120));
+  // One button here, not two. Categories goes where they already are.
+  check('the aisle list offers only the door',
+    JSON.stringify(page.buttons.map((b) => b.id)) === JSON.stringify([AISLE_LEAVE]),
     JSON.stringify(page.buttons));
-  check('and their titles fit WhatsApp', page.buttons.every((b) => b.title.length <= 20));
+  check('and its title fits WhatsApp', page.buttons.every((b) => b.title.length <= 20));
+  check('inside an aisle both are offered',
+    JSON.stringify(
+      (withWayOut([{ kind: 'text', text: '(a) Bora — $320' }], 'en')[0] as {
+        buttons: { id: string }[];
+      }).buttons.map((b) => b.id),
+    ) === JSON.stringify([AISLE_BACK, AISLE_LEAVE]));
 
   // The numbering is written down as it is sent, or a reply of "1" means
   // nothing.
