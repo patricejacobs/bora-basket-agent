@@ -23,15 +23,7 @@ import {
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
-import {
-  endPicker,
-  handlePick,
-  isPickerId,
-  nextStep,
-  openEnd,
-  pickerAvailable,
-} from './place-picker.ts';
-import { findZone } from './zones.ts';
+import { endPicker, handlePick, isPickerId, nextStep, pickerAvailable } from './place-picker.ts';
 import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
 
 /**
@@ -102,20 +94,6 @@ export function recordTaxiPin(
   const which = slot === 'pickup' ? 'pickup' : 'destination';
   const label = pin.label ? ` (${pin.label})` : '';
   return `[The passenger shared a location pin. Saved as the taxi's ${which}${label}. Read back which end you took it as, so a car sent to the wrong end is caught now rather than by the driver.]`;
-}
-
-/**
- * The place a pin names, when it names one the tariff knows.
- *
- * WhatsApp sends a name and an address when somebody shares a PLACE, and
- * nothing at all when they share their live position. So a searched pin
- * prices itself and a live one cannot: the tariff is place names, with no
- * coordinates in it anywhere.
- */
-function placeFromPin(pin: LocationPin): string {
-  if (!pin.label?.trim()) return '';
-  const found = findZone(pin.label);
-  return found.kind === 'found' ? found.match.place : '';
 }
 
 /**
@@ -341,9 +319,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       picked === 'taxi' && pickerAvailable()
         ? [
             { kind: 'text', text: t('opening_taxi_picked', lang) },
-            // Two buttons, not the list: choose a place, or send a location.
-            // Both ways of answering are visible without opening anything.
-            openEnd('from', lang),
+            endPicker(msg.phone, 'from', lang),
           ]
         : [{ kind: 'text', text: serviceOpening(picked, lang) }];
 
@@ -414,73 +390,36 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // doorstep, and letting it overwrite the customer's saved address would
   // quietly redirect next week's groceries to wherever they last sent a package.
   if (msg.location) {
-    // Which end of a taxi a pin answers.
-    //
-    // Not "the first pin is the pickup", which is how a parcel reads them:
-    // a passenger can choose Diamond off the picker and THEN send a pin for
-    // where they are going, and that pin has no pin before it to come
-    // second to. What is already settled decides it, tapped or pinned
-    // alike — so a pin arriving when the pickup is known is the
-    // destination.
-    const settled = chosen === 'taxi' ? repo.taxiPicks(msg.phone) : { from: '', to: '' };
-    const pinned = chosen === 'taxi' ? repo.getParcelDraft(msg.phone) : null;
-    const taxiSide: 'from' | 'to' =
-      (settled.from || pinned?.pickup) && !(settled.to || pinned?.destination) ? 'to' : 'from';
-
     const note =
       chosen === 'parcel'
         ? recordParcelPin(msg.phone, msg.location)
         : chosen === 'taxi'
-          ? recordTaxiPin(msg.phone, msg.location, taxiSide === 'to' ? 'destination' : 'pickup')
+          ? recordTaxiPin(msg.phone, msg.location)
           : recordLocationPin(msg.phone, msg.location);
 
-    // A taxi's pin has to become a price as well as a place.
+    // A taxi is priced from place NAMES, and the tariff has no coordinates in
+    // it, so a pin can say where somebody is standing and never what the trip
+    // costs. It used to be taken as an end anyway, which only moved the
+    // question: the shop asked for the area one message later.
     //
-    // The pin is what the driver steers by and is kept whatever happens. But
-    // the fare comes from the tariff, which is place names and no
-    // coordinates — so a pin that names somewhere it knows ("Ogle Airport,
-    // Ogle") prices itself, and a live position, which WhatsApp sends with no
-    // name at all, prices nothing. Booking on the second kind is how a car
-    // reaches the road with no figure ever quoted.
-    //
-    // So: take the place when the pin names one, and otherwise ask the one
-    // question that turns a pin into a fare. Deterministically, before the
-    // agent, because it is the fare gate doing its job.
+    // So the shop no longer asks for a pin on a taxi, and one that arrives
+    // unasked does not settle either end. It is still written down — a
+    // position the passenger volunteered is worth having on the driver's
+    // card — and then the question it did not answer is put again.
     if (chosen === 'taxi' && !text) {
-      const lang = languageFor(msg.phone);
-      const named = placeFromPin(msg.location);
-
-      // A name on the pin prices it. One without is still a perfectly good
-      // place to be collected from — it just cannot be priced yet, and the
-      // asking waits until the fare needs it. See nextStep.
-      if (named) repo.setTaxiPick(msg.phone, taxiSide, named);
-
-      // Say which end was taken, then whatever the booking needs next —
-      // which is the OTHER end, not a question about this one. Pinning your
-      // pickup on a map was answered with "which area is that?", and
-      // somebody who has just dropped a pin is thinking about where they are
-      // going, not about how the shop prices things.
-      const ack: OutboundMessage = {
-        kind: 'text',
-        text: named
-          ? t(taxiSide === 'from' ? 'pin_taken_from' : 'pin_taken_to', lang, { place: named })
-          : t(taxiSide === 'from' ? 'pin_bare_from' : 'pin_bare_to', lang),
-      };
-
-      const step = nextStep(msg.phone, lang);
-      if (step.kind === 'reply') {
-        const onward = [ack, ...step.outbound];
-        for (const out of onward) {
+      const back = nextStep(msg.phone, languageFor(msg.phone));
+      if (back.kind === 'reply') {
+        for (const out of back.outbound) {
           repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
         }
-        return onward;
+        return back.outbound;
       }
+      text = back.note;
+    } else {
+      text = text ? `${note}
 
-      // Both ends known and priced: the agent reads the note, quotes, books.
-      text = step.note;
+${text}` : note;
     }
-
-    text = text ? `${note}\n\n${text}` : note;
   }
 
   let outbound: OutboundMessage[];

@@ -37,9 +37,9 @@ import type { OutboundMessage } from './channels/types.ts';
 /**
  * Places on one page of a corridor.
  *
- * Six, because four rows have to survive to the bottom of every page: the
- * pin, "More…", "Type the address" and the way back. Ten rows less those
- * four leaves six. A page that pushed any of them off the end would be the
+ * Seven, because three rows have to survive to the bottom of every page:
+ * "More…", "Type the address" and the way back. Ten rows less those three
+ * leaves seven. A page that pushed any of them off the end would be the
  * picker becoming a gate, which is the one thing it must never be.
  *
  * It was seven until the pin went on these pages too. That costs a page on
@@ -51,7 +51,7 @@ import type { OutboundMessage } from './channels/types.ts';
  * The last page has no "More…" and so may show seven; the offsets still step
  * by six, which is why a short final page never overlaps the one before it.
  */
-const PER_PAGE = 6;
+const PER_PAGE = 7;
 
 /** WhatsApp's own ceiling on a list. */
 const MAX_ROWS = 10;
@@ -70,7 +70,6 @@ const PREFIX = 'pick';
 export type PickSide = 'from' | 'to';
 
 export type Pick =
-  | { kind: 'here'; side: PickSide }
   | { kind: 'type'; side: PickSide }
   | { kind: 'place'; side: PickSide; place: string }
   | { kind: 'corridor'; side: PickSide; corridor: string; page: number }
@@ -109,7 +108,6 @@ export function readPick(id: string): Pick | null {
   if (!side) return null;
 
   const kind = parts[2] ?? '';
-  if (kind === 'here') return { kind: 'here', side };
   if (kind === 'type') return { kind: 'type', side };
   if (kind === 'menu') return { kind: 'menu', side };
   if (kind === 'back') return { kind: 'back', side };
@@ -146,27 +144,6 @@ const placeRow = (side: PickSide, place: string, description?: string) => ({
  * paged away — see PER_PAGE, which is seven so that these two and "More…"
  * all fit under WhatsApp's ten.
  */
-/**
- * The pin row, worded for the end it is asking about.
- *
- * On both screens of both ends now. It was the first screen only, which
- * meant somebody three pages into a corridor, looking for a gate the tariff
- * has no name for, had to find their way back to the areas before they could
- * say where it was.
- */
-const pinRow = (side: PickSide, lang: Language) =>
-  side === 'from'
-    ? {
-        id: `${PREFIX}:from:here`,
-        title: t('pick_here', lang),
-        description: t('pick_here_hint', lang),
-      }
-    : {
-        id: `${PREFIX}:to:here`,
-        title: t('pick_pin', lang),
-        description: t('pick_pin_hint', lang),
-      };
-
 const wayOutRows = (side: PickSide, lang: Language, within: 'corridor' | 'top' = 'top') => [
   // The description is the instruction: it says WHY you would tap this, and
   // it is read before anybody is stuck rather than after.
@@ -208,7 +185,6 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
   // for where they are GOING. That was too narrow: WhatsApp's attachment
   // lets you search a place and send its pin, which is exactly how somebody
   // specifies a hotel, an office or a gate the tariff has no name for.
-  rows.push(pinRow(side, lang));
 
   const saved = repo.getIdentity(phone).address?.trim() ?? '';
   // Only when the tariff can price it. An address the picker cannot turn into
@@ -238,75 +214,6 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
   return {
     kind: 'list',
     text: side === 'from' ? t('pick_from_ask', lang) : t('pick_to_ask', lang),
-    button: t('pick_button', lang),
-    rows: rows.slice(0, MAX_ROWS),
-  };
-}
-
-/**
- * The question that opens an end, as two buttons rather than a list.
- *
- * Both ways of answering are now visible without opening anything. Sending a
- * location was always offered — as the first ROW of a list whose button read
- * "Choose a place", so you had to open the place picker to discover you
- * needn't use it. A passenger standing on a road with a phone in their hand
- * is the likeliest person in the shop to want that row and the least likely
- * to go looking for it.
- *
- * It costs a tap for whoever does want the list. That is the trade: one more
- * tap on the path people can already see, against making the other path
- * visible at all.
- */
-export function openEnd(side: PickSide, lang: Language = 'en'): OutboundMessage {
-  return {
-    kind: 'buttons',
-    text: t(side === 'from' ? 'pick_from_ask' : 'pick_to_ask', lang),
-    buttons: [
-      { id: `${PREFIX}:${side}:list`, title: t('pick_button', lang) },
-      {
-        id: `${PREFIX}:${side}:here`,
-        // Worded for the end being asked about, and kept short: a button
-        // title is twenty characters and WhatsApp truncates in silence.
-        title: t(side === 'from' ? 'pick_send_location' : 'pick_send_pin', lang),
-      },
-    ],
-  };
-}
-
-/**
- * The areas alone, for a pin the tariff cannot price.
- *
- * A pin says where to stop; it does not say what the trip costs. WhatsApp
- * sends a name and address when somebody shares a PLACE — "Ogle Airport,
- * Ogle" prices perfectly — but a live position carries no name at all, and
- * the tariff is a list of place names with no coordinates anywhere in it. So
- * a bare pin used to book a car with no fare, which is the quiet failure the
- * fare gate exists to prevent.
- *
- * The pin is kept, because it is the best thing the driver will get. This
- * asks the one question that turns it into a price. No pin row and no saved
- * addresses: they have just given their location, and the only thing missing
- * is which area it is in.
- */
-export function areaPicker(side: PickSide, lang: Language = 'en'): OutboundMessage {
-  const rows = corridors()
-    .slice(0, MAX_ROWS - 3)
-    .map((corridor) => corridorRow(side, corridor));
-
-  // The pin row stays. It was left off on the reasoning that somebody who has
-  // just shared their location does not need to be asked for one — true of
-  // the pin they sent, and wrong about the next one. A passenger whose first
-  // pin landed on the wrong spot, or who pinned one end and now wants to pin
-  // the other, had nothing on this screen but a list of areas.
-  rows.push(pinRow(side, lang));
-  rows.push(...wayOutRows(side, lang));
-
-  return {
-    kind: 'list',
-    // Which end is being asked about, said out loud. "Which area is that"
-    // reads as the destination question to somebody who has just pinned
-    // their pickup, and they answer it with where they are going.
-    text: t(side === 'from' ? 'pick_area_from' : 'pick_area_to', lang),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
   };
@@ -352,7 +259,7 @@ export function corridorPicker(
 
   // Everything that is left, when it fits beside the pin and the two way-out
   // rows. Otherwise a page of six with "More…" after it.
-  const take = left <= MAX_ROWS - 3 ? MAX_ROWS - 3 : PER_PAGE;
+  const take = left <= MAX_ROWS - 2 ? MAX_ROWS - 2 : PER_PAGE;
   const slice = priced.slice(start, start + take);
 
   const rows = slice.map((r) =>
@@ -377,7 +284,6 @@ export function corridorPicker(
   }
 
   // Last, and on every page. See PER_PAGE.
-  rows.push(pinRow(side, lang));
   rows.push(...wayOutRows(side, lang, 'corridor'));
 
   return {
@@ -443,15 +349,14 @@ export function nextStep(
   phone: string,
   lang: Language = 'en',
 ): Extract<PickResult, { kind: 'reply' } | { kind: 'note' }> {
+  // An end is settled only by a NAME now. A pin is a position and the tariff
+  // is place names with no coordinates in it, so a pin could say where
+  // somebody was and never what the trip cost — which left the shop asking
+  // for the area anyway, one question later.
   const picks = repo.taxiPicks(phone);
-  const pins = repo.getParcelDraft(phone);
 
-  if (!picks.from && !pins.pickup) return { kind: 'reply', outbound: [openEnd('from', lang)] };
-  if (!picks.to && !pins.destination) return { kind: 'reply', outbound: [openEnd('to', lang)] };
-
-  // Both ends known. Now the ones the tariff cannot price.
-  if (!picks.from) return { kind: 'reply', outbound: [areaPicker('from', lang)] };
-  if (!picks.to) return { kind: 'reply', outbound: [areaPicker('to', lang)] };
+  if (!picks.from) return { kind: 'reply', outbound: [endPicker(phone, 'from', lang)] };
+  if (!picks.to) return { kind: 'reply', outbound: [endPicker(phone, 'to', lang)] };
 
   const fare = fareBetween(picks.from, picks.to);
   return {
@@ -508,7 +413,7 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
       // changed, and asking it again would be the picker wasting their time
       // over a figure they did not like.
       repo.setTaxiPick(phone, 'to', '');
-      return { kind: 'reply', outbound: [openEnd('to', lang)] };
+      return { kind: 'reply', outbound: [endPicker(phone, 'to', lang)] };
     }
 
     return {
@@ -534,18 +439,6 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
     repo.clearTaxiPicks(phone);
     repo.clearParcelDraft(phone);
     return { kind: 'menu' };
-  }
-
-  if (pick.kind === 'here') {
-    return {
-      kind: 'reply',
-      outbound: [
-        {
-          kind: 'location_request',
-          text: t(pick.side === 'from' ? 'pick_here_prompt' : 'pick_pin_prompt', lang),
-        },
-      ],
-    };
   }
 
   if (pick.kind === 'type') {

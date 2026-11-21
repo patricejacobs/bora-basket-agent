@@ -3201,46 +3201,17 @@ section('Picking a place instead of typing one');
 
   /* --- the question that opens an end ---------------------------------- */
 
-  // Both ways of answering, visible without opening anything. Sending a
-  // location was always offered — as the first ROW of a list whose button
-  // read "Choose a place", so you had to open the place picker to discover
-  // you needn't use it.
-  const { openEnd } = await import('./place-picker.ts');
-  const opening = openEnd('from');
-  const openOpts = opening.kind === 'buttons' ? opening.buttons : [];
-  check('an end opens with two buttons', openOpts.length === 2, String(openOpts.length));
-  check('choose a place, or send a location',
-    openOpts.map((b) => b.id).join(' ') === 'pick:from:list pick:from:here',
-    JSON.stringify(openOpts.map((b) => b.id)));
-  check('and WhatsApp will accept both titles',
-    openOpts.every((b) => b.title.length <= 20), JSON.stringify(openOpts.map((b) => b.title)));
-  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
-    const m = openEnd('from', lang);
-    check(`the titles fit in ${lang}`,
-      m.kind === 'buttons' && m.buttons.every((b) => b.title.length <= 20),
-      m.kind === 'buttons' ? JSON.stringify(m.buttons.map((b) => b.title)) : '');
+  // A pin is a position; the tariff is place names with no coordinates in
+  // it. So a pin could say where somebody was standing and never what the
+  // trip cost, and taking it as an end only moved the question — the shop
+  // asked for the area one message later.
+  {
+    const picker = await import('./place-picker.ts');
+    check('nothing opens an end with a pin button', !('openEnd' in picker));
+    check('and there is no area question left', !('areaPicker' in picker));
+    check('a stale pin row reads as nothing', readPick('pick:from:here') === null);
+    check('and is not acted on', handlePick(rider, 'pick:to:here') === null);
   }
-  // Both ends open the same way, worded for each.
-  const toOpen = openEnd('to');
-  check('the destination opens with two buttons too',
-    toOpen.kind === 'buttons' && toOpen.buttons.length === 2);
-  check('and says pin rather than location',
-    toOpen.kind === 'buttons' && /pin/i.test(toOpen.buttons[1]?.title ?? ''),
-    toOpen.kind === 'buttons' ? toOpen.buttons[1]?.title : '');
-  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
-    const m = openEnd('to', lang);
-    check(`the destination titles fit in ${lang}`,
-      m.kind === 'buttons' && m.buttons.every((b) => b.title.length <= 20),
-      m.kind === 'buttons' ? JSON.stringify(m.buttons.map((b) => b.title)) : '');
-  }
-
-  check('Choose a place opens the list',
-    handlePick(rider, 'pick:from:list')?.kind === 'reply');
-  check('Send location asks for a pin',
-    (() => {
-      const r = handlePick(rider, 'pick:from:here');
-      return r?.kind === 'reply' && r.outbound[0]?.kind === 'location_request';
-    })());
 
   /* --- the first screen ------------------------------------------------ */
 
@@ -3252,62 +3223,19 @@ section('Picking a place instead of typing one');
   check('every title inside twenty-four characters',
     rows.every((r) => r.title.length <= 24),
     JSON.stringify(rows.map((r) => r.title).filter((t2) => t2.length > 24)));
-  check('it opens with the location button', rows[0]?.id === 'pick:from:here', rows[0]?.id);
+  check('it opens with a corridor', Boolean(rows[0]?.id.includes(':corr:')), rows[0]?.id);
   check('and offers typing', rows.some((r) => r.id === 'pick:from:type'));
   check('with every corridor between them',
     ['Georgetown', 'East Bank Demerara', 'West Coast Demerara'].every((c) =>
       rows.some((r) => r.title === c)),
     JSON.stringify(rows.map((r) => r.title)));
 
-  // Nobody shares a pin for where they are GOING, so that row is not offered.
   const to = endPicker(rider, 'to');
-  // A pin at BOTH ends, worded for each. It used to be the pickup only, on
-  // the reasoning that nobody pins where they are going — too narrow, since
-  // WhatsApp lets you search a place and send its pin, which is how somebody
-  // names a hotel or a gate the tariff has never heard of.
-  check('the destination screen offers a pin too',
-    to.kind === 'list' && to.rows[0]?.id === 'pick:to:here', to.kind === 'list' ? to.rows[0]?.id : '');
-  check('worded for where they are going',
-    to.kind === 'list' && /going to/i.test(to.rows[0]?.description ?? ''),
-    to.kind === 'list' ? to.rows[0]?.description : '');
-  check('and the pickup one still says where I am now',
-    /where i am now/i.test(rows[0]?.title ?? ''), rows[0]?.title);
-
-  const asked = handlePick(rider, 'pick:to:here');
-  check('asking for it names the right end',
-    asked?.kind === 'reply' &&
-      asked.outbound[0]?.kind === 'location_request' &&
-      /where you are going/i.test(asked.outbound[0].text),
-    asked?.kind === 'reply' ? (asked.outbound[0] as { text?: string }).text : '');
-
-  // A pin says where to stop; the tariff says what it costs, and the tariff
-  // is place names with no coordinates in it. So a pin that names somewhere
-  // prices itself and a bare one cannot.
-  const { areaPicker } = await import('./place-picker.ts');
-  const area = areaPicker('to');
-  check('a pin the tariff cannot price asks for the area',
-    area.kind === 'list' && /which area/i.test(area.text), area.kind === 'list' ? area.text : '');
-  check('offering every area', area.kind === 'list' &&
-    area.rows.filter((r) => r.id.includes(':corr:')).length === 5);
-
-  // The question has to say WHICH pin it is about, since by the time it is
-  // asked both ends are settled and either could be the unpriced one.
-  check('and the destination one says so',
-    area.kind === 'list' && /where you are going/i.test(area.text),
-    area.kind === 'list' ? area.text : '');
-  const areaFrom = areaPicker('from');
-  check('while the pickup one says where we collect you',
-    areaFrom.kind === 'list' && /collect you/i.test(areaFrom.text),
-    areaFrom.kind === 'list' ? areaFrom.text : '');
-
-  // The pin row stays on it. Left off, a passenger whose first pin landed on
-  // the wrong spot had nothing on that screen but a list of areas.
-  check('a pin can still be sent from the area question',
-    area.kind === 'list' && area.rows.some((r) => r.id === 'pick:to:here'));
-  check('and from the pickup one',
-    areaFrom.kind === 'list' && areaFrom.rows.some((r) => r.id === 'pick:from:here'));
-  check('all of it inside ten rows',
-    area.kind === 'list' && area.rows.length <= 10, area.kind === 'list' ? String(area.rows.length) : '');
+  check('the destination screen is a list too', to.kind === 'list');
+  check('with no pin row on either end',
+    to.kind === 'list' &&
+      !to.rows.some((r) => r.id.endsWith(':here')) &&
+      !rows.some((r) => r.id.endsWith(':here')));
 
   /* --- a corridor, priced from the pickup ------------------------------ */
 
@@ -3375,12 +3303,8 @@ section('Picking a place instead of typing one');
     tail?.kind === 'list' ? tail.text : '');
   check('typing is still offered', p0.some((r) => r.id === 'pick:to:type'));
 
-  // The pin is on these pages too. Somebody three pages into a corridor,
-  // looking for a gate the tariff has no name for, should not have to find
-  // their way back to the areas before they can say where it is.
-  check('and a pin can be sent from here', p0.some((r) => r.id === 'pick:to:here'));
-  check('worded for the end being chosen',
-    /going to/i.test(p0.find((r) => r.id === 'pick:to:here')?.description ?? ''));
+  check('and no pin row on a corridor page',
+    !p0.some((r) => r.id.endsWith(':here')));
 
   // Deep in a corridor the useful move is one step back, not all the way
   // out: picking the wrong road costs a tap to undo rather than the whole
@@ -3410,43 +3334,25 @@ section('Picking a place instead of typing one');
     await send({ text: '1' });
     await send({ text: 'pick:from:place:Diamond' });
 
-    // A pin that NAMES somewhere. It is the second end, because the first is
-    // already settled — tapped, not pinned, which is exactly the case the
-    // parcel rule of "first pin is the pickup" gets wrong.
+    // Even a pin that NAMES somewhere does not settle an end. It would have
+    // to, to be worth the exception — and then half the pins a passenger can
+    // send settle an end and half do not, which is a shop that behaves two
+    // ways for one gesture.
     await send({ location: { latitude: 6.8, longitude: -58.1, label: 'Ogle Airport — Ogle, East Coast Demerara' } });
     const both = repo.taxiPicks(pinner);
-    check('a named pin is taken as the end still missing',
-      both.from === 'Diamond' && both.to === 'Ogle', JSON.stringify(both));
-    check('and is filed as the destination pin',
-      Boolean(repo.getParcelDraft(pinner).destination) && !repo.getParcelDraft(pinner).pickup);
+    check('a named pin does not settle an end either',
+      both.from === 'Diamond' && both.to === '', JSON.stringify(both));
+    check('and the destination is asked for', Boolean(both.from) && !both.to);
+    repo.setService(pinner, null);
+  }
 
-    const { taxiFare } = await import('./taxi.ts');
-    check('so the trip prices', taxiFare(both.from, both.to) !== null);
+  {
+    const { handleIncoming } = await import('./conversation.ts');
 
-    // Reported from the live shop: pinning the pickup asked "where are we
-    // taking you?" in prose, with no areas, no pin row and nothing to tap.
-    // A TAPPED pickup handed back the list; a PINNED one fell through to the
-    // agent. Same journey, same answer, two different shops.
-    const pinFirst = '5920009470';
-    const sendPin = (extra: Record<string, unknown>) =>
-      handleIncoming({ phone: pinFirst, text: '', channel: 'smoke', ...extra } as never);
-    await sendPin({ text: 'hello' });
-    await sendPin({ text: '1' });
-    const onward = await sendPin({
-      location: { latitude: 6.8, longitude: -58.1, label: 'Ogle Airport — Ogle, East Coast Demerara' },
-    });
-    check('a pinned pickup says which end it took',
-      onward[0]?.kind === 'text' && /collect you at/i.test(onward[0].text), onward[0]?.kind);
-    check('and asks for the destination',
-      onward[1]?.kind === 'buttons' && /where are you going/i.test(onward[1].text),
-      onward[1]?.kind);
-    check('with both ways of answering',
-      onward[1]?.kind === 'buttons' &&
-        onward[1].buttons.map((b) => b.id).join(' ') === 'pick:to:list pick:to:here',
-      onward[1]?.kind === 'buttons' ? JSON.stringify(onward[1].buttons.map((b) => b.id)) : '');
-    repo.setService(pinFirst, null);
-
-    // A bare pin — a live position, which WhatsApp sends with no name.
+    // A bare pin — a live position, which WhatsApp sends with no name at
+    // all. The pin is written down for the driver, and the question it did
+    // not answer is put again. No acknowledgement of a place, because the
+    // shop learned no place.
     const bare = '5920009460';
     const sendBare = (extra: Record<string, unknown>) =>
       handleIncoming({ phone: bare, text: '', channel: 'smoke', ...extra } as never);
@@ -3454,39 +3360,24 @@ section('Picking a place instead of typing one');
     await sendBare({ text: '1' });
     const back = await sendBare({ location: { latitude: 6.81, longitude: -58.15 } });
 
-    // Both ends FIRST, then the price. A pin with no name is still a
-    // perfectly good place to be collected from; what it cannot do is price
-    // the trip, and that is not what somebody who has just dropped a pin is
-    // thinking about.
-    check('a pin with no name says it was taken',
-      back[0]?.kind === 'text' && /collect you right there/i.test(back[0].text), back[0]?.kind);
-    check('and asks where they are going next',
-      back[1]?.kind === 'buttons' && /where are you going/i.test(back[1].text), back[1]?.kind);
-    check('not which area the pin is in',
-      !(back[1]?.kind === 'list' && /which area/i.test(back[1].text)));
+    check('a bare pin asks the pickup again',
+      back[0]?.kind === 'list' && /collecting you from/i.test(back[0].text), back[0]?.kind);
+    check('with no pin row on it',
+      back[0]?.kind === 'list' && !back[0].rows.some((r) => r.id.endsWith(':here')));
+    check('and nothing is settled by it', repo.taxiPicks(bare).from === '',
+      repo.taxiPicks(bare).from);
     check('without booking anything',
       repo.allOrders().every((o) => o.kind !== 'taxi' || o.phone !== bare));
-    check('and the pin is kept for the driver',
+    check('but the pin is kept for the driver',
       Boolean(repo.getParcelDraft(bare).pickup));
 
-    // Destination chosen, so now the fare needs the end it cannot price.
-    await sendBare({ text: 'pick:to:corr:0:East Bank Demerara' });
-    const priced = await sendBare({ text: 'pick:to:place:Grove' });
-    check('the area is asked once both ends are known',
-      priced[0]?.kind === 'list' && /before I can price/i.test(priced[0].text),
-      priced[0]?.kind === 'list' ? priced[0].text : priced[0]?.kind);
-    check('and it is the pickup being asked about',
-      priced[0]?.kind === 'list' && /collect you/i.test(priced[0].text));
-
+    // And the booking carries on by name alone.
     await sendBare({ text: 'pick:from:corr:0:Georgetown' });
     await sendBare({ text: 'pick:from:place:Kitty' });
-    check('answering it gives the fare its end', repo.taxiPicks(bare).from === 'Kitty',
+    check('a tapped place settles it', repo.taxiPicks(bare).from === 'Kitty',
       repo.taxiPicks(bare).from);
     check('with the pin still on file', Boolean(repo.getParcelDraft(bare).pickup));
-    check('and the destination kept throughout', repo.taxiPicks(bare).to === 'Grove',
-      repo.taxiPicks(bare).to);
 
-    repo.setService(pinner, null);
     repo.setService(bare, null);
   }
 
@@ -3523,18 +3414,16 @@ section('Picking a place instead of typing one');
   repo.clearTaxiPicks(rider);
   const half = handlePick(rider, 'pick:from:place:Diamond');
   check('choosing only the pickup asks for the destination', half?.kind === 'reply');
-  check('with the same two buttons',
+  check('with the destination list',
     half?.kind === 'reply' &&
-      half.outbound[0]?.kind === 'buttons' &&
+      half.outbound[0]?.kind === 'list' &&
       /where are you going/i.test(half.outbound[0].text),
     half?.kind === 'reply' ? half.outbound[0]?.kind : '');
 
   // The escapes. Both leave the picker, and neither books anything.
   const typed = handlePick(rider, 'pick:to:type');
   check('typing hands over to the agent', typed?.kind === 'note' && /words/i.test(typed.note));
-  const here = handlePick(rider, 'pick:from:here');
-  check('and the location row asks for a pin',
-    here?.kind === 'reply' && here.outbound[0]?.kind === 'location_request');
+  check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
   /* --- the picks feed the booking -------------------------------------- */
 
@@ -3588,7 +3477,7 @@ section('Picking a place instead of typing one');
   check('Change destination reopens the list', redo?.kind === 'reply');
   check('asking only where they are going',
     redo?.kind === 'reply' &&
-      redo.outbound[0]?.kind === 'buttons' &&
+      redo.outbound[0]?.kind === 'list' &&
       /where are you going/i.test(redo.outbound[0].text));
   check('the pickup is kept', repo.taxiPicks(rider).from === 'Diamond');
   check('and only the destination is dropped', repo.taxiPicks(rider).to === '');

@@ -1425,31 +1425,12 @@ are going until they get there.
 
 ### Picking the two ends
 
-**Each end is asked the same way**, with both ways of answering in front of
-the passenger:
-
-```
-Where are we collecting you from?        And where are you going?
-
-[Choose a place]  [📍 Send location]     [Choose a place]  [📍 Send a pin]
-```
-
-Sending a location was always offered — as the first *row* of a list whose
-button read "Choose a place", so you had to open the place picker to discover
-you needn't use it. A passenger standing on a road with a phone in their hand
-is the likeliest person in the shop to want that and the least likely to go
-looking for it. It costs a tap for whoever does want the list: one more tap on
-the path people could already see, against making the other path visible at
-all.
-
-The wording differs because the question does: a pickup is usually where you
-are standing, a destination never is. `Choose a place` opens a **place
-picker** — a tappable list built from the delivery tariff:
+Each end is asked with a **place picker** — a tappable list built from the
+delivery tariff. **No pin is offered on a taxi**; see below for why.
 
 ```
 Where are we collecting you from?          [ Choose a place ]
 
-  📍 Where I am now        Share your location
   Diamond                  Your saved address
   Providence               You have used this before
   Georgetown
@@ -1457,7 +1438,8 @@ Where are we collecting you from?          [ Choose a place ]
   East Coast Demerara
   West Bank Demerara
   West Coast Demerara
-  ✏️ Type the address
+  ✏️ Type the address      If your place is not on this list
+  ⬅️ Main menu
 ```
 
 Tapping a corridor opens the places on it, **priced from the pickup already
@@ -1517,63 +1499,27 @@ A page that has more behind it also carries one line under the question,
 *"Listed nearest first — tap More places if you do not see yours."* The last
 page has neither the row nor the line, there being nothing left to explain.
 
-### A pin, at either end
+### Why no pin
 
-Every screen of both ends offers one — `📍 Where I am now` for the pickup,
-`📍 Send a pin` for the destination. WhatsApp's attachment lets somebody search a place and
-send its pin, which is how a hotel, an office or a gate the tariff has never
-heard of gets named exactly.
+The tariff is a list of place **names** with no coordinates in it anywhere, so
+a pin can say where somebody is standing and never what the trip costs.
 
-**A pin says where to stop. It does not say what the trip costs.** The tariff
-is a list of place names with no coordinates in it anywhere, so:
+Pins were offered for a while, at both ends. What it cost was a second
+question: a pin that named a place the tariff knew priced itself, and a live
+position — which WhatsApp sends with no name at all — had to be followed by
+*"which area is it in, so I can work out your fare?"*. Half the pins a
+passenger could send settled an end and half did not, which is a shop
+behaving two ways for one gesture.
 
-| What arrives | What happens |
-|---|---|
-| A shared **place** — WhatsApp sends its name and address, e.g. *Ogle Airport, Ogle* | The name is matched against the tariff and the trip prices itself |
-| A **live position** — WhatsApp sends coordinates and no name at all | The pin is kept for the driver, and the area is asked for later, when the fare needs it |
+So no pin is asked for on a taxi. One sent anyway is **still written down**,
+because a position a passenger volunteered is worth having on the driver's
+card — but it settles neither end, and the question it did not answer is put
+again.
 
-### Both ends first, then the price
-
-An end is **settled** when the shop knows where it is — tapped off the tariff
-or pinned on a map — and **priceable** only when it has a name the tariff
-carries. The booking collects the journey first and asks about price last:
-
-```
-pin the pickup  →  "And where are you going?"   [Choose a place] [📍 Send a pin]
-choose Grove    →  "One last thing before I can price this —
-                     the pin for where we collect you: which area is it in?"
-answer it       →  the fare, with Book it / Change destination / Cancel
-```
-
-The area used to be asked the moment a nameless pin arrived, so dropping a
-pin on a map was answered with *"which area is that?"* — which is not what
-somebody booking a car is thinking about, and was read as the destination
-question and answered with where they were going.
-
-One question per unpriced end, asked immediately before the fare that needs
-it, and it names which pin it means. Two bare pins means two questions, one
-at a time. The gate is unchanged: nothing is quoted or booked while an end
-has no price. The question only moved to where it belongs.
-
-The area screen carries a pin row too. Left off, a passenger whose first pin
-landed on the wrong spot had nothing there but a list of areas.
-
-That question is the fare gate doing its job. Before it, a bare pin booked a
-car with no figure ever quoted — and the row offering it sat first on the
-pickup screen, so it was the easiest path to the quiet failure.
-
-**A pinned end carries on exactly as a tapped one does**: the shop says which
-end it took — *"Got it — we will collect you at Ogle."* — and asks for the
-end still missing with the picker, areas and pin row and all. Without that,
-pinning the pickup handed the conversation to the agent, which asked "where
-are we taking you?" in prose with nothing to tap, while tapping the same
-place handed back a list. Same journey, same answer, two different shops.
-
-Which end a pin belongs to is decided by **what is already settled, tapped or
-pinned alike**, not by which pin arrived first. A passenger can choose Diamond
-off the picker and then send a pin for where they are going; the parcel rule
-of "the first pin is the pickup" would file that as the pickup and send the
-car to the wrong end.
+What this costs is precision at the kerb: the driver gets a village name, not
+a gate, and Diamond is a large place. The way to buy that back is coordinates
+in the tariff, which is a data job rather than a code one — see
+`data/zone-coordinates-review.csv`.
 
 **The picker prices the trip; it does not find the door.** A village name
 sets the fare and says nothing about which gate, so the pin and the typed
