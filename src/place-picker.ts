@@ -502,12 +502,18 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
   }
 
   if (pick.kind === 'type') {
+    // Whatever was chosen for this end is VOID. "Type the address" means
+    // none of these, and a passenger who picked Timehri, thought better of
+    // it and tapped this was asked "whereabouts in Timehri are you going?" —
+    // because the choice was still on file and still in the history the
+    // model reads. book_taxi falls back to that stored place too, so the
+    // trip could have been booked to the village they had just rejected.
+    repo.setTaxiPick(phone, pick.side, '');
+
+    const end = pick.side === 'from' ? 'pickup' : 'destination';
     return {
       kind: 'note',
-      note:
-        pick.side === 'from'
-          ? '[The passenger tapped "Type the address" for the pickup. Ask for it in words. Do not send the picker again.]'
-          : '[The passenger tapped "Type the address" for the destination. Ask for it in words. Do not send the picker again.]',
+      note: `[The passenger tapped "Type the address" for the ${end}: none of the places listed is where they mean. Any ${end} named earlier in this conversation is now WRONG — do not repeat it back or ask about it. Ask, in one short question, where the ${end} is, and take whatever they say. Do not send the picker again.]`,
     };
   }
 

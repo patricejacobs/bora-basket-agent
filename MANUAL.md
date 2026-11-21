@@ -1551,6 +1551,15 @@ address are still how a driver is told where to stop — the picker replaces the
 now` are on **every** screen and are never paged away: somebody going
 somewhere the tariff has never heard of must still be able to book a car.
 
+**`Type the address` voids the choice for that end.** Tapping it means *none
+of these*, so whatever was picked there is cleared and the agent is told in
+as many words that any place named earlier for that end is now wrong.
+Without that, a passenger who picked Timehri, thought better of it and tapped
+to type was asked *"whereabouts in Timehri are you going?"* — the choice was
+still on file and still in the history the model reads, and `book_taxi` falls
+back to the stored place, so the trip could have been booked to the village
+they had just rejected. The other end is left alone.
+
 **A pickup list quotes nothing.** Half the journey is unknown at that point,
 so there is no fare to show. It used to show the tariff's own figure — what
 a DELIVERY to that place costs — and a passenger choosing where to be

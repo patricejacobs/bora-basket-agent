@@ -3483,8 +3483,30 @@ section('Picking a place instead of typing one');
     half?.kind === 'reply' ? half.outbound[0]?.kind : '');
 
   // The escapes. Both leave the picker, and neither books anything.
+  // Reported from the live shop: a passenger picked Timehri, thought better
+  // of it and tapped "Type the address" — and was asked "whereabouts in
+  // Timehri are you going?". The choice was still on file and still in the
+  // history the model reads, and book_taxi falls back to that stored place,
+  // so the trip could have been booked to the village they had just
+  // rejected.
+  repo.setTaxiPick(rider, 'from', 'Kitty');
+  repo.setTaxiPick(rider, 'to', 'Timehri');
   const typed = handlePick(rider, 'pick:to:type');
-  check('typing hands over to the agent', typed?.kind === 'note' && /words/i.test(typed.note));
+  check('typing hands over to the agent', typed?.kind === 'note');
+  check('and voids the place they rejected', repo.taxiPicks(rider).to === '',
+    repo.taxiPicks(rider).to);
+  check('leaving the other end alone', repo.taxiPicks(rider).from === 'Kitty',
+    repo.taxiPicks(rider).from);
+  check('telling the agent not to repeat it',
+    typed?.kind === 'note' && /now WRONG/.test(typed.note), typed?.kind === 'note' ? typed.note : '');
+  check('and which end it is about',
+    typed?.kind === 'note' && /destination/.test(typed.note) && !/pickup/.test(typed.note));
+
+  // The same for the other end.
+  repo.setTaxiPick(rider, 'from', 'Kitty');
+  handlePick(rider, 'pick:from:type');
+  check('a typed pickup voids its own place too', repo.taxiPicks(rider).from === '',
+    repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
   /* --- the picks feed the booking -------------------------------------- */
