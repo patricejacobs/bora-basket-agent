@@ -37,15 +37,21 @@ import type { OutboundMessage } from './channels/types.ts';
 /**
  * Places on one page of a corridor.
  *
- * Seven, because three rows have to survive to the bottom of every page:
- * "More…", "Type the address" and "Main menu". Ten rows less those three
- * leaves seven. A page that pushed typing or the way out off the end would be
- * the picker becoming a gate, which is the one thing it must never be.
+ * Six, because four rows have to survive to the bottom of every page: the
+ * pin, "More…", "Type the address" and the way back. Ten rows less those
+ * four leaves six. A page that pushed any of them off the end would be the
+ * picker becoming a gate, which is the one thing it must never be.
  *
- * The last page has no "More…" and so may show eight; the offsets still step
- * by seven, which is why a short final page never overlaps the one before it.
+ * It was seven until the pin went on these pages too. That costs a page on
+ * the longer corridors — the East Coast runs to nine rather than eight —
+ * which is the trade: somebody whose destination has no name in the tariff
+ * can now say where it is from any screen, instead of having to find their
+ * way back to the areas first.
+ *
+ * The last page has no "More…" and so may show seven; the offsets still step
+ * by six, which is why a short final page never overlaps the one before it.
  */
-const PER_PAGE = 7;
+const PER_PAGE = 6;
 
 /** WhatsApp's own ceiling on a list. */
 const MAX_ROWS = 10;
@@ -138,6 +144,27 @@ const placeRow = (side: PickSide, place: string, description?: string) => ({
  * paged away — see PER_PAGE, which is seven so that these two and "More…"
  * all fit under WhatsApp's ten.
  */
+/**
+ * The pin row, worded for the end it is asking about.
+ *
+ * On both screens of both ends now. It was the first screen only, which
+ * meant somebody three pages into a corridor, looking for a gate the tariff
+ * has no name for, had to find their way back to the areas before they could
+ * say where it was.
+ */
+const pinRow = (side: PickSide, lang: Language) =>
+  side === 'from'
+    ? {
+        id: `${PREFIX}:from:here`,
+        title: t('pick_here', lang),
+        description: t('pick_here_hint', lang),
+      }
+    : {
+        id: `${PREFIX}:to:here`,
+        title: t('pick_pin', lang),
+        description: t('pick_pin_hint', lang),
+      };
+
 const wayOutRows = (side: PickSide, lang: Language, within: 'corridor' | 'top' = 'top') => [
   // The description is the instruction: it says WHY you would tap this, and
   // it is read before anybody is stuck rather than after.
@@ -179,19 +206,7 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
   // for where they are GOING. That was too narrow: WhatsApp's attachment
   // lets you search a place and send its pin, which is exactly how somebody
   // specifies a hotel, an office or a gate the tariff has no name for.
-  rows.push(
-    side === 'from'
-      ? {
-          id: `${PREFIX}:from:here`,
-          title: t('pick_here', lang),
-          description: t('pick_here_hint', lang),
-        }
-      : {
-          id: `${PREFIX}:to:here`,
-          title: t('pick_pin', lang),
-          description: t('pick_pin_hint', lang),
-        },
-  );
+  rows.push(pinRow(side, lang));
 
   const saved = repo.getIdentity(phone).address?.trim() ?? '';
   // Only when the tariff can price it. An address the picker cannot turn into
@@ -292,9 +307,9 @@ export function corridorPicker(
   const left = priced.length - start;
   if (left <= 0) return null;
 
-  // Everything that is left, when it fits beside the two way-out rows.
-  // Otherwise a page of seven with "More…" after it.
-  const take = left <= MAX_ROWS - 2 ? MAX_ROWS - 2 : PER_PAGE;
+  // Everything that is left, when it fits beside the pin and the two way-out
+  // rows. Otherwise a page of six with "More…" after it.
+  const take = left <= MAX_ROWS - 3 ? MAX_ROWS - 3 : PER_PAGE;
   const slice = priced.slice(start, start + take);
 
   const rows = slice.map((r) =>
@@ -319,6 +334,7 @@ export function corridorPicker(
   }
 
   // Last, and on every page. See PER_PAGE.
+  rows.push(pinRow(side, lang));
   rows.push(...wayOutRows(side, lang, 'corridor'));
 
   return {

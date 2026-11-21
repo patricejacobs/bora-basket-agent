@@ -3313,6 +3313,13 @@ section('Picking a place instead of typing one');
     tail?.kind === 'list' ? tail.text : '');
   check('typing is still offered', p0.some((r) => r.id === 'pick:to:type'));
 
+  // The pin is on these pages too. Somebody three pages into a corridor,
+  // looking for a gate the tariff has no name for, should not have to find
+  // their way back to the areas before they can say where it is.
+  check('and a pin can be sent from here', p0.some((r) => r.id === 'pick:to:here'));
+  check('worded for the end being chosen',
+    /going to/i.test(p0.find((r) => r.id === 'pick:to:here')?.description ?? ''));
+
   // Deep in a corridor the useful move is one step back, not all the way
   // out: picking the wrong road costs a tap to undo rather than the whole
   // booking. The front door is still one tap further on from there.

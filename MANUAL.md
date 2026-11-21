@@ -1460,9 +1460,15 @@ Which part of East Bank Demerara?          [ Choose a place ]
   ⬅️ Main menu
 ```
 
-Three rows end **every** screen of the picker and are never paged away:
-`More places` where there is more, `Type the address`, and a way back. That
-is why a page holds seven places — ten rows, less those three.
+Four rows end **every** screen of the picker and are never paged away: the
+pin, `More places` where there is more, `Type the address`, and a way back.
+That is why a page holds six places — ten rows, less those four.
+
+The pin costs a page on the longer corridors: the East Coast runs to nine
+rather than eight. That is the trade, and it is the right way round —
+somebody whose destination has no name in the tariff can now say where it is
+from any screen, instead of having to find their way back to the areas
+first.
 
 **Which way back depends on where you are.** On the first screen of each end
 there is nowhere back to go, so the row is `Main menu`: it drops the trip and
@@ -1495,8 +1501,8 @@ page has neither the row nor the line, there being nothing left to explain.
 
 ### A pin, at either end
 
-Both screens offer one — `📍 Where I am now` for the pickup, `📍 Send a pin`
-for the destination. WhatsApp's attachment lets somebody search a place and
+Every screen of both ends offers one — `📍 Where I am now` for the pickup,
+`📍 Send a pin` for the destination. WhatsApp's attachment lets somebody search a place and
 send its pin, which is how a hotel, an office or a gate the tariff has never
 heard of gets named exactly.
 
