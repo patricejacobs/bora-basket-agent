@@ -206,9 +206,29 @@ for (const e of repo.orderHistory(ride.orderNo)) {
   if (/Buxton|Grove/.test(e.detail ?? '')) console.log(`      ${e.detail}`);
 }
 
-/* ------------------------------------------------- 8. the two refusals */
+/* ------------------------------------ 8. what he is left holding */
 
-rule('8. What it refuses');
+rule('8. What he is left holding, after the change went through');
+
+const afterCard = nextActions(ride.orderNo, 'on_the_way', 'driver', { canWait: true });
+gets('Rider One', `⚠️ ${ride.orderNo} — the passenger changed where they are going.`);
+buttons(afterCard);
+console.log('');
+console.log('  This is the fix. A WhatsApp button is spent the moment it is tapped,');
+console.log('  so answering him in plain text left him with nothing to tap and no');
+console.log('  way to ask for a SECOND change. Every message to a driver carrying');
+console.log('  somebody now ends in the card for that moment.');
+console.log('');
+repo.startWaiting(ride.orderNo);
+console.log('  and while he is stopped with the clock running:');
+buttons(nextActions(ride.orderNo, 'on_the_way', 'driver', { canWait: true, waitingOpen: true }));
+console.log('      one button on purpose — the others are ways to end a trip');
+console.log('      without closing a clock worth $30 a minute to him');
+repo.stopWaiting(ride.orderNo);
+
+/* ------------------------------------------------- 9. the two refusals */
+
+rule('9. What it refuses');
 
 const again = await handleIncoming({ phone: PASSENGER, text: yes, channel: 'whatsapp' } as never);
 console.log('  she taps Acknowledged a second time:');

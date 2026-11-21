@@ -15,7 +15,13 @@
 import { config, money } from './config.ts';
 import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
-import { acceptButton, destAnswerButtons, nextActions, wantedBy } from './order-status.ts';
+import {
+  acceptButton,
+  destAnswerButtons,
+  liveTripActions,
+  nextActions,
+  wantedBy,
+} from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import {
   checkRange,
@@ -450,12 +456,24 @@ export async function tellDriverOfNewDestination(orderNo: string): Promise<boole
   if (!order || order.kind !== 'taxi' || !order.driverPhone) return false;
 
   const where = order.address || 'somewhere they will tell you';
-  return sendText(
-    order.driverPhone,
-    [`⚠️ *${order.orderNo} — the passenger changed where they are going.*`, '', `Now: *${where}*`, '', 'The pickup has not changed.', '', taxiPickupCard(order)].join(
-      String.fromCharCode(10),
-    ),
-  );
+  const body = [
+    `⚠️ *${order.orderNo} — the passenger changed where they are going.*`,
+    '',
+    `Now: *${where}*`,
+    '',
+    'The pickup has not changed.',
+    '',
+    taxiPickupCard(order),
+  ].join(String.fromCharCode(10));
+
+  // With the card's own buttons on it. This is the message that left a
+  // driver stranded: they tapped Change destination, the change went
+  // through, and the answer arrived as plain text - so the only way to
+  // change it AGAIN had gone with the tap that worked.
+  const card = liveTripActions(order);
+  return card.length > 0
+    ? sendButtons(order.driverPhone, body, card)
+    : sendText(order.driverPhone, body);
 }
 
 /**
@@ -516,10 +534,11 @@ export async function proposeDestinationToPassenger(
 export async function tellDriverDestKept(orderNo: string): Promise<boolean> {
   const order = repo.findOrder(orderNo);
   if (!order || !order.driverPhone) return false;
-  return sendText(
-    order.driverPhone,
-    `${order.orderNo} — they left it as booked. Still going to *${order.address || 'the booked destination'}*.`,
-  );
+  const body = `${order.orderNo} — they left it as booked. Still going to *${order.address || 'the booked destination'}*.`;
+  const card = liveTripActions(order);
+  return card.length > 0
+    ? sendButtons(order.driverPhone, body, card)
+    : sendText(order.driverPhone, body);
 }
 
 export function parcelOfferCard(order: repo.OrderRecord): string {

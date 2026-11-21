@@ -21,6 +21,8 @@ import {
   cancelButtons,
   findCancelReason,
   isBackwards,
+  commandFromButtonId,
+  liveTripActions,
   nextActions,
   noCodeButton,
   nobodyThereButton,
@@ -1914,9 +1916,29 @@ export async function handleDriverMessage(
   // is scanned for digits and refused.
   {
     const pending = repo.awaitingDestFrom(phone);
-    if (pending && trimmed) {
+    const pendingOrder = pending ? repo.findOrder(pending) : null;
+
+    // A tap, not a place. The card is on the bottom of their chat now, so
+    // the question "where are they going now?" can be answered by tapping
+    // Passenger arrived instead - and a capture that swallows anything would
+    // write down a destination called "1 delivered". Matched against the
+    // card's OWN commands rather than a shape, because a destination can
+    // perfectly well start with a number: "14 Delph Street" is an address,
+    // and a driver typing it must not be read as a command.
+    const tappedInstead =
+      pendingOrder !== null &&
+      liveTripActions(pendingOrder).some(
+        (b) => (commandFromButtonId(b.id) ?? '').toLowerCase() === trimmed.toLowerCase(),
+      );
+    if (pending && tappedInstead) repo.stopAskingDest(pending);
+
+    if (pending && trimmed && !tappedInstead) {
       const { proposeDestinationToPassenger } = await import('./dispatch.ts');
-      return reply(await proposeDestinationToPassenger(pending, trimmed.slice(0, 160)));
+      const said = await proposeDestinationToPassenger(pending, trimmed.slice(0, 160));
+      const card = pendingOrder ? liveTripActions(pendingOrder) : [];
+      // The driver carries on while the passenger answers, so they keep the
+      // card: the trip can still arrive, and the clock can still start.
+      return card.length > 0 ? [{ kind: 'buttons', text: said, buttons: card }] : reply(said);
     }
   }
 
@@ -1938,14 +1960,22 @@ export async function handleDriverMessage(
       );
     }
     repo.askDriverForDest(order.orderNo, phone);
-    return reply(
-      [
-        `${order.orderNo} — where are they going now?`,
-        '',
-        'Send the place and I will price it and ask them to confirm.',
-        'Nothing changes until they do.',
-      ].join(chr10),
-    );
+    return [
+      {
+        kind: 'buttons',
+        text: [
+          `${order.orderNo} — where are they going now?`,
+          '',
+          'Send the place and I will price it and ask them to confirm.',
+          'Nothing changes until they do.',
+        ].join(chr10),
+        // Still tappable, because a driver who taps this and then hears
+        // "never mind" needs a way out that is not typing a place they are
+        // no longer going to. Tapping instead of answering stands the
+        // question down, which is handled above.
+        buttons: liveTripActions(order),
+      },
+    ];
   }
 
   const waitWord = /\b(waiting|wait|stopped|hold(ing)?)\b/i.test(trimmed);

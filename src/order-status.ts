@@ -5,7 +5,7 @@ import { config } from './config.ts';
  * Lives in its own module because both sides need it and they already import
  * each other in one direction — putting it in either would make a cycle.
  */
-import type { OrderStatus } from './db/repo.ts';
+import type { OrderStatus, OrderRecord } from './db/repo.ts';
 
 /**
  * What a taxi's statuses are called, where a delivery's words do not fit.
@@ -323,6 +323,32 @@ export function commandFromButtonId(id: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * The card for a trip as it stands right now, for a driver carrying somebody.
+ *
+ * A WhatsApp reply button is spent the moment it is tapped: the message it
+ * came on keeps its words and loses its buttons. So a driver who taps
+ * `Change destination`, and is then answered in plain text, is left with
+ * nothing on screen to tap - not because the shop refuses a second change,
+ * it does not, but because the way to ask for one went with the tap. Every
+ * message sent to a driver with a passenger aboard ends in this card, which
+ * is the fix: the buttons are always at the bottom of their chat.
+ *
+ * It is the card for THAT MOMENT, not three fixed buttons. While the car is
+ * stopped with the waiting clock running there is deliberately one button,
+ * `Moving`, because anything else there is a way to end a trip without
+ * closing the clock - and the clock is $30 a minute of the driver's money.
+ */
+export function liveTripActions(
+  order: Pick<OrderRecord, 'orderNo' | 'kind' | 'status' | 'waitingSince'>,
+): { id: string; title: string; command: string }[] {
+  if (order.kind !== 'taxi' || order.status !== 'on_the_way') return [];
+  return nextActions(order.orderNo, 'on_the_way', 'driver', {
+    canWait: true,
+    waitingOpen: Boolean(order.waitingSince),
+  });
 }
 
 /**

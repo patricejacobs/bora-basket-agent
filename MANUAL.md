@@ -1382,6 +1382,25 @@ the fare as well.
 
 It cannot be raised before pickup: there is nobody in the car to have asked.
 
+**The card stays under the driver's thumb the whole trip.** A WhatsApp reply
+button is spent the moment it is tapped — the message keeps its words and
+loses its buttons — so a driver who tapped `Change destination` and was then
+answered in plain text had nothing left on screen to tap, and no way to ask
+for a *second* change. Every message sent to a driver carrying somebody now
+ends in the card for that moment:
+
+| While the car is | At the bottom of their chat |
+|---|---|
+| Moving | `[Waiting]` `[Change destination]` `[Passenger arrived]` |
+| Stopped, clock running | `[Moving]` — on its own, because everything else there is a way to end a trip without closing the clock, at $30 a minute of the driver's money |
+
+Which also means the question *"where are they going now?"* can be answered
+by tapping rather than typing: a tap on `Passenger arrived` stands the
+question down and finishes the trip, instead of being written down as a
+destination called `1 delivered`. A place that begins with a number is still
+a place — `14 Delph Street` is an address, and only the card's own commands
+are read as taps.
+
 **While a trip is on the road, naming a place changes it.** It does not
 start another. `book_taxi` clears the picker the moment it books, so
 *"actually, Buxton"* looked identical to somebody beginning a fresh

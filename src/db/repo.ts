@@ -539,6 +539,21 @@ export function openProposalFor(phone: string): DestProposal | null {
   return row ?? null;
 }
 
+/**
+ * Stands the question down without touching a proposal already with the
+ * passenger.
+ *
+ * Not clearDestProposal, which wipes both: a driver who asks again while the
+ * passenger is still deciding, and then taps something else, must not take
+ * the open question off her screen with it.
+ */
+export function stopAskingDest(orderNo: string): void {
+  db.prepare(`UPDATE orders SET dest_proposal_by = '', updated_at = ? WHERE order_no = ?`).run(
+    nowIso(),
+    orderNo,
+  );
+}
+
 export function clearDestProposal(orderNo: string): void {
   db.prepare(
     `UPDATE orders SET dest_proposal = '', dest_proposal_fare = -1, dest_proposal_by = '',

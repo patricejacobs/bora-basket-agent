@@ -3630,6 +3630,58 @@ section('Picking a place instead of typing one');
     check('a second tap is refused', /already settled/i.test((stale[0] as { text?: string }).text ?? ''),
       (stale[0] as { text?: string }).text);
 
+    // ---- the card stays under their thumb -----------------------------
+    // A WhatsApp button is spent when it is tapped, so a driver answered in
+    // plain text has no way to ask for a SECOND change. Every message in
+    // this flow carries the card.
+    const { liveTripActions } = await import('./order-status.ts');
+
+    const raised = await driverSays(tapped(`changedest_${digits}`, 'Change destination', drv), drv);
+    check('the question itself is still tappable',
+      raised[0]?.kind === 'buttons', raised[0]?.kind);
+    const onAsk = (raised[0] as { buttons?: { title: string }[] }).buttons ?? [];
+    check('and offers the way out of it',
+      onAsk.some((b) => b.title === 'Passenger arrived'),
+      JSON.stringify(onAsk.map((b) => b.title)));
+
+    // Tapping instead of naming a place stands the question down. Without
+    // this the capture writes down a destination called "1 delivered".
+    const insteadOf = await driverSays(tapped(`delivered_${digits}`, 'Passenger arrived', drv), drv);
+    check('a tap is not read as a place',
+      repo.destProposal(ride.orderNo)?.place !== `${digits} delivered`,
+      repo.destProposal(ride.orderNo)?.place);
+    check('and the question is stood down', repo.awaitingDestFrom(drv) === '',
+      repo.awaitingDestFrom(drv));
+    check('the tap does what it says', repo.findOrder(ride.orderNo)?.status === 'delivered',
+      `${repo.findOrder(ride.orderNo)?.status} ${JSON.stringify((insteadOf[0] as { text?: string }).text?.slice(0, 40))}`);
+
+    // A destination CAN begin with a number, and must still be read as one.
+    repo.setOrderStatus(ride.orderNo, 'on_the_way');
+    await driverSays(tapped(`changedest_${digits}`, 'Change destination', drv), drv);
+    await driverSays('14 Delph Street, Campbellville', drv);
+    check('an address that starts with a number is a place, not a command',
+      repo.destProposal(ride.orderNo)?.place === '14 Delph Street, Campbellville',
+      repo.destProposal(ride.orderNo)?.place);
+    repo.clearDestProposal(ride.orderNo);
+
+    // The card is the one for THAT moment: one button while the clock runs,
+    // because the rest are ways to end a trip without closing it.
+    const onboardCard = liveTripActions(repo.findOrder(ride.orderNo)!);
+    check('three buttons while the car is moving', onboardCard.length === 3,
+      JSON.stringify(onboardCard.map((b) => b.title)));
+    repo.startWaiting(ride.orderNo);
+    const stopped = liveTripActions(repo.findOrder(ride.orderNo)!);
+    check('and one while it is stopped',
+      stopped.length === 1 && stopped[0]?.title === 'Moving',
+      JSON.stringify(stopped.map((b) => b.title)));
+    repo.stopWaiting(ride.orderNo);
+    check('nothing at all once the trip is over',
+      liveTripActions({ orderNo: ride.orderNo, kind: 'taxi', status: 'delivered', waitingSince: '' })
+        .length === 0);
+    check('and nothing for a delivery, which has no destination to change',
+      liveTripActions({ orderNo: 'ORD-00001', kind: 'grocery', status: 'on_the_way', waitingSince: '' })
+        .length === 0);
+
     // And the driver cannot raise one before they are in the car.
     repo.setOrderStatus(ride.orderNo, 'confirmed');
     const early = await driverSays(`${digits} change destination`, drv);
