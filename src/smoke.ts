@@ -3541,7 +3541,7 @@ section('Picking a place instead of typing one');
   {
     const { handleDriverMessage: driverSays } = await import('./staff.ts');
     const { handleIncoming: paxSays } = await import('./conversation.ts');
-    const { nextActions: actions } = await import('./order-status.ts');
+    const { nextActions: actions, commandFromButtonId } = await import('./order-status.ts');
 
     const pax = '5920009530';
     const drv = '5926009530';
@@ -3565,7 +3565,17 @@ section('Picking a place instead of typing one');
       JSON.stringify(card.map((b) => b.title)));
     check('and the card still fits WhatsApp', card.length <= 3, String(card.length));
 
-    await driverSays(`${digits} change destination`, drv);
+    // Driven from the BUTTON, not from a command typed by hand. A tap sends
+    // the id, and an id with no translation behind it reaches the shop as
+    // its own title - which names no order, so the driver is handed the help
+    // text. Typing the command tested everything except the way a driver
+    // actually does it.
+    const tap = card.find((b) => b.title === 'Change destination');
+    check('the button translates to the command it stands for',
+      commandFromButtonId(tap?.id ?? '') === `${digits} change destination`,
+      `${tap?.id} -> ${commandFromButtonId(tap?.id ?? '')}`);
+
+    await driverSays(commandFromButtonId(tap?.id ?? '') ?? '', drv);
     check('the shop asks the driver where to', repo.awaitingDestFrom(drv) === ride.orderNo,
       repo.awaitingDestFrom(drv));
 
@@ -4027,7 +4037,8 @@ section('Why an order was cancelled');
 
   // One word on the button; the order travels in the id.
   {
-    const { nextActions: acts } = await import('./order-status.ts');
+    const { nextActions: acts, commandFromButtonId: fromId, STATUS_WORDS: WORDS } =
+      await import('./order-status.ts');
     // By id, not position: the cooking-stage group is Confirm, Ready, Cancel.
     const kitchenReady = acts('ORD-00007', 'confirmed', 'outlet').find((b) => b.id === 'ready_7');
     check('the kitchen button is one word', kitchenReady?.title === 'Ready', JSON.stringify(kitchenReady));
@@ -4040,8 +4051,24 @@ section('Why an order was cancelled');
     // Every button a tap can produce, across every audience and status.
     const audiences = ['staff', 'outlet', 'driver'] as const;
     const statuses = ['pending', 'confirmed', 'ready', 'on_the_way'] as const;
+    // EVERY combination of the options, not a hand-picked few. Sweeping the
+    // audiences and statuses alone missed every taxi button: waiting, moving
+    // and change of destination are only offered when `canWait` is set, so
+    // the sweep never saw them, and `changedest` reached a real driver with
+    // no translation at all - the tap fell through to its title, which has
+    // no order number in it, and the shop answered with the help text.
+    //
+    // Sixty-four combinations of six flags is nothing to run and it cannot
+    // go stale the way a list of likely ones does. A seventh flag, and the
+    // buttons behind it, are covered the day it is added.
+    const flags = [
+      'codeExpected', 'selfAccepted', 'canWait', 'atPickup', 'waitingOpen', 'outletConfirms',
+    ] as const;
+    const options = Array.from({ length: 1 << flags.length }, (_unused, mask) =>
+      Object.fromEntries(flags.map((f, i) => [f, (mask & (1 << i)) !== 0])),
+    );
     const everyButton = audiences.flatMap((a) =>
-      statuses.flatMap((st) => acts('ORD-00031', st, a)),
+      statuses.flatMap((st) => options.flatMap((opt) => acts('ORD-00031', st, a, opt as never))),
     );
     check('there are buttons to check', everyButton.length > 0);
     check(
@@ -4059,13 +4086,37 @@ section('Why an order was cancelled');
       everyButton.every((b) => /\b31\b/.test(b.command)),
       JSON.stringify(everyButton.filter((b) => !/\b31\b/.test(b.command)).map((b) => b.command)),
     );
+    // The bug class, on its own, because it is the one that reaches a person:
+    // an id with nothing behind it falls through to the button's TITLE, and a
+    // title carries no order number, so the shop answers with the help text.
     check(
-      'and every id translates back to it',
-      everyButton.every((b) => commandFromButtonId(b.id) === b.command),
+      'every id has a translation at all',
+      everyButton.every((b) => fromId(b.id) !== null),
+      JSON.stringify(everyButton.filter((b) => fromId(b.id) === null).map((b) => b.id)),
+    );
+
+    // And it has to MEAN what the button means. Not the same string: two
+    // buttons deliberately share an id where they are the same move, so
+    // "Passenger onboard" translates to `on the way` rather than `onboard`,
+    // and both are words the parser takes. What cannot differ is which
+    // transition the two resolve to.
+    const transition = (text: string): string =>
+      WORDS.find(([pattern]) => pattern.test(text))?.[1] ?? `verbatim:${text}`;
+    check(
+      'and every id means what its button means',
+      everyButton.every((b) => {
+        const translated = fromId(b.id);
+        return translated !== null &&
+          (translated === b.command || transition(translated) === transition(b.command));
+      }),
       JSON.stringify(
         everyButton
-          .filter((b) => commandFromButtonId(b.id) !== b.command)
-          .map((b) => `${b.id} -> ${commandFromButtonId(b.id)} != ${b.command}`),
+          .filter((b) => {
+            const translated = fromId(b.id);
+            return translated === null ||
+              (translated !== b.command && transition(translated) !== transition(b.command));
+          })
+          .map((b) => `${b.id} -> ${fromId(b.id)} != ${b.command}`),
       ),
     );
   }

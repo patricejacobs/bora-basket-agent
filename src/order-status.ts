@@ -284,19 +284,31 @@ export function commandFromButtonId(id: string): string | null {
   const atPickupTap = /^atpickup_(\d+)$/.exec(id);
   if (atPickupTap) return `${atPickupTap[1]} at pickup`;
 
-  const simple = /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move)_(\d+)$/.exec(id);
+  // The verb each id stands for, where the id is not already the word. A
+  // missing entry is not a syntax error, it is a button that does nothing:
+  // the tap falls through to its TITLE, which carries no order number, and
+  // the driver gets the help text instead of the thing they asked for.
+  const VERB: Record<string, string> = {
+    otw: 'on the way',
+    nocode: 'no code',
+    nobody: 'nobody there',
+    badcode: 'wrong code',
+    changedest: 'change destination',
+    // Spelled out, so the translation is the command CHARACTER FOR
+    // CHARACTER rather than merely something the parser also accepts. The
+    // sweep in the suite compares the two as strings, and that is the point:
+    // a loose match hides the next `changedest` until a driver finds it.
+    wait: 'waiting',
+    move: 'moving',
+  };
+
+  const simple =
+    /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move|changedest)_(\d+)$/.exec(
+      id,
+    );
   if (simple) {
-    const verb =
-      simple[1] === 'otw'
-        ? 'on the way'
-        : simple[1] === 'nocode'
-          ? 'no code'
-          : simple[1] === 'nobody'
-            ? 'nobody there'
-            : simple[1] === 'badcode'
-              ? 'wrong code'
-              : simple[1];
-    return `${simple[2]} ${verb}`;
+    const key = simple[1] ?? '';
+    return `${simple[2]} ${VERB[key] ?? key}`;
   }
 
   // A cancellation with a reason on it: the reason's own typed form, so a tap
