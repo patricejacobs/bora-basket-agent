@@ -817,6 +817,42 @@ export function setEnglishNotes(
   ).run(notes.delivery ?? null, notes.kitchen ?? null, nowIso(), orderNo);
 }
 
+/* --------------------------------- the shop's own checkout, step by step */
+
+/** Where they have got to, or '' when they are not in it. */
+export function checkoutStep(phone: string): string {
+  const row = db.prepare(`SELECT checkout_step FROM customers WHERE phone = ?`).get(phone) as
+    | { checkout_step: string }
+    | undefined;
+  return row?.checkout_step ?? '';
+}
+
+export function setCheckoutStep(phone: string, step: string): void {
+  getCustomer(phone);
+  db.prepare(`UPDATE customers SET checkout_step = ?, updated_at = ? WHERE phone = ?`).run(
+    step,
+    nowIso(),
+    phone,
+  );
+}
+
+/** The doorstep note, parked until there is an order to write it on. */
+export function checkoutNote(phone: string): string {
+  const row = db.prepare(`SELECT checkout_note FROM customers WHERE phone = ?`).get(phone) as
+    | { checkout_note: string }
+    | undefined;
+  return row?.checkout_note ?? '';
+}
+
+export function setCheckoutNote(phone: string, note: string): void {
+  getCustomer(phone);
+  db.prepare(`UPDATE customers SET checkout_note = ?, updated_at = ? WHERE phone = ?`).run(
+    note.slice(0, 120),
+    nowIso(),
+    phone,
+  );
+}
+
 export function setCustomerLanguage(phone: string, language: string): void {
   // Upsert, because a language is usually learned from somebody's very first
   // message - before they have given a name or an address, and so before

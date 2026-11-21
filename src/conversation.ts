@@ -30,6 +30,18 @@ import {
 } from './services.ts';
 import { findZone } from './zones.ts';
 import { destAnswerFromButtonId } from './order-status.ts';
+import { settleDeliveryPlace } from './delivery-place.ts';
+import {
+  GATE_CANCEL,
+  GATE_CHANGE,
+  NOTE_NONE,
+  askPlace,
+  endCheckout,
+  isCheckoutId,
+  isGateId,
+  nextAfter,
+  placeTheOrder,
+} from './delivery-checkout.ts';
 import {
   languageScreen,
   readLanguageId,
@@ -41,6 +53,7 @@ import { tellDriverOfNewDestination, tellDriverDestKept } from './dispatch.ts';
 import { money } from './config.ts';
 import {
   handleDropPick,
+  readPick,
   describeTap,
   endPicker,
   handlePick,
@@ -514,6 +527,120 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // themselves come straight out of the tariff — so there is nothing for a
   // language model to add except the chance of a different village coming
   // back. Only a finished choice reaches the agent, as a note.
+  /* ----------------------------------------- the shop's own checkout */
+
+  // A fixed sequence, run here rather than by the model: the place, the pin,
+  // the street if there was no pin, anything for the door, a name if the
+  // shop has none, and the price with its three answers. Every one of those
+  // is a question with a right answer and no judgement in it.
+  //
+  // Before the delivery list below, because a tapped row means something
+  // more here than it does on its own: it is one step of six, and the step
+  // after it is decided by this block.
+  {
+    const step = repo.checkoutStep(msg.phone);
+    if (step) {
+      const lang = languageFor(msg.phone);
+      const ask = (out: OutboundMessage, said: string): OutboundMessage[] =>
+        shopAnswered(msg, [out], said);
+
+      // The price, answered.
+      if (isGateId(text)) {
+        if (text === GATE_CANCEL) {
+          endCheckout(msg.phone);
+          return shopAnswered(msg, [{ kind: 'text', text: t('checkout_cancelled', lang) }], text);
+        }
+        if (text === GATE_CHANGE) {
+          // The address only. The basket has not changed and asking about it
+          // again would be the shop wasting their time over a figure they
+          // did not like.
+          return ask(askPlace(msg.phone, lang), describeTap(text));
+        }
+        const placed = await placeTheOrder(msg.phone, lang);
+        return shopAnswered(msg, placed, text);
+      }
+
+      // Nothing to add at the door.
+      if (text === NOTE_NONE && step === 'note') {
+        repo.setCheckoutNote(msg.phone, '');
+        return ask(nextAfter(msg.phone, 'note', lang), describeTap(text));
+      }
+
+      // A row off the list of places.
+      if (isPickerId(text)) {
+        const tapped = readPick(text);
+        const result = handleDropPick(msg.phone, text, lang);
+
+        if (tapped?.kind === 'place' && result?.kind === 'reply') {
+          repo.setCheckoutStep(msg.phone, 'pin');
+          return shopAnswered(msg, result.outbound, describeTap(text));
+        }
+        if (tapped?.kind === 'skip') {
+          return ask(nextAfter(msg.phone, 'skip', lang), describeTap(text));
+        }
+        if (result?.kind === 'reply') {
+          return shopAnswered(msg, result.outbound, describeTap(text));
+        }
+        if (result?.kind === 'menu') {
+          endCheckout(msg.phone);
+          repo.setService(msg.phone, null);
+          const menu = serviceMenuReply(msg.phone);
+          for (const out of menu) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+          return menu;
+        }
+        // Type the address: out of the list, still in checkout.
+        repo.setCheckoutStep(msg.phone, 'place');
+        return shopAnswered(msg, [{ kind: 'text', text: t('pick_type_hint', lang) }], describeTap(text));
+      }
+
+      // The exact spot, arriving. Saved HERE, because this block runs
+      // before the one that ordinarily saves a pin - and a checkout that
+      // moved on without writing it down reached the gate with nothing for
+      // the associate to steer by, which place_order rightly refuses.
+      if (msg.location && step === 'pin') {
+        recordLocationPin(msg.phone, msg.location);
+        return ask(nextAfter(msg.phone, 'pin', lang), '(sent their location)');
+      }
+
+      // A tap that has arrived at the wrong step - a button from a message
+      // further back, or one sent before the step moved on. It must never
+      // be WRITTEN DOWN as an answer: without this, `drop:note:none`
+      // landing while the street was being asked for became somebody's
+      // address, and the associate was sent to a button id.
+      const ourId = isPickerId(text) || isCheckoutId(text);
+      if (ourId) return ask(nextAfter(msg.phone, 'name', lang), describeTap(text));
+
+      if (text) {
+        // Typed instead of tapped, which the list always offers.
+        if (step === 'place') {
+          const settled = settleDeliveryPlace(msg.phone, text);
+          if (settled) {
+            repo.setCheckoutStep(msg.phone, 'pin');
+            return ask(
+              spotAsk('drop', settled.place, lang, money(settled.fee)),
+              text,
+            );
+          }
+          // Not a place the tariff carries. The list again, rather than a
+          // third round of asking in words.
+          return ask(askPlace(msg.phone, lang), text);
+        }
+        if (step === 'street') {
+          repo.saveCustomer(msg.phone, { address: text.slice(0, 160) });
+          return ask(nextAfter(msg.phone, 'street', lang), text);
+        }
+        if (step === 'note') {
+          repo.setCheckoutNote(msg.phone, text);
+          return ask(nextAfter(msg.phone, 'note', lang), text);
+        }
+        if (step === 'name') {
+          repo.saveCustomer(msg.phone, { name: text.slice(0, 60) });
+          return ask(nextAfter(msg.phone, 'name', lang), text);
+        }
+      }
+    }
+  }
+
   // The delivery list, which is the same list asked by a different service.
   // Read here for the same reason the taxi's is: the id carries a corridor
   // and a page, the places come straight out of the tariff, and there is

@@ -969,6 +969,103 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* ------------------------------------------------ the shop's own checkout */
+
+section("The shop's own checkout");
+{
+  const { handleIncoming: checkout } = await import('./conversation.ts');
+  const outletRow = repo.defaultGrocery()!;
+  const buyer = '5920007600';
+
+  const sayTo = async (text: string, extra: Record<string, unknown> = {}) =>
+    (await checkout({ phone: buyer, text, channel: 'smoke', ...extra } as never)) as {
+      kind: string; text?: string; buttons?: { title: string }[]; rows?: unknown[];
+    }[];
+
+  repo.chooseLanguage(buyer, 'en');
+  repo.setService(buyer, 'grocery');
+  const rice = (db.prepare(`SELECT id FROM products WHERE sku = 'RIC-001'`).get() as { id: number }).id;
+
+  const empty: ToolContext = { phone: buyer, outbound: [] };
+  const refused = JSON.parse(executeTool('start_delivery', {}, empty));
+  check('an empty basket cannot be checked out', typeof refused.error === 'string', refused.error);
+
+  repo.setCartQty(buyer, rice, 2);
+  const handover: ToolContext = { phone: buyer, outbound: [] };
+  const handed = JSON.parse(executeTool('start_delivery', {}, handover));
+  check('handing over sends the list itself', handover.outbound[0]?.kind === 'list',
+    JSON.stringify(handover.outbound).slice(0, 60));
+  check('and the agent is told to stop talking',
+    handed.handed_over === true && /Your turn ends now/.test(String(handed.next)));
+  check('the shop knows where they are', repo.checkoutStep(buyer) === 'place',
+    repo.checkoutStep(buyer));
+
+  // 1. the place
+  const page = await sayTo('pick:drop:corr:0:East Coast Demerara');
+  check('a corridor opens a page', page[0]?.kind === 'list', page[0]?.kind);
+  const settled = await sayTo('pick:drop:place:Beterverwagting');
+  check('the place settles the zone', repo.getCustomer(buyer).deliveryZone === 'Beterverwagting');
+  check('and the charge with it', repo.feeAgreed(buyer) === 1200, String(repo.feeAgreed(buyer)));
+  check('then the exact spot is offered',
+    settled[0]?.kind === 'buttons' && /exact spot/i.test(settled[0]?.text ?? ''),
+    settled[0]?.text?.slice(0, 50));
+  check('and the step moved on', repo.checkoutStep(buyer) === 'pin', repo.checkoutStep(buyer));
+
+  // 2. the pin, which is the door, so no street is asked
+  const afterPin = await sayTo('', {
+    location: { latitude: 6.7725, longitude: -58.0636, label: 'BV' },
+  });
+  check('a pin is saved by checkout itself', repo.getCustomer(buyer).location !== null);
+  check('and the next question is the door note',
+    /associate should know/i.test(afterPin[0]?.text ?? ''), afterPin[0]?.text?.slice(0, 50));
+  check('with a button for having nothing to say',
+    (afterPin[0]?.buttons ?? []).length === 1, JSON.stringify(afterPin[0]?.buttons));
+
+  // 3. the note, 4. the name
+  const afterNote = await sayTo('Blue gate, ring twice');
+  check('the note is kept', repo.checkoutNote(buyer) === 'Blue gate, ring twice',
+    repo.checkoutNote(buyer));
+  check('and a nameless customer is asked their name',
+    /what name/i.test(afterNote[0]?.text ?? ''), afterNote[0]?.text);
+
+  // 5. the gate
+  const gate = await sayTo('Marcia Younge');
+  const gateText = gate[0]?.text ?? '';
+  check('the price comes with three answers', (gate[0]?.buttons ?? []).length === 3,
+    JSON.stringify(gate[0]?.buttons?.map((b) => b.title)));
+  check('the basket is on it', /2 x Karibee Parboiled Rice/.test(gateText), gateText.slice(0, 60));
+  check('the delivery charge is on it', /\$1,200/.test(gateText), gateText);
+  check('and the whole amount they will hand over', /\$4,900/.test(gateText), gateText);
+  check('with who it is for and where it is going',
+    /Marcia Younge/.test(gateText) && /Beterverwagting/.test(gateText), gateText);
+
+  // Change destination: the address only, the basket untouched.
+  const changed = await sayTo('drop:gate:change');
+  check('changing the destination reopens the list', changed[0]?.kind === 'list', changed[0]?.kind);
+  check('and leaves the basket alone', repo.getCart(buyer).lines.length > 0);
+  await sayTo('pick:drop:place:Beterverwagting');
+  await sayTo('pick:drop:skip');
+  check('skipping the pin when a pin is already held does not ask for a street',
+    repo.checkoutStep(buyer) === 'note', repo.checkoutStep(buyer));
+  await sayTo('drop:note:none');
+  check('nothing to add is an answer', repo.checkoutNote(buyer) === '', repo.checkoutNote(buyer));
+  check('and the gate follows it', repo.checkoutStep(buyer) === 'gate', repo.checkoutStep(buyer));
+
+  // Book it.
+  const before = repo.recentOrders(buyer, 1).length;
+  const booked = await sayTo('drop:gate:book');
+  check('the tap places the order', repo.recentOrders(buyer, 1).length > before);
+  const made = repo.findOrder(repo.recentOrders(buyer, 1)[0]!.orderNo)!;
+  check('priced as quoted', made.deliveryFee === 1200, String(made.deliveryFee));
+  check('with the door note on it', made.deliveryNote === '', made.deliveryNote);
+  check('the customer is told the order number',
+    new RegExp(made.orderNo).test(booked[booked.length - 1]?.text ?? ''),
+    booked[booked.length - 1]?.text);
+  check('and checkout is over', repo.checkoutStep(buyer) === '', repo.checkoutStep(buyer));
+  check('the basket is empty, as after any order', repo.getCart(buyer).lines.length === 0);
+  void outletRow;
+}
+
 /* ------------------------------------------------- the delivery address */
 
 section('Tapping the delivery address');

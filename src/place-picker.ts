@@ -427,10 +427,18 @@ export function fareButtons(fare: string, lang: Language = 'en'): OutboundMessag
  * booking a car for later has nothing useful to send and should not be made
  * to pretend otherwise.
  */
-export function spotAsk(side: PickSide, place: string, lang: Language = 'en'): OutboundMessage {
+export function spotAsk(
+  side: PickSide,
+  place: string,
+  lang: Language = 'en',
+  fee = '',
+): OutboundMessage {
   return {
     kind: 'buttons',
-    text: t(side === 'from' ? 'spot_ask_from' : 'spot_ask_to', lang, { place }),
+    text:
+      side === 'drop'
+        ? t('spot_ask_drop', lang, { place, fee })
+        : t(side === 'from' ? 'spot_ask_from' : 'spot_ask_to', lang, { place }),
     buttons: [
       { id: `${PREFIX}:${side}:spot`, title: t('spot_send', lang) },
       { id: `${PREFIX}:${side}:skip`, title: t('spot_skip', lang) },
@@ -677,19 +685,8 @@ export function handleDropPick(
   return {
     kind: 'reply',
     outbound: [
-      spotAsk2(settled.place, money(settled.fee), lang),
+      spotAsk('drop', settled.place, lang, money(settled.fee)),
     ],
   };
 }
 
-/** The delivery's own version of the exact-spot offer, with the charge on it. */
-function spotAsk2(place: string, fee: string, lang: Language): OutboundMessage {
-  return {
-    kind: 'buttons',
-    text: t('spot_ask_drop', lang, { place, fee }),
-    buttons: [
-      { id: `${PREFIX}:drop:spot`, title: t('spot_send', lang) },
-      { id: `${PREFIX}:drop:skip`, title: t('spot_skip', lang) },
-    ],
-  };
-}

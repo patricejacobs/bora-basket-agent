@@ -23,6 +23,7 @@ import { parseOptionSpec, describeOptions, applySelection } from '../menu-option
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { settleDeliveryPlace } from '../delivery-place.ts';
 import { endPicker } from '../place-picker.ts';
+import { askPlace } from '../delivery-checkout.ts';
 import {
   asTariffPlace,
   findZone,
@@ -445,6 +446,12 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
       required: ['payment_method'],
       additionalProperties: false,
     },
+  },
+  {
+    name: 'start_delivery',
+    description:
+      "Hand the order over to the shop's own checkout, and stop. Call this the moment the customer has finished choosing and the basket is right — instead of asking for an address, a pin, a name or a total yourself. The shop then asks for all of it in a fixed order and places the order when they tap, so you say NOTHING further about where it is going, what it costs, or whether to confirm: your turn is over. Only for a restaurant or grocery order with something in the basket. If they come back wanting to change what they are buying, the basket is untouched and you carry on as normal.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'delivery_zone',
@@ -1997,6 +2004,22 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * different corridors. A quote nobody agreed to is a quote the delivery
      * associate has to defend at a gate, with the order already in the bag.
      */
+    case 'start_delivery': {
+      const cart = repo.getCart(ctx.phone);
+      if (cart.lines.length === 0) {
+        return fail('Their basket is empty — there is nothing to check out yet.');
+      }
+      if (repo.getService(ctx.phone) === 'parcel') {
+        return fail('A parcel is booked with create_parcel_job, not through this.');
+      }
+
+      ctx.outbound.push(askPlace(ctx.phone, languageFor(ctx.phone)));
+      return ok({
+        handed_over: true,
+        next: "The shop has taken it from here and has already asked them where it is going. Say nothing more — not about the address, not about the pin, not about the total, and not about confirming. Your turn ends now.",
+      });
+    }
+
     case 'delivery_zone': {
       if (zoneCount() === 0) {
         return ok({

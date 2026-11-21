@@ -1248,6 +1248,56 @@ Bank, is that right?"* — and only then is the figure quotable. The tool will
 not hand over a fee until that has happened, and will not accept a place name
 the shop never offered.
 
+### Checkout is the shop's, not the agent's
+
+Once the basket is right, the agent calls `start_delivery` and stops talking.
+Everything after that is a fixed sequence run in code — six questions, each
+with a right answer and no judgement in it, which makes it the wrong job for
+a language model: slower, priced per message, and different every time.
+
+| | |
+|---|---|
+| **1. the place** | The list, as the taxi's — or type the name |
+| **2. the exact spot** | `[📍 Send location]` `[Skip]` |
+| **3. the street** | Only when they skipped and the shop holds no pin |
+| **4. the door** | *Anything the associate should know?* with `[Nothing to add]` |
+| **5. the name** | Only when the shop does not know it |
+| **6. the price** | The whole amount, with `[Book it]` `[Change destination]` `[Cancel]` |
+
+```
+1 x Chicken Curry with Roti — $1,400
+Delivery to Beterverwagting — $1,200
+*Total $2,600*, cash to the associate at your door.
+
+For *Marcia Younge*, at Beterverwagting (BV).
+
+Shall I place it?
+   [ Book it ]  [ Change destination ]  [ Cancel ]
+```
+
+**What they are shown is what they will hand over.** Food and delivery added
+up, because that is the number an argument at a gate is ever about — the
+same reason a taxi is quoted its fare and not its mileage.
+
+**The tap is the read-back answered.** The name and the address are on that
+message, which is what `place_order` demands before it will accept an order,
+and it is right to: an order placed against a name nobody checked is a bag
+at the wrong door with only the shop's word for it.
+
+**Change destination reopens the list and nothing else.** The basket is not
+touched — somebody who balks at a total usually wants a different address,
+not no dinner. **Cancel** leaves the basket where it is, to come back to.
+
+**It books through `place_order`**, the same tool the agent uses, so the
+stock, the reward points, the quote gate and the dispatch are one set of
+rules rather than two. The only difference is who calls it: a tap on the
+price rather than a model judging that the moment has come.
+
+**A tap that arrives at the wrong step is never written down as an answer.**
+A button from a message further back — `Nothing to add`, tapped while the
+street was being asked for — used to become somebody's address, and the
+associate was sent to a button id.
+
 **When the shop cannot place what they typed, it shows them the list.** This
 is the taxi's place picker, asked by another service: the same rows, the same
 corridors, the same ways out — and priced from the delivery tariff, which is

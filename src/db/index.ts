@@ -604,6 +604,15 @@ addColumnIfMissing('orders', 'delivery_note_en', "TEXT NOT NULL DEFAULT ''");
 // doorstep notes.
 addColumnIfMissing('orders', 'kitchen_note', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'kitchen_note_en', "TEXT NOT NULL DEFAULT ''");
+
+// Where a restaurant customer has got to in checkout, which is a fixed
+// sequence run by the shop rather than a conversation: the place, the pin,
+// the street if there is no pin, anything for the door, their name if it is
+// not known, and the price with its three answers. Empty means they are not
+// in it. The doorstep note is parked here until there is an order to put it
+// on.
+addColumnIfMissing('customers', 'checkout_step', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('customers', 'checkout_note', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
