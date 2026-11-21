@@ -82,6 +82,7 @@ Chateau Margot,East Coast near,1200
 Triumph,East Coast near,1200
 Mon Repos,East Coast near,1200
 Success,East Coast near,1200
+Felicity,East Coast,1800
 Good Hope,East Coast,1800
 Lusignan,East Coast,1800
 Annandale,East Coast,1800
@@ -91,7 +92,6 @@ Friendship East Coast,East Coast,1800
 Vigilance,East Coast,1800
 Strathspey,East Coast,1800
 Foulis,East Coast,2000
-Felicity,East Coast,2000
 Bladen Hall,East Coast,2200
 Enmore,East Coast,2200
 Non Pareil,East Coast,2200
@@ -164,7 +164,6 @@ Moblissa,Highway,5000
 
 # ------------------------------- West Bank Demerara, over the bridge and south
 Vreed-en-Hoop,West Bank near,2500
-Stanleytown,West Bank near,2500
 Pouderoyen,West Bank near,2500
 Klien Pouderoyen,West Bank near,2500
 Malgre Tout,West Bank near,2500
@@ -175,6 +174,7 @@ Goed Fortuin,West Bank near,2800
 La Grange,West Bank,3000
 Nismes,West Bank,3000
 Bagotville,West Bank,3000
+Stanleytown,West Bank,3000
 Toevlugt,West Bank,3200
 Patentia,West Bank,3200
 Vive-la-Force,West Bank,3200

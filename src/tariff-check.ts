@@ -21,6 +21,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { tariff } from './zones.ts';
 
 type Place = {
   place: string;
@@ -70,7 +71,21 @@ const rows: Place[] = fs
     };
   });
 
-const usable = rows.filter((r) => r.km > 0 && r.fee > 0 && r.status === 'ok');
+// The PRICE comes from the live tariff, never from the review file beside
+// it. That file was written once, when the places were geocoded, and a fee
+// copied into it goes stale the first time a price is corrected — which
+// would have this tool reporting a fault that had already been fixed, or
+// worse, missing one that had just been introduced. What it is read for is
+// the coordinates, which is the part the tariff does not know.
+const priced = new Map(tariff().map((z) => [z.place, z]));
+
+const usable = rows
+  .filter((r) => r.km > 0 && r.status === 'ok' && priced.has(r.place))
+  .map((r) => {
+    const live = priced.get(r.place)!;
+    return { ...r, fee: live.fee, zone: live.zone };
+  })
+  .filter((r) => r.fee > 0);
 const skipped = rows.length - usable.length;
 
 const byCorridor = new Map<string, Place[]>();
