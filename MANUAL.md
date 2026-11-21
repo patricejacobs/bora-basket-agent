@@ -1530,7 +1530,17 @@ is a list of place names with no coordinates in it anywhere, so:
 | What arrives | What happens |
 |---|---|
 | A shared **place** — WhatsApp sends its name and address, e.g. *Ogle Airport, Ogle* | The name is matched against the tariff and the trip prices itself |
-| A **live position** — WhatsApp sends coordinates and no name at all | The pin is kept for the driver, and the shop asks one question: *which area is that, so I can work out your fare?* |
+| A **live position** — WhatsApp sends coordinates and no name at all | The pin is kept for the driver, and the shop asks one question: *which area is it in, so I can work out your fare?* |
+
+That question **names the end it is asking about** — *"the driver will collect
+you right there"* for a pickup, *"will take you right there"* for a
+destination. Without it, "which area is that" reads as the destination
+question to somebody who has just pinned their pickup, and they answer it
+with where they are going.
+
+It carries a pin row too. Left off, a passenger whose first pin landed on the
+wrong spot, or who pinned one end and wanted to pin the other, had nothing on
+that screen but a list of areas.
 
 That question is the fare gate doing its job. Before it, a bare pin booked a
 car with no figure ever quoted — and the row offering it sat first on the

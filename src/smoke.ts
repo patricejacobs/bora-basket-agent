@@ -3287,8 +3287,27 @@ section('Picking a place instead of typing one');
   const area = areaPicker('to');
   check('a pin the tariff cannot price asks for the area',
     area.kind === 'list' && /which area/i.test(area.text), area.kind === 'list' ? area.text : '');
-  check('offering the areas and nothing else',
-    area.kind === 'list' && !area.rows.some((r) => r.id.endsWith(':here')));
+  check('offering every area', area.kind === 'list' &&
+    area.rows.filter((r) => r.id.includes(':corr:')).length === 5);
+
+  // The question has to say WHICH end it is about. "Which area is that" reads
+  // as the destination question to somebody who has just pinned their
+  // pickup, and they answer it with where they are going.
+  check('and the destination one says it will take you there',
+    area.kind === 'list' && /take you/i.test(area.text), area.kind === 'list' ? area.text : '');
+  const areaFrom = areaPicker('from');
+  check('while the pickup one says it will collect you',
+    areaFrom.kind === 'list' && /collect you/i.test(areaFrom.text),
+    areaFrom.kind === 'list' ? areaFrom.text : '');
+
+  // The pin row stays on it. Left off, a passenger whose first pin landed on
+  // the wrong spot had nothing on that screen but a list of areas.
+  check('a pin can still be sent from the area question',
+    area.kind === 'list' && area.rows.some((r) => r.id === 'pick:to:here'));
+  check('and from the pickup one',
+    areaFrom.kind === 'list' && areaFrom.rows.some((r) => r.id === 'pick:from:here'));
+  check('all of it inside ten rows',
+    area.kind === 'list' && area.rows.length <= 10, area.kind === 'list' ? String(area.rows.length) : '');
 
   /* --- a corridor, priced from the pickup ------------------------------ */
 

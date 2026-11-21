@@ -290,12 +290,23 @@ export function openEnd(side: PickSide, lang: Language = 'en'): OutboundMessage 
  */
 export function areaPicker(side: PickSide, lang: Language = 'en'): OutboundMessage {
   const rows = corridors()
-    .slice(0, MAX_ROWS - 2)
+    .slice(0, MAX_ROWS - 3)
     .map((corridor) => corridorRow(side, corridor));
+
+  // The pin row stays. It was left off on the reasoning that somebody who has
+  // just shared their location does not need to be asked for one — true of
+  // the pin they sent, and wrong about the next one. A passenger whose first
+  // pin landed on the wrong spot, or who pinned one end and now wants to pin
+  // the other, had nothing on this screen but a list of areas.
+  rows.push(pinRow(side, lang));
   rows.push(...wayOutRows(side, lang));
+
   return {
     kind: 'list',
-    text: t('pick_area_ask', lang),
+    // Which end is being asked about, said out loud. "Which area is that"
+    // reads as the destination question to somebody who has just pinned
+    // their pickup, and they answer it with where they are going.
+    text: t(side === 'from' ? 'pick_area_from' : 'pick_area_to', lang),
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
   };
