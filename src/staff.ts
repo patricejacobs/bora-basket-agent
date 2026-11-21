@@ -1245,6 +1245,11 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
 
 /* ------------------------------------------------------------------ delivery associates */
 
+// Written as a literal regex, not built from a string: '\b' inside a string
+// is a BACKSPACE, so the built version matched nothing at all and the
+// driver's button did nothing.
+const changeDestWord = /\bchange\s*destination\b/i;
+
 const DRIVER_HELP = [
   '*Delivery associate commands*',
   '',
@@ -1904,6 +1909,17 @@ export async function handleDriverMessage(
     ];
   }
 
+  // A place the shop asked this driver to name, for a trip the passenger
+  // wants redirected. Read BEFORE the order-number parse below, or "Buxton"
+  // is scanned for digits and refused.
+  {
+    const pending = repo.awaitingDestFrom(phone);
+    if (pending && trimmed) {
+      const { proposeDestinationToPassenger } = await import('./dispatch.ts');
+      return reply(await proposeDestinationToPassenger(pending, trimmed.slice(0, 160)));
+    }
+  }
+
   const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
   if (!ref) return reply(`Didn't catch an order number.\n\n${DRIVER_HELP}`);
 
@@ -1913,6 +1929,25 @@ export async function handleDriverMessage(
   // Waiting is not a status. The trip is still on the way with the car
   // standing still, so this is handled before the status machine rather than
   // bolted onto a ladder it does not belong on.
+  // The driver raising a change of destination. They do not settle it: the
+  // shop asks the passenger, and nothing moves until the passenger answers.
+  if (changeDestWord.test(trimmed) && order.kind === 'taxi') {
+    if (order.status !== 'on_the_way') {
+      return reply(
+        `${order.orderNo} is ${order.status}, not under way, so there is nobody in the car to have asked. Leave it.`,
+      );
+    }
+    repo.askDriverForDest(order.orderNo, phone);
+    return reply(
+      [
+        `${order.orderNo} — where are they going now?`,
+        '',
+        'Send the place and I will price it and ask them to confirm.',
+        'Nothing changes until they do.',
+      ].join(chr10),
+    );
+  }
+
   const waitWord = /\b(waiting|wait|stopped|hold(ing)?)\b/i.test(trimmed);
   const moveWord = /\b(moving|move|moved|going|off|resume[d]?)\b/i.test(trimmed);
   if ((waitWord || moveWord) && order.kind === 'taxi') {

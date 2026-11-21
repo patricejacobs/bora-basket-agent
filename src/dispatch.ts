@@ -27,7 +27,9 @@ import {
 } from './location.ts';
 import { notifyStaffOfNewOrder, warnStaff } from './notifications.ts';
 import { jobStartsAt, stagePool, standings, describeStage, type Stage } from './nearby.ts';
-import { waitingLine } from './taxi.ts';
+import { waitingLine, taxiFare } from './taxi.ts';
+import { languageFor } from './services.ts';
+import { t } from './language.ts';
 
 /** A pause the widening can be driven with, and the tests can shorten. */
 const wait = (ms: number): Promise<void> =>
@@ -453,6 +455,67 @@ export async function tellDriverOfNewDestination(orderNo: string): Promise<boole
     [`⚠️ *${order.orderNo} — the passenger changed where they are going.*`, '', `Now: *${where}*`, '', 'The pickup has not changed.', '', taxiPickupCard(order)].join(
       String.fromCharCode(10),
     ),
+  );
+}
+
+/**
+ * Puts the driver's proposed destination to the passenger.
+ *
+ * The driver heard the request and named the place; the passenger settles
+ * it. Nothing on the trip moves here — the proposal is written down and the
+ * two figures go out with two buttons, which is the same gate booking has
+ * and the same one the passenger's own change has.
+ *
+ * Returns what to tell the driver, so they know it is with the passenger and
+ * not with them.
+ */
+export async function proposeDestinationToPassenger(
+  orderNo: string,
+  place: string,
+): Promise<string> {
+  const order = repo.findOrder(orderNo);
+  if (!order || order.kind !== 'taxi') {
+    repo.clearDestProposal(orderNo);
+    return `${orderNo} is not a trip I can redirect. Nothing changed.`;
+  }
+  if (order.status !== 'on_the_way') {
+    repo.clearDestProposal(orderNo);
+    return `${orderNo} is no longer under way, so nothing was changed.`;
+  }
+
+  const from = order.pickup?.address ?? '';
+  const quoted = taxiFare(from, place);
+  repo.proposeDestination(orderNo, place, quoted?.fee ?? -1);
+
+  const lang = languageFor(order.phone);
+  const was = order.quotedFare > 0 ? money(order.quotedFare) : t('taxi_fare_with_driver', lang);
+  const now = quoted ? money(quoted.fee) : t('taxi_fare_with_driver', lang);
+
+  await sendButtons(order.phone, t('dest_ask', lang, { place, was, now }), [
+    { id: `dest_ok_${repo.orderDigits(orderNo)}`, title: t('dest_ack', lang) },
+    { id: `dest_no_${repo.orderDigits(orderNo)}`, title: t('dest_keep', lang) },
+  ]);
+
+  return [
+    `Asked them about *${place}*${quoted ? ` — ${money(quoted.fee)}` : ''}.`,
+    '',
+    'Carry on to where you were going until they answer.',
+  ].join(String.fromCharCode(10));
+}
+
+/**
+ * Tells the driver the passenger left it as booked.
+ *
+ * Said plainly, because the driver asked on the passenger's behalf and is
+ * owed an answer either way — silence reads as the shop ignoring them, and
+ * a driver who thinks a change went through drives somewhere else.
+ */
+export async function tellDriverDestKept(orderNo: string): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order || !order.driverPhone) return false;
+  return sendText(
+    order.driverPhone,
+    `${order.orderNo} — they left it as booked. Still going to *${order.address || 'the booked destination'}*.`,
   );
 }
 

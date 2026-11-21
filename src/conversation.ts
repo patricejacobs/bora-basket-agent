@@ -29,6 +29,8 @@ import {
   wantsServiceMenu,
 } from './services.ts';
 import { findZone } from './zones.ts';
+import { tellDriverOfNewDestination, tellDriverDestKept } from './dispatch.ts';
+import { money } from './config.ts';
 import {
   describeTap,
   endPicker,
@@ -116,6 +118,19 @@ function outboundLogBody(msg: OutboundMessage): string {
  * `said` is what the passenger actually saw themselves tap, not the row id:
  * "Zeelugt", not "pick:to:place:Zeelugt".
  */
+/**
+ * The passenger's answer to a destination their driver raised.
+ *
+ * Read off the button id, not its words: the titles are written in whichever
+ * language they use, and "Acknowledged" in Portuguese is not a string this
+ * file should be matching on.
+ */
+function destAnswer(text: string): { ok: boolean; said: string } | null {
+  const tapped = text.trim().match(new RegExp('^dest_(ok|no)_[0-9]+$', 'i'));
+  if (!tapped) return null;
+  return { ok: tapped[1]?.toLowerCase() === 'ok', said: tapped[1] === 'ok' ? 'Acknowledged' : 'No, as booked' };
+}
+
 const chr10 = String.fromCharCode(10);
 
 function shopAnswered(
@@ -342,6 +357,66 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     // Last trip's ends must never start this one.
     if (picked === 'taxi') repo.clearTaxiPicks(msg.phone);
     return shopAnswered(msg, reply, text);
+  }
+
+  /* ------------------------------ a destination the driver has raised */
+
+  // Settled here, before the agent and before the picker, because it is the
+  // fare gate doing its job: the passenger was shown two figures and these
+  // are the two answers. Nothing on the trip moved when the driver raised
+  // it; this is where it moves, or does not.
+  if (destAnswer(text)) {
+    const answer = destAnswer(text)!;
+    const open = repo.openProposalFor(msg.phone);
+    const lang = languageFor(msg.phone);
+
+    if (!open) {
+      // Tapped twice, or tapped after it was settled some other way. Say so
+      // rather than acting on a proposal that is no longer there.
+      return shopAnswered(msg, [{ kind: 'text', text: t('dest_gone', lang) }], answer.said);
+    }
+
+    const order = repo.findOrder(open.orderNo);
+    if (answer.ok) {
+      repo.changeTaxiDestination(open.orderNo, open.place, open.fare > 0 ? open.fare : 0);
+      repo.clearDestProposal(open.orderNo);
+      void tellDriverOfNewDestination(open.orderNo).catch((err) =>
+        console.error('[taxi] could not tell the driver the change was agreed:', err),
+      );
+      return shopAnswered(
+        msg,
+        [
+          {
+            kind: 'text',
+            text: t('dest_changed', lang, {
+              place: open.place,
+              fare: open.fare > 0 ? money(open.fare) : t('taxi_fare_with_driver', lang),
+            }),
+          },
+        ],
+        answer.said,
+      );
+    }
+
+    repo.clearDestProposal(open.orderNo);
+    void tellDriverDestKept(open.orderNo).catch((err: unknown) =>
+      console.error('[taxi] could not tell the driver the change was refused:', err),
+    );
+    return shopAnswered(
+      msg,
+      [
+        {
+          kind: 'text',
+          text: t('dest_kept', lang, {
+            place: order?.address || 'where you were going',
+            fare: order && order.quotedFare > 0
+              ? money(order.quotedFare)
+              : t('taxi_fare_with_driver', lang),
+          }),
+        },
+      ],
+      answer.said,
+    );
   }
 
   /* --------------------------------------------------- taxi place picker */

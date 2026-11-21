@@ -1348,6 +1348,40 @@ is a car that still goes to the wrong place.
 | **Onboard** | Refused. The fare is running and the waiting clock with it, so it needs a person |
 | The **pickup** | Not changed here either. Moving where a car collects from may mean a different driver, which is a different job |
 
+### When the driver is the one who hears it
+
+A passenger usually asks the person next to them, so the driver's card
+carries `Change destination` once they are onboard. **The driver raises it;
+the passenger settles it.**
+
+```
+Driver  ▸ [Change destination]
+Shop    ▸ TXI-00001 — where are they going now?
+Driver  ▸ Buxton
+Shop    ▸ Asked them about *Buxton* — $3,100.
+          Carry on to where you were going until they answer.
+
+Passenger ▸ "Your driver says you are now going to *Buxton*. That makes
+             the fare *$3,100* rather than *$700*."
+             [Acknowledged]  [No, as booked]
+```
+
+Nothing on the trip moves while that sits unanswered: the place and the
+figure are written down as a *proposal*, and only the passenger's tap applies
+it. The driver is told either way, because they asked on the passenger's
+behalf and are owed an answer — and a driver who thinks a change went
+through drives somewhere else.
+
+**Why not let the driver simply change it?** Because a driver who can change
+the destination can change the fare, and the figure the passenger agreed is
+the whole of what the shop can show if one is ever disputed. It is a cash
+business with no card trail; that record is the dispute resolution. It would
+also create an incentive that does not exist today — a destination the
+driver can edit is a fare the driver can inflate, and points are earned on
+the fare as well.
+
+It cannot be raised before pickup: there is nobody in the car to have asked.
+
 **While a trip is on the road, naming a place changes it.** It does not
 start another. `book_taxi` clears the picker the moment it books, so
 *"actually, Buxton"* looked identical to somebody beginning a fresh

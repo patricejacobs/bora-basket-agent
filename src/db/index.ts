@@ -524,6 +524,20 @@ addColumnIfMissing('customers', 'taxi_fare_shown', 'INTEGER NOT NULL DEFAULT -1'
 // tariff has never heard of it.
 addColumnIfMissing('customers', 'taxi_typing_end', "TEXT NOT NULL DEFAULT ''");
 
+// A destination change the DRIVER has raised, waiting on the passenger.
+//
+// The request happens in the car, to the driver, so the driver is who hears
+// it first. But a driver who could change a destination could change the
+// FARE, and the figure the passenger agreed is the whole of what the shop
+// can show if one is ever disputed. So the driver proposes and nothing moves
+// until the passenger answers.
+//
+// `by` holds the driver's number while the shop is waiting for them to name
+// the place; the other two hold what they named and what it comes to.
+addColumnIfMissing('orders', 'dest_proposal_by', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'dest_proposal', "TEXT NOT NULL DEFAULT ''");
+addColumnIfMissing('orders', 'dest_proposal_fare', 'INTEGER NOT NULL DEFAULT -1');
+
 // A parcel has a sender and a recipient, and they are different people in
 // different places. The customer is the sender; these are who receives it.
 addColumnIfMissing('orders', 'recipient_name', "TEXT NOT NULL DEFAULT ''");

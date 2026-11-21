@@ -487,6 +487,12 @@ export function nextActions(
   // remember the shape of.
   const waiting = act(`wait_${n}`, 'Waiting', `${n} waiting`);
   const moving = act(`move_${n}`, 'Moving', `${n} moving`);
+  // Raised by the driver, settled by the passenger. A request to go
+  // somewhere else happens in the car, so the driver is who hears it — but a
+  // driver who could change a destination could change the fare, and the
+  // figure the passenger agreed is the whole of what the shop can show if
+  // one is ever disputed.
+  const changeDest = act(`changedest_${n}`, 'Change destination', `${n} change destination`);
   const cancel = act(`cancel_${n}`, 'Cancel', `${n} cancel`);
 
   // A kitchen only ever accepts, says the food is up, or hands it back. It never
@@ -548,7 +554,9 @@ export function nextActions(
         // a way to end the trip without closing the clock.
         if (opts.waitingOpen) return [moving];
         if (opts.codeExpected) return [];
-        return opts.canWait ? [waiting, arrived] : [delivered];
+        // Three is WhatsApp's limit and a taxi uses all of it: stop the
+        // clock, send them somewhere else, or finish.
+        return opts.canWait ? [waiting, changeDest, arrived] : [delivered];
       }
       default:
         return [];

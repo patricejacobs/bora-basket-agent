@@ -478,6 +478,74 @@ export function changeTaxiDestination(
  * exist, asked for its exact spot, and then asked where they were going.
  * They had already said. They were changing it.
  */
+/* ------------------------------ a destination the driver has raised */
+
+export type DestProposal = { orderNo: string; place: string; fare: number; by: string };
+
+/** The shop is waiting for this driver to name a place. */
+export function awaitingDestFrom(driverPhone: string): string {
+  // Both guards matter. The column's own default is the empty string, so
+  // asking about a driver with no number matched EVERY order and handed back
+  // whichever came first — a grocery job, in the case that caught this.
+  const digits = driverPhone.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+
+  const row = db
+    .prepare(
+      `SELECT order_no AS orderNo FROM orders
+        WHERE dest_proposal_by <> '' AND dest_proposal_by = ? LIMIT 1`,
+    )
+    .get(digits) as { orderNo: string } | undefined;
+  return row?.orderNo ?? '';
+}
+
+export function askDriverForDest(orderNo: string, driverPhone: string): void {
+  db.prepare(`UPDATE orders SET dest_proposal_by = ?, updated_at = ? WHERE order_no = ?`).run(
+    driverPhone.replace(/[^0-9]/g, ''),
+    nowIso(),
+    orderNo,
+  );
+}
+
+/** What the driver named, and what it comes to, waiting on the passenger. */
+export function proposeDestination(orderNo: string, place: string, fare: number): void {
+  db.prepare(
+    `UPDATE orders SET dest_proposal = ?, dest_proposal_fare = ?, dest_proposal_by = '',
+       updated_at = ? WHERE order_no = ?`,
+  ).run(place, Math.round(fare), nowIso(), orderNo);
+}
+
+export function destProposal(orderNo: string): DestProposal | null {
+  const row = db
+    .prepare(
+      `SELECT order_no AS orderNo, dest_proposal AS place, dest_proposal_fare AS fare,
+              dest_proposal_by AS by FROM orders WHERE order_no = ?`,
+    )
+    .get(orderNo) as { orderNo: string; place: string; fare: number; by: string } | undefined;
+  return row && row.place ? row : null;
+}
+
+/** The one a passenger is being asked about, whichever trip it is on. */
+export function openProposalFor(phone: string): DestProposal | null {
+  const row = db
+    .prepare(
+      `SELECT order_no AS orderNo, dest_proposal AS place, dest_proposal_fare AS fare,
+              dest_proposal_by AS by
+         FROM orders WHERE phone = ? AND dest_proposal <> '' ORDER BY id DESC LIMIT 1`,
+    )
+    .get(phone.replace(/[^0-9]/g, '')) as
+    | { orderNo: string; place: string; fare: number; by: string }
+    | undefined;
+  return row ?? null;
+}
+
+export function clearDestProposal(orderNo: string): void {
+  db.prepare(
+    `UPDATE orders SET dest_proposal = '', dest_proposal_fare = -1, dest_proposal_by = '',
+       updated_at = ? WHERE order_no = ?`,
+  ).run(nowIso(), orderNo);
+}
+
 export function liveTaxi(phone: string): OrderRecord | null {
   for (const summary of recentOrders(phone, 5)) {
     const order = findOrder(summary.orderNo);

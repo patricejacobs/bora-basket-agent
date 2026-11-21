@@ -3531,6 +3531,89 @@ section('Picking a place instead of typing one');
     repo.taxiPicks(rider).from);
   check('a stale pin row does nothing', handlePick(rider, 'pick:from:here') === null);
 
+  /* --- a change the DRIVER raises -------------------------------------- */
+
+  // The request happens in the car, to the driver, so the driver is who
+  // hears it. But a driver who could change a destination could change the
+  // FARE, and the figure the passenger agreed is the whole of what the shop
+  // can show if one is ever disputed. So the driver proposes and the
+  // passenger settles it.
+  {
+    const { handleDriverMessage: driverSays } = await import('./staff.ts');
+    const { handleIncoming: paxSays } = await import('./conversation.ts');
+    const { nextActions: actions } = await import('./order-status.ts');
+
+    const pax = '5920009530';
+    const drv = '5926009530';
+    repo.saveCustomer(pax, { name: 'Shawn', contactPhone: pax });
+    repo.setService(pax, 'taxi');
+    repo.upsertAssociate({ phone: drv, name: 'Driver Three', vehicle: 'PAA 3', active: true });
+    repo.setDuty(drv, true);
+
+    const ride = repo.createTaxiJob({
+      phone: pax, fare: 700, passengerName: 'Shawn', passengerPhone: pax,
+      pickup: null, pickupAddress: 'Diamond', destination: null, destinationAddress: 'Grove',
+      note: '', wantedAt: '', wantedNote: '',
+    });
+    repo.assignDriver(ride.orderNo, drv);
+    repo.setOrderStatus(ride.orderNo, 'on_the_way');
+    const digits = Number(ride.orderNo.replace(/[^0-9]/g, ''));
+
+    const card = actions(ride.orderNo, 'on_the_way', 'driver', { canWait: true });
+    check('the driver has somewhere to raise it',
+      card.some((b) => b.title === 'Change destination'),
+      JSON.stringify(card.map((b) => b.title)));
+    check('and the card still fits WhatsApp', card.length <= 3, String(card.length));
+
+    await driverSays(`${digits} change destination`, drv);
+    check('the shop asks the driver where to', repo.awaitingDestFrom(drv) === ride.orderNo,
+      repo.awaitingDestFrom(drv));
+
+    await driverSays('Buxton', drv);
+    const proposal = repo.destProposal(ride.orderNo);
+    check('the place is written down as a proposal', proposal?.place === 'Buxton', proposal?.place);
+    check('priced from the same pickup', proposal?.fare === 3100, String(proposal?.fare));
+    check('and NOTHING on the trip has moved',
+      repo.findOrder(ride.orderNo)?.address === 'Grove' &&
+        repo.findOrder(ride.orderNo)?.quotedFare === 700,
+      `${repo.findOrder(ride.orderNo)?.address} ${repo.findOrder(ride.orderNo)?.quotedFare}`);
+
+    // Declining leaves the trip exactly as booked.
+    await paxSays({ phone: pax, text: `dest_no_${digits}`, channel: 'smoke' } as never);
+    check('declining keeps it as booked',
+      repo.findOrder(ride.orderNo)?.address === 'Grove' &&
+        repo.findOrder(ride.orderNo)?.quotedFare === 700);
+    check('and the proposal is spent', repo.destProposal(ride.orderNo) === null);
+
+    // Acknowledging is what moves it.
+    await driverSays(`${digits} change destination`, drv);
+    await driverSays('Buxton', drv);
+    await paxSays({ phone: pax, text: `dest_ok_${digits}`, channel: 'smoke' } as never);
+    const moved2 = repo.findOrder(ride.orderNo);
+    check('acknowledging changes the trip', moved2?.address === 'Buxton', moved2?.address);
+    check('and re-prices it', moved2?.quotedFare === 3100, String(moved2?.quotedFare));
+    check('the pickup is untouched', moved2?.pickup?.address === 'Diamond', moved2?.pickup?.address);
+    check('both figures are in the trail',
+      repo.orderHistory(ride.orderNo).some((e) => /Grove -> Buxton/.test(e.detail ?? '')));
+
+    // A tap on a proposal that is already settled must not act on anything.
+    const stale = await paxSays({ phone: pax, text: `dest_ok_${digits}`, channel: 'smoke' } as never);
+    check('a second tap is refused', /already settled/i.test((stale[0] as { text?: string }).text ?? ''),
+      (stale[0] as { text?: string }).text);
+
+    // And the driver cannot raise one before they are in the car.
+    repo.setOrderStatus(ride.orderNo, 'confirmed');
+    const early = await driverSays(`${digits} change destination`, drv);
+    check('it cannot be raised before pickup',
+      /not under way/i.test((early[0] as { text?: string }).text ?? ''),
+      (early[0] as { text?: string }).text);
+
+    repo.setOrderStatus(ride.orderNo, 'cancelled');
+    repo.setDuty(drv, false);
+    repo.upsertAssociate({ phone: drv, name: 'Driver Three', vehicle: 'PAA 3', active: false });
+    repo.setService(pax, null);
+  }
+
   /* --- changing where a booked taxi is going ---------------------------- */
 
   // Nothing could amend a booked job, for any service — the only route was
