@@ -969,6 +969,36 @@ section('Service window');
   check('order lookup returns null for nonsense', repo.findOrder('abc') === null);
 }
 
+/* -------------------------------------------------- the dispatch map */
+
+section('The dispatch map');
+{
+  // The page itself is served behind a token and tested by opening it; what
+  // the suite can hold is the shape of what it draws - which is the part
+  // that goes wrong silently when an order grows a field.
+  const mapPhone = '5920008000';
+  repo.saveCustomer(mapPhone, { name: 'Map Tester', contactPhone: mapPhone, address: 'Lot 8 BV' });
+  const riceForMap = (db.prepare(`SELECT id FROM products WHERE sku = 'RIC-001'`).get() as { id: number }).id;
+  repo.setCartQty(mapPhone, riceForMap, 1);
+  repo.setFeeAgreed(mapPhone, 1200);
+  const mapped = repo.placeOrder({
+    phone: mapPhone, customerName: 'Map Tester', address: 'Lot 8 BV', contactPhone: mapPhone,
+    deliveryNote: '', paymentMethod: 'cash_on_delivery',
+    location: { latitude: 6.7725, longitude: -58.0636, label: 'BV' },
+  } as never);
+
+  const open = repo.openOrders(200);
+  check('an open order is on the board', open.some((o) => o.orderNo === mapped.orderNo),
+    String(open.length));
+  const mine = open.find((o) => o.orderNo === mapped.orderNo)!;
+  check('with somewhere to draw it', mine.location?.latitude === 6.7725, JSON.stringify(mine.location));
+  check('and the figure to collect', mine.total > 0, String(mine.total));
+  check('a delivered order leaves the board', (() => {
+    repo.setOrderStatus(mapped.orderNo, 'delivered');
+    return !repo.openOrders(200).some((o) => o.orderNo === mapped.orderNo);
+  })());
+}
+
 /* ------------------------------------------------------- the aisles */
 
 section('The aisles, and the way out of them');

@@ -2964,6 +2964,39 @@ This applies to a parcel's destination and to an order going to somebody
 else, including one where the buyer deliberately shared a pin for the
 recipient's door.
 
+### The dispatch map
+
+Every open job on one page, at **`/dispatch?key=…`**, behind the same token
+the backup downloads use. Red is pending, amber confirmed, blue ready, green
+on the way; a job waiting three quarters of an hour draws bigger and
+heavier. Tapping a pin gives the order number, the customer, the address,
+their number as a dialable link, the figure to collect, how long it has
+waited and who has it.
+
+Under the map, the same jobs as a list — which is where **`no pin — ring
+before setting off`** shows up, because a job with no pin cannot be on a map
+and is exactly the one somebody needs to see.
+
+It refreshes itself every twenty seconds and fits the view to the work on
+its first load, so a morning with three drops on the East Coast looks like
+three drops on the East Coast.
+
+**It does not track anybody, and will not pretend to.** WhatsApp never sends
+a business number a moving location — only the single pin a customer chose
+to share — so what the map honestly knows is where each job is going, where
+it is coming from, and how long it has been waiting.
+
+**Treat the link as the password.** The page prints customer names,
+addresses and telephone numbers, which is what makes it useful and what
+makes it dangerous: it shares `BACKUP_TOKEN` rather than inventing a second
+secret, returns **404** without it, and is marked no-store and noindex. If
+the link goes anywhere it should not, rotate that token.
+
+Tiles come from OpenStreetMap. Their public tile service is fine for a
+dispatcher opening a page a few times a day and is not for heavy traffic; a
+shop that leaves this open on a screen all day should put a free MapTiler or
+Stadia key behind it.
+
 ### The cash, and what it is made of
 
 The associate's card ends with the figure to collect and the figure broken

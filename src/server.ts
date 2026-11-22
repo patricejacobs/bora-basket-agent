@@ -20,6 +20,7 @@ import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats, deliveryStats } from './channels/whatsapp-send.ts';
 import { warnStaff, flushHelpRequests } from './notifications.ts';
+import { mountDispatchMap } from './dispatch-map.ts';
 import { applyScheduledReset } from './reset.ts';
 import { loadZonesFromDisk, zoneCount } from './zones.ts';
 import { simulatorRouter } from './channels/simulator.ts';
@@ -496,6 +497,11 @@ function mountBackupRoutes(): void {
 }
 
 mountBackupRoutes();
+
+// Every open job on one map, behind the same token. Mounted beside the
+// backup routes because it guards the same thing: a page of customer names,
+// addresses and telephone numbers.
+mountDispatchMap(app);
 
 app.use('/whatsapp', whatsappRouter);
 
