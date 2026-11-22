@@ -1253,6 +1253,43 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
 const changeDestWord = /\bchange\s*destination\b/i;
 /** `7 pin`, `7 location`, `send the pin for 7` — all one request. */
 const pinWord = /\b(pin|location)\b/i;
+/** `7 details` — everything about one job, asked for at the bottom of the chat. */
+const detailsWord = /\b(details?|info|information)\b/i;
+
+/**
+ * The job somebody meant when they typed a command without a number.
+ *
+ * Carrying one, there is nothing to guess: they have already said which job
+ * by holding it. Carrying several, guessing is the one thing not to do — it
+ * would act on the wrong customer — so the answer is the list, with the exact
+ * thing to send beside each one.
+ */
+function theOneInHand(
+  phone: string,
+  verb: string,
+  none: string,
+): { job: repo.OrderRecord } | { say: string } {
+  const held = repo.openJobsFor(phone);
+  if (held.length === 1) return { job: held[0]! };
+  if (held.length === 0) {
+    return {
+      say:
+        `${none} Send \`jobs\` to see what is waiting.${chr10}${chr10}` +
+        `If you meant a job somebody else is on, send its number: \`7 ${verb}\`.`,
+    };
+  }
+  return {
+    say: [
+      `Which one? You are carrying ${held.length}:`,
+      '',
+      ...held.map(
+        (o) =>
+          `\`${repo.orderDigits(o.orderNo)} ${verb}\` — ${o.orderNo}, ` +
+          `${o.customerName || 'no name'}${o.address ? `, ${o.address.split(',')[0]!.trim()}` : ''}`,
+      ),
+    ].join(chr10),
+  };
+}
 
 const DRIVER_HELP = [
   '*Delivery associate commands*',
@@ -1268,6 +1305,8 @@ const DRIVER_HELP = [
   '',
   '`7 pin` — ask the customer for the exact spot, when you cannot find the door',
   '`pin` on its own does the same, when you are carrying only one',
+  '`7 details` — everything about one job: who, the number, the door, the cash',
+  '`details` on its own does the same, when you are carrying only one',
   '',
   '`cash` — what you are holding this shift',
   '`7 transfer` — hand order 7 to another associate',
@@ -1965,7 +2004,7 @@ export async function handleDriverMessage(
     }
   }
 
-  // `pin` on its own, from somebody carrying exactly one job.
+  // `pin` and `details` on their own, from somebody carrying one job.
   //
   // The order number is a safeguard, not a ceremony. An associate holding
   // three deliveries who types `pin` has not said which door they are at,
@@ -1975,32 +2014,24 @@ export async function handleDriverMessage(
   // off a card they have scrolled past, one-handed, at a gate, is a toll
   // charged to the only person who could not have meant anything else.
   //
-  // Read before the order-number parse, which is what refuses a bare `pin`:
+  // Read before the order-number parse, which is what refuses a bare word:
   // there are no digits in it to find.
-  if (pinWord.test(trimmed) && !/\d/.test(trimmed)) {
-    const held = repo.openJobsFor(phone);
-    if (held.length === 1) {
-      const { askCustomerForPin } = await import('./dispatch.ts');
-      return reply(await askCustomerForPin(held[0]!.orderNo));
-    }
-    if (held.length === 0) {
-      return reply(
-        'You are not carrying anything, so there is nobody to ask.' +
-          ` Send \`jobs\` to see what is waiting.${chr10}${chr10}` +
-          'If you meant a job somebody else is on, send its number: `7 pin`.',
-      );
-    }
-    return reply(
-      [
-        `Which one? You are carrying ${held.length}:`,
-        '',
-        ...held.map(
-          (o) =>
-            `\`${repo.orderDigits(o.orderNo)} pin\` — ${o.orderNo}, ` +
-            `${o.customerName || 'no name'}${o.address ? `, ${o.address.split(',')[0]!.trim()}` : ''}`,
-        ),
-      ].join(chr10),
+  if (!/\d/.test(trimmed) && (pinWord.test(trimmed) || detailsWord.test(trimmed))) {
+    const wantsPin = pinWord.test(trimmed);
+    const found = theOneInHand(
+      phone,
+      wantsPin ? 'pin' : 'details',
+      wantsPin
+        ? 'You are not carrying anything, so there is nobody to ask.'
+        : 'You are not carrying anything, so there is nothing to tell you about.',
     );
+    if ('say' in found) return reply(found.say);
+    if (wantsPin) {
+      const { askCustomerForPin } = await import('./dispatch.ts');
+      return reply(await askCustomerForPin(found.job.orderNo));
+    }
+    const { jobDetailsCard } = await import('./dispatch.ts');
+    return reply(jobDetailsCard(found.job));
   }
 
   const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
@@ -2022,6 +2053,30 @@ export async function handleDriverMessage(
   if (pinWord.test(trimmed)) {
     const { askCustomerForPin } = await import('./dispatch.ts');
     return reply(await askCustomerForPin(order.orderNo));
+  }
+
+  // `7 details` — the whole job, from the record as it stands now.
+  //
+  // Read before the status words for the same reason the pin is: nothing in
+  // "details" is a status, and falling through to the ladder would answer a
+  // question about a job with a refusal about a status nobody mentioned.
+  //
+  // Theirs, or nobody's. A job somebody else is carrying is somebody else's
+  // customer: their name, their telephone number and their door, printed for
+  // a third party who has no call on any of it. An unassigned job is fair to
+  // read — it is on the waiting list, anybody may take it, and `jobs` already
+  // shows what is on it.
+  if (detailsWord.test(trimmed)) {
+    const mine = phone.replace(/[^0-9]/g, '');
+    if (order.driverPhone && order.driverPhone !== mine) {
+      const who = repo.getAssociate(order.driverPhone);
+      return reply(
+        `${order.orderNo} is out with ${who?.name || 'another delivery associate'}, so its details are not yours to read.` +
+          `${chr10}${chr10}Send \`jobs\` to see what you have and what is waiting.`,
+      );
+    }
+    const { jobDetailsCard } = await import('./dispatch.ts');
+    return reply(jobDetailsCard(order));
   }
 
   if (changeDestWord.test(trimmed) && order.kind === 'taxi') {

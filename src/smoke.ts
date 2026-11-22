@@ -1444,6 +1444,55 @@ section('Changing where a delivery is going');
       repo.setDuty(spare, false);
       repo.upsertAssociate({ phone: spare, name: 'Rider Spare', vehicle: 'PAA 7', active: false });
     }
+
+    // ---- `7 details`, the whole job on demand -----------------------
+    // The job card is sent once and then buried. Three drops later, the
+    // customer's telephone number is up the chat past everything since — and
+    // the card they scroll back to may be the one from before the address
+    // changed.
+    {
+      const d = await driverSaysNow(`${digits2} details`, rider2);
+      const card = (d[0] as { text?: string }).text ?? '';
+      check('details name the customer', card.includes('Ann'), card);
+      check('and give the number to ring', card.includes('5920007800'), card);
+      check('and the door as it stands NOW',
+        card.includes('Buxton') && !card.includes('Diamond'), card);
+      check('and the pin for it', /maps\?q=6\.7/.test(card), card);
+      check('and the money to collect', /Collect \$/.test(card), card);
+      check('and what is in the bag',
+        /\*What it is:\*/.test(card) && /1 x .*Rice/i.test(card), card);
+      check('headed with the order and where it has got to',
+        card.startsWith(`\u{1F4CB} *${job.orderNo}*`) && /on the way/.test(card),
+        card.slice(0, 60));
+
+      // Bare `details`, the same way bare `pin` works.
+      const bare2 = await driverSaysNow('details', rider2);
+      check('`details` alone answers for their one job',
+        ((bare2[0] as { text?: string }).text ?? '').includes(job.orderNo),
+        ((bare2[0] as { text?: string }).text ?? '').slice(0, 40));
+
+      // Somebody else's customer is not theirs to read.
+      const other2 = '5926002288';
+      repo.upsertAssociate({ phone: other2, name: 'Rider Other', vehicle: 'PAA 8', active: true });
+      db.prepare(`UPDATE orders SET driver_phone = ? WHERE order_no = ?`).run(other2, job.orderNo);
+      const nosey = await driverSaysNow(`${digits2} details`, rider2);
+      const refused2 = (nosey[0] as { text?: string }).text ?? '';
+      check('a job somebody else is carrying is refused',
+        /not yours to read/i.test(refused2), refused2.slice(0, 80));
+      check('and it says who has it', /Rider Other/.test(refused2), refused2);
+      check('and no number was handed over', !refused2.includes('5920007800'), refused2);
+
+      // Nobody's job, on the waiting list, is fair to read: `jobs` already
+      // shows it to everybody who could take it.
+      db.prepare(`UPDATE orders SET driver_phone = '' WHERE order_no = ?`).run(job.orderNo);
+      const waiting2 = await driverSaysNow(`${digits2} details`, rider2);
+      check('an unassigned job can be read by anybody on the list',
+        ((waiting2[0] as { text?: string }).text ?? '').includes('Buxton'),
+        ((waiting2[0] as { text?: string }).text ?? '').slice(0, 60));
+
+      db.prepare(`UPDATE orders SET driver_phone = ? WHERE order_no = ?`).run(rider2, job.orderNo);
+      repo.upsertAssociate({ phone: other2, name: 'Rider Other', vehicle: 'PAA 8', active: false });
+    }
   }
 
   // A tap on something already settled acts on nothing.
@@ -4745,6 +4794,29 @@ section('Picking a place instead of typing one');
       taxiPickupCard(onRoad).includes(safety) &&
         /before they get in/i.test(taxiPickupCard(onRoad)));
 
+
+    // ---- `7 details` on a trip --------------------------------------
+    // The same two cards, asked for rather than sent — so the one thing that
+    // must not come back mid-trip still does not.
+    {
+      const mid = await driverSays(`${digits} details`, drv);
+      const said = (mid[0] as { text?: string }).text ?? '';
+      check('a driver can ask for the trip again', /Now taking .+ to:/.test(said), said.slice(0, 60));
+      check('and the spent code is not in it', !said.includes(safety), said);
+      check('it is headed as details, not as a new job',
+        /^\u{1F4CB} \*/u.test(said) && !/is yours/i.test(said), said.slice(0, 40));
+      check('with the fare on it', said.includes(money(3100)), said);
+
+      // Before the pickup the code is exactly what they need, and the card
+      // that carries it is the one they get.
+      repo.setOrderStatus(ride.orderNo, 'confirmed');
+      const early2 = await driverSays(`${digits} details`, drv);
+      const kerb = (early2[0] as { text?: string }).text ?? '';
+      check('before pickup the details carry the code', kerb.includes(safety), kerb);
+      check('and still say to say it first', /before they get in/i.test(kerb), kerb);
+      check('and it is not announced as a new job', !/is yours/i.test(kerb), kerb.slice(0, 40));
+      repo.setOrderStatus(ride.orderNo, 'on_the_way');
+    }
     // And the driver cannot raise one before they are in the car.
     repo.setOrderStatus(ride.orderNo, 'confirmed');
     const early = await driverSays(`${digits} change destination`, drv);
@@ -10124,6 +10196,30 @@ section('A parcel end can be a pin, words, or both');
   );
   check('and the pin, together', /maps\?q=6\.801300/.test(upliftFull), upliftFull);
 
+
+  /* --- and the same parcel, asked for with `details` ------------------ */
+  // A parcel's money is at the OTHER end from a delivery's: the sender pays
+  // at the uplift. The drop block says "nothing to collect" there, which is
+  // right at the door and leaves the figure nowhere on a card asked for
+  // before the pickup.
+  {
+    const { jobDetailsCard } = await import('./dispatch.ts');
+    const waiting = jobDetailsCard(full);
+    check('a parcel names the sender to uplift from', waiting.includes('*Uplift from:*'), waiting);
+    check('and the fee to take from them', /Collect \$150,000 cash from/.test(waiting), waiting);
+    check('and the recipient, with their own number',
+      waiting.includes('Harry Paul') && waiting.includes('5926100099'), waiting);
+    check('and what is in it', waiting.includes('A box of books'), waiting);
+
+    // Once it is in their hands the money is behind them, and saying
+    // "collect it" would have somebody ask twice for one journey.
+    repo.setOrderStatus(full.orderNo, 'on_the_way');
+    const carried = jobDetailsCard(repo.findOrder(full.orderNo)!);
+    check('once uplifted it is not asked for again',
+      !/Collect \$150,000 cash from/.test(carried) && /paid by them at the uplift/.test(carried),
+      carried);
+    repo.setOrderStatus(full.orderNo, 'pending');
+  }
   const dropFull = dropLines(full).join('\n');
   check('the drop shows its written address', dropFull.includes('94 Thomas St'), dropFull);
   // A parcel's destination pin IS the recipient's, and the flag that says so

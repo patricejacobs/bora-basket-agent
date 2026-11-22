@@ -443,6 +443,8 @@ Send `help` to the shop number for this list.
 | `7 uplifted` | You have it, or the passenger is in the car |
 | `7 delivered` | Dropped off |
 | `7 nobody there` | Nobody at the door, or no passenger at the pickup |
+| `7 details` | Everything about it: who, the number, the door, the cash |
+| `7 pin` | Ask the customer for the exact spot |
 | `7 transfer` | Hand order 7 to another associate |
 | `cash` | What you are holding this shift |
 
@@ -1781,6 +1783,72 @@ grocery order would have earned a customer nothing at all.
 `/health` reports `deliveryZones` — how many places are priced. Zero means the
 flat fee.
 
+
+### The whole job on demand
+
+`7 details` — everything about one delivery, from the record as it stands now.
+A bare `details` does the same when they are carrying only one job, and the
+listing-and-refusing is the same as `pin` above.
+
+```
+rider ▸ 1 details
+      ◂ 📋 *GRO-00001* — on the way, booked about 20 minutes ago
+
+        *Pick up:* A Taste of Guyana, Sheriff Street
+        Click the link below for the pickup:
+        https://www.google.com/maps?q=6.804200,-58.140900
+
+        *Deliver to:* Ann Persaud
+        Lot 8 Beterverwagting, blue gate
+        Ring when you reach the corner
+        📞 +5926105959
+        Click the link below for the delivery address:
+        https://www.google.com/maps?q=6.804200,-58.040900
+
+        *Collect $6,100 cash* from the customer
+        $4,900 goods + $1,200 delivery
+
+        *What it is:*
+        2 x Rice
+        1 x Cooking oil
+```
+
+The job card is sent once, at the moment the job becomes theirs, and WhatsApp
+then buries it. An associate three drops later who needs the customer's
+telephone number has to scroll back past everything since — and the card they
+find that way may be the one from **before** the address changed. This answers
+at the bottom of the chat, where they are typing, from the record as it is now.
+
+**Fuller than the card, because it was asked for.** The job card is read
+one-handed at a gate and earns its brevity: it gives the split, not the item
+prices, because the question at a door is *what is the delivery costing me*.
+Somebody who stops and types `details` wants the lot, so this adds what is in
+the bag — the line that answers "is the roti in there?" without ringing the
+shop.
+
+**A taxi's details are its trip**, and the two existing cards already say that
+in the right words for each end of the journey: before the pickup, who to
+collect, from where, and the safety code; once the passenger is aboard, where
+they are going now and the fare — and *not* the code, which is spent. Asking
+for details does not reprint it.
+
+**A parcel's money is at the other end.** The sender pays at the uplift, so the
+figure is printed in the uplift block rather than at the door, and once the
+parcel is in the associate's hands it says it was paid rather than asking for
+it again.
+
+**Theirs, or nobody's.** A job somebody else is carrying is somebody else's
+customer — their name, their number, their door — so it is refused by name:
+
+```
+rider ▸ 3 details
+      ◂ GRO-00003 is out with Rider Two, so its details are not yours to read.
+
+        Send `jobs` to see what you have and what is waiting.
+```
+
+A job on the waiting list that nobody has taken is fair to read: anybody on the
+list may take it, and `jobs` already shows what is on it.
 ### Status messages
 
 | | |

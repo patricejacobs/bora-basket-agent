@@ -17,9 +17,11 @@ import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
 import {
   acceptButton,
+  describeAge,
   destAnswerButtons,
   liveTripActions,
   nextActions,
+  statusLabel,
   wantedBy,
 } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
@@ -404,7 +406,7 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
  * It is never typed back. Nothing in the system verifies it — the check
  * happens between two people at a kerb, which is the only place it can.
  */
-export function taxiPickupCard(order: repo.OrderRecord): string {
+export function taxiPickupCard(order: repo.OrderRecord, head?: string): string {
   const pickup = order.pickup;
   const pickupPin =
     pickup && pickup.latitude !== null && pickup.longitude !== null
@@ -414,7 +416,10 @@ export function taxiPickupCard(order: repo.OrderRecord): string {
   const firstName = order.customerName.split(/\s+/)[0] || 'the passenger';
 
   return [
-    `🚕 *${order.orderNo}* is yours.`,
+    // The caller's own heading where it has one — `7 details` is not the
+    // moment the job became theirs, and "is yours" on a card they asked for
+    // twenty minutes later reads as a second job arriving.
+    head ?? `🚕 *${order.orderNo}* is yours.`,
     '',
     `*Collect:* ${order.customerName}`,
     ...(pickup?.address ? [pickup.address] : []),
@@ -1174,6 +1179,123 @@ export function dropLines(order: repo.OrderRecord): string[] {
           ]
         : ['*Fee not set* - agree it with the sender at the pickup']),
   ];
+}
+
+/**
+ * Everything about one job, on demand: `7 details`.
+ *
+ * The job card is sent once, at the moment the job becomes theirs, and then
+ * WhatsApp buries it. An associate three drops later who needs the customer's
+ * telephone number has to scroll back past every message since — and the card
+ * they find that way may be the one from BEFORE the address changed. So this
+ * answers the question at the bottom of the chat, where they are typing, from
+ * the record as it stands now.
+ *
+ * Deliberately fuller than the card, because this one was asked for. The card
+ * is read one-handed at a gate and earns its brevity: it gives the split, not
+ * the item prices, on the grounds that the question at a door is "what is the
+ * delivery costing me". Somebody who types `details` has stopped and wants the
+ * lot — what is in the bag included, which is the line that answers "is the
+ * roti in there?" without ringing the shop.
+ */
+export function jobDetailsCard(order: repo.OrderRecord): string {
+  const nl = String.fromCharCode(10);
+  const head =
+    `📋 *${order.orderNo}* — ${statusLabel(order.status, order.kind)}` +
+    `, booked ${describeAge(order.placedAt)}`;
+
+  // A taxi's details are its trip: who is in the car, where they are going,
+  // and the fare. The two existing cards already say exactly that, in the
+  // right words for each end of the journey — and the difference between them
+  // is the safety code, which is spent once the passenger is aboard and must
+  // not be printed again. Rebuilding that judgement here would be a second
+  // place for it to be got wrong.
+  if (order.kind === 'taxi') {
+    return order.status === 'on_the_way'
+      ? taxiOnboardCard(order, head)
+      : taxiPickupCard(order, head);
+  }
+
+  const pickup = order.pickup;
+  const pickupPin =
+    pickup && pickup.latitude !== null && pickup.longitude !== null
+      ? { latitude: pickup.latitude, longitude: pickup.longitude }
+      : null;
+  const isParcel = order.kind === 'parcel';
+
+  // Where it comes from, named by what it is: a kitchen or a shop has a name
+  // over the door, and a parcel's pickup is a person's house.
+  const fromWho = isParcel ? order.customerName : order.outlet?.name ?? '';
+
+  // The sender's number on a parcel, which the delivery card does not carry.
+  //
+  // That is right on the card — the person at the door is who the associate
+  // is going to ring, and two numbers on one card is where a wrong call comes
+  // from. But it is wrong here: the sender is who they collect from and the
+  // only person who can say what the parcel is, and `details` is the message
+  // somebody opens when something has gone sideways.
+  //
+  // `phone` and not `contact_phone`, because on a parcel addressed to
+  // somebody else the contact number IS the recipient's, and printed up here
+  // it would be the same digits under two different names. And only when it
+  // differs from the number the drop block is about to print.
+  const doorPhone = order.recipientPhone || order.contactPhone || order.phone;
+  const senderPhone = isParcel && order.phone !== doorPhone ? order.phone : '';
+
+  const body = [
+    head,
+    '',
+    ...(fromWho || pickup?.address
+      ? [
+          `*${isParcel ? 'Uplift from' : 'Pick up'}:* ${fromWho || pickup?.address}`,
+          ...(fromWho && pickup?.address ? [pickup.address] : []),
+          ...(senderPhone ? [`📞 ${dial(senderPhone)} — the sender`] : []),
+          // The money, which belongs at this end of a parcel's journey.
+          //
+          // The drop block says "nothing to collect — the sender paid at the
+          // uplift", and that is right at the door and useless here: an
+          // associate who has not reached the pickup yet still has to take
+          // the fee, and a details card that mentions the payment only to
+          // say it is not theirs to collect leaves out the figure.
+          ...(isParcel
+            ? [
+                order.total > 0
+                  ? order.status === 'on_the_way'
+                    ? `Fee ${money(order.total)}, paid by them at the uplift.`
+                    : `*Collect ${money(order.total)} cash from ${order.customerName} when you take it.*`
+                  : '*Fee not set* — agree it with the sender at the pickup.',
+              ]
+            : []),
+          ...(pickupPin
+            ? ['Click the link below for the pickup:', mapsLink(pickupPin)]
+            : []),
+          '',
+        ]
+      : []),
+    // Who, where, the number to ring, the pin, and the money: the drop block
+    // itself, unchanged, so that what they read here and what they read on
+    // the card cannot drift apart.
+    ...dropLines(order),
+    '',
+    `*What it is:*`,
+    ...itemLines(order),
+    // The four digits are not reprinted — the associate does not have them,
+    // the customer does. What is worth repeating is that one is coming, and
+    // the way out when the customer cannot produce it.
+    ...(repo.deliveryCodeExpected(order.orderNo)
+      ? [
+          '',
+          `🔐 ${(order.recipientName || order.customerName).split(/\s+/)[0] || 'The customer'} has four digits — type them to close it.`,
+          isParcel
+            ? 'Wrong code, or nobody there? Reply *nobody there* and bring it back.'
+            : 'No code? Reply *no code*.',
+        ]
+      : []),
+  ].join(nl);
+
+  // The blocks above each end in their own blank line and some of them are
+  // empty, which left a card with holes in it.
+  return body.replace(new RegExp(`${nl}{3,}`, 'g'), nl + nl).trim();
 }
 
 /**
