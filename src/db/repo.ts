@@ -940,19 +940,29 @@ export function wantPinFor(phone: string, orderNo: string): void {
 }
 
 /**
- * A pin written onto ONE order, and nowhere else.
+ * A pin written onto ONE order, and nowhere else: where it is going NOW.
  *
  * Not onto the customer. An address that changed for this delivery - a
  * friend's house, an office, somewhere they happen to be this afternoon - is
  * not where they live, and saving it as their own would redirect next week's
  * shopping to it.
+ *
+ * Also marks it as the recipient's, which is what rescues a redirected
+ * parcel. A parcel to somebody else shows a link only when the pin is known
+ * to be for THAT door — otherwise the buyer's own saved pin would send an
+ * associate confidently to the wrong house. But a pin that arrives after
+ * the order was placed, in answer to "send the exact spot for the new
+ * address", is a pin for the new door by definition; left unmarked, it was
+ * stored, hidden, and the associate was told ⚠️ NO PIN while the door sat
+ * on the record.
  */
 export function setOrderPin(
   orderNo: string,
   pin: { latitude: number; longitude: number; label?: string },
 ): void {
   db.prepare(
-    `UPDATE orders SET latitude = ?, longitude = ?, location_label = ?, updated_at = ?
+    `UPDATE orders SET latitude = ?, longitude = ?, location_label = ?, recipient_pin = 1,
+       updated_at = ?
       WHERE order_no = ?`,
   ).run(pin.latitude, pin.longitude, (pin.label ?? '').slice(0, 80), nowIso(), orderNo);
   recordEvent(orderNo, 'pin updated', '', pin.label ?? '');

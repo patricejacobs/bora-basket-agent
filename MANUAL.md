@@ -1549,6 +1549,16 @@ rider ▸ pin                            (carrying nothing)
 the road. A job they have accepted and are walking to collect is the job
 they are about to be standing outside the door of, so it counts.
 
+**A parcel's new pin is marked as the recipient's.** A parcel addressed to
+somebody else shows a map link only when the pin is known to be for *that*
+door — every order copies the buyer's saved pin at checkout, and on a
+delivery to somebody else that pin is the buyer's own house, so a link built
+from it would send an associate confidently to the wrong place. But a pin
+that arrives **after** the order was placed, in answer to *"send the exact
+spot for the new address"*, is a pin for the new door by definition. Left
+unmarked it was stored and then hidden: the associate was told ⚠️ *NO PIN —
+ring before you set off* while the exact door sat on the record.
+
 **A pin owed outranks the service menu.** The block that catches it used to
 sit below the menu, so a customer whose service had been cleared — they
 tapped *Leave groceries*, asked for the menu, or came back after the

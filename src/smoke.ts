@@ -12099,6 +12099,65 @@ section('Points come off the delivery charge');
     Array.isArray(asked.lines) && asked.can_use_now === false, JSON.stringify(asked).slice(0, 120));
 
 
+
+  /* --- a parcel redirected on the road keeps its new pin --------------- */
+
+  // A parcel to somebody else shows a map link only when the pin is known to
+  // be for THAT door: every order copies the buyer's saved pin at checkout,
+  // and on a delivery to somebody else that pin is the buyer's own house, so
+  // a link built from it sends an associate confidently to the wrong place.
+  //
+  // A pin that arrives AFTER the order was placed, in answer to "send the
+  // exact spot for the new address", is a pin for the new door by definition.
+  // Unmarked, it was stored and then hidden: the associate was told ⚠️ NO PIN
+  // and to ring before setting off, while the exact door sat on the record.
+  {
+    const { dropLines: lines, settleProposedAddress: settle } = await import('./dispatch.ts');
+    const sender = '5920009100';
+    const rider3 = '5926003300';
+    repo.upsertAssociate({ phone: rider3, name: 'Rider Three', vehicle: 'PAA 3', active: true });
+    repo.setDuty(rider3, true);
+    repo.saveCustomer(sender, { name: 'Rohan Singh', contactPhone: sender, address: 'Kitty' });
+    repo.logMessage(sender, 'in', 'smoke', 'parcel please');
+
+    const moved = repo.createParcelJob({
+      phone: sender,
+      senderName: 'Rohan Singh',
+      pickup: { latitude: 6.8013, longitude: -58.1551 },
+      pickupAddress: 'Lot 2 Kitty',
+      destination: null,
+      destinationAddress: 'Lot 40 Diamond',
+      recipientName: 'Jenny Baird',
+      recipientPhone: '5926107777',
+      contents: 'A box of documents',
+      fee: 1800,
+      contactPhone: '5926107777',
+    });
+    repo.assignDriver(moved.orderNo, rider3);
+    repo.setOrderStatus(moved.orderNo, 'on_the_way');
+
+    check('a parcel to somebody else starts with no pin for that door',
+      repo.findOrder(moved.orderNo)?.location === null,
+      JSON.stringify(repo.findOrder(moved.orderNo)?.location));
+
+    // The sender raises the change, pins the new door, the associate agrees.
+    repo.proposeDestination(moved.orderNo, 'Parika', 5000);
+    repo.setProposalPin(moved.orderNo, { latitude: 6.8167, longitude: -58.4167, label: 'Parika' });
+    await settle(moved.orderNo, true);
+
+    const now = repo.findOrder(moved.orderNo)!;
+    check('the new pin lands on the parcel', now.location?.latitude === 6.8167,
+      JSON.stringify(now.location));
+    check('and is marked as the door it was sent for', now.recipientPin === true,
+      String(now.recipientPin));
+    const card = lines(now).join(String.fromCharCode(10));
+    check('so the associate gets the link', /maps\?q=6\.8167/.test(card), card);
+    check('and is NOT told to ring for want of a pin', !/NO PIN/.test(card), card);
+
+    repo.setOrderStatus(moved.orderNo, 'delivered');
+    repo.setDuty(rider3, false);
+    repo.upsertAssociate({ phone: rider3, name: 'Rider Three', vehicle: 'PAA 3', active: false });
+  }
   /* --- the place it actually went to ----------------------------------- */
 
   // ORD-00005 was booked to Uitvlugt and redirected to Stanleytown while it
