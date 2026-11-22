@@ -57,7 +57,11 @@ function jobs(): Job[] {
     status: o.status,
     customer: o.recipientName || o.customerName,
     phone: o.recipientPhone || o.contactPhone || o.phone,
-    address: o.address,
+    // The zone where nobody wrote a street. A customer who taps their
+    // village and sends a pin never types an address, and a dispatcher
+    // reading a dash learns nothing - the pin is on the map either way, but
+    // the list is what they scan.
+    address: o.address || o.deliveryZone,
     total: money(o.total),
     waitingMinutes: minutesSince(o.placedAt),
     lat: o.location?.latitude ?? null,
@@ -155,7 +159,9 @@ function page(key: string): string {
     // Drawn first, so a live job is never hidden under a finished one. Small,
     // grey and unlabelled until tapped: this is the shape of the week, not
     // work anybody has to do.
+    var past = [];
     data.done.forEach(function (d) {
+      past.push([d.lat, d.lng]);
       L.circleMarker([d.lat, d.lng], {
         radius: 4, color: '#64748b', weight: 1, fillColor: '#94a3b8', fillOpacity: 0.5
       }).addTo(doneLayer).bindPopup(
@@ -205,7 +211,14 @@ function page(key: string): string {
       data.jobs.length + ' open · ' + data.withoutPin + ' with no pin';
     document.getElementById('when').textContent =
       'updated ' + new Date().toLocaleTimeString();
-    if (!fitted && points.length > 0) { map.fitBounds(points, { padding: [40, 40] }); fitted = true; }
+    // The open work decides the view. With none, the finished work does -
+    // otherwise a quiet morning shows the default map of Georgetown with
+    // yesterday's only delivery somewhere off the eastern edge.
+    var fitTo = points.length > 0 ? points : past;
+    if (!fitted && fitTo.length > 0) {
+      map.fitBounds(fitTo, { padding: [40, 40], maxZoom: 14 });
+      fitted = true;
+    }
   }
 
   function DAYS() { return document.getElementById('days').value; }
@@ -282,7 +295,7 @@ export function mountDispatchMap(app: express.Express): void {
       done: done.map((o) => ({
         orderNo: o.orderNo,
         customer: o.recipientName || o.customerName,
-        address: o.address,
+        address: o.address || o.deliveryZone,
         total: money(o.total),
         lat: o.location?.latitude ?? null,
         lng: o.location?.longitude ?? null,
