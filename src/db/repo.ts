@@ -3988,6 +3988,31 @@ export function activeJobsFor(associatePhone: string): OrderRecord[] {
   return rows.map(hydrateOrder);
 }
 
+/**
+ * Everything assigned to this associate that is not finished with, oldest first.
+ *
+ * Wider than `activeJobsFor` on purpose, and the two must not be merged.
+ * That one answers "how loaded are they?", which decides who gets offered
+ * the next job, and it counts only what is out on the road — a job accepted
+ * but still sitting on a kitchen counter is not yet a trip. This one answers
+ * "what is in their hands?", which includes the one they have accepted and
+ * are walking to collect, because that is the job they are about to be
+ * standing outside the door of.
+ */
+export function openJobsFor(associatePhone: string): OrderRecord[] {
+  const digits = associatePhone.replace(/[^0-9]/g, '');
+  if (!digits) return [];
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders
+        WHERE driver_phone = ?
+          AND status NOT IN ('delivered','cancelled','returned')
+        ORDER BY id ASC`,
+    )
+    .all(digits) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
+}
+
 /** Orders cooked and waiting for a delivery associate, oldest first — food goes cold. */
 export function ordersAwaitingPickup(limit = 10): OrderRecord[] {
   const rows = db

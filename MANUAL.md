@@ -1477,7 +1477,8 @@ involved.
 
 ### The associate can ask where exactly
 
-`7 pin` — and the shop asks the customer for that job's door.
+`7 pin` — and the shop asks the customer for that job's door. `7 location`
+does the same, and so does a bare `pin` when they are carrying only one job.
 
 ```
 rider ▸ 1 pin
@@ -1504,6 +1505,33 @@ which on a parcel or a gift is not the person who ordered it.
 cannot write to them at all, so instead of sending nothing it hands back the
 number and says to ring. A delivered or cancelled job refuses: there is
 nothing left to find.
+
+**`pin` on its own, when they are carrying one job.** The number is a
+safeguard, not a ceremony: somebody holding three deliveries who types `pin`
+has not said which door they are standing at, and guessing would send the
+question to the wrong customer, who would then be out at the gate for
+nothing. Somebody holding one job has already said which one by holding it,
+so the shortcut is theirs:
+
+```
+rider ▸ pin
+      ◂ GRO-00001 — asked them for the exact spot.
+
+rider ▸ pin                            (now carrying two)
+      ◂ Which one? You are carrying 2:
+
+        `1 pin` — GRO-00001, Ann, Diamond
+        `2 pin` — GRO-00002, Pin Two, Lot 9 Buxton
+
+rider ▸ pin                            (carrying nothing)
+      ◂ You are not carrying anything, so there is nobody to ask.
+        Send `jobs` to see what is waiting.
+```
+
+“Carrying” here means everything assigned to them and not yet finished with
+— wider than the one-job-at-a-time limit, which counts only what is out on
+the road. A job they have accepted and are walking to collect is the job
+they are about to be standing outside the door of, so it counts.
 
 **The pin is collected BEFORE the associate is asked.** The customer says
 where, agrees the new charge, and is then asked for the exact spot — and

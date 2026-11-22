@@ -1379,6 +1379,71 @@ section('Changing where a delivery is going');
     check('a delivered job refuses', /delivered/i.test(await askCustomerForPin(job.orderNo)));
     repo.setOrderStatus(job.orderNo, 'on_the_way');
     repo.wantPinFor(buyer2, '');
+
+    // ---- and `pin` on its own ---------------------------------------
+    // The number is there so three jobs cannot be confused for one. With one
+    // job there is nothing to confuse, and the associate is at a gate.
+    {
+      const held = repo.openJobsFor(rider2).map((o) => o.orderNo);
+      check('the associate is holding exactly this one job', held.length === 1,
+        JSON.stringify(held));
+
+      repo.wantPinFor(buyer2, '');
+      const bare = await driverSaysNow('pin', rider2);
+      check('`pin` alone asks about their one job',
+        /asked them for the exact spot/i.test((bare[0] as { text?: string }).text ?? ''),
+        (bare[0] as { text?: string }).text?.slice(0, 60));
+      check('and it is THAT order the customer owes',
+        repo.pinWantedFor(buyer2) === job.orderNo, repo.pinWantedFor(buyer2));
+
+      // A second job in their hands and the shortcut must stop guessing.
+      repo.setCartQty(buyer2, rice2, 1);
+      repo.setDeliveryZone(buyer2, 'Beterverwagting');
+      repo.setFeeAgreed(buyer2, 1200);
+      const second = repo.placeOrder({
+        phone: buyer2, customerName: 'Pin Two', address: 'Lot 9 Buxton',
+        contactPhone: buyer2, deliveryNote: '', paymentMethod: 'cash_on_delivery',
+        location: null,
+      } as never);
+      repo.assignDriver(second.orderNo, rider2);
+      repo.setOrderStatus(second.orderNo, 'on_the_way');
+      repo.wantPinFor(buyer2, '');
+
+      const which = await driverSaysNow('pin', rider2);
+      const asked = (which[0] as { text?: string }).text ?? '';
+      check('carrying two, `pin` alone asks which', /Which one\?/i.test(asked), asked.slice(0, 60));
+      check('and lists both numbers to send',
+        asked.includes(`${repo.orderDigits(job.orderNo)} pin`) &&
+          asked.includes(`${repo.orderDigits(second.orderNo)} pin`),
+        asked);
+      check('and nobody was asked for anything', repo.pinWantedFor(buyer2) === '',
+        repo.pinWantedFor(buyer2));
+
+      // The numbered form still picks one out of the two.
+      const one = await driverSaysNow(`${repo.orderDigits(second.orderNo)} pin`, rider2);
+      check('the numbered form still works with two in hand',
+        /asked them for the exact spot/i.test((one[0] as { text?: string }).text ?? ''));
+      check('and it is the one they named',
+        repo.pinWantedFor(buyer2) === second.orderNo, repo.pinWantedFor(buyer2));
+
+      repo.setOrderStatus(second.orderNo, 'delivered');
+      repo.wantPinFor(buyer2, '');
+
+      // Nothing in their hands: a bare `pin` has nobody to ask.
+      const spare = '5926002277';
+      repo.upsertAssociate({ phone: spare, name: 'Rider Spare', vehicle: 'PAA 7', active: true });
+      repo.setDuty(spare, true);
+      const idle = await driverSaysNow('pin', spare);
+      check('carrying nothing, `pin` alone says so',
+        /not carrying anything/i.test((idle[0] as { text?: string }).text ?? ''),
+        (idle[0] as { text?: string }).text?.slice(0, 60));
+
+      // Off the road again. An extra free associate left on the list makes a
+      // later section's "everybody is busy" untrue, and the suite shares one
+      // shop: a fixture that outlives its own test is a fault in the next one.
+      repo.setDuty(spare, false);
+      repo.upsertAssociate({ phone: spare, name: 'Rider Spare', vehicle: 'PAA 7', active: false });
+    }
   }
 
   // A tap on something already settled acts on nothing.

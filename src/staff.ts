@@ -1251,6 +1251,8 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
 // is a BACKSPACE, so the built version matched nothing at all and the
 // driver's button did nothing.
 const changeDestWord = /\bchange\s*destination\b/i;
+/** `7 pin`, `7 location`, `send the pin for 7` — all one request. */
+const pinWord = /\b(pin|location)\b/i;
 
 const DRIVER_HELP = [
   '*Delivery associate commands*',
@@ -1265,6 +1267,7 @@ const DRIVER_HELP = [
   '`7 arrived` — a taxi: the passenger is where they were going',
   '',
   '`7 pin` — ask the customer for the exact spot, when you cannot find the door',
+  '`pin` on its own does the same, when you are carrying only one',
   '',
   '`cash` — what you are holding this shift',
   '`7 transfer` — hand order 7 to another associate',
@@ -1962,6 +1965,44 @@ export async function handleDriverMessage(
     }
   }
 
+  // `pin` on its own, from somebody carrying exactly one job.
+  //
+  // The order number is a safeguard, not a ceremony. An associate holding
+  // three deliveries who types `pin` has not said which door they are at,
+  // and guessing would send the question to the wrong customer — who would
+  // then be standing in the road for nothing. But somebody holding one job
+  // has already said which one by holding it, and making them read a number
+  // off a card they have scrolled past, one-handed, at a gate, is a toll
+  // charged to the only person who could not have meant anything else.
+  //
+  // Read before the order-number parse, which is what refuses a bare `pin`:
+  // there are no digits in it to find.
+  if (pinWord.test(trimmed) && !/\d/.test(trimmed)) {
+    const held = repo.openJobsFor(phone);
+    if (held.length === 1) {
+      const { askCustomerForPin } = await import('./dispatch.ts');
+      return reply(await askCustomerForPin(held[0]!.orderNo));
+    }
+    if (held.length === 0) {
+      return reply(
+        'You are not carrying anything, so there is nobody to ask.' +
+          ` Send \`jobs\` to see what is waiting.${chr10}${chr10}` +
+          'If you meant a job somebody else is on, send its number: `7 pin`.',
+      );
+    }
+    return reply(
+      [
+        `Which one? You are carrying ${held.length}:`,
+        '',
+        ...held.map(
+          (o) =>
+            `\`${repo.orderDigits(o.orderNo)} pin\` — ${o.orderNo}, ` +
+            `${o.customerName || 'no name'}${o.address ? `, ${o.address.split(',')[0]!.trim()}` : ''}`,
+        ),
+      ].join(chr10),
+    );
+  }
+
   const ref = trimmed.match(/(?:ord[-\s]?)?0*(\d{1,6})/i);
   if (!ref) return reply(`Didn't catch an order number.\n\n${DRIVER_HELP}`);
 
@@ -1978,7 +2019,7 @@ export async function handleDriverMessage(
   // Read before the status words, because "7 location" would otherwise fall
   // through to the ladder and be answered with a refusal about a status
   // nobody mentioned.
-  if (/\b(pin|location)\b/i.test(trimmed)) {
+  if (pinWord.test(trimmed)) {
     const { askCustomerForPin } = await import('./dispatch.ts');
     return reply(await askCustomerForPin(order.orderNo));
   }
