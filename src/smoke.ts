@@ -11948,8 +11948,8 @@ section('A parcel is priced from both ends');
 
 section('Points come off the delivery charge');
 {
-  const { pointsFor, rewardsIn, valueOf, spendToNextReward, balanceLines, REWARD_POINTS, REWARD_VALUE }
-    = await import('./rewards.ts');
+  const { pointsFor, rewardsIn, valueOf, spendToNextReward, balanceLines, deliveryOn,
+    usualDelivery, REWARD_POINTS, REWARD_VALUE } = await import('./rewards.ts');
   const { executeTool } = await import('./agent/tools.ts');
   const { receiptLines } = await import('./notifications.ts');
 
@@ -12060,6 +12060,57 @@ section('Points come off the delivery charge');
   check('the tool hands the model the words, not the sums',
     Array.isArray(asked.lines) && asked.can_use_now === false, JSON.stringify(asked).slice(0, 120));
 
+
+  /* --- the place it actually went to ----------------------------------- */
+
+  // ORD-00005 was booked to Uitvlugt and redirected to Stanleytown while it
+  // was on the road. The congratulation that followed it named Uitvlugt —
+  // the one village the customer had just moved the delivery away from. The
+  // zone on their record is where they usually are; the zone on the ORDER is
+  // where this one went, and that is the delivery being congratulated.
+  {
+    repo.setDeliveryZone(spender, 'Uitvlugt');
+    const moved = order('ORD-97006', 5400, 3000);
+    db.prepare(`UPDATE orders SET delivery_zone = 'Stanleytown' WHERE order_no = ?`).run(moved);
+    const rec = repo.findOrder(moved)!;
+
+    check('the delivery is read from the order', deliveryOn(rec)?.zone === 'Stanleytown',
+      JSON.stringify(deliveryOn(rec)));
+    check('at the fee it actually charged', deliveryOn(rec)?.fee === 3000,
+      JSON.stringify(deliveryOn(rec)));
+
+    const said = balanceLines(700, 'en', deliveryOn(rec) ?? usualDelivery(spender));
+    check('so the points line names where it went', /to Stanleytown/.test(said[1] ?? ''),
+      said.join(' | '));
+    check('and not where they usually are', !/Uitvlugt/.test(said.join(' ')), said.join(' | '));
+
+    // And afterwards, when they simply ask: the last delivery they actually
+    // took beats the zone saved on the record, which may be months old or
+    // may be an address they have since moved away from.
+    repo.setOrderStatus(moved, 'delivered');
+    check('a later question reads the last delivery, not the record',
+      usualDelivery(spender)?.zone === 'Stanleytown', JSON.stringify(usualDelivery(spender)));
+
+    // Nothing is invented where the order names no zone — a flat-fee shop,
+    // or an order priced before the tariff existed.
+    const flat = order('ORD-97008', 5400, 3000);
+    check('an order with no zone invents none', deliveryOn(repo.findOrder(flat)!) === null);
+
+    // A free delivery earns nothing, so there is nothing to count it in.
+    db.prepare(`UPDATE orders SET delivery_zone = 'Diamond', delivery_fee = 0 WHERE order_no = ?`)
+      .run(flat);
+    check('nor does one that cost nothing', deliveryOn(repo.findOrder(flat)!) === null);
+
+    // A taxi is not a delivery: a fare is a different figure about a
+    // different thing, and "two more deliveries to Diamond" priced off a
+    // ride across town is arithmetic nobody asked for.
+    const rideHome = order('TXI-97009', 0, 0, 'taxi');
+    db.prepare(`UPDATE orders SET delivery_zone = 'Parika', delivery_fee = 4000 WHERE order_no = ?`)
+      .run(rideHome);
+    repo.setOrderStatus(rideHome, 'delivered');
+    check('and a taxi is not read as the last delivery',
+      usualDelivery(spender)?.zone === 'Stanleytown', JSON.stringify(usualDelivery(spender)));
+  }
   /* --- spending it ------------------------------------------------------ */
 
   repo.setOrderStatus(order('ORD-97005', 2000, 3000), 'delivered');

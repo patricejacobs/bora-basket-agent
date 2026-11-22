@@ -148,13 +148,27 @@ Just say *use my points*.
 to spend.** The base is the delivery charge, so "spend $8,200 more" would
 read as *pay us more in fees* — and nobody can go and acquire points anyway.
 What they can do is order again, so the second line says that instead,
-priced from the zone already on their record:
+priced from the delivery that has just concluded:
 
 ```
 ⭐ *+180 points* on this delivery.
 You have *180 points* — *820 to go* for $500 off.
 About 5 more deliveries to Diamond.
 ```
+
+**The deliveries line names the delivery that just concluded, not the one on
+the order.** ORD-00005 was booked to Uitvlugt and redirected to Stanleytown
+while it was on the road — and the congratulation that followed it offered
+*"about 2 more deliveries to Uitvlugt"*, naming the one village the customer
+had just moved the delivery away from. The zone saved on a customer's record
+is where they usually are. The zone on the **order** is where this one went,
+at the fee it actually charged, and that is the delivery being congratulated.
+
+When somebody simply asks about their points with no delivery in hand, the
+same rule applies one step back: the last delivery they actually took, rather
+than the zone on the record, which may be months old or an address they have
+since moved away from. A taxi is not read as a delivery — a fare is a
+different figure about a different thing.
 
 **The deliveries line appears only when it is five or fewer.** Past that it
 stops being encouragement: a Georgetown customer two deliveries in is

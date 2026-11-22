@@ -1677,6 +1677,35 @@ export function recentOrders(phone: string, limit = 5) {
   }));
 }
 
+
+/**
+ * The last delivery this customer actually took: the zone it was charged
+ * under, and what it cost them.
+ *
+ * Not the zone saved on their record. That one is where they usually are,
+ * and it goes stale the moment a delivery is sent somewhere else — which is
+ * exactly when the points line is printed. A customer who had ORD-00005
+ * redirected to Stanleytown was told how many more deliveries to Uitvlugt it
+ * would take, naming a village they had just moved the order away from.
+ *
+ * Taxis are left out: a fare is not a delivery charge, and "two more
+ * deliveries to Diamond" priced off a ride across town is a different number
+ * about a different thing.
+ */
+export function lastDeliveryTo(phone: string): { zone: string; fee: number } | null {
+  const row = db
+    .prepare(
+      `SELECT delivery_zone AS zone, delivery_fee AS fee FROM orders
+        WHERE phone = ?
+          AND status = 'delivered'
+          AND kind <> 'taxi'
+          AND delivery_zone <> ''
+          AND delivery_fee > 0
+        ORDER BY id DESC LIMIT 1`,
+    )
+    .get(phone.replace(/[^0-9]/g, '')) as { zone: string; fee: number } | undefined;
+  return row ? { zone: row.zone, fee: row.fee } : null;
+}
 /* ------------------------------------------------------- conversation state */
 
 export function loadHistory(phone: string): { history: unknown[]; updatedAt: string | null } {

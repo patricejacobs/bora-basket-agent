@@ -88,13 +88,43 @@ export function spendToNextReward(points: number): number {
 export const MAX_SHOWN_DELIVERIES = 5;
 
 /**
+ * The delivery that has just concluded: where it went, and what it cost.
+ *
+ * Read from the ORDER, which is the only record of where it actually went.
+ * The customer's saved zone is where they usually are, and a delivery that
+ * was redirected mid-flight is precisely the case where the two differ — so
+ * the message congratulating them on that delivery named the village they
+ * had just moved it away from.
+ *
+ * The fee charged, not the fee the tariff would quote today. Points are
+ * earned on what was actually paid, and a price list that changes next week
+ * must not change what last week's delivery was worth.
+ */
+export function deliveryOn(order: {
+  deliveryZone: string;
+  deliveryFee: number;
+}): { zone: string; fee: number } | null {
+  const place = order.deliveryZone.trim();
+  if (!place || order.deliveryFee <= 0) return null;
+  return { zone: place, fee: order.deliveryFee };
+}
+
+/**
  * What a delivery to this customer usually costs, or null.
  *
- * Their saved zone, priced from the tariff. Null where the shop has never
- * learned where they live, or where the place is not in the tariff - and
- * then the deliveries line is left out rather than guessed at.
+ * The last one they actually took, by preference: it is a delivery that
+ * really happened, at a price really charged, and it is the answer to "how
+ * many more of these" that a customer would give themselves.
+ *
+ * Their saved zone is the fallback, for somebody who has never completed a
+ * delivery yet — priced from the tariff, since there is no charged figure to
+ * read. Null where the shop has never learned where they live, or where the
+ * place is not in the tariff, and then the deliveries line is left out
+ * rather than guessed at.
  */
 export function usualDelivery(phone: string): { zone: string; fee: number } | null {
+  const last = repo.lastDeliveryTo(phone);
+  if (last) return last;
   const place = repo.getCustomer(phone).deliveryZone;
   if (!place) return null;
   const priced = zoneFeeFor(place);
