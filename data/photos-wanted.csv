@@ -1,0 +1,73 @@
+aisle,sku,name,unit,save_as
+Fresh Produce,FRU-001,Bananas,per kg,FRU-001.jpg
+Fresh Produce,VEG-006,Bora,bundle,VEG-006.jpg
+Fresh Produce,VEG-007,Callaloo,bundle,VEG-007.jpg
+Fresh Produce,VEG-005,Carrots,per kg,VEG-005.jpg
+Fresh Produce,VEG-003,Garlic,250 g pack,VEG-003.jpg
+Fresh Produce,VEG-002,Onions,per kg,VEG-002.jpg
+Fresh Produce,FRU-002,Oranges,per kg,FRU-002.jpg
+Fresh Produce,FRU-004,Pineapple,each,FRU-004.jpg
+Fresh Produce,VEG-008,Plantain,per kg,VEG-008.jpg
+Fresh Produce,VEG-004,Potatoes,per kg,VEG-004.jpg
+Fresh Produce,VEG-001,Tomatoes,per kg,VEG-001.jpg
+Fresh Produce,FRU-003,Watermelon,each,FRU-003.jpg
+"Meat, Fish & Poultry",FSH-001,Bangamary Fish,per kg,FSH-001.jpg
+"Meat, Fish & Poultry",MET-004,Beef Stew Cut,per kg,MET-004.jpg
+"Meat, Fish & Poultry",MET-002,Chicken Breast,per kg,MET-002.jpg
+"Meat, Fish & Poultry",MET-003,Chicken Wings,1 kg pack,MET-003.jpg
+"Meat, Fish & Poultry",MET-005,Pork Chops,per kg,MET-005.jpg
+"Meat, Fish & Poultry",FSH-003,Shrimp,500 g pack,FSH-003.jpg
+"Meat, Fish & Poultry",FSH-002,Snapper,per kg,FSH-002.jpg
+"Meat, Fish & Poultry",MET-001,Whole Chicken,per kg,MET-001.jpg
+Dairy & Eggs,DAI-004,Cheddar Cheese,250 g block,DAI-004.jpg
+Dairy & Eggs,DAI-005,Eggs,dozen,DAI-005.jpg
+Dairy & Eggs,DAI-001,Fresh Milk,1 L carton,DAI-001.jpg
+Dairy & Eggs,DAI-002,Powdered Milk,900 g tin,DAI-002.jpg
+Dairy & Eggs,DAI-003,Salted Butter,227 g block,DAI-003.jpg
+Bread & Bakery,BRD-001,Sliced White Bread,600 g loaf,BRD-001.jpg
+Bread & Bakery,BRD-003,Tennis Rolls,pack of 6,BRD-003.jpg
+Bread & Bakery,BRD-002,Whole Wheat Bread,600 g loaf,BRD-002.jpg
+"Rice, Peas & Pasta",GRA-002,Black Eye Peas,500 g pack,GRA-002.jpg
+"Rice, Peas & Pasta",RIC-003,Brown Rice,1 kg bag,RIC-003.jpg
+"Rice, Peas & Pasta",RIC-001,Karibee Parboiled Rice,5 kg bag,RIC-001.jpg
+"Rice, Peas & Pasta",PAS-002,Macaroni,500 g pack,PAS-002.jpg
+"Rice, Peas & Pasta",GRA-003,Red Kidney Beans,500 g pack,GRA-003.jpg
+"Rice, Peas & Pasta",PAS-001,Spaghetti,500 g pack,PAS-001.jpg
+"Rice, Peas & Pasta",GRA-001,Split Peas,500 g pack,GRA-001.jpg
+"Rice, Peas & Pasta",RIC-002,White Rice,2 kg bag,RIC-002.jpg
+Cooking Basics,SEA-003,Black Pepper Ground,100 g pack,SEA-003.jpg
+Cooking Basics,OIL-002,Coconut Oil,500 ml bottle,OIL-002.jpg
+Cooking Basics,SEA-002,Curry Powder,200 g pack,SEA-002.jpg
+Cooking Basics,SEA-001,Green Seasoning,250 ml jar,SEA-001.jpg
+Cooking Basics,SAU-002,Pepper Sauce,150 ml bottle,SAU-002.jpg
+Cooking Basics,SAU-003,Soy Sauce,300 ml bottle,SAU-003.jpg
+Cooking Basics,SLT-001,Table Salt,500 g pack,SLT-001.jpg
+Cooking Basics,SAU-001,Tomato Ketchup,500 ml bottle,SAU-001.jpg
+Cooking Basics,OIL-001,Vegetable Cooking Oil,1.8 L bottle,OIL-001.jpg
+"Flour, Sugar & Baking",FLR-001,All Purpose Flour,2 kg bag,FLR-001.jpg
+"Flour, Sugar & Baking",SUG-001,Demerara Gold Brown Sugar,2 kg bag,SUG-001.jpg
+"Flour, Sugar & Baking",FLR-002,Self Rising Flour,1 kg bag,FLR-002.jpg
+"Flour, Sugar & Baking",SUG-002,White Granulated Sugar,1 kg bag,SUG-002.jpg
+Tinned Food,CAN-003,Baked Beans,400 g tin,CAN-003.jpg
+Tinned Food,CAN-001,Canned Sardines,155 g tin,CAN-001.jpg
+Tinned Food,CAN-002,Corned Beef,340 g tin,CAN-002.jpg
+Tinned Food,CAN-004,Tuna Chunks,142 g tin,CAN-004.jpg
+Drinks & Snacks,BEV-006,Black Tea Bags,box of 100,BEV-006.jpg
+Drinks & Snacks,BEV-004,Bottled Water,6 x 1.5 L,BEV-004.jpg
+Drinks & Snacks,SNK-002,Cassava Chips,100 g pack,SNK-002.jpg
+Drinks & Snacks,BEV-005,Coffee,200 g jar,BEV-005.jpg
+Drinks & Snacks,SNK-003,Cream Biscuits,200 g pack,SNK-003.jpg
+Drinks & Snacks,BEV-003,Orange Juice,1 L carton,BEV-003.jpg
+Drinks & Snacks,BEV-002,Pepsi,2 L bottle,BEV-002.jpg
+Drinks & Snacks,SNK-001,Plantain Chips,100 g pack,SNK-001.jpg
+Drinks & Snacks,SNK-004,Salted Peanuts,150 g pack,SNK-004.jpg
+Household & Personal Care,PER-001,Bath Soap,pack of 3,PER-001.jpg
+Household & Personal Care,HOU-003,Bleach,1 L bottle,HOU-003.jpg
+Household & Personal Care,HOU-002,Dish Liquid,750 ml bottle,HOU-002.jpg
+Household & Personal Care,HOU-005,Garbage Bags,pack of 20,HOU-005.jpg
+Household & Personal Care,HOU-001,Laundry Detergent,1 kg pack,HOU-001.jpg
+Household & Personal Care,PER-003,Shampoo,400 ml bottle,PER-003.jpg
+Household & Personal Care,HOU-004,Toilet Paper,pack of 4,HOU-004.jpg
+Household & Personal Care,PER-002,Toothpaste,100 ml tube,PER-002.jpg
+Baby,BAB-001,Baby Diapers Medium,pack of 30,BAB-001.jpg
+Baby,BAB-002,Baby Wipes,pack of 80,BAB-002.jpg

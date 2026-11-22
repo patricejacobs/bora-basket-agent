@@ -79,11 +79,38 @@ const rows: Place[] = fs
 // the coordinates, which is the part the tariff does not know.
 const priced = new Map(tariff().map((z) => [z.place, z]));
 
+/**
+ * Road distances, where somebody has measured them.
+ *
+ * Straight-line distance is a stand-in for the real question, and on the
+ * West Bank it is a bad one: the Demerara is in the way, so Vreed-en-Hoop
+ * is 2.8 km from the shop and 16.4 km from it by road. Judged by the crow,
+ * a correct West Bank tariff looks full of faults - and this tool would
+ * argue, every time it was run, against prices that had just been set from
+ * the road itself.
+ *
+ * So `npm run roads` takes precedence wherever it has an answer, and the
+ * crow is the fallback for places nobody has routed yet.
+ */
+const byRoad = new Map<string, number>();
+try {
+  for (const line of fs
+    .readFileSync(path.resolve('./data/road-distances.csv'), 'utf8')
+    .split(/\r?\n/)
+    .slice(1)) {
+    const c = line.split(',');
+    const km = Number(c[4]);
+    if (c[0] && Number.isFinite(km) && km > 0) byRoad.set(c[0], km);
+  }
+} catch {
+  // Not measured yet. Straight lines it is, and the footer says so.
+}
+
 const usable = rows
   .filter((r) => r.km > 0 && r.status === 'ok' && priced.has(r.place))
   .map((r) => {
     const live = priced.get(r.place)!;
-    return { ...r, fee: live.fee, zone: live.zone };
+    return { ...r, fee: live.fee, zone: live.zone, km: byRoad.get(r.place) ?? r.km };
   })
   .filter((r) => r.fee > 0);
 const skipped = rows.length - usable.length;
@@ -204,4 +231,9 @@ if (marked > 0) {
       ' the East Bank road at Soesdyke, so straight-line distance misleads there.',
   );
 }
-console.log('Straight-line distances. Nothing was changed — the prices are yours to set.');
+console.log(
+  byRoad.size > 0
+    ? `Road distances for ${byRoad.size} places (npm run roads), straight lines for the rest. ` +
+        'Nothing was changed — the prices are yours to set.'
+    : 'Straight-line distances. Nothing was changed — the prices are yours to set.',
+);

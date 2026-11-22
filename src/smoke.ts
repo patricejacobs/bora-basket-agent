@@ -7166,10 +7166,10 @@ section('What a delivery costs, by where it goes');
   for (const [typed, expected] of [
     ['Diamon', 'Diamond=1800'],
     ['Dimond', 'Diamond=1800'],
-    ['Pouderoyan', 'Pouderoyen=2500'],
-    ['Powderoyen', 'Pouderoyen=2500'],
-    ['Freed en Hoop', 'Vreed-en-Hoop=2500'],
-    ['Vreedenhoop', 'Vreed-en-Hoop=2500'],
+    ['Pouderoyan', 'Pouderoyen=3000'],
+    ['Powderoyen', 'Pouderoyen=3000'],
+    ['Freed en Hoop', 'Vreed-en-Hoop=2900'],
+    ['Vreedenhoop', 'Vreed-en-Hoop=2900'],
     ['Monrepos', 'Mon Repos=1200'],
     ['Mon Repose', 'Mon Repos=1200'],
     ['Beterverwaging', 'Beterverwagting=1200'],
@@ -11659,8 +11659,14 @@ section('A parcel is priced from both ends');
   check('across two, it is the sum',
     fareBetween('Parika', 'Diamond')?.fee === 6300, String(fareBetween('Parika', 'Diamond')?.fee));
   // The bridge is inside every west-side price and must not be paid twice.
+  //
+  // $3,400 since the West Bank was repriced from the road. The bridge's own
+  // cost is taken from the CHEAPEST west-side fee, which is now Klien
+  // Pouderoyen at $2,500 - one of the places nobody could put on a map, so
+  // nobody could measure it either. Vreed-en-Hoop rose to $2,900 and the
+  // anchor did not, so every west-to-west trip rose with it.
   check('the river is crossed once',
-    fareBetween('Vreed-en-Hoop', 'Parika')?.fee === 3000, String(fareBetween('Vreed-en-Hoop', 'Parika')?.fee));
+    fareBetween('Vreed-en-Hoop', 'Parika')?.fee === 3400, String(fareBetween('Vreed-en-Hoop', 'Parika')?.fee));
   check('a trip that goes nowhere is the base fare',
     fareBetween('Kitty', 'Campbellville')?.fee === 500, String(fareBetween('Kitty', 'Campbellville')?.fee));
   check('and it is the same both ways round',

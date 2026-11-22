@@ -1370,9 +1370,31 @@ per API, so it costs nothing — but set a daily quota cap in the Cloud
 console anyway, because a key that can only spend a dollar is a key you can
 stop thinking about.
 
-**Zones, not kilometres.** Vreed-en-Hoop is five kilometres from Stabroek
-across the water and twenty-five by road. Straight-line distance under-prices
-exactly the trips that cost most, and the west side is priced from the bridge.
+**Zones, not kilometres.** Vreed-en-Hoop is 2.8 km from the shop across the
+water and **16.4 km by road**. Straight-line distance under-prices exactly
+the trips that cost most, and the west side is priced from the bridge.
+
+**The West Bank was repriced from the road on 22 November 2026.** Measured,
+it is the shop's *dearest* corridor per kilometre — $178 against the East
+Coast's $89 — which is the bridge, and is right. What was wrong was inside
+the corridor: Vreed-en-Hoop was further by road than Schoonord, La Grange,
+Goed Fortuin and Bagotville, and charged less than all four, because it is
+the first stop off the bridge and *feels* near.
+
+| | road | was | now |
+|---|---|---|---|
+| Vreed-en-Hoop | 16.4 km | $2,500 | **$2,900** |
+| Pouderoyen | 17.6 km | $2,500 | **$3,000** |
+| Malgre Tout | 14.7 km | $2,500 | **$2,800** |
+| La Grange | 12.7 km | $3,000 | **$2,800** |
+| Bagotville | 14.9 km | $3,000 | **$2,800** |
+| Toevlugt | 16.2 km | $3,200 | **$2,900** |
+| Wales | 20.7 km | $3,500 | **$3,100** |
+
+Revenue-neutral across those fourteen deliveries — $41,000 before, $41,200
+after. It moves money between villages to match the road rather than taking
+more from the west side. `npm run tariff:check` now reports **no West Bank
+inversions at all**, because it reads the road distances where they exist.
 
 **The place is confirmed before the price is said.** The agent looks up what
 the customer wrote, reads the matched name back — *"that's Diamond on the East
