@@ -1433,9 +1433,25 @@ work from at the door. **No, as booked** leaves everything where it was. The
 customer is told either way, in their own language, without the agent being
 involved.
 
-**The old pin goes with the old door.** It was dropped on an address nobody
-is going to any more, and a map link is the one thing on a card an associate
-would trust over the words beside it.
+**The old pin goes with the old door, and a new one is asked for at once.**
+The old pin was dropped on an address nobody is going to any more, and a map
+link is the one thing on a card an associate would trust over the words
+beside it. But a village with no link is the other failure: the words were
+confirmed by the customer and the map was not, on exactly the delivery that
+just became harder to find. So the moment the associate acknowledges:
+
+```
+Now send your exact spot at *Buxton* on the map and your associate will
+come straight to the door — or tap Skip and they will ring when they are
+close.
+   [ 📍 Send location ]  [ Skip ]
+```
+
+The pin lands on **that order** and never on the customer — an address that
+changed for one delivery is not where they live, and saving it as theirs
+would send next week's shopping to a friend's house. The associate gets the
+card again with the link on it; `⚠️ NO PIN — ring before you set off`
+stands until it arrives, and stays if they skip.
 
 **The fee and the total move together.** A bag going twice as far costs what
 twice as far costs, and an order whose address changed while its money did

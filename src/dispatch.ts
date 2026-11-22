@@ -1465,6 +1465,39 @@ export async function dispatchToDrivers(
  *
  * Returns what to tell the associate, which is the reply to their tap.
  */
+/**
+ * The new pin, once the customer sends it.
+ *
+ * Onto the ORDER and not onto them: an address that changed for this
+ * delivery is not where they live, and saving it as their own would
+ * redirect next week's shopping to a friend's house.
+ *
+ * Returns what to tell the customer; the associate gets the card again,
+ * because the line that changed is the only one they will drive by.
+ */
+export async function pinTheNewAddress(
+  phone: string,
+  pin: { latitude: number; longitude: number; label?: string },
+): Promise<string> {
+  const orderNo = repo.pinWantedFor(phone);
+  repo.wantPinFor(phone, '');
+  const order = orderNo ? repo.findOrder(orderNo) : null;
+  if (!order) return '';
+
+  repo.setOrderPin(orderNo, pin);
+  const fresh = repo.findOrder(orderNo)!;
+
+  if (fresh.driverPhone) {
+    await sendText(
+      fresh.driverPhone,
+      [`📍 *${fresh.orderNo} — the new address is pinned.*`, '', ...dropLines(fresh)].join(
+        String.fromCharCode(10),
+      ),
+    );
+  }
+  return t('addr_pinned', languageFor(phone));
+}
+
 export async function settleProposedAddress(orderNo: string, agreed: boolean): Promise<string> {
   const order = repo.findOrder(orderNo);
   const proposal = order ? repo.destProposal(orderNo) : null;
@@ -1498,6 +1531,19 @@ export async function settleProposedAddress(orderNo: string, agreed: boolean): P
       total: money(now.total),
     }),
   );
+
+  // And then the pin, because the old one went with the old door.
+  //
+  // Without this the associate is handed a village and told to find a house
+  // in it: the words were confirmed by the customer and the map was not, so
+  // the one thing on the card that gets somebody to a gate is missing from
+  // exactly the delivery that just became harder to find.
+  const { ADDR_PIN, ADDR_SKIP } = await import('./delivery-checkout.ts');
+  repo.wantPinFor(order.phone, orderNo);
+  await sendButtons(order.phone, t('addr_pin_ask', lang, { place: now.address }), [
+    { id: ADDR_PIN, title: t('spot_send', lang) },
+    { id: ADDR_SKIP, title: t('spot_skip', lang) },
+  ]);
 
   // The card again, in full, because it is what they will work from at the
   // door and half a card is worse than the one they already have.

@@ -49,8 +49,13 @@ export function isGateId(id: string): boolean {
  * through untranslated. Their titles are words in the customer's own
  * language; the meaning is in the id.
  */
+/** The two answers to "pin the new address", after one changed on the road. */
+export const ADDR_PIN = 'addr:pin';
+export const ADDR_SKIP = 'addr:skip';
+
 export function isCheckoutId(id: string): boolean {
-  return isGateId(id);
+  const said = String(id ?? '').trim();
+  return isGateId(id) || said === ADDR_PIN || said === ADDR_SKIP;
 }
 
 /** The list of places, and the first step. */

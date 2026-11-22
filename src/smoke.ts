@@ -1213,7 +1213,8 @@ section('The aisles, and the way out of them');
 
 section('Changing where a delivery is going');
 {
-  const { settleProposedAddress, proposeAddressToAssociate } = await import('./dispatch.ts');
+  const { settleProposedAddress, proposeAddressToAssociate, dropLines } =
+    await import('./dispatch.ts');
   const { handleDriverMessage: driverSaysNow } = await import('./staff.ts');
 
   const buyer2 = '5920007800';
@@ -1285,6 +1286,36 @@ section('Changing where a delivery is going');
     (agreed[0] as { text?: string }).text?.slice(0, 80));
   check('and both figures are in the trail',
     repo.orderHistory(job.orderNo).some((e) => /Diamond -> Buxton/.test(e.detail ?? '')));
+
+  // ---- and the map for the new door ---------------------------------
+  // The words were confirmed and the map was not: the old pin went with the
+  // old door, so without this the associate has a village and no link on
+  // exactly the delivery that just became harder to find.
+  const { pinTheNewAddress } = await import('./dispatch.ts');
+  check('a pin is now owed for the moved order',
+    repo.pinWantedFor(buyer2) === job.orderNo, repo.pinWantedFor(buyer2));
+  check('and the order has none while it is owed',
+    repo.findOrder(job.orderNo)?.location === null);
+
+  const told = await pinTheNewAddress(buyer2, {
+    latitude: 6.7560, longitude: -57.9830, label: 'Buxton',
+  });
+  const pinned = repo.findOrder(job.orderNo)!;
+  check('the pin lands on the order', pinned.location?.latitude === 6.756,
+    JSON.stringify(pinned.location));
+  check('and NOT on the customer, who does not live there',
+    repo.getCustomer(buyer2).location === null,
+    JSON.stringify(repo.getCustomer(buyer2).location));
+  check('the customer is told it arrived', /map/i.test(told), told);
+  check('the debt is cleared', repo.pinWantedFor(buyer2) === '');
+  check("and the associate's card now carries the link",
+    dropLines(pinned).some((l) => /maps\?q=6\.756/.test(l)),
+    JSON.stringify(dropLines(pinned)));
+
+  // A pin with nothing owed changes nothing.
+  check('a stray pin is ignored', (await pinTheNewAddress(buyer2, {
+    latitude: 6.1, longitude: -58.1, label: 'nowhere',
+  })) === '');
 
   // A tap on something already settled acts on nothing.
   const stale2 = await driverSaysNow(`dest_ok_${digits2}`, rider2);

@@ -890,6 +890,44 @@ export function setCheckoutNote(phone: string, note: string): void {
   );
 }
 
+/* ------------------------- a pin owed for an address that changed */
+
+/** The order this customer is being asked to pin, or ''. */
+export function pinWantedFor(phone: string): string {
+  const row = db.prepare(`SELECT pin_wanted_for FROM customers WHERE phone = ?`).get(phone) as
+    | { pin_wanted_for: string }
+    | undefined;
+  return row?.pin_wanted_for ?? '';
+}
+
+export function wantPinFor(phone: string, orderNo: string): void {
+  getCustomer(phone);
+  db.prepare(`UPDATE customers SET pin_wanted_for = ?, updated_at = ? WHERE phone = ?`).run(
+    orderNo,
+    nowIso(),
+    phone,
+  );
+}
+
+/**
+ * A pin written onto ONE order, and nowhere else.
+ *
+ * Not onto the customer. An address that changed for this delivery - a
+ * friend's house, an office, somewhere they happen to be this afternoon - is
+ * not where they live, and saving it as their own would redirect next week's
+ * shopping to it.
+ */
+export function setOrderPin(
+  orderNo: string,
+  pin: { latitude: number; longitude: number; label?: string },
+): void {
+  db.prepare(
+    `UPDATE orders SET latitude = ?, longitude = ?, location_label = ?, updated_at = ?
+      WHERE order_no = ?`,
+  ).run(pin.latitude, pin.longitude, (pin.label ?? '').slice(0, 80), nowIso(), orderNo);
+  recordEvent(orderNo, 'pin updated', '', pin.label ?? '');
+}
+
 export function setCustomerLanguage(phone: string, language: string): void {
   // Upsert, because a language is usually learned from somebody's very first
   // message - before they have given a name or an address, and so before

@@ -43,7 +43,10 @@ import {
   withWayOut,
 } from './aisles.ts';
 import { settleDeliveryPlace } from './delivery-place.ts';
+import { pinTheNewAddress } from './dispatch.ts';
 import {
+  ADDR_PIN,
+  ADDR_SKIP,
   GATE_CANCEL,
   GATE_CHANGE,
   askPlace,
@@ -670,6 +673,35 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         if (step === 'gate') {
           return ask(priceGate(msg.phone, lang), text);
         }
+      }
+    }
+  }
+
+  // A pin owed for an address that changed on the road. Before everything
+  // else a customer can be in the middle of, because an order already on a
+  // van is the most urgent thing either of them is holding.
+  {
+    const owed = repo.pinWantedFor(msg.phone);
+    if (owed) {
+      const lang = languageFor(msg.phone);
+      if (msg.location) {
+        const said = await pinTheNewAddress(msg.phone, msg.location);
+        if (said) return shopAnswered(msg, [{ kind: 'text', text: said }], '(sent their location)');
+      }
+      if (text === ADDR_PIN) {
+        return shopAnswered(
+          msg,
+          [{ kind: 'location_request', text: t('spot_prompt_to', lang) }],
+          describeTap(text),
+        );
+      }
+      if (text === ADDR_SKIP) {
+        repo.wantPinFor(msg.phone, '');
+        return shopAnswered(
+          msg,
+          [{ kind: 'text', text: t('spot_skipped', lang) }],
+          describeTap(text),
+        );
       }
     }
   }

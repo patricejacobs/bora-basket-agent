@@ -613,6 +613,10 @@ addColumnIfMissing('orders', 'kitchen_note_en', "TEXT NOT NULL DEFAULT ''");
 // on.
 addColumnIfMissing('customers', 'checkout_step', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'checkout_note', "TEXT NOT NULL DEFAULT ''");
+// An order waiting for a pin that is not part of checkout: one whose address
+// changed on the road. The old pin went with the old door, so until a new
+// one arrives the associate has a village and no map.
+addColumnIfMissing('customers', 'pin_wanted_for', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
