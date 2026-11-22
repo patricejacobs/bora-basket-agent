@@ -4601,6 +4601,31 @@ export function markStallAlerted(orderNo: string): void {
 }
 
 /** Orders still needing action, oldest first — the dispatcher's work queue. */
+/**
+ * Deliveries that are done, for drawing where the work actually went.
+ *
+ * Bounded twice on purpose - by days and by count - because this is the one
+ * query on the dispatch map that grows for ever. A shop two years in has
+ * tens of thousands of these, and a page that tries to draw all of them is
+ * a page that stops opening on the phone it is needed on.
+ *
+ * Only the ones with a pin. A delivery nobody pinned has no place on a map,
+ * and inventing one from the written address would put a dot on a village
+ * centre and call it a doorstep.
+ */
+export function deliveredSince(days: number, limit = 500): OrderRecord[] {
+  const since = new Date(Date.now() - Math.max(1, days) * 86400000).toISOString();
+  const rows = db
+    .prepare(
+      `SELECT * FROM orders
+        WHERE status = 'delivered' AND latitude IS NOT NULL AND longitude IS NOT NULL
+          AND COALESCE(delivered_at, updated_at, created_at) >= ?
+        ORDER BY id DESC LIMIT ?`,
+    )
+    .all(since, limit) as unknown as Parameters<typeof hydrateOrder>[0][];
+  return rows.map(hydrateOrder);
+}
+
 export function openOrders(limit = 10): OrderRecord[] {
   const rows = db
     .prepare(

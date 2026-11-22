@@ -117,6 +117,15 @@ function page(key: string): string {
 <header>
   <h1>${config.store.name} — dispatch</h1>
   <span class="count" id="count">loading…</span>
+  <label class="count">delivered
+    <select id="days">
+      <option value="0">off</option>
+      <option value="1">today</option>
+      <option value="7" selected>7 days</option>
+      <option value="30">30 days</option>
+    </select>
+  </label>
+  <span class="count" id="done"></span>
   <span class="count" id="when"></span>
 </header>
 <div id="map"></div>
@@ -129,6 +138,11 @@ function page(key: string): string {
     maxZoom: 19, attribution: '&copy; OpenStreetMap'
   }).addTo(map);
   var layer = L.layerGroup().addTo(map);
+  // NOT "history": a top-level var of that name does not shadow
+  // window.history, it silently fails to assign over it - and then
+  // history.clearLayers() throws, the draw dies, and the page says
+  // "offline" over a perfectly good map and a working endpoint.
+  var doneLayer = L.layerGroup().addTo(map);
   var fitted = false;
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -136,6 +150,23 @@ function page(key: string): string {
 
   function draw(data) {
     layer.clearLayers();
+    doneLayer.clearLayers();
+
+    // Drawn first, so a live job is never hidden under a finished one. Small,
+    // grey and unlabelled until tapped: this is the shape of the week, not
+    // work anybody has to do.
+    data.done.forEach(function (d) {
+      L.circleMarker([d.lat, d.lng], {
+        radius: 4, color: '#64748b', weight: 1, fillColor: '#94a3b8', fillOpacity: 0.5
+      }).addTo(doneLayer).bindPopup(
+        '<b>' + esc(d.orderNo) + '</b> — delivered<br>' + esc(d.customer) + '<br>' +
+        esc(d.address || '') + '<br>' + esc(d.total) + '<br>' +
+        new Date(d.when).toLocaleString()
+      );
+    });
+    document.getElementById('done').textContent = data.days > 0
+      ? data.done.length + ' delivered · ' + data.doneValue
+      : '';
     var points = [];
     var rows = '';
     data.jobs.forEach(function (j) {
@@ -177,15 +208,18 @@ function page(key: string): string {
     if (!fitted && points.length > 0) { map.fitBounds(points, { padding: [40, 40] }); fitted = true; }
   }
 
+  function DAYS() { return document.getElementById('days').value; }
+
   function load() {
     // An ABSOLUTE path. Relative, from /dispatch with no trailing slash, it
     // resolved to /data - which is not this router, and the page sat there
     // saying "offline" over a perfectly good map.
-    fetch('/dispatch/data?key=' + encodeURIComponent(KEY), { cache: 'no-store' })
+    fetch('/dispatch/data?key=' + encodeURIComponent(KEY) + '&days=' + DAYS(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(draw)
       .catch(function () { document.getElementById('when').textContent = 'offline'; });
   }
+  document.getElementById('days').addEventListener('change', load);
   load();
   setInterval(load, 20000);
 </script>
@@ -233,11 +267,28 @@ export function mountDispatchMap(app: express.Express): void {
     res.type('html').send(page(String(req.query.key ?? '')));
   });
 
-  router.get('/data', (_req: Request, res: Response) => {
+  router.get('/data', (req: Request, res: Response) => {
     const open = jobs();
+    // Days of history, asked for by the page. Zero means do not look: the
+    // query is bounded, but a dispatcher who only wants today's work should
+    // not pay for a month of it on a phone connection.
+    const days = Math.min(90, Math.max(0, Number(req.query.days ?? 0) || 0));
+    const done = days > 0 ? repo.deliveredSince(days) : [];
+
     res.json({
       jobs: open,
       withoutPin: open.filter((j) => j.lat === null).length,
+      days,
+      done: done.map((o) => ({
+        orderNo: o.orderNo,
+        customer: o.recipientName || o.customerName,
+        address: o.address,
+        total: money(o.total),
+        lat: o.location?.latitude ?? null,
+        lng: o.location?.longitude ?? null,
+        when: repo.deliveredAt(o.orderNo) || o.placedAt,
+      })),
+      doneValue: money(done.reduce((sum, o) => sum + o.total, 0)),
       at: new Date().toISOString(),
     });
   });

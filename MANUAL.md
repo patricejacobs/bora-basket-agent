@@ -2981,6 +2981,24 @@ It refreshes itself every twenty seconds and fits the view to the work on
 its first load, so a morning with three drops on the East Coast looks like
 three drops on the East Coast.
 
+**Delivered work is on it too.** A dropdown in the header — *off, today, 7
+days, 30 days* — draws every finished delivery as a small grey dot, with the
+count and what they came to beside it: *5 delivered · $21,000*. Tapping one
+gives the order, the customer, the address, the figure and when it landed.
+
+That is the same map asked a different question. The coloured pins are what
+is left to do; the grey ones are where the business actually is — which
+streets carry it, which village is worth an associate based nearby, and
+whether a corridor of the tariff is earning anything at all.
+
+They are drawn under the live pins, never over them, and the view still fits
+itself to the open work. The query is bounded twice, by days and by count,
+because this is the one thing on the page that grows for ever: a shop two
+years in has tens of thousands of these, and a page that tries to draw all
+of them is a page that stops opening on the phone it is needed on. Only
+deliveries with a pin appear — inventing one from a written address would
+put a dot on a village centre and call it a doorstep.
+
 **It does not track anybody, and will not pretend to.** WhatsApp never sends
 a business number a moving location — only the single pin a customer chose
 to share — so what the map honestly knows is where each job is going, where

@@ -997,6 +997,16 @@ section('The dispatch map');
     repo.setOrderStatus(mapped.orderNo, 'delivered');
     return !repo.openOrders(200).some((o) => o.orderNo === mapped.orderNo);
   })());
+
+  // And joins the history, which is the same map asked a different
+  // question: not what is left to do, but where the work actually goes.
+  const week = repo.deliveredSince(7);
+  check('and joins the delivered history', week.some((o) => o.orderNo === mapped.orderNo),
+    String(week.length));
+  check('every one of which can be drawn',
+    week.every((o) => o.location !== null), String(week.filter((o) => !o.location).length));
+  check('a window that has not opened yet shows nothing',
+    repo.deliveredSince(7, 0).length === 0);
 }
 
 /* ------------------------------------------------------- the aisles */
