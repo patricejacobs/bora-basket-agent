@@ -1342,6 +1342,45 @@ section('Changing where a delivery is going');
     latitude: 6.1, longitude: -58.1, label: 'nowhere',
   })) === '');
 
+  // ---- the associate asking where exactly ---------------------------
+  // "NO PIN - ring before you set off" used to leave ringing as the only
+  // move: a telephone call from a bike, to somebody who may be cooking, for
+  // a landmark they then have to remember.
+  {
+    const { askCustomerForPin } = await import('./dispatch.ts');
+    repo.setOrderPin(job.orderNo, { latitude: 0, longitude: 0 });
+    db.prepare(`UPDATE orders SET latitude = NULL, longitude = NULL WHERE order_no = ?`)
+      .run(job.orderNo);
+    repo.wantPinFor(buyer2, '');
+    repo.logMessage(buyer2, 'in', 'smoke', 'still here');
+
+    const told = await driverSaysNow(`${digits2} pin`, rider2);
+    check('an associate can ask for the exact spot',
+      /asked them for the exact spot/i.test((told[0] as { text?: string }).text ?? ''),
+      (told[0] as { text?: string }).text?.slice(0, 60));
+    check('and the customer owes one for THAT order',
+      repo.pinWantedFor(buyer2) === job.orderNo, repo.pinWantedFor(buyer2));
+
+    // Their answer lands on the order and goes back to the associate.
+    const { pinTheNewAddress } = await import('./dispatch.ts');
+    await pinTheNewAddress(buyer2, { latitude: 6.7, longitude: -58.0, label: 'the blue gate' });
+    check('their pin lands on the job', repo.findOrder(job.orderNo)?.location?.latitude === 6.7,
+      JSON.stringify(repo.findOrder(job.orderNo)?.location));
+
+    // Outside WhatsApp's window there is nothing the shop can send.
+    db.prepare(`DELETE FROM message_log WHERE phone = ?`).run(buyer2);
+    const shut = await askCustomerForPin(job.orderNo);
+    check('a cold conversation is told to ring instead',
+      /cannot message them|Ring/i.test(shut), shut.slice(0, 70));
+    repo.logMessage(buyer2, 'in', 'smoke', 'back again');
+
+    // And a finished job has nothing to find.
+    repo.setOrderStatus(job.orderNo, 'delivered');
+    check('a delivered job refuses', /delivered/i.test(await askCustomerForPin(job.orderNo)));
+    repo.setOrderStatus(job.orderNo, 'on_the_way');
+    repo.wantPinFor(buyer2, '');
+  }
+
   // A tap on something already settled acts on nothing.
   const stale2 = await driverSaysNow(`dest_ok_${digits2}`, rider2);
   check('a second tap is refused',

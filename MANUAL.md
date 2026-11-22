@@ -1475,6 +1475,36 @@ work from at the door. **No, as booked** leaves everything where it was. The
 customer is told either way, in their own language, without the agent being
 involved.
 
+### The associate can ask where exactly
+
+`7 pin` — and the shop asks the customer for that job's door.
+
+```
+rider ▸ 1 pin
+      ◂ GRO-00001 — asked them for the exact spot.
+        You will get the card again with the link on it as soon as they
+        send it. Carry on; if nothing comes, ring +5926106060.
+
+them  ◂ Your delivery associate is on the way with GRO-00001 and cannot
+        find the door. Send your exact spot on the map and they will come
+        straight to it — or tap Skip and they will ring you.
+        [📍 Send location]  [Skip]
+```
+
+Until this, `⚠️ NO PIN — ring before you set off` left ringing as the only
+move: a telephone call from a bike, to somebody who may be cooking, for a
+landmark the associate then has to remember — when the customer is holding
+the one device that can answer it properly in two taps.
+
+The answer lands on **that job** and nowhere else, and the associate is sent
+the whole card again with the link on it. It goes to whoever is at the door,
+which on a parcel or a gift is not the person who ordered it.
+
+**It says when it cannot help.** Outside WhatsApp's 24-hour window the shop
+cannot write to them at all, so instead of sending nothing it hands back the
+number and says to ring. A delivered or cancelled job refuses: there is
+nothing left to find.
+
 **The pin is collected BEFORE the associate is asked.** The customer says
 where, agrees the new charge, and is then asked for the exact spot — and
 only then does the question go to the associate, with the door on it:

@@ -1506,6 +1506,55 @@ export async function pinTheNewAddress(
   return t('addr_pinned', languageFor(phone));
 }
 
+/**
+ * The associate asking the customer where exactly, for one job.
+ *
+ * Until now the only thing an associate could do with "NO PIN - ring before
+ * you set off" was ring. That is a telephone call from a bike, to somebody
+ * who may be cooking, to be told a landmark they then have to remember -
+ * when the customer is holding the one device that can answer the question
+ * properly in two taps.
+ *
+ * Returns what to tell the associate. The customer's answer comes back
+ * through the ordinary pin path and lands on THIS order, and they get the
+ * card again with the link on it.
+ */
+export async function askCustomerForPin(orderNo: string): Promise<string> {
+  const order = repo.findOrder(orderNo);
+  if (!order) return `No order ${orderNo}.`;
+  if (order.status === 'delivered' || order.status === 'cancelled') {
+    return `${order.orderNo} is ${order.status}. Nothing to find any more.`;
+  }
+
+  // Who is at the door, which on a parcel or a gift is not the person who
+  // ordered it - and the pin has to come from whoever is standing there.
+  const who = order.recipientPhone || order.phone;
+  const lang = languageFor(who);
+
+  if (!repo.withinServiceWindow(who)) {
+    return [
+      `${order.orderNo} — I cannot message them just now.`,
+      '',
+      'WhatsApp only lets the shop write within 24 hours of their last message,',
+      `and theirs is older than that. Ring ${dial(who)}.`,
+    ].join(String.fromCharCode(10));
+  }
+
+  const { ADDR_PIN, ADDR_SKIP } = await import('./delivery-checkout.ts');
+  repo.wantPinFor(who, orderNo);
+  await sendButtons(who, t('pin_asked_by_rider', lang, { order: order.orderNo }), [
+    { id: ADDR_PIN, title: t('spot_send', lang) },
+    { id: ADDR_SKIP, title: t('spot_skip', lang) },
+  ]);
+
+  return [
+    `${order.orderNo} — asked them for the exact spot.`,
+    '',
+    'You will get the card again with the link on it as soon as they send it.',
+    `Carry on; if nothing comes, ring ${dial(who)}.`,
+  ].join(String.fromCharCode(10));
+}
+
 export async function settleProposedAddress(orderNo: string, agreed: boolean): Promise<string> {
   const order = repo.findOrder(orderNo);
   const proposal = order ? repo.destProposal(orderNo) : null;

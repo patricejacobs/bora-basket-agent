@@ -1264,6 +1264,8 @@ const DRIVER_HELP = [
   '`7 delivered` — dropped off, cash taken',
   '`7 arrived` — a taxi: the passenger is where they were going',
   '',
+  '`7 pin` — ask the customer for the exact spot, when you cannot find the door',
+  '',
   '`cash` — what you are holding this shift',
   '`7 transfer` — hand order 7 to another associate',
   '',
@@ -1971,6 +1973,16 @@ export async function handleDriverMessage(
   // bolted onto a ladder it does not belong on.
   // The driver raising a change of destination. They do not settle it: the
   // shop asks the passenger, and nothing moves until the passenger answers.
+  // The associate asking where exactly. `7 pin`.
+  //
+  // Read before the status words, because "7 location" would otherwise fall
+  // through to the ladder and be answered with a refusal about a status
+  // nobody mentioned.
+  if (/\b(pin|location)\b/i.test(trimmed)) {
+    const { askCustomerForPin } = await import('./dispatch.ts');
+    return reply(await askCustomerForPin(order.orderNo));
+  }
+
   if (changeDestWord.test(trimmed) && order.kind === 'taxi') {
     if (order.status !== 'on_the_way') {
       return reply(
