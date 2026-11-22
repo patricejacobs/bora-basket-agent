@@ -1350,6 +1350,26 @@ Vreed-en-Hoop,West Bank near,2500
 Meten-Meer-Zorg,West Coast,4000
 ```
 
+**Measured by road, once, with `npm run roads`.** The coordinates in
+`data/zone-coordinates-review.csv` were geocoded from OpenStreetMap and the
+distances beside them are straight lines from town — which is why every
+inversion the tariff audit reports carries a caveat. This asks Google's
+Routes API how far each place really is by road, and looks up the places OSM
+had never heard of. It changes **nothing**: it writes
+`data/road-distances.csv` and `data/places-found.csv` and prints where the
+straight line lies most, for a person to price.
+
+It needs `GOOGLE_MAPS_KEY` in the environment, with the **Routes API** and
+**Geocoding API** enabled on that key. Without one it says so and stops. It
+is run by hand and never by the shop: a delivery that cannot be priced
+because somebody else's API is slow is worse than a price that is a little
+rough, and a road in Guyana does not move between Tuesday and Wednesday.
+
+The whole job is about 230 calls against a free allowance of 10,000 a month
+per API, so it costs nothing — but set a daily quota cap in the Cloud
+console anyway, because a key that can only spend a dollar is a key you can
+stop thinking about.
+
 **Zones, not kilometres.** Vreed-en-Hoop is five kilometres from Stabroek
 across the water and twenty-five by road. Straight-line distance under-prices
 exactly the trips that cost most, and the west side is priced from the bridge.
