@@ -148,6 +148,8 @@ fs.writeFileSync(
 if (without.length > 0) {
   console.log(`\nLooking up ${without.length} places with no coordinate:\n`);
   const found: string[] = [];
+  const seen = new Map<string, string>();
+
   for (const z of without) {
     const hit = await geocodePlace(z.place);
     if (!hit) {
@@ -156,11 +158,36 @@ if (without.length > 0) {
     }
     const road = await roadDistance(centre, { latitude: hit.latitude, longitude: hit.longitude });
     const km = road ? Math.round((road.metres / 1000) * 10) / 10 : 0;
+
+    // Three ways a hit can be worth less than it looks, all of them quiet.
+    //
+    // The same point twice is the dangerous one: Golden Grove East Coast and
+    // Golden Grove East Bank are different villages eight hundred dollars
+    // apart, and the geocoder hands back one Golden Grove for both.
+    const at = `${hit.latitude.toFixed(5)},${hit.longitude.toFixed(5)}`;
+    const twin = seen.get(at);
+    seen.set(at, z.place);
+
+    const plain = (v: string): string => v.toLowerCase().replace(/[^a-z]+/g, '');
+    const names = !plain(hit.formatted).includes(plain(z.place).slice(0, 8));
+    const vague = /plus_code|route|street_address/.test(hit.kind);
+
+    const why = [
+      twin ? `same point as ${twin}` : '',
+      names ? 'name not in the answer' : '',
+      vague ? 'a road, not a village' : '',
+      !km ? 'no route' : '',
+    ].filter(Boolean);
+
     console.log(
-      `  ${z.place.padEnd(26)} ${hit.latitude.toFixed(5)}, ${hit.longitude.toFixed(5)}` +
-        `  ${km ? `${km} km by road` : 'no route'}  — ${hit.formatted.slice(0, 44)}`,
+      `  ${why.length > 0 ? 'CHECK' : '  ok '} ${z.place.padEnd(24)} ${at.padEnd(20)}` +
+        `${km ? `${km} km`.padStart(8) : '      —'}  ${hit.formatted.slice(0, 38)}` +
+        `${why.length > 0 ? `  <- ${why.join('; ')}` : ''}`,
     );
-    found.push([z.place, z.zone, z.fee, hit.latitude, hit.longitude, km, `"${hit.formatted}"`, hit.kind].join(','));
+    found.push(
+      [z.place, z.zone, z.fee, hit.latitude, hit.longitude, km,
+       `"${hit.formatted}"`, hit.kind, why.length > 0 ? `"${why.join('; ')}"` : 'ok'].join(','),
+    );
   }
   fs.writeFileSync(
     FOUND,

@@ -1,0 +1,19 @@
+place,zone,fee,lat,lng,road_km,found_as,kind
+Robbstown,Georgetown,500,6.812058400000001,-58.1672249,2.6,"Robbstown, Georgetown, Guyana",neighborhood/political,ok
+South Ruimveldt,Georgetown,500,6.7820598,-58.1309305,5.2,"South Ruimveldt Park, Georgetown, Guyana",neighborhood/political,ok
+Meadow Brook Gardens,Georgetown,500,6.794847,-58.13875770000001,4.6,"Meadow Brook Gardens, Georgetown, Guyana",neighborhood/political,ok
+Meadow Bank,Georgetown,500,6.7889851,-58.1700721,0.3,"Meadow Bank, Georgetown, Guyana",neighborhood/political,ok
+Lamaha Springs,Georgetown,500,6.787886899999999,-58.1231039,6.3,"Lamaha Springs, Georgetown, Guyana",neighborhood/political,ok
+Eve Leary,Georgetown,500,6.823601099999999,-58.15784859999999,4.7,"Guyana Police Headquarters, Georgetown, Guyana",establishment/point_of_interest/police,"name not in the answer"
+Rahaman's Park,Greater Georgetown,800,6.7881075,-58.16798129999999,5.2,"1 E Bank Public Rd, Georgetown, Guyana",establishment/point_of_interest,"name not in the answer"
+Liliendaal,Greater Georgetown,800,6.8068154,-58.12737289999999,7.9,"Liliendaal, Georgetown, Guyana",neighborhood/political,ok
+Non Pareil,East Coast,2200,6.7796731,-58.010746,23.2,"Non-Pariel, Guyana",locality/political,"name not in the answer"
+Hope Lowlands,East Coast far,2800,6.679876399999999,-57.92258649999999,38.6,"Hope lowland, East Coast Demerara, Mahaica, Guyana",establishment/point_of_interest,ok
+Golden Grove East Coast,East Coast far,2800,6.752041999999999,-57.9823192,27.2,"Golden Grove, Guyana",locality/political,ok
+Enterprise Gardens,East Coast far,3500,6.769948299999999,-58.0099998,24,"QX9R+X2C, Enterprise, Guyana",establishment/point_of_interest,ok
+Golden Grove East Bank,East Bank,2000,6.752041999999999,-57.9823192,27.2,"Golden Grove, Guyana",locality/political,"same point as Golden Grove East Coast"
+Friendship East Bank,East Bank,2200,6.6695458,-58.1862725,15.6,"32 Public road friendship, E Bank Public Rd, Georgetown, Guyana",establishment/point_of_interest,ok
+Madewini,Highway,4000,6.5259598,-58.24971559999999,34,"E Bank Public Rd, Guyana",establishment/lodging/point_of_interest,"name not in the answer"
+Yarrowkabra,Highway,4500,6.5394174,-58.2267787,32.5,"101 Soesdyke Linden Hwy, Georgetown, Guyana",church/establishment/place_of_worship/point_of_interest,"name not in the answer"
+Moblissa,Highway,5000,6.0721615,-58.25538539999999,90.5,"3PHX+F6X, Linden, Guyana",establishment/point_of_interest,"name not in the answer"
+Windsor Forest,West Coast near,3200,6.8456562,-58.2362882,22.7,"Windsor Forest, Guyana",locality/political,ok

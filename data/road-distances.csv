@@ -1,0 +1,150 @@
+place,zone,fee,straight_km,road_km,minutes,fee_per_road_km
+Georgetown,Georgetown,500,1.6,4.4,9,114
+Kingston,Georgetown,500,1.8,4.2,11,119
+Cummingsburg,Georgetown,500,1.3,3.8,10,132
+Lacytown,Georgetown,500,0.6,3,8,167
+Bourda,Georgetown,500,0.6,3.8,10,132
+Stabroek,Georgetown,500,0,2.9,7,172
+Werk-en-Rust,Georgetown,500,0.6,2.3,5,217
+Wortmanville,Georgetown,500,0.7,3.3,8,152
+Charlestown,Georgetown,500,0.8,1.7,3,294
+Albouystown,Georgetown,500,1,1.7,3,294
+La Penitence,Georgetown,500,1.2,1.4,3,357
+East La Penitence,Georgetown,500,2.1,3.9,8,128
+Ruimveldt,Georgetown,500,2.4,3.9,8,128
+South Ruimveldt Park,Georgetown,500,4.1,5,10,100
+South Ruimveldt Gardens,Georgetown,500,2.4,3.9,8,128
+Tucville,Georgetown,500,3.4,4.5,10,111
+Guyhoc Park,Georgetown,500,3.2,4.9,11,102
+Festival City,Georgetown,500,4,5.2,10,96
+North Ruimveldt,Georgetown,500,4.8,6,11,83
+Alberttown,Georgetown,500,0.9,4.2,11,119
+Queenstown,Georgetown,500,1.3,5.3,12,94
+Newtown,Georgetown,500,1.9,5.6,14,89
+Kitty,Georgetown,500,2.6,7.3,16,68
+Campbellville,Georgetown,500,2.8,6.5,16,77
+Subryanville,Georgetown,500,3.3,8,16,63
+Bel Air,Georgetown,500,3.8,8.2,18,61
+Bel Air Park,Georgetown,500,1.9,5.4,13,93
+Bel Air Gardens,Georgetown,500,3.6,7.9,16,63
+Bel Air Springs,Georgetown,500,4.1,8.2,16,61
+Prashad Nagar,Georgetown,500,3.4,7.6,17,66
+Lamaha Gardens,Georgetown,500,3.1,6.5,15,77
+Thomas Lands,Georgetown,500,1.8,5.9,13,85
+Sophia,Greater Georgetown,800,3.9,6.6,17,121
+Cummings Lodge,Greater Georgetown,800,5.5,14,21,57
+Turkeyen,Greater Georgetown,800,5.2,14,22,57
+Pattensen,Greater Georgetown,800,4.7,9.8,20,82
+Industry,East Coast near,1000,5.9,13.5,20,74
+Goedverwagting,East Coast near,1000,7.1,13.1,20,76
+Ogle,East Coast near,1000,6.6,8.1,17,123
+Sparendaam,East Coast near,1000,7.4,13,20,77
+Plaisance,East Coast near,1000,7.7,13.4,21,75
+Better Hope,East Coast near,1000,7.9,14,23,71
+La Bonne Intention,East Coast near,1000,10.8,16.9,27,59
+Beterverwagting,East Coast near,1200,10.9,17.6,29,68
+Vryheid's Lust,East Coast near,1200,8.4,14.2,23,85
+Montrose,East Coast near,1200,9,15.9,27,75
+Le Ressouvenir,East Coast near,1200,9.4,16.9,27,71
+Chateau Margot,East Coast near,1200,10.3,16.2,25,74
+Triumph,East Coast near,1200,11.5,17.5,29,69
+Mon Repos,East Coast near,1200,11.8,17.9,30,67
+Success,East Coast near,1200,9.8,15.5,25,77
+Felicity,East Coast,1800,9.1,15.3,25,118
+Good Hope,East Coast,1800,12.6,18.8,32,96
+Lusignan,East Coast,1800,13.6,19.9,33,90
+Annandale,East Coast,1800,14.1,20,34,90
+Bachelor's Adventure,East Coast,1800,17.9,24.6,43,73
+Buxton,East Coast,1800,14.9,21.6,37,83
+Vigilance,East Coast,1800,15.6,22.1,38,81
+Strathspey,East Coast,1800,16.1,22.6,39,80
+Foulis,East Coast,2000,18.8,26,44,77
+Bladen Hall,East Coast,2200,15.8,22.5,40,98
+Enmore,East Coast,2200,19.4,26.4,45,83
+Enterprise,East Coast,2200,17.2,24.7,43,89
+Hope,East Coast far,2800,19.1,26.6,46,105
+Paradise,East Coast far,2800,18.3,25,43,112
+Nabaclis,East Coast far,2800,20.9,27.6,48,101
+Haslington,East Coast far,2800,20.1,26.8,45,104
+Victoria,East Coast far,2800,22.3,29,52,97
+Cove and John,East Coast far,3000,21.6,29.1,48,103
+Ann's Grove,East Coast far,3000,24.7,31.8,54,94
+Two Friends,East Coast far,3000,7.9,10.1,17,297
+Dochfour,East Coast far,3200,24.4,32.1,57,100
+Clonbrook,East Coast far,3200,25.1,33.5,55,96
+Belfield,East Coast far,3200,22.6,30.3,50,106
+Bee Hive,East Coast far,3200,25.6,32.6,55,98
+Unity,East Coast far,3200,27.2,36.3,57,88
+Lancaster,East Coast far,3500,27.7,37,58,95
+Greenfield,East Coast far,3500,25.9,34.3,54,102
+Cane Grove,East Coast far,3500,31.7,44,71,80
+Mahaica,East Coast far,3500,29.6,38,60,92
+Mahaicony,Outer,5000,46.9,57,77,88
+Agricola,East Bank near,800,3.4,3.3,7,242
+McDoom,East Bank near,800,3.2,5.1,10,157
+Houston,East Bank near,800,2.7,4.8,8,167
+Eccles,East Bank near,1200,4,4.3,9,279
+Nandy Park,East Bank near,1200,5.1,4.8,9,250
+Republic Park,East Bank near,1200,4.6,5,10,240
+Bagotstown,East Bank near,1200,4.6,4.2,8,286
+Peter's Hall,East Bank near,1200,5.1,5.8,11,207
+Providence,East Bank near,1200,5.5,5.4,11,222
+Mocha,East Bank,1600,7.4,9.2,16,174
+Mocha Arcadia,East Bank,1600,8.5,11.2,21,143
+Barnwell,East Bank,1600,24.5,39.6,55,40
+Prospect,East Bank,1600,9.1,10.7,16,150
+Herstelling,East Bank,1600,7.4,7,12,229
+Farm,East Bank,1800,8.6,9.1,16,198
+Little Diamond,East Bank,1800,9.6,10.2,16,176
+Diamond,East Bank,1800,10.8,10.6,16,170
+Great Diamond,East Bank,1800,10.8,10.6,16,170
+Covent Garden,East Bank,2000,8.1,8.4,15,238
+Grove,East Bank,2000,26.8,35.3,55,57
+Garden of Eden,East Bank,2200,19.4,19.6,32,112
+Sarah Johanna,East Bank,2200,24.7,25.4,40,87
+Caledonia,East Bank,2400,25.6,26.4,41,91
+Supply,East Bank,2400,20.5,20.7,33,116
+New Hope,East Bank,2600,14,14,23,186
+Land of Canaan,East Bank far,2800,22.7,23.5,37,119
+Craig,East Bank far,2800,13.5,13.8,22,203
+Soesdyke,East Bank far,3200,30.5,31.5,49,102
+Timehri,East Bank far,3800,34.3,40,61,95
+Kuru Kururu,Highway,4500,30.4,35.7,58,126
+Vreed-en-Hoop,West Bank near,2500,2.8,16.4,25,152
+Pouderoyen,West Bank near,2500,5.1,17.6,22,142
+Malgre Tout,West Bank near,2500,3.5,14.7,21,170
+Versailles,West Bank near,2800,4,15,22,187
+Schoonord,West Bank near,2800,5.1,12.7,18,220
+Goed Fortuin,West Bank near,2800,4.4,13.4,19,209
+La Grange,West Bank,3000,5.5,12.7,18,236
+Nismes,West Bank,3000,8,16,24,188
+Bagotville,West Bank,3000,7.3,14.9,22,201
+Stanleytown,West Bank,3000,10,18.1,26,166
+Toevlugt,West Bank,3200,8.7,16.2,22,198
+Patentia,West Bank,3200,13.2,22.2,31,144
+Vive-la-Force,West Bank,3200,15.8,25.3,36,126
+Wales,West Bank,3500,12.1,20.7,29,169
+Crane,West Coast near,3000,4.5,19.2,26,156
+Nouvelle Flanders,West Coast near,3000,5.4,19.1,24,157
+Blankenburg,West Coast near,3000,10.9,24.2,30,124
+La Jalousie,West Coast near,3200,7.6,20.8,27,154
+Den Amstel,West Coast near,3200,11.6,24.7,31,130
+Fellowship,West Coast near,3200,12.1,26.2,33,122
+Hague,West Coast,3500,12.9,26.5,33,132
+Cornelia Ida,West Coast,3500,13.7,27.8,36,126
+Anna Catherina,West Coast,3500,12.3,20.9,30,167
+Leonora,West Coast,3500,15.8,29.9,40,117
+Stewartville,West Coast,3800,16.9,31.1,42,122
+Edinburgh,West Coast,3800,14.9,28.8,38,132
+Uitvlugt,West Coast,3800,17.9,33.3,46,114
+Meten-Meer-Zorg,West Coast,4000,19.9,34.5,48,116
+Zeeburg,West Coast,4000,18.5,34,48,118
+De Kinderen,West Coast,4000,40,48.7,68,82
+Philadelphia,West Coast far,4200,23.9,39,55,108
+Tuschen,West Coast far,4200,22.1,37.1,52,113
+Zeelugt,West Coast far,4200,21.3,36.6,51,115
+Vergenoegen,West Coast far,4500,23.8,40.5,58,111
+Naamryck,West Coast far,4500,31.6,49.4,70,91
+Greenwich Park,West Coast far,4800,25.1,40.3,55,119
+Hydronie,West Coast far,4800,27.1,43.3,59,111
+Parika,West Coast far,5000,29.7,45.8,62,109
