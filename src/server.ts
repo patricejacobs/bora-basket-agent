@@ -20,7 +20,7 @@ import { hoursStatus } from './hours.ts';
 import { whatsappRouter, webhookStats } from './channels/whatsapp.ts';
 import { sendStats, deliveryStats } from './channels/whatsapp-send.ts';
 import { warnStaff, flushHelpRequests } from './notifications.ts';
-import { mountDispatchMap } from './dispatch-map.ts';
+import { mountDispatchMap, dispatchMapOn } from './dispatch-map.ts';
 import { applyScheduledReset } from './reset.ts';
 import { loadZonesFromDisk, zoneCount } from './zones.ts';
 import { simulatorRouter } from './channels/simulator.ts';
@@ -310,6 +310,10 @@ app.get('/health', (_req: Request, res: Response) => {
     // Whether the trading record is being copied, and how recently. Never the
     // token, and never a path to the data itself — a count and a timestamp are
     // enough to notice that backups have silently stopped.
+    // Whether the dispatch map is mounted. From outside, a missing token and
+    // a too-short one look the same - 404 - so this is the only way to tell
+    // "my link is wrong" from "the page was never switched on".
+    dispatchMap: dispatchMapOn(),
     backup: {
       configured: Boolean(config.backup.token),
       snapshots: listSnapshots().length,

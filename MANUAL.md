@@ -3010,6 +3010,15 @@ makes it dangerous: it shares `BACKUP_TOKEN` rather than inventing a second
 secret, returns **404** without it, and is marked no-store and noindex. If
 the link goes anywhere it should not, rotate that token.
 
+**`npm run map:check`** proves it without eyeballs: twenty-four checks
+against a throwaway shop on a spare port — that no key, a wrong key and a
+wrong key of the right length are all 404, that the data endpoint is shut
+too, that the page is no-store and noindex, that an unpinned job is counted
+rather than drawn, that the history window is off unless asked and capped at
+ninety days. `/health` reports `dispatchMap: true` when the map is mounted,
+because from outside a missing token and one too short to be a password look
+identical.
+
 Tiles come from OpenStreetMap. Their public tile service is fine for a
 dispatcher opening a page a few times a day and is not for heavy traffic; a
 shop that leaves this open on a screen all day should put a free MapTiler or

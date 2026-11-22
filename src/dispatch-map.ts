@@ -247,9 +247,22 @@ function page(key: string): string {
  * same thing — every customer the shop has — and a shop with two admin
  * passwords has one it has forgotten to rotate.
  */
+/**
+ * Whether the map is on, for /health to say so.
+ *
+ * Both failures - no token, or one too short to be a password - look
+ * identical from outside: /dispatch answers 404 either way, deliberately. So
+ * the one place that can tell the difference says so, and nobody has to
+ * guess whether their link is wrong or the page was never mounted.
+ */
+export function dispatchMapOn(): boolean {
+  const token = config.backup.token;
+  return Boolean(token) && token.length >= TOKEN_MIN;
+}
+
 export function mountDispatchMap(app: express.Express): void {
   const token = config.backup.token;
-  if (!token || token.length < TOKEN_MIN) {
+  if (!dispatchMapOn()) {
     console.log('[dispatch] BACKUP_TOKEN is not set (or is too short) — the map is off');
     return;
   }
