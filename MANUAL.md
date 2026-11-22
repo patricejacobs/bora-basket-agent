@@ -1549,6 +1549,16 @@ rider ▸ pin                            (carrying nothing)
 the road. A job they have accepted and are walking to collect is the job
 they are about to be standing outside the door of, so it counts.
 
+**A pin owed outranks the service menu.** The block that catches it used to
+sit below the menu, so a customer whose service had been cleared — they
+tapped *Leave groceries*, asked for the menu, or came back after the
+conversation went cold — sent the exact spot they had just been asked for and
+was answered with *"Pick a number first and then send that again."* A request
+for a map, put to somebody holding a map, and their answer thrown away while
+an associate stood in the road. `7 pin` made it easy to reach: the shop now
+raises that question whenever an associate cannot find a door, which is not
+necessarily while the customer is in the middle of anything at all.
+
 **The pin is collected BEFORE the associate is asked.** The customer says
 where, agrees the new charge, and is then asked for the exact spot — and
 only then does the question go to the associate, with the door on it:

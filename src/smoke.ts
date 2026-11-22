@@ -1445,6 +1445,44 @@ section('Changing where a delivery is going');
       repo.upsertAssociate({ phone: spare, name: 'Rider Spare', vehicle: 'PAA 7', active: false });
     }
 
+
+  // ---- a pin owed outranks the service menu -------------------------
+  // The block that catches an owed pin sat BELOW the service menu, so a
+  // customer whose service had been cleared — tapped "Leave groceries",
+  // asked for the menu, or came back after the conversation went cold —
+  // sent the exact spot they had just been asked for and was answered with
+  // "Pick a number first and then send that again". The map was thrown
+  // away while an associate stood in the road. `7 pin` made it easy to
+  // reach: the shop raises that question whenever an associate cannot find
+  // a door, which is not necessarily while the customer is in the middle
+  // of anything.
+  {
+    const { handleIncoming: pinSend2 } = await import('./conversation.ts');
+    await proposeAddressToAssociate(job.orderNo, 'Diamond', 1800);
+    repo.clearDestProposal(job.orderNo);
+    repo.wantPinFor(buyer2, job.orderNo);
+    db.prepare(`UPDATE orders SET latitude = NULL, longitude = NULL WHERE order_no = ?`)
+      .run(job.orderNo);
+
+    // No service at all: they are not in the middle of anything.
+    repo.setService(buyer2, null);
+    const back = await pinSend2({
+      phone: buyer2, text: '', channel: 'smoke',
+      location: { latitude: 6.4455, longitude: -58.2211, label: 'the red gate' },
+    } as never);
+    const words = back.map((m) => (m as { text?: string }).text ?? '').join(' ');
+    check('a pin owed is taken even with no service chosen',
+      repo.findOrder(job.orderNo)?.location?.latitude === 6.4455,
+      JSON.stringify(repo.findOrder(job.orderNo)?.location));
+    check('and they are not sent back to the menu', !/Pick a number first/.test(words), words.slice(0, 90));
+    check('and the debt is cleared', repo.pinWantedFor(buyer2) === '');
+
+    // Put the door back where the rest of this section found it: the suite
+    // shares one shop, and a fixture that outlives its own test is a fault
+    // in the next one.
+    repo.setService(buyer2, 'grocery');
+    repo.setOrderPin(job.orderNo, { latitude: 6.7, longitude: -58.0, label: 'the blue gate' });
+  }
     // ---- `7 details`, the whole job on demand -----------------------
     // The job card is sent once and then buried. Three drops later, the
     // customer's telephone number is up the chat past everything since — and
