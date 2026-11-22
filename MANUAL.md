@@ -1475,6 +1475,37 @@ work from at the door. **No, as booked** leaves everything where it was. The
 customer is told either way, in their own language, without the agent being
 involved.
 
+**The pin is collected BEFORE the associate is asked.** The customer says
+where, agrees the new charge, and is then asked for the exact spot — and
+only then does the question go to the associate, with the door on it:
+
+```
+⚠️ *GRO-00001 — the customer wants it taken somewhere else.*
+
+Now: *Buxton*
+Was: Diamond
+Click the link below for the new address:
+https://www.google.com/maps?q=6.756000,-57.983000
+
+Nothing has changed yet. Tap *Acknowledged* only if you can take it there.
+   [Acknowledged]  [No, as booked]
+```
+
+Asked the other way round, as it was at first, the associate agreed to
+*“Buxton”* and found out where in Buxton afterwards. Somebody deciding
+whether they can carry a bag somewhere should be looking at the place, not
+at a village name.
+
+The pin waits on the **proposal**, not on the order: nothing has changed
+yet, and a job whose pin moved before anybody agreed would send the
+associate to a door nobody had chosen. On **Acknowledged** the address, the
+charge and the pin move together. On **No, as booked** all three stay where
+they were.
+
+Skipping the pin does not block it — the question goes to the associate
+with *⚠️ No pin for the new address* on it instead, which is the honest
+version and lets them decide knowing what they do not know.
+
 **The old pin goes with the old door, and a new one is asked for at once.**
 The old pin was dropped on an address nobody is going to any more, and a map
 link is the one thing on a card an associate would trust over the words

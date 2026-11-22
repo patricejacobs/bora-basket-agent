@@ -684,6 +684,23 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     const owed = repo.pinWantedFor(msg.phone);
     if (owed) {
       const lang = languageFor(msg.phone);
+      // A proposal still open means this pin came BEFORE anybody agreed to
+      // the new address - the ordinary case now. It is kept with the
+      // proposal and goes to the associate with it, so the person deciding
+      // whether they can take it there is looking at the door.
+      const open = repo.destProposal(owed);
+      if (msg.location && open) {
+        repo.setProposalPin(owed, msg.location);
+        repo.wantPinFor(msg.phone, '');
+        const { proposeAddressToAssociate } = await import('./dispatch.ts');
+        await proposeAddressToAssociate(owed, open.place, open.fare);
+        return shopAnswered(
+          msg,
+          [{ kind: 'text', text: t('addr_asked', lang, { place: open.place }) }],
+          '(sent their location)',
+        );
+      }
+
       if (msg.location) {
         const said = await pinTheNewAddress(msg.phone, msg.location);
         if (said) return shopAnswered(msg, [{ kind: 'text', text: said }], '(sent their location)');
@@ -697,6 +714,17 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       }
       if (text === ADDR_SKIP) {
         repo.wantPinFor(msg.phone, '');
+        // Skipped before the associate has been asked: the question still
+        // goes to them, with no pin on it, which is the honest version.
+        if (open) {
+          const { proposeAddressToAssociate } = await import('./dispatch.ts');
+          await proposeAddressToAssociate(owed, open.place, open.fare);
+          return shopAnswered(
+            msg,
+            [{ kind: 'text', text: t('addr_asked', lang, { place: open.place }) }],
+            describeTap(text),
+          );
+        }
         return shopAnswered(
           msg,
           [{ kind: 'text', text: t('spot_skipped', lang) }],

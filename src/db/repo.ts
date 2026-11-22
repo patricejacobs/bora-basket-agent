@@ -517,7 +517,15 @@ export function changeTaxiDestination(
  */
 /* ------------------------------ a destination the driver has raised */
 
-export type DestProposal = { orderNo: string; place: string; fare: number; by: string };
+export type DestProposal = {
+  orderNo: string;
+  place: string;
+  fare: number;
+  by: string;
+  /** Where exactly, if the customer pinned it before it was put to anybody. */
+  lat?: number | null;
+  lng?: number | null;
+};
 
 /** The shop is waiting for this driver to name a place. */
 export function awaitingDestFrom(driverPhone: string): string {
@@ -556,10 +564,31 @@ export function destProposal(orderNo: string): DestProposal | null {
   const row = db
     .prepare(
       `SELECT order_no AS orderNo, dest_proposal AS place, dest_proposal_fare AS fare,
-              dest_proposal_by AS by FROM orders WHERE order_no = ?`,
+              dest_proposal_by AS by, dest_proposal_lat AS lat, dest_proposal_lng AS lng
+         FROM orders WHERE order_no = ?`,
     )
-    .get(orderNo) as { orderNo: string; place: string; fare: number; by: string } | undefined;
+    .get(orderNo) as
+    | { orderNo: string; place: string; fare: number; by: string; lat: number | null; lng: number | null }
+    | undefined;
   return row && row.place ? row : null;
+}
+
+/**
+ * The customer's pin for a place they have asked to be taken to, held
+ * against the PROPOSAL.
+ *
+ * Not on the order. Nothing has changed yet - the associate has not agreed
+ * to go there - and a pin written onto the job in the meantime would point
+ * them at a door that is not yet the door.
+ */
+export function setProposalPin(
+  orderNo: string,
+  pin: { latitude: number; longitude: number } | null,
+): void {
+  db.prepare(
+    `UPDATE orders SET dest_proposal_lat = ?, dest_proposal_lng = ?, updated_at = ?
+      WHERE order_no = ?`,
+  ).run(pin?.latitude ?? null, pin?.longitude ?? null, nowIso(), orderNo);
 }
 
 /** The one a passenger is being asked about, whichever trip it is on. */
@@ -594,6 +623,7 @@ export function stopAskingDest(orderNo: string): void {
 export function clearDestProposal(orderNo: string): void {
   db.prepare(
     `UPDATE orders SET dest_proposal = '', dest_proposal_fare = -1, dest_proposal_by = '',
+       dest_proposal_lat = NULL, dest_proposal_lng = NULL,
        updated_at = ? WHERE order_no = ?`,
   ).run(nowIso(), orderNo);
 }

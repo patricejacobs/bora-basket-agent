@@ -514,11 +514,19 @@ export async function proposeAddressToAssociate(
   repo.proposeDestination(orderNo, place, fee);
 
   const was = order.address || 'where it was going';
+  const pinned = repo.destProposal(orderNo);
   const body = [
     `⚠️ *${order.orderNo} — the customer wants it taken somewhere else.*`,
     '',
     `Now: *${place}*`,
     `Was: ${was}`,
+    // The door itself, when they pinned it before this was put to anybody -
+    // which is the ordinary case. Somebody deciding whether they can take a
+    // bag there should be looking at where, not at a village name.
+    ...(pinned?.lat != null && pinned?.lng != null
+      ? ['Click the link below for the new address:',
+         mapsLink({ latitude: pinned.lat, longitude: pinned.lng })]
+      : ['⚠️ No pin for the new address.']),
     ...(fee !== order.deliveryFee
       ? ['', `Delivery ${money(order.deliveryFee)} → *${money(fee)}*`]
       : []),
@@ -1522,6 +1530,13 @@ export async function settleProposedAddress(orderNo: string, agreed: boolean): P
     proposal.fare >= 0 ? proposal.fare : order.deliveryFee,
   );
 
+  // The pin travels with the address it belongs to. changeDeliveryAddress
+  // drops the old one - it pointed at a door nobody is going to - and this
+  // puts the new one in its place, already agreed by both of them.
+  if (proposal.lat != null && proposal.lng != null) {
+    repo.setOrderPin(orderNo, { latitude: proposal.lat, longitude: proposal.lng });
+  }
+
   const now = repo.findOrder(orderNo)!;
   await sendText(
     order.phone,
@@ -1538,12 +1553,17 @@ export async function settleProposedAddress(orderNo: string, agreed: boolean): P
   // in it: the words were confirmed by the customer and the map was not, so
   // the one thing on the card that gets somebody to a gate is missing from
   // exactly the delivery that just became harder to find.
-  const { ADDR_PIN, ADDR_SKIP } = await import('./delivery-checkout.ts');
-  repo.wantPinFor(order.phone, orderNo);
-  await sendButtons(order.phone, t('addr_pin_ask', lang, { place: now.address }), [
-    { id: ADDR_PIN, title: t('spot_send', lang) },
-    { id: ADDR_SKIP, title: t('spot_skip', lang) },
-  ]);
+  // Only when it is still missing. The pin is asked for BEFORE the associate
+  // is asked now, so the ordinary path arrives here with one already on the
+  // order; this is the fallback for somebody who skipped.
+  if (!now.location) {
+    const { ADDR_PIN, ADDR_SKIP } = await import('./delivery-checkout.ts');
+    repo.wantPinFor(order.phone, orderNo);
+    await sendButtons(order.phone, t('addr_pin_ask', lang, { place: now.address }), [
+      { id: ADDR_PIN, title: t('spot_send', lang) },
+      { id: ADDR_SKIP, title: t('spot_skip', lang) },
+    ]);
+  }
 
   // The card again, in full, because it is what they will work from at the
   // door and half a card is worse than the one they already have.

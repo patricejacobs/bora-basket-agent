@@ -536,6 +536,12 @@ addColumnIfMissing('customers', 'taxi_typing_end', "TEXT NOT NULL DEFAULT ''");
 // the place; the other two hold what they named and what it comes to.
 addColumnIfMissing('orders', 'dest_proposal_by', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'dest_proposal', "TEXT NOT NULL DEFAULT ''");
+// The pin for a proposed address, held with the proposal rather than on the
+// order: nothing about the delivery has changed yet, and a pin written onto
+// a job the associate has not agreed to would send them to a door that is
+// not yet the door.
+addColumnIfMissing('orders', 'dest_proposal_lat', 'REAL');
+addColumnIfMissing('orders', 'dest_proposal_lng', 'REAL');
 addColumnIfMissing('orders', 'dest_proposal_fare', 'INTEGER NOT NULL DEFAULT -1');
 
 // A parcel has a sender and a recipient, and they are different people in

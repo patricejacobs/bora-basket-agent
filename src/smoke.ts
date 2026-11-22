@@ -1254,13 +1254,38 @@ section('Changing where a delivery is going');
   const asked = JSON.parse(
     executeTool('change_destination', { new_destination: 'Buxton', confirmed: true }, ctx2),
   );
-  check('agreeing asks the ASSOCIATE rather than changing it',
-    asked.asked === true && repo.findOrder(job.orderNo)?.address === 'Diamond',
+  // The pin comes BEFORE the associate is asked, so that the person
+  // deciding whether they can take it there is looking at the door rather
+  // than at a village name.
+  check('agreeing asks the customer to pin it first',
+    asked.pin_asked === true && repo.findOrder(job.orderNo)?.address === 'Diamond',
     JSON.stringify(asked).slice(0, 110));
+  check('and the question goes to them, not the agent',
+    ctx2.outbound.some((m) => m.kind === 'buttons'), JSON.stringify(ctx2.outbound).slice(0, 80));
   check('the model is told not to call it done',
-    /must not be described as changed/.test(String(asked.next)));
+    /Do not describe the address as changed/.test(String(asked.next)));
   check('and the proposal is on the order', repo.destProposal(job.orderNo)?.place === 'Buxton',
     JSON.stringify(repo.destProposal(job.orderNo)));
+  check('with no pin on it yet', repo.destProposal(job.orderNo)?.lat == null);
+  check('and a pin owed by the customer', repo.pinWantedFor(buyer2) === job.orderNo,
+    repo.pinWantedFor(buyer2));
+
+  // They send it; only then is it put to the associate.
+  const { handleIncoming: pinSend } = await import('./conversation.ts');
+  await pinSend({
+    phone: buyer2, text: '', channel: 'smoke',
+    location: { latitude: 6.756, longitude: -57.983, label: 'Buxton' },
+  } as never);
+  // On the PROPOSAL. The order keeps the pin it already has - the old door -
+  // because nobody has agreed to the new one yet, and a job that moved its
+  // pin before that would send the associate somewhere nobody chose.
+  check('the pin is kept with the proposal',
+    repo.destProposal(job.orderNo)?.lat === 6.756,
+    JSON.stringify(repo.destProposal(job.orderNo)));
+  check('and the order still points at the old door',
+    repo.findOrder(job.orderNo)?.location?.latitude === 6.76,
+    JSON.stringify(repo.findOrder(job.orderNo)?.location));
+  check('and the debt is cleared', repo.pinWantedFor(buyer2) === '');
 
   // The associate says no.
   const refused = await driverSaysNow(`dest_no_${digits2}`, rider2);

@@ -24,7 +24,7 @@ import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { settleDeliveryPlace } from '../delivery-place.ts';
 import { endPicker } from '../place-picker.ts';
 import { proposeAddressToAssociate } from '../dispatch.ts';
-import { askPlace } from '../delivery-checkout.ts';
+import { ADDR_PIN, ADDR_SKIP, askPlace } from '../delivery-checkout.ts';
 import {
   asTariffPlace,
   findZone,
@@ -2483,15 +2483,31 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           );
         }
 
-        void proposeAddressToAssociate(live.orderNo, quoted.match.place, newFee).catch((err) =>
-          console.error('[tools] could not put the new address to the associate:', err),
-        );
+        // Written down, and NOT yet put to anybody.
+        //
+        // The exact spot is asked for first, so that the person deciding
+        // whether they can take it there is looking at the door rather than
+        // at a village name. Asked afterwards, as it was, the associate
+        // agreed to "Buxton" and found out where in Buxton later.
+        const lang = languageFor(ctx.phone);
+        repo.proposeDestination(live.orderNo, quoted.match.place, newFee);
+        repo.setProposalPin(live.orderNo, null);
+        repo.wantPinFor(ctx.phone, live.orderNo);
+
+        ctx.outbound.push({
+          kind: 'buttons',
+          text: t('addr_pin_first', lang, { place: quoted.match.place }),
+          buttons: [
+            { id: ADDR_PIN, title: t('spot_send', lang) },
+            { id: ADDR_SKIP, title: t('spot_skip', lang) },
+          ],
+        });
+
         return ok({
-          asked: true,
+          pin_asked: true,
           job_number: live.orderNo,
           place: quoted.match.place,
-          say: t('addr_asked', languageFor(ctx.phone), { place: quoted.match.place }),
-          next: 'Say only that. Nothing has changed yet and must not be described as changed — their associate answers, and the shop tells them either way without you.',
+          next: 'They have ALREADY been asked for the exact spot — say nothing more about it. Nothing has changed and nothing has been put to their associate yet; that happens once they send the pin or tap Skip, and the shop handles both. Do not describe the address as changed.',
         });
       }
 
