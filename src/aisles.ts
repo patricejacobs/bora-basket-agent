@@ -140,6 +140,25 @@ export function cannotCheckOutYet(phone: string, lang: Language): string {
   });
 }
 
+/**
+ * "That's all" — the end of shopping, said in the handful of ways people
+ * say it.
+ *
+ * Read in code rather than by the model, because the model stops at it. Told
+ * to hand over when the basket is right, it answered "thanks, that's your
+ * order ready to go" and waited: a dead end with a full basket in it, which
+ * is the most expensive kind of turn there is.
+ *
+ * The whole message or nothing. "That is all I need from the fresh produce"
+ * is a sentence about an aisle, not the end of the shop.
+ */
+const DONE_SHOPPING =
+  /^\s*(?:yes[,\s]*)?(?:that'?s?\s*(?:is\s*)?(?:it|all)|that\s*is\s*all|nothing\s*else|no(?:thing)?\s*more|all\s*done|i'?m\s*done|done|finish(?:ed)?|check\s*out|checkout|place\s*(?:the\s*)?order|go\s*ahead|eso\s*es\s*todo|nada\s*m[aá]s|ya\s*est[aá]|[eé]\s*tudo|mais\s*nada|j[aá]\s*est[aá]|就这些|没有了|结账)\s*[.!]?\s*$/i;
+
+export function doneShopping(text: string): boolean {
+  return DONE_SHOPPING.test(String(text ?? ''));
+}
+
 /** a, b, c … then aa, ab, for a basket nobody should have but might. */
 function letterFor(i: number): string {
   return i < 26

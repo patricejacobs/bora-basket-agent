@@ -37,6 +37,7 @@ import {
   aislesMessage,
   basketPage,
   cannotCheckOutYet,
+  doneShopping,
   wayOutButtons,
   isAisleId,
   withWayOut,
@@ -704,6 +705,29 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       return shopAnswered(msg, [askPlace(msg.phone, lang)], describeTap(text));
     }
     return shopAnswered(msg, [aislesMessage(msg.phone, lang)], describeTap(text));
+  }
+
+  // "That's all" with something in the basket, which is checkout by any
+  // other name. Read here because the model stops at it: told to hand over
+  // when the basket is right, it said "thanks, that's your order ready to
+  // go" and waited - a dead end with a full basket in it.
+  if (
+    (chosen === 'grocery' || chosen === 'restaurant') &&
+    text &&
+    !isPickerId(text) &&
+    doneShopping(text) &&
+    repo.getCart(msg.phone).lines.length > 0 &&
+    !repo.checkoutStep(msg.phone)
+  ) {
+    const lang = languageFor(msg.phone);
+    const blocked = cannotCheckOutYet(msg.phone, lang);
+    return shopAnswered(
+      msg,
+      blocked
+        ? [{ kind: 'buttons', text: blocked, buttons: wayOutButtons(msg.phone, lang) }]
+        : [askPlace(msg.phone, lang)],
+      text,
+    );
   }
 
   // The delivery list, which is the same list asked by a different service.

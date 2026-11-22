@@ -1160,6 +1160,42 @@ section('The aisles, and the way out of them');
     }
   }
 
+  // ---- the order the two questions are asked in --------------------
+  {
+    const { doneShopping } = await import('./aisles.ts');
+    check('the end of shopping is recognised',
+      doneShopping('thats all') && doneShopping('yes that is all') &&
+        doneShopping('nothing else') && doneShopping('check out') && doneShopping('eso es todo'),
+      'missed one');
+    check('but a sentence about an aisle does not',
+      !doneShopping('that is all I need from the fresh produce') &&
+        !doneShopping('is that all you have?'),
+      'swallowed a sentence');
+
+    // The pin belongs AFTER the area, because the area fixes the charge.
+    // The agent used to be told to ask for a pin as soon as somebody meant
+    // to order, which put it before the price.
+    const pinCtx: ToolContext = { phone: shopper2, outbound: [] };
+    repo.setService(shopper2, 'restaurant');
+    const refused = JSON.parse(
+      executeTool('request_location', { body: 'Where are we delivering?' }, pinCtx),
+    );
+    check('a basket cannot be asked for a pin by the agent',
+      typeof refused.error === 'string', JSON.stringify(refused).slice(0, 70));
+    check('and is told the shop does it after the area',
+      /area is agreed/.test(String(refused.error)), String(refused.error).slice(0, 80));
+    check('nothing was sent to the customer', pinCtx.outbound.length === 0);
+
+    // A parcel still may: it has two ends and neither is on a list.
+    repo.setService(shopper2, 'parcel');
+    const parcelPin: ToolContext = { phone: shopper2, outbound: [] };
+    const allowed = JSON.parse(
+      executeTool('request_location', { body: 'Where is it going?' }, parcelPin),
+    );
+    check('a parcel still may ask', allowed.error === undefined, JSON.stringify(allowed).slice(0, 70));
+    repo.setService(shopper2, 'grocery');
+  }
+
   // The ids, and what they do.
   check('the ids are ours', isAisleId(AISLE_BACK) && isAisleId(AISLE_LEAVE) && !isAisleId('yes'));
   repo.setService(shopper2, 'grocery');

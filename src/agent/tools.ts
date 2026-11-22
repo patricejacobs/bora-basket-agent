@@ -1596,6 +1596,26 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const body = unescapeLineBreaks(asString(input.body));
       if (!body) return fail('body is required — say why you need the pin.');
 
+      // Not for a basket, and not yet.
+      //
+      // A delivery is settled in one order and only one: the AREA first,
+      // because that is what fixes the charge, and the exact spot after,
+      // because by then the customer knows what the trip costs. Asked the
+      // other way round - which the prompt used to invite, "as soon as it is
+      // clear they intend to order" - somebody is asked to pin their house
+      // while they are still reading a menu, and the figure that depends on
+      // where they live arrives afterwards as a surprise.
+      //
+      // The shop asks for the pin itself, at checkout, directly after the
+      // area is agreed. So this refuses rather than advises: a prompt is a
+      // request, and the order of two questions is not a thing to request.
+      const basket = repo.getService(ctx.phone);
+      if (basket === 'grocery' || basket === 'restaurant') {
+        return fail(
+          'Not this service, and not at this moment. The shop asks for the pin itself at checkout, straight after the delivery area is agreed — area first, because that fixes the charge; the exact spot after, when they already know what it costs. Call start_delivery when the basket is right and the whole sequence runs itself.',
+        );
+      }
+
       const existing = repo.getIdentity(ctx.phone).location;
 
       // One sentence, appended here rather than left to the model.

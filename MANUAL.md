@@ -1373,6 +1373,22 @@ a language model: slower, priced per message, and different every time.
 | **2. the exact spot** | `[📍 Send location]` `[Skip]` — **or type anything the associate should know** |
 | **3. the price** | The whole amount, with `[Book it]` `[Change destination]` `[Cancel]` |
 
+**The area comes before the pin, and that order is enforced.** The area is
+what fixes the charge; the exact spot is worth asking only once the customer
+knows what the trip costs. The agent used to be told to ask for a pin *“as
+soon as it is clear they intend to order”*, so it asked while somebody was
+still reading a menu — and the figure that depends on where they live
+arrived afterwards as a surprise. `request_location` now refuses a grocery
+or restaurant order outright: the shop asks, at checkout, in that order. A
+**parcel** may still be asked, having two ends and neither on a list.
+
+**And “that's all” is read by the shop, not the model.** Told to hand over
+when the basket was right, the agent answered *“thanks, that's your order
+ready to go”* and waited — a dead end with a full basket in it, which is the
+most expensive turn there is. The ordinary ways of saying it, in all four
+languages, now start checkout themselves. It has to be the whole message:
+*“that is all I need from the fresh produce”* is a sentence about an aisle.
+
 Two questions before the figure, and that is the point. A street is asked
 only when they skip the pin and the shop holds no address; a name only when
 the shop does not know it. Both are exceptions rather than steps — walking
