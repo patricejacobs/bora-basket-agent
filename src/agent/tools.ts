@@ -21,7 +21,7 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
-import { settleDeliveryPlace } from '../delivery-place.ts';
+import { savedPinIsIn, settleDeliveryPlace } from '../delivery-place.ts';
 import { endPicker } from '../place-picker.ts';
 import { proposeAddressToAssociate } from '../dispatch.ts';
 import { ADDR_PIN, ADDR_SKIP, askPlace } from '../delivery-checkout.ts';
@@ -1837,8 +1837,26 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Unmeasurable without a pin, which is the real cost of allowing one
       // through: a written address cannot be checked against the delivery
       // radius. The associate reading it before setting off is what is left.
-      const range = customer.location
-        ? checkRange(customer.location, config.store.serviceArea)
+      // The pin for THIS order, settled before anything is measured against
+      // it or written down.
+      //
+      // The saved pin is home, and home only answers when the order is going
+      // home. Shawn's record held a pin dropped in Uitvlugt and an order
+      // going to Mocha: measured, it put the delivery 46 km away and refused
+      // the order outright; written down, it would have sent the associate
+      // there. A pin from another village is not a worse answer than none —
+      // it is a different question being answered confidently.
+      //
+      // The zone comes from the customer RECORD. `customer` above is the
+      // identity — name, address, pin, confirmed — and carries no zone at
+      // all, so reading one off it gave undefined, which read as "this shop
+      // does not price by zone" and let every stale pin straight through.
+      const goingTo = repo.getCustomer(ctx.phone).deliveryZone || '';
+      const doorPin =
+        !goingTo || savedPinIsIn(ctx.phone, goingTo) ? customer.location : null;
+
+      const range = doorPin
+        ? checkRange(doorPin, config.store.serviceArea)
         : { state: 'unchecked' as const, distanceKm: null, radiusKm: 0 };
       if (range.state === 'outside') {
         return fail(
@@ -1849,8 +1867,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Goods go to a person at a place. Confirming who and where is not
       // something to leave to the model's discretion.
       if (!customer.confirmed) {
-        const where =
-          customer.location?.label || customer.address || 'the pin they shared';
+        const where = doorPin?.label || customer.address || 'the pin they shared';
         return fail(
           `Identity not confirmed. Read back "${customer.name}, ${where}", get a clear yes, then call confirm_identity before ordering.`,
         );
@@ -1887,6 +1904,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Settled before the order is written, because both fields are about to
       // be stored and the card is not the only place they are read.
       const deliveryAddress = asString(input.delivery_address) || customer.address || '';
+      // The saved pin, but only when the saved door is in the place this
+      // order is going to. Where the shop prices by zone and the two
+      // disagree, the pin is somebody else's village and is dropped.
       // Capped rather than trusted. A note is a line read at a gate; left open
       // it collected whole briefings, including a second address that
       // contradicted the first.
@@ -1950,7 +1970,14 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           deliverAt,
           deliverNote: wantedNote,
           paymentMethod,
-          location: customer.location,
+          // The pin only where it belongs to the place this order is going.
+          //
+          // A pin is specific, confident and opens a maps app, which is what
+          // makes a stale one worse than none: the associate drives to it.
+          // Shawn's order to Mocha carried a pin saved in Uitvlugt, and the
+          // card would have printed the link under a Georgetown street.
+          // Better NO PIN - ring the customer, which is true.
+          location: doorPin,
           recipientName: asString(input.recipient_name),
           recipientPhone: asString(input.recipient_phone),
           recipientPinShared: input.recipient_pin_shared === true,

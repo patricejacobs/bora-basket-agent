@@ -27,6 +27,7 @@ import * as repo from './db/repo.ts';
 import { money } from './config.ts';
 import { t, type Language } from './language.ts';
 import { endPicker } from './place-picker.ts';
+import { savedPinIsIn, savedStreetIsIn } from './delivery-place.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 /** Every step of it, in order. '' means they are not in checkout at all. */
@@ -103,8 +104,14 @@ export function priceGate(phone: string, lang: Language): OutboundMessage {
   // identity has not been put to the customer, and it is right to - an
   // order placed against a name nobody checked is a parcel at the wrong
   // door with the shop's word for it.
-  const where = customer.location
-    ? `${customer.address || place}${customer.location.label ? ` (${customer.location.label})` : ''}`
+  // Only a pin that belongs to THIS order's place is worth printing. The
+  // label on a stale one is worse than silence: Shawn read
+  // "(VMGW+PR7, Estate Rd, Uitvlugt, Guyana)" under a Mocha price, which is
+  // a plus-code for a village he had not mentioned, and no way to tell
+  // whether the shop had understood him.
+  const pinIsHere = savedPinIsIn(phone, place);
+  const where = pinIsHere && customer.location?.label
+    ? `${customer.address || place} (${customer.location.label})`
     : customer.address || place;
 
   return {
@@ -116,6 +123,10 @@ export function priceGate(phone: string, lang: Language): OutboundMessage {
       total: money(cart.total),
       name: customer.name || '',
       where,
+      // Said, rather than left out. Silence under an address reads as "they
+      // have my exact spot" to somebody who skipped it three messages ago,
+      // and the associate is the one who finds out otherwise.
+      spot: pinIsHere ? '' : `${nl}${t('checkout_no_spot', lang)}`,
       nl,
     }),
     buttons: [
@@ -182,10 +193,22 @@ export function nextAfter(
   // the name step never applies to one, and the street and the pin belong to
   // the draft rather than to the customer, who is somewhere else entirely.
   const hasName = parcel ? true : (customer.name ?? '').trim() !== '';
+
+  // The place this order is going to, which is what any saved door has to
+  // agree with before it counts as an answer.
+  const going = (parcel ? draft?.zone : customer.deliveryZone) || '';
+
+  // A parcel's door was agreed one half at a time before checkout started
+  // and belongs to the draft, not to the customer — there is no "home" to
+  // go stale. A delivery's saved door is home, and home answers only when
+  // the order is going home.
   const hasStreet = parcel
     ? (draft?.recipient.address ?? '').trim() !== ''
-    : (customer.address ?? '').trim() !== '';
-  const hasPin = parcel ? draft?.destination !== null : customer.location !== null;
+    : (customer.address ?? '').trim() !== '' && savedStreetIsIn(phone, going);
+  // A pin carries no address of its own, so there is nothing to read it
+  // against except the zone recorded when it was settled. Unrecorded, it
+  // could be anywhere, and "anywhere" is not a door.
+  const hasPin = parcel ? draft?.destination !== null : savedPinIsIn(phone, going);
 
   // Nothing stands between the address and the price that is not strictly
   // needed to place the order. A name is asked only when the shop has none;
@@ -204,9 +227,7 @@ export function nextAfter(
       // from somebody whose exact spot the shop already holds is asking
       // them to say it twice, and skipping a second time - after changing
       // the address, say - is not a reason to start demanding streets.
-      return hasPin || hasStreet
-        ? toThePrice()
-        : askStreet(phone, (parcel ? draft?.zone : customer.deliveryZone) || '', lang);
+      return hasPin || hasStreet ? toThePrice() : askStreet(phone, going, lang);
     case 'street':
       return toThePrice();
     case 'name':

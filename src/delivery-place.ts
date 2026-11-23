@@ -59,3 +59,70 @@ export function settleDeliveryPlace(phone: string, place: string): SettledPlace 
     pricedBy: bothEnds ? bothEnds.explanation : '',
   };
 }
+
+/**
+ * Is the door the shop already holds in the place this order is going to?
+ *
+ * A customer's saved address and pin are *home*. They answer "where does
+ * this go?" only when this order is going home — and the moment it is not,
+ * they are worse than nothing, because they are specific, confident and
+ * wrong.
+ *
+ * Shawn chose Mocha and tapped Skip. The shop decided it already had his
+ * door, from a street saved in Georgetown and a pin saved in Uitvlugt, and
+ * put all three on one card: a Georgetown address, a Uitvlugt map link, a
+ * Mocha price. Skip had quietly come to mean "use whatever you have, from
+ * wherever", when what the customer said was "I have nothing to add".
+ *
+ * Two ways of knowing, in order:
+ *
+ *   the zone recorded with the door, written when it was settled — exact,
+ *   and the only one that can speak for a PIN, which carries no address of
+ *   its own;
+ *
+ *   failing that, the village named in the written address itself, which is
+ *   all there is to go on for every row saved before this was recorded.
+ *
+ * Where neither can say — an address with no village in it, a shop with no
+ * tariff at all — the answer is false, and the customer is asked. One extra
+ * question beats one delivery to the wrong village.
+ */
+export function savedStreetIsIn(phone: string, place: string): boolean {
+  const going = place.trim().toLowerCase();
+  if (!going) return false;
+
+  const recorded = repo.addressZone(phone).trim();
+  if (recorded) return recorded.toLowerCase() === going;
+
+  const written = (repo.getCustomer(phone).address ?? '').trim();
+  if (!written) return false;
+  const named = findZone(written);
+  return named.kind === 'found' && named.match.place.toLowerCase() === going;
+}
+
+/**
+ * The same question of the PIN, which is asked separately because the two
+ * travel apart.
+ *
+ * Shawn typed a street at Mocha and skipped the pin. His address then
+ * belonged to Mocha and his pin still belonged to Uitvlugt — so one answer
+ * covering both would have declared a Uitvlugt pin a Mocha door the moment
+ * he answered the street question, and printed the link to prove it.
+ *
+ * A pin carries no address of its own, so there is nothing to fall back on:
+ * an unrecorded pin could be anywhere, and anywhere is not a door. Pins
+ * saved before this column existed are therefore not trusted for a place
+ * the written address cannot vouch for.
+ */
+export function savedPinIsIn(phone: string, place: string): boolean {
+  const going = place.trim().toLowerCase();
+  if (!going) return false;
+  if (repo.getCustomer(phone).location === null) return false;
+
+  const recorded = repo.pinZone(phone).trim();
+  if (recorded) return recorded.toLowerCase() === going;
+
+  // No record of where it was dropped: fall back to the address it was
+  // saved alongside, and only when that address can speak for itself.
+  return repo.addressZone(phone).trim() === '' && savedStreetIsIn(phone, place);
+}

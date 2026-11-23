@@ -939,6 +939,54 @@ export function wantPinFor(phone: string, orderNo: string): void {
   );
 }
 
+
+/* ------------------------------------------------- where the saved door is */
+
+/**
+ * Records which place the customer's saved address and pin belong to.
+ *
+ * Written when a door is settled during checkout — a street typed for Mocha,
+ * or a pin sent while Mocha was the chosen place. It is what lets the next
+ * order ask "is this door even in the village they just chose?" instead of
+ * assuming it is.
+ */
+export function setAddressZone(phone: string, place: string): void {
+  db.prepare(
+    `INSERT INTO customers (phone, name, address, address_zone, created_at, updated_at)
+     VALUES (?, '', '', ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET address_zone = excluded.address_zone,
+       updated_at = excluded.updated_at`,
+  ).run(phone, place.slice(0, 80), nowIso(), nowIso());
+}
+
+/** The place the saved ADDRESS is in, or '' where nobody has recorded one. */
+export function addressZone(phone: string): string {
+  const row = db.prepare(`SELECT address_zone AS z FROM customers WHERE phone = ?`).get(phone) as
+    | { z: string }
+    | undefined;
+  return row?.z ?? '';
+}
+
+/**
+ * The place the saved PIN was sent for, recorded separately from the
+ * address's because the two travel apart: a customer can give a street for
+ * one village while the pin on file was dropped in another.
+ */
+export function setPinZone(phone: string, place: string): void {
+  db.prepare(
+    `INSERT INTO customers (phone, name, address, pin_zone, created_at, updated_at)
+     VALUES (?, '', '', ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET pin_zone = excluded.pin_zone,
+       updated_at = excluded.updated_at`,
+  ).run(phone, place.slice(0, 80), nowIso(), nowIso());
+}
+
+export function pinZone(phone: string): string {
+  const row = db.prepare(`SELECT pin_zone AS z FROM customers WHERE phone = ?`).get(phone) as
+    | { z: string }
+    | undefined;
+  return row?.z ?? '';
+}
 /**
  * A pin written onto ONE order, and nowhere else: where it is going NOW.
  *

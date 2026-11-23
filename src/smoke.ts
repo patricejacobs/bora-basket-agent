@@ -12935,6 +12935,89 @@ section('A list nobody can still see');
   db.prepare(`DELETE FROM customers WHERE phone = ?`).run(shopper);
 }
 
+
+/* ------------------------------------------------ a door in another village */
+
+section('A saved door is only a door for the place it is in');
+{
+  const { savedPinIsIn, savedStreetIsIn } = await import('./delivery-place.ts');
+  const { nextAfter, priceGate } = await import('./delivery-checkout.ts');
+  const shawn = '5920007900';
+
+  // The record from the screenshot: a street in Georgetown, a pin dropped in
+  // Uitvlugt, and an order going to Mocha.
+  repo.saveCustomer(shawn, {
+    name: 'Shawn Harry', contactPhone: shawn, address: '4 Water St, Georgetown',
+  });
+  repo.saveLocationPin(shawn, {
+    latitude: 6.4109, longitude: -58.2881, label: 'VMGW+PR7, Estate Rd, Uitvlugt, Guyana',
+  });
+  repo.chooseLanguage(shawn, 'en');
+  repo.logMessage(shawn, 'in', 'smoke', 'five cheese rolls');
+  repo.setService(shawn, 'grocery');
+  repo.setDeliveryZone(shawn, 'Mocha');
+  repo.setFeeAgreed(shawn, 1600);
+
+  check('the saved street is not in Mocha', !savedStreetIsIn(shawn, 'Mocha'));
+  check('and neither is the saved pin', !savedPinIsIn(shawn, 'Mocha'));
+  check('but the street IS in Georgetown, where it says it is',
+    savedStreetIsIn(shawn, 'Georgetown'));
+
+  // Skip used to mean "use whatever you have, from wherever". It means "I
+  // have nothing to add", and the shop still has to find out where to go.
+  const skipped = nextAfter(shawn, 'skip', 'en');
+  check('skipping asks for the street at the place they chose',
+    skipped.kind === 'text' && /street address at Mocha/i.test(skipped.text),
+    skipped.kind === 'text' ? skipped.text : skipped.kind);
+
+  // They answer it, and the record learns where that door is.
+  repo.saveCustomer(shawn, { address: 'Lot 12 Mocha Scheme, the yellow house' });
+  repo.setAddressZone(shawn, 'Mocha');
+  check('the street now counts for Mocha', savedStreetIsIn(shawn, 'Mocha'));
+  check('and the PIN still does not, which is the whole point',
+    !savedPinIsIn(shawn, 'Mocha'));
+
+  const gate = priceGate(shawn, 'en');
+  const said = gate.kind === 'buttons' ? gate.text : '';
+  check('the gate reads back the Mocha street', /Lot 12 Mocha Scheme/.test(said), said);
+  check('and does not print a plus-code from another village',
+    !/Uitvlugt/.test(said) && !/VMGW/.test(said), said);
+  check('it says there is no exact spot instead of saying nothing',
+    /No exact spot sent/.test(said), said);
+
+  // And the order itself: better NO PIN, which is true, than a confident
+  // link to a village nobody mentioned.
+  const sku = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  repo.setCartQty(shawn, sku!.id, 1, '');
+  repo.confirmIdentity(shawn);
+  repo.setFeeAgreed(shawn, repo.getCart(shawn).deliveryFee);
+  const booked = JSON.parse(
+    executeTool('place_order', { payment_method: 'cash_on_delivery' }, {
+      phone: shawn, outbound: [] as never[],
+    } as never),
+  ) as { order_number?: string; error?: string };
+  check('the order is placed', typeof booked.order_number === 'string',
+    JSON.stringify(booked).slice(0, 110));
+  const placed = repo.findOrder(String(booked.order_number));
+  check('with no pin at all', placed?.location === null, JSON.stringify(placed?.location));
+  check('and the Mocha street on it',
+    /Mocha/.test(placed?.address ?? ''), placed?.address);
+
+  // Ordering HOME is untouched: nobody who is going where they always go is
+  // asked an extra question.
+  repo.setDeliveryZone(shawn, 'Mocha');
+  const again = nextAfter(shawn, 'skip', 'en');
+  check('a second order to the same place asks nothing extra',
+    again.kind === 'buttons', again.kind);
+
+  // A pin sent during checkout is recorded where it was sent FOR.
+  repo.saveLocationPin(shawn, { latitude: 6.5, longitude: -58.2, label: 'the yellow house' });
+  repo.setPinZone(shawn, 'Mocha');
+  check('a pin sent for this place counts for it', savedPinIsIn(shawn, 'Mocha'));
+  check('and not for the next village over', !savedPinIsIn(shawn, 'Diamond'));
+
+  repo.setService(shawn, null);
+}
 section('A clean shop is clean');
 {
   const { wipeTradingData } = await import('./reset.ts');

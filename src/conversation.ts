@@ -688,7 +688,14 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         // it against the customer would quietly move where next week's
         // groceries go, which is the fault this split exists to prevent.
         if (chosen === 'parcel') repo.addParcelPin(msg.phone, msg.location, 'destination');
-        else recordLocationPin(msg.phone, msg.location);
+        else {
+          recordLocationPin(msg.phone, msg.location);
+          // Which village this pin is FOR. A pin carries no address, so
+          // without this the next order has no way to tell whether the one
+          // on file is the door it is going to or a door in another part of
+          // the country.
+          repo.setPinZone(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '');
+        }
         return ask(nextAfter(msg.phone, 'pin', lang), '(sent their location)');
       }
 
@@ -721,6 +728,9 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
             repo.saveParcelParty(msg.phone, 'recipient', { address: written });
           } else {
             repo.saveCustomer(msg.phone, { address: written });
+            // And where it is, so the next order can tell whether it is the
+            // right door rather than assuming it.
+            repo.setAddressZone(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '');
           }
           return ask(nextAfter(msg.phone, 'street', lang), text);
         }

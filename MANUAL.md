@@ -2305,6 +2305,62 @@ it sound like a fallback for when the shop fails, so nobody used it.
 The last page has neither the More row nor the line, there being nothing left
 to explain.
 
+
+### A saved door is only a door for the place it is in
+
+A customer's saved address and pin are **home**. They answer *"where does
+this go?"* only when the order is going home — and the moment it is not, they
+are worse than nothing, because they are specific, confident and wrong.
+
+Shawn had a street saved at `4 Water St, Georgetown` and a pin dropped months
+earlier in Uitvlugt. He ordered to **Mocha** and tapped Skip. The shop decided
+it already had his door and put all three places on one card:
+
+```
+5 x Cheese Roll — $1,500
+Delivery to Mocha — $1,600
+*Total $3,100*, cash to the associate at your door.
+
+For *Shawn. Harry*, at 4 Water St, Georgetown
+(VMGW+PR7, Estate Rd, Uitvlugt, Guyana).
+```
+
+A Georgetown address, a Uitvlugt plus-code, a Mocha price. Had he tapped
+*Book it*, the associate's card would have carried the Georgetown street with
+a map link to Uitvlugt — and the radius check would have measured the trip at
+46 km and refused the order outright, for a delivery to a village 12 km away.
+
+**Skip means "I have nothing to add", not "use whatever you have, from
+wherever".** So each saved door now records the place it belongs to, and is
+only offered for that place:
+
+```
+rider ▸ (taps Skip)
+      ◂ What is the street address at Mocha? Lot number and road,
+        so they come to the right door.
+```
+
+and the gate says what it does not have, rather than filling the silence:
+
+```
+For *Shawn. Harry*, at Lot 12 Mocha Scheme, the yellow house.
+No exact spot sent — your associate will ring when they are close.
+```
+
+**The pin and the address are recorded separately**, because they travel
+apart: Shawn's street became a Mocha street the moment he answered, while his
+pin was still in Uitvlugt. One column covering both would have promoted that
+pin to a Mocha door on the strength of an answer about something else.
+
+**Ordering home costs nothing extra.** Anyone whose saved street names the
+village they just chose goes straight to the price, exactly as before — which
+is what that shortcut was always for.
+
+**An unrecorded pin is not trusted for a place the written address cannot
+vouch for.** Pins saved before this was recorded have no village attached, and
+a pin carries no address of its own, so there is nothing to read it against.
+One extra question beats one delivery to the wrong village.
+
 ### The exact spot
 
 Once an end is settled **by name**, the shop asks for the pin — and only

@@ -623,6 +623,23 @@ addColumnIfMissing('customers', 'checkout_note', "TEXT NOT NULL DEFAULT ''");
 // changed on the road. The old pin went with the old door, so until a new
 // one arrives the associate has a village and no map.
 addColumnIfMissing('customers', 'pin_wanted_for', "TEXT NOT NULL DEFAULT ''");
+// Which place the saved door is IN.
+//
+// A customer's address and pin are "home", and home only answers the
+// question when the order is going home. Shawn chose Mocha, tapped Skip, and
+// the shop decided it already had his door: a street in Georgetown and a pin
+// in Uitvlugt, both saved months earlier, printed under a Mocha price. Three
+// places on one card, and the associate would have driven to one of them.
+//
+// Written whenever a door is settled during checkout, so the record says
+// where it belongs rather than leaving the next order to guess. Empty on
+// every row that existed before this, which the reader falls back from.
+addColumnIfMissing('customers', 'address_zone', "TEXT NOT NULL DEFAULT ''");
+// And the same for the PIN, separately, because the two travel apart. Shawn
+// typed a street at Mocha and skipped the pin: his address then belonged to
+// Mocha and his pin still belonged to Uitvlugt, and one column covering both
+// would have declared the Uitvlugt pin a Mocha door the moment he answered.
+addColumnIfMissing('customers', 'pin_zone', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_name', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'driver_vehicle', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('orders', 'ready_at', "TEXT NOT NULL DEFAULT ''");
