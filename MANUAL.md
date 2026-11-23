@@ -2197,6 +2197,7 @@ delivery tariff. **No pin is offered on a taxi**; see below for why.
 
 ```
 Where are we collecting you from?          [ Choose a place ]
+Just type it — Diamond, Beterverwagting, BV. Or tap below to browse.
 
   Diamond                  Your saved address
   Providence               You have used this before
@@ -2279,6 +2280,20 @@ ties and falls through to the alphabet — page one of Georgetown is
 Alberttown, Albouystown and four Bel Airs, which is neither nearest nor
 useful. Claiming an order the list does not have sends somebody scrolling for
 a page that will never come.
+
+**And the line that says so is OUTSIDE the list.** `✏️ Type the name` had
+always been on this screen — as a row, inside the list, which is exactly
+where somebody deciding whether to open the list cannot read it. All a
+customer saw was a question and a green button, so the only visible way to
+answer a question they could answer in one word was to open a list and scroll
+it. The line under the question shows in the chat itself:
+
+> Where are we delivering?
+> *Just type it — Diamond, Beterverwagting, BV. Or tap below to browse.*
+
+The examples are doing work too. They say what counts as a place here, and
+one of them is `BV` — which the tariff has understood since the aliases went
+in, and which nobody would have guessed.
 
 **Typing is the search box.** `✏️ Type the name` reads *"Quicker than
 scrolling — any spelling will do"*, because it is: the matcher forgives a

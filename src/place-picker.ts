@@ -260,14 +260,24 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
 
   rows.push(...wayOutRows(side, lang));
 
+  // The question, and under it the one line that says the list is not the
+  // only way through.
+  //
+  // "Type the name" has always been on this screen — as a ROW, inside the
+  // list, which is exactly where somebody deciding whether to open the list
+  // cannot see it. All a customer saw was a question and a green button, so
+  // the only visible way to answer a question they could answer in one word
+  // was to open a list and scroll. This line shows in the chat itself.
+  const ask =
+    side === 'drop'
+      ? t('pick_drop_ask', lang)
+      : side === 'from'
+        ? t('pick_from_ask', lang)
+        : t('pick_to_ask', lang);
+
   return {
     kind: 'list',
-    text:
-      side === 'drop'
-        ? t('pick_drop_ask', lang)
-        : side === 'from'
-          ? t('pick_from_ask', lang)
-          : t('pick_to_ask', lang),
+    text: `${ask}${String.fromCharCode(10)}${t('pick_or_type', lang)}`,
     button: t('pick_button', lang),
     rows: rows.slice(0, MAX_ROWS),
   };

@@ -4300,6 +4300,42 @@ section('Picking a place instead of typing one');
       !to.rows.some((r) => r.id.endsWith(':here')) &&
       !rows.some((r) => r.id.endsWith(':here')));
 
+
+  /* --- the way out of the list, said OUTSIDE the list ------------------ */
+
+  // "Type the name" has always been on this screen — as a row, inside the
+  // list, which is where somebody deciding whether to open the list cannot
+  // read it. All the customer saw was a question and a green button, so the
+  // only visible way to answer a question they could answer in one word was
+  // to open a list and scroll it.
+  {
+    const typed = (side: 'from' | 'to' | 'drop', lang: Language = 'en'): string => {
+      const screen = endPicker(rider, side, lang);
+      return screen.kind === 'list' ? screen.text : '';
+    };
+
+    check('the pickup screen says you can type it',
+      /type it/i.test(typed('from')), typed('from'));
+    check('and so does the destination screen', /type it/i.test(typed('to')), typed('to'));
+    check('and the delivery one', /type it/i.test(typed('drop')), typed('drop'));
+    check('the question is still the first line',
+      typed('drop').split(String.fromCharCode(10))[0] === 'Where are we delivering?',
+      typed('drop'));
+    check('and the examples say what a place looks like here',
+      /Diamond/.test(typed('drop')) && /Beterverwagting/.test(typed('drop')), typed('drop'));
+    // BV is in the examples because nobody would guess it is understood, and
+    // the tariff has understood it since the aliases went in.
+    check('BV among them, which is the one nobody would guess',
+      /\bBV\b/.test(typed('drop')), typed('drop'));
+
+    // Every language, or the line is worse than useless: a customer reading
+    // Portuguese gets an English instruction under a Portuguese question.
+    for (const lang of ['es', 'pt', 'zh'] as Language[]) {
+      const said = typed('drop', lang);
+      check(`the line is translated into ${lang}`,
+        said.includes('Diamond') && !said.includes('Or tap below to browse'), said);
+    }
+  }
   /* --- a corridor, priced from the pickup ------------------------------ */
 
   // Diamond is on the East Bank, so its neighbours are the cheap end and
