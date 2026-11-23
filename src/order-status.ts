@@ -379,6 +379,31 @@ export function destAnswerFromButtonId(
   return { ok: (tapped[1] ?? '').toLowerCase() === 'ok', digits: tapped[2] ?? '' };
 }
 
+/**
+ * Ring the customer, from the card.
+ *
+ * Only offered where there is something to ring ABOUT — a pin that does not
+ * match the place. The number is already printed on the job card, but that
+ * card is somewhere up the chat by the time a change of address arrives, and
+ * a number you have to scroll for is a number nobody dials.
+ *
+ * A reply button cannot place a call: all it can do is send its id back. So
+ * the tap is answered with the number on its own line, which WhatsApp makes
+ * dialable, and with the two answers again — because tapping any button of a
+ * message spends all of them, and an associate who rang the customer must
+ * still be able to say yes or no.
+ */
+export function callCustomerButton(
+  digits: string | number,
+): { id: string; title: string } {
+  return { id: `callcust_${digits}`, title: '📞 Call customer' };
+}
+
+export function callCustomerFromButtonId(id: string): string | null {
+  const tapped = /^callcust_(\d{1,6})$/i.exec(String(id).trim());
+  return tapped ? (tapped[1] ?? '') : null;
+}
+
 /** The two buttons a passenger is given, so the ids are built where they are read. */
 export function destAnswerButtons(
   // A number, as `orderDigits` hands it over, or a string a caller already

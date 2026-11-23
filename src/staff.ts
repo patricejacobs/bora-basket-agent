@@ -2060,6 +2060,45 @@ export async function handleDriverMessage(
     return reply(await askCustomerForPin(order.orderNo));
   }
 
+  // "Call customer", from a change of address whose pin did not match.
+  //
+  // A reply button cannot dial anything — all it can do is send its id back
+  // — so the answer is the number on a line of its own, which WhatsApp makes
+  // tappable, with the name to ask for and what to ask.
+  //
+  // And both answers again. Tapping ANY button of a message spends every
+  // button on it, so without this an associate who rang the customer would
+  // be left with nothing to say yes or no with, and a proposal nobody could
+  // settle.
+  {
+    const { callCustomerFromButtonId } = await import('./order-status.ts');
+    const wants = callCustomerFromButtonId(trimmed);
+    if (wants) {
+      const order = repo.findOrder(wants);
+      if (!order) return reply(`No order ${wants}. Send \`jobs\` to see what's waiting.`);
+      const proposal = repo.destProposal(order.orderNo);
+      if (!proposal) {
+        return reply(`${order.orderNo} is already settled — nothing further to answer.`);
+      }
+      const { destAnswerButtons: answers } = await import('./order-status.ts');
+      const who = order.recipientName || order.customerName;
+      return [
+        {
+          kind: 'buttons',
+          text: [
+            `📞 ${who} — +${order.contactPhone || order.phone}`,
+            '',
+            `Ask whereabouts in ${proposal.place} exactly: the lot number and the road,` +
+              ' or something you can see from it.',
+            '',
+            'Then answer below. Nothing has changed yet.',
+          ].join(chr10),
+          buttons: answers(repo.orderDigits(order.orderNo), 'Acknowledged', 'No, as booked'),
+        },
+      ];
+    }
+  }
+
   // The two answers to "nobody prices this one". `faraccept` records that
   // they were told and re-runs the acceptance; `farleave` leaves the job
   // where it is, which is the whole point of asking.

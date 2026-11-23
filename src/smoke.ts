@@ -1599,9 +1599,13 @@ section('Changing where a delivery is going');
     await propose2(job.orderNo, 'Buxton', 1800);
     const card = caught[caught.length - 1] ?? '';
     check('and it carries the link', /maps\?q=/.test(card), card.slice(0, 140));
-    check('with the query on it, before the tap',
-      /we asked them about it/.test(card), card.slice(0, 220));
-    check('naming the village it is really in', /in Uitvlugt/.test(card), card.slice(0, 220));
+    check('with the mismatch on it, before the tap',
+      /That pin is .* from Buxton/.test(card), card.slice(0, 240));
+    check('naming the village it is really in', /in Uitvlugt/.test(card), card.slice(0, 240));
+    // What to do about it, which is the only thing that settles it: the
+    // customer's answer was `skip`, and that settled nothing.
+    check('and what to do about it',
+      /Ring them and confirm the exact spot before you agree/.test(card), card.slice(0, 260));
 
     // A pin that agrees says nothing extra: a warning on every proposal is
     // a warning nobody reads.
@@ -1613,11 +1617,46 @@ section('Changing where a delivery is going');
     await propose2(job.orderNo, 'Buxton', 1800);
     const clean = caught[caught.length - 1] ?? '';
     console.warn = realWarn;
-    check('a matching pin is not queried', !/we asked them about it/.test(clean),
+    check('a matching pin is not queried', !/Ring them and confirm/.test(clean),
       clean.slice(0, 160));
 
     repo.clearDestProposal(job.orderNo);
     void lines2;
+  }
+
+  /* --- and a way to ring them, from the card ------------------------ */
+
+  // A reply button cannot dial anything, so the tap is answered with the
+  // number on a line of its own — which WhatsApp makes tappable — and with
+  // both answers again, because tapping ANY button of a message spends every
+  // button on it. Without that an associate who rang the customer would be
+  // left with nothing to say yes or no with.
+  {
+    const { handleDriverMessage: callDriver } = await import('./staff.ts');
+    const { coordsFor: where } = await import('./place-coords.ts');
+    const wrong2 = where('Uitvlugt')!;
+
+    repo.clearDestProposal(job.orderNo);
+    repo.proposeDestination(job.orderNo, 'Buxton', 1800);
+    repo.setProposalPin(job.orderNo, {
+      latitude: wrong2.latitude, longitude: wrong2.longitude,
+    });
+
+    const asked = await callDriver(`callcust_${digits2}`, rider2);
+    const said = (asked[0] as { text?: string })?.text ?? '';
+    check('the tap answers with the number', said.includes(buyer2), said.slice(0, 80));
+    check('and the name to ask for', /Ann/.test(said), said.slice(0, 80));
+    check('and what to ask about', /whereabouts in Buxton/.test(said), said.slice(0, 160));
+    check('and both answers again, the first tap having spent them',
+      asked[0]?.kind === 'buttons' &&
+        (asked[0] as { buttons: { title: string }[] }).buttons.length === 2,
+      JSON.stringify((asked[0] as { buttons?: { title: string }[] }).buttons));
+
+    // Nothing to ring about once it is settled.
+    repo.clearDestProposal(job.orderNo);
+    const spent = await callDriver(`callcust_${digits2}`, rider2);
+    check('a settled change says so', /already settled/.test(
+      (spent[0] as { text?: string })?.text ?? ''), (spent[0] as { text?: string })?.text);
   }
     // ---- `7 details`, the whole job on demand -----------------------
     // The job card is sent once and then buried. Three drops later, the

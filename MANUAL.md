@@ -2492,14 +2492,37 @@ Now: *Buxton*
 Was: Lot 4 Diamond
 Click the link below for the new address:
 https://www.google.com/maps?q=6.874660,-58.307050
-⚠️ That pin is 32.3 km from Buxton, in Uitvlugt — we asked them about it.
+⚠️ That pin is 32.3 km from Buxton, in Uitvlugt.
+Ring them and confirm the exact spot before you agree.
 
 Nothing has changed yet. Tap *Acknowledged* only if you can take it there.
+   [ Acknowledged ]  [ No, as booked ]  [ 📞 Call customer ]
+```
+
+**What they are told is what to DO about it.** That the shop already asked
+is of no use to somebody deciding whether to ride there — the customer's
+answer was `skip`, which settled nothing. A telephone call settles it.
+
+**The third button is spent only where there is something to ring about.**
+Three is WhatsApp's limit, and a pin that agrees gets two buttons and no
+warning: a line on every proposal is a line nobody reads.
+
+**Tapping it answers with the number**, because a reply button cannot dial
+anything — all it can do is send its id back:
+
+```
+📞 Ann Persaud — +5926100001
+
+Ask whereabouts in Buxton exactly: the lot number and the road, or
+something you can see from it.
+
+Then answer below. Nothing has changed yet.
    [ Acknowledged ]  [ No, as booked ]
 ```
 
-A pin that agrees says nothing extra. A warning on every proposal is a
-warning nobody reads.
+**Both answers come back with it.** Tapping *any* button of a WhatsApp
+message spends *every* button on it, so without this an associate who rang
+the customer would be left holding a proposal they could no longer settle.
 
 **"Send it again" clears nothing.** The next pin overwrites it; deleting the
 one on file would leave somebody already driving with less than they had.

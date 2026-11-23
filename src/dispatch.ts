@@ -17,6 +17,7 @@ import * as repo from './db/repo.ts';
 import { sendText, sendButtons, sendTemplate } from './channels/whatsapp-send.ts';
 import {
   acceptButton,
+  callCustomerButton,
   describeAge,
   destAnswerButtons,
   liveTripActions,
@@ -521,6 +522,15 @@ export async function proposeAddressToAssociate(
 
   const was = order.address || 'where it was going';
   const pinned = repo.destProposal(orderNo);
+
+  // Whether the pin they sent is anywhere near the place they named. The
+  // answer decides both the line on the card and whether a third button is
+  // worth a slot.
+  const queried =
+    pinned?.lat != null && pinned?.lng != null
+      ? checkPin({ latitude: pinned.lat, longitude: pinned.lng }, place)
+      : { state: 'ok' as const };
+
   const body = [
     `⚠️ *${order.orderNo} — the customer wants it taken somewhere else.*`,
     '',
@@ -539,21 +549,19 @@ export async function proposeAddressToAssociate(
           // forwarded until it matches — unless they answer `skip`, and
           // then the refused pin travels with the proposal anyway. The
           // person about to agree to carry a bag somewhere was reading a
-          // map link with nothing to say that the shop had already queried
-          // it. They are the one who has to drive there: they are told
-          // BEFORE they tap, not after.
-          ...(() => {
-            const verdict = checkPin(
-              { latitude: pinned.lat, longitude: pinned.lng },
-              place,
-            );
-            if (verdict.state !== 'elsewhere') return [];
-            const how = verdict.km === null ? 'well away from' : `${verdict.km} km from`;
-            return [
-              `⚠️ That pin is ${how} ${place}` +
-                `${verdict.looksLike ? `, in ${verdict.looksLike}` : ''} — we asked them about it.`,
-            ];
-          })(),
+          // map link with nothing to say it did not match.
+          //
+          // What they are told is what to DO about it. That the shop
+          // already asked is of no use to somebody deciding whether to ride
+          // there: the customer's answer was `skip`, which settled nothing,
+          // and the only thing that settles it is a telephone call.
+          ...(queried.state === 'elsewhere'
+            ? [
+                `⚠️ That pin is ${queried.km === null ? 'well away from' : `${queried.km} km from`} ${place}` +
+                  `${queried.looksLike ? `, in ${queried.looksLike}` : ''}.`,
+                'Ring them and confirm the exact spot before you agree.',
+              ]
+            : []),
         ]
       : ['⚠️ No pin for the new address.']),
     ...(fee !== order.deliveryFee
@@ -566,7 +574,14 @@ export async function proposeAddressToAssociate(
   return sendButtons(
     order.driverPhone,
     body,
-    destAnswerButtons(repo.orderDigits(orderNo), 'Acknowledged', 'No, as booked'),
+    [
+      ...destAnswerButtons(repo.orderDigits(orderNo), 'Acknowledged', 'No, as booked'),
+      // Three is WhatsApp's limit, so the third is spent only where there is
+      // something to ring about.
+      ...(queried.state === 'elsewhere'
+        ? [callCustomerButton(repo.orderDigits(orderNo))]
+        : []),
+    ],
   );
 }
 
