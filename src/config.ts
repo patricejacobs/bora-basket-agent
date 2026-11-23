@@ -488,6 +488,20 @@ export const config = {
       if (!(radiusKm > 0)) return null;
       return { ...centre, radiusKm };
     })(),
+    /**
+     * How far a pin may sit from the village it was sent for before the
+     * shop asks about it.
+     *
+     * Deliberately wide. These villages are 600 metres apart at the median
+     * and 1.7 km at the ninetieth percentile — Beterverwagting to Triumph is
+     * 1.3 km — so anything tighter accuses people who pinned their own house
+     * on a boundary, and a warning that cries wolf is a warning nobody
+     * reads. At 8 km it catches the wrong corridor and the wrong side of the
+     * river, which is the mistake that actually happens.
+     *
+     * 0 switches the check off.
+     */
+    pinToleranceKm: num('PIN_TOLERANCE_KM', 8),
     /** All money below is in minor units (see CURRENCY_DECIMALS). */
     deliveryFee: Math.round(num('DELIVERY_FEE', 0) * minorPerUnit),
     freeDeliveryOver: Math.round(num('FREE_DELIVERY_OVER', 0) * minorPerUnit),

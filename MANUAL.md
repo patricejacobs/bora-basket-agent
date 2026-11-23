@@ -2322,6 +2322,65 @@ lost my train of thought there"*: the shop apologising for a screen it had
 just thrown away. Tapping **✅ Check out** in groceries never showed it,
 because that path goes straight through the shop and never through the agent.
 
+
+### Is the pin where they said it was
+
+A pin is specific, confident, and opens a maps app — which is what makes a
+wrong one worse than none: the associate drives to it. Shawn's order was
+priced for **Mocha** and carried a pin 22 km away in **Uitvlugt**, and nothing
+between the tap and the door had anything to say about it.
+
+Two ways of noticing, in order of certainty.
+
+**The label.** WhatsApp attaches a place name to a location searched for in
+its own picker, and Shawn's said it in as many words:
+
+> VMGW+PR7, Estate Rd, **Uitvlugt**, Guyana
+
+Where that names a priced place which is not the one chosen, that is the
+answer — no geometry, no tolerance, no argument.
+
+**The distance**, where the chosen place has a confident coordinate.
+`data/zone-coordinates-review.csv` and `data/places-found.csv` between them
+place **151 of the 185** priced places; `/health` reports the figure as
+`placesLocated`. The other 34 are not checkable and the shop says nothing
+about them, because a false accusation about somebody's own address is worse
+than no check.
+
+**The tolerance is deliberately wide — 8 km.** These villages sit 600 metres
+apart at the median and 1.7 km at the ninetieth percentile; Beterverwagting
+to Triumph is 1.3 km, and a house on that boundary pins whichever side it
+likes. Anything tighter accuses the honest constantly, and a warning that
+cries wolf is a warning nobody reads. At 8 km it catches the wrong corridor
+and the wrong side of the river, which is the mistake that actually happens.
+`PIN_TOLERANCE_KM` changes it; `0` switches the whole check off.
+
+**It asks. It never refuses.**
+
+```
+That spot looks 22 km from *Mocha* — it is nearer *Uitvlugt*.
+The delivery is priced for Mocha. Is it right?
+
+   [ Yes, that is right ]  [ Send it again ]
+```
+
+*Yes* takes them at their word — a farm past the village line, a house on a
+boundary, or a geocode of ours that is simply off. *Send it again* forgets
+the pin they just disowned, because a pin left on the record answers the
+next question.
+
+**And the associate is told, since they are the one who drives there:**
+
+```
+⚠️ pin is 22 km from Mocha, nearer Uitvlugt — check before you set off
+```
+
+**What it cannot do.** It compares the pin to the **village**, never to the
+street. *Lot 12 Mocha Scheme* with a pin three hundred metres away in Mocha is
+indistinguishable from a perfect pin, and it does not pretend otherwise. It is
+also a different question from the one `place_order` asks, which measures the
+pin against the **shop's** delivery radius.
+
 ### One tap to the map
 
 The exact spot used to be asked for with two reply buttons — `📍 Send

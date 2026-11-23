@@ -54,9 +54,48 @@ export function isGateId(id: string): boolean {
 export const ADDR_PIN = 'addr:pin';
 export const ADDR_SKIP = 'addr:skip';
 
+/** The two answers to a pin that does not look like the place they chose. */
+export const PIN_KEEP = 'pin:keep';
+export const PIN_AGAIN = 'pin:again';
+
 export function isCheckoutId(id: string): boolean {
   const said = String(id ?? '').trim();
-  return isGateId(id) || said === ADDR_PIN || said === ADDR_SKIP;
+  return (
+    isGateId(id) ||
+    said === ADDR_PIN ||
+    said === ADDR_SKIP ||
+    said === PIN_KEEP ||
+    said === PIN_AGAIN
+  );
+}
+
+/**
+ * Puts a pin that does not look like the chosen place back to the customer.
+ *
+ * A question, never a refusal. The customer may be right — a farm past the
+ * village line, a house on a boundary, or a geocode of ours that is simply
+ * off — and they know their own address better than a centroid does. What
+ * they cannot do is find out afterwards, from an associate standing in the
+ * wrong village.
+ */
+export function pinLooksWrong(
+  place: string,
+  verdict: { km: number | null; looksLike: string },
+  lang: Language,
+): OutboundMessage {
+  const how = verdict.km === null ? '' : `${verdict.km} km`;
+  return {
+    kind: 'buttons',
+    text: t(
+      verdict.looksLike ? 'pin_far_named' : 'pin_far',
+      lang,
+      { place, km: how, near: verdict.looksLike },
+    ),
+    buttons: [
+      { id: PIN_KEEP, title: t('pin_keep', lang) },
+      { id: PIN_AGAIN, title: t('pin_again', lang) },
+    ],
+  };
 }
 
 /** The list of places, and the first step. */

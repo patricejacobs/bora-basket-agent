@@ -1125,6 +1125,21 @@ export function saveLocationPin(phone: string, pin: LocationPin): SavedPin {
   return { ...pin, pinnedAt };
 }
 
+/**
+ * Forgets the pin on file, and the village it was recorded for.
+ *
+ * For somebody who has just said the pin they sent is wrong. Leaving it
+ * would have the next question answered by the mistake — and the pin is the
+ * one thing on an order that an associate acts on without reading.
+ */
+export function clearLocationPin(phone: string): void {
+  db.prepare(
+    `UPDATE customers SET latitude = NULL, longitude = NULL, location_label = '',
+       location_pinned_at = '', pin_zone = '', updated_at = ?
+      WHERE phone = ?`,
+  ).run(nowIso(), phone);
+}
+
 export function saveCustomer(
   phone: string,
   fields: { name?: string; address?: string; contactPhone?: string },

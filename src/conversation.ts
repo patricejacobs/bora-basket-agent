@@ -49,6 +49,8 @@ import {
   ADDR_SKIP,
   GATE_CANCEL,
   GATE_CHANGE,
+  PIN_AGAIN,
+  PIN_KEEP,
   askPlace,
   askStreet,
   endCheckout,
@@ -56,9 +58,11 @@ import {
   isGateId,
   nextAfter,
   priceGate,
+  pinLooksWrong,
   placeTheOrder,
   saysSkip,
 } from './delivery-checkout.ts';
+import { checkPin } from './pin-check.ts';
 import {
   languageScreen,
   readLanguageId,
@@ -685,10 +689,36 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // before the one that ordinarily saves a pin - and a checkout that
       // moved on without writing it down reached the gate with nothing for
       // the associate to steer by, which place_order rightly refuses.
+      // The two answers to "that pin does not look like the place you
+      // chose". Read before the pin branch below, because they arrive as
+      // taps while the step is still waiting for one.
+      if (text === PIN_KEEP) {
+        return ask(nextAfter(msg.phone, 'pin', lang), describeTap(text));
+      }
+      if (text === PIN_AGAIN) {
+        // The pin they sent is dropped: it is the one they have just said is
+        // wrong, and leaving it on the record would have the next question
+        // answered by the mistake.
+        if (chosen !== 'parcel') repo.clearLocationPin(msg.phone);
+        return shopAnswered(
+          msg,
+          [{ kind: 'location_request', text: t('spot_prompt_to', lang) }],
+          describeTap(text),
+        );
+      }
+
       if (msg.location && step === 'pin') {
         // A parcel's pin is the RECIPIENT's door, not the customer's. Saving
         // it against the customer would quietly move where next week's
         // groceries go, which is the fault this split exists to prevent.
+        // Does it agree with the village they chose? Asked before the
+        // sequence moves on, because every step after this one is about
+        // money and names, and none of them would notice.
+        const going = (chosen === 'parcel'
+          ? repo.getParcelDraft(msg.phone).zone
+          : repo.getCustomer(msg.phone).deliveryZone) || '';
+        const verdict = checkPin(msg.location, going);
+
         if (chosen === 'parcel') repo.addParcelPin(msg.phone, msg.location, 'destination');
         else {
           recordLocationPin(msg.phone, msg.location);
@@ -697,6 +727,9 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           // on file is the door it is going to or a door in another part of
           // the country.
           repo.setPinZone(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '');
+        }
+        if (verdict.state === 'elsewhere') {
+          return ask(pinLooksWrong(going, verdict, lang), '(sent their location)');
         }
         return ask(nextAfter(msg.phone, 'pin', lang), '(sent their location)');
       }

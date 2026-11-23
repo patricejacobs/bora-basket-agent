@@ -12947,6 +12947,129 @@ section('A list nobody can still see');
 
 /* -------------------------------------------- declining a pin, in words */
 
+
+/* ------------------------------------- is the pin where they said it was */
+
+section('A pin that disagrees with the village');
+{
+  const { checkPin } = await import('./pin-check.ts');
+  const { placesLocated, coordsFor } = await import('./place-coords.ts');
+  const { handleIncoming: pinSay } = await import('./conversation.ts');
+  const { dropLines: cardLines } = await import('./dispatch.ts');
+
+  check('the tariff has coordinates to check against', placesLocated() > 100,
+    String(placesLocated()));
+  check('read from both files, not just the audit',
+    coordsFor('Robbstown') !== null, JSON.stringify(coordsFor('Robbstown')));
+  check('and nothing for a village nobody placed', coordsFor('Eve Leary') === null);
+
+  // Shawn's pin: 22 km from the village he chose, with the village it IS in
+  // written on its own label.
+  const uitvlugt = {
+    latitude: 6.4109, longitude: -58.2881, label: 'VMGW+PR7, Estate Rd, Uitvlugt, Guyana',
+  };
+  const inMocha = { latitude: 6.7205, longitude: -58.1862, label: '' };
+
+  const far = checkPin(uitvlugt, 'Mocha');
+  check('a pin in another part of the country is caught', far.state === 'elsewhere',
+    JSON.stringify(far));
+  check('with the distance on it', far.state === 'elsewhere' && (far.km ?? 0) > 20,
+    JSON.stringify(far));
+  check('and the place it actually looks like',
+    far.state === 'elsewhere' && far.looksLike === 'Uitvlugt', JSON.stringify(far));
+
+  check('a pin in the village itself passes', checkPin(inMocha, 'Mocha').state === 'ok',
+    JSON.stringify(checkPin(inMocha, 'Mocha')));
+
+  // The tolerance has to clear the gap between real neighbours. These
+  // villages sit 600 m apart at the median; Beterverwagting to Triumph is
+  // 1.3 km, and a house on that line pins whichever side it likes.
+  const bv = coordsFor('Beterverwagting');
+  check('a neighbouring village does not trip it',
+    bv !== null && checkPin({ ...bv, label: '' }, 'Triumph').state === 'ok',
+    JSON.stringify(bv && checkPin({ ...bv, label: '' }, 'Triumph')));
+
+  // A village with no coordinate cannot be checked, and silence is right:
+  // a false accusation about somebody's own address is worse than no check.
+  check('an unplaced village says nothing about distance',
+    checkPin({ ...inMocha, label: '' }, 'Eve Leary').state === 'ok',
+    JSON.stringify(checkPin({ ...inMocha, label: '' }, 'Eve Leary')));
+  // Unless the label itself names a different place, which needs no geometry.
+  check('though a label naming another village still counts',
+    checkPin(uitvlugt, 'Eve Leary').state === 'elsewhere');
+
+  check('and the check can be switched off', checkPin(uitvlugt, 'Mocha', 0).state === 'ok');
+
+  /* --- what the customer is asked ------------------------------------ */
+
+  const asker = '5920009400';
+  repo.saveCustomer(asker, { name: 'Pin Tester', contactPhone: asker });
+  repo.chooseLanguage(asker, 'en');
+  repo.logMessage(asker, 'in', 'smoke', 'shopping');
+  repo.setService(asker, 'grocery');
+  const riceSku2 = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  repo.setCartQty(asker, riceSku2!.id, 1, '');
+  repo.setCheckoutStep(asker, 'place');
+  await pinSay({ phone: asker, text: 'Mocha', channel: 'smoke' } as never);
+
+  const queried = await pinSay({
+    phone: asker, text: '', channel: 'smoke', location: uitvlugt,
+  } as never);
+  const put = (queried[0] as { text?: string })?.text ?? '';
+  check('the customer is asked rather than refused',
+    queried[0]?.kind === 'buttons' && /Is it right\?/.test(put), put.slice(0, 90));
+  check('the question names both villages',
+    /Mocha/.test(put) && /Uitvlugt/.test(put), put);
+  check('and gives the figure, so they can judge it', /km/.test(put), put);
+  check('the sequence has NOT moved on', repo.checkoutStep(asker) === 'pin',
+    repo.checkoutStep(asker));
+
+  // Sending it again drops the one they just disowned: left on the record it
+  // would answer the next question.
+  const resend = await pinSay({ phone: asker, text: 'pin:again', channel: 'smoke' } as never);
+  check('"send it again" asks for the map once more',
+    resend[0]?.kind === 'location_request', resend[0]?.kind);
+  check('and forgets the pin they disowned',
+    repo.getCustomer(asker).location === null,
+    JSON.stringify(repo.getCustomer(asker).location));
+
+  const better = await pinSay({
+    phone: asker, text: '', channel: 'smoke', location: inMocha,
+  } as never);
+  check('a pin in the right village goes straight on to the price',
+    better[0]?.kind === 'buttons' && /Total/.test((better[0] as { text: string }).text),
+    (better[0] as { text?: string })?.text?.slice(0, 60));
+
+  /* --- and the customer may be right --------------------------------- */
+
+  repo.setCheckoutStep(asker, 'pin');
+  await pinSay({ phone: asker, text: '', channel: 'smoke', location: uitvlugt } as never);
+  const kept = await pinSay({ phone: asker, text: 'pin:keep', channel: 'smoke' } as never);
+  check('"yes, that is right" takes them at their word',
+    kept[0]?.kind === 'buttons' && /Total/.test((kept[0] as { text: string }).text),
+    (kept[0] as { text?: string })?.text?.slice(0, 60));
+  check('and the pin they stood by is kept',
+    repo.getCustomer(asker).location?.latitude === 6.4109,
+    JSON.stringify(repo.getCustomer(asker).location));
+
+  /* --- and the associate is told too --------------------------------- */
+
+  const card = (() => {
+    const made = repo.placeOrder({
+      phone: asker, customerName: 'Pin Tester', address: 'Mocha', contactPhone: asker,
+      deliveryNote: '', paymentMethod: 'cash_on_delivery', location: uitvlugt,
+    } as never);
+    db.prepare(`UPDATE orders SET delivery_zone = 'Mocha', recipient_pin = 1 WHERE order_no = ?`)
+      .run(made.orderNo);
+    return cardLines(repo.findOrder(made.orderNo)!).join(String.fromCharCode(10));
+  })();
+  check('the card warns the person who has to drive there',
+    /pin is .* from Mocha/.test(card), card);
+  check('and names what it looks like instead', /nearer Uitvlugt/.test(card), card);
+
+  repo.setService(asker, null);
+  repo.setCheckoutStep(asker, '');
+}
 section('Skip is a tap, a word, and never an address');
 {
   const { saysSkip, nextAfter: nextStep } = await import('./delivery-checkout.ts');

@@ -25,6 +25,7 @@ import {
   wantedBy,
 } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
+import { checkPin } from './pin-check.ts';
 import {
   checkRange,
   describePin,
@@ -1142,6 +1143,20 @@ export function dropLines(order: repo.OrderRecord): string[] {
       return range.state === 'outside'
         ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area`]
         : [];
+    })(),
+    // And the other distance, which is a different question: not "can we
+    // reach it" but "is it where they said". A pin that disagrees with the
+    // village the order was priced for is the associate's problem long
+    // before it is anybody else's — they are the one who drives there.
+    ...(() => {
+      if (!pinIsForThisDoor || !order.location || !order.deliveryZone) return [];
+      const verdict = checkPin(order.location, order.deliveryZone);
+      if (verdict.state !== 'elsewhere') return [];
+      const how = verdict.km === null ? 'well away from' : `${verdict.km} km from`;
+      return [
+        `⚠️ pin is ${how} ${order.deliveryZone}` +
+          `${verdict.looksLike ? `, nearer ${verdict.looksLike}` : ''} — check before you set off`,
+      ];
     })(),
     '',
     // What it is made of, so the cash can be checked against the bag rather

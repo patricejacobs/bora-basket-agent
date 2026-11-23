@@ -24,6 +24,7 @@ import { mountDispatchMap, dispatchMapOn } from './dispatch-map.ts';
 import { applyScheduledReset } from './reset.ts';
 import { loadZonesFromDisk, zoneCount } from './zones.ts';
 import { simulatorRouter } from './channels/simulator.ts';
+import { placesLocated } from './place-coords.ts';
 import { ensureImagesDirectory, imagesDirectory, refreshImages, imageCount } from './product-images.ts';
 
 /**
@@ -333,6 +334,10 @@ app.get('/health', (_req: Request, res: Response) => {
       driverNumbers: associateNumbers().length,
       // Places in the delivery tariff. 0 means every delivery is the flat fee.
       deliveryZones: zoneCount(),
+      // How many of those places a pin can be checked against. The rest are
+      // not checkable, and the shop says nothing about them rather than
+      // accusing somebody of mis-pinning their own address.
+      placesLocated: placesLocated(),
       // Customers who asked for a person and are still waiting to be passed on.
       pendingHelp: pendingHelpCount(),
       // On the road right now. 0 means orders are being refused.
