@@ -443,12 +443,30 @@ export function spotAsk(
   lang: Language = 'en',
   fee = '',
 ): OutboundMessage {
+  // A DELIVERY asks for the map directly: WhatsApp's own location request,
+  // whose single button opens the map picker itself.
+  //
+  // The two-button version cost two taps for one answer. A reply button
+  // cannot open anything — all it can do is send its id back — so tapping
+  // "📍 Send location" only told the shop to send the real request, and the
+  // customer saw what looked like the same question asked twice.
+  //
+  // The price of the native one is that it carries exactly one button, its
+  // own, with a label Meta chooses. Skip has to be sayable instead, which is
+  // why the body invites the word and why the checkout step reads it as the
+  // tap it stands for.
+  //
+  // A TAXI keeps its buttons for now. Its pickup and destination asks are
+  // not inside the checkout step machine, so there is nothing there yet to
+  // read a typed "skip" — and a passenger who cannot pin a street corner
+  // must not be left holding a map request with no way past it.
+  if (side === 'drop') {
+    return { kind: 'location_request', text: t('spot_ask_drop', lang, { place, fee }) };
+  }
+
   return {
     kind: 'buttons',
-    text:
-      side === 'drop'
-        ? t('spot_ask_drop', lang, { place, fee })
-        : t(side === 'from' ? 'spot_ask_from' : 'spot_ask_to', lang, { place }),
+    text: t(side === 'from' ? 'spot_ask_from' : 'spot_ask_to', lang, { place }),
     buttons: [
       { id: `${PREFIX}:${side}:spot`, title: t('spot_send', lang) },
       { id: `${PREFIX}:${side}:skip`, title: t('spot_skip', lang) },

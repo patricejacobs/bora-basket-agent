@@ -2306,6 +2306,73 @@ The last page has neither the More row nor the line, there being nothing left
 to explain.
 
 
+
+
+**A list the shop queues is the message.** `assembleReply` had branches for
+buttons, photos, location requests and prose — and none for a list. So when
+the agent handed checkout over with `start_delivery`, the *"Where are we
+delivering?"* screen it queued was dropped on the floor, every time, and the
+customer was left with whatever courtesy line the model had added:
+
+> Checkout is open for you.
+
+and nothing to tap. Worse when the model obeyed its instruction to say
+nothing at all — the turn then had no content, and fell through to *"Sorry, I
+lost my train of thought there"*: the shop apologising for a screen it had
+just thrown away. Tapping **✅ Check out** in groceries never showed it,
+because that path goes straight through the shop and never through the agent.
+
+### One tap to the map
+
+The exact spot used to be asked for with two reply buttons — `📍 Send
+location` and `Skip` — and tapping the first did not open anything. A reply
+button cannot: all it can do is send its id back. So the shop answered with
+WhatsApp's **real** location request, and that button opened the map. Two
+taps for one answer, the second looking like the same question asked twice.
+
+A delivery now asks for the map directly:
+
+```
+*Mocha* — got it, delivery is $1,600. Tap below to send your exact spot and
+the associate will come straight to your door. No map? Reply *skip* — or
+type anything they should know (a gate, a floor, a landmark).
+
+   [ 📍 Send location ]   ← opens the map picker itself
+```
+
+**The price of the native request is that it carries exactly one button** —
+its own, with a label Meta chooses — so `Skip` cannot sit beside it. Skip is
+a word now, in all four languages, and the checkout reads it as the tap it
+stands for. Only the bare word: *"skip the rice"* is a sentence about
+shopping and *"no onions please"* is a doorstep note.
+
+**A taxi keeps its two buttons.** Its pickup and destination asks are not
+inside the checkout sequence, so nothing there reads a typed `skip` yet — and
+a passenger who cannot pin a street corner must not be left holding a map
+request with no way past it.
+
+### What a note is not
+
+Typing at the pin question is a doorstep note, and a note is **not a door**.
+It used to go straight to the price:
+
+```
+Mocha — got it, delivery is $1,600. Tap below…
+▸ a gate on the left
+1 x Rice — $1,850 … Total $3,450          ← the price, with no address at all
+▸ (taps Book it)
+Something went wrong placing that, and nothing has been ordered.
+```
+
+`place_order` refused it, correctly — *neither a pin nor a written address* —
+but at the last tap, after the whole sequence had been answered. The note is
+still kept; the street is now asked for as well, while they are still
+answering questions.
+
+And **`skip` is never saved as an address.** Typed where the street was
+asked for, it used to be written down verbatim and kept on the customer's
+record afterwards. The question is simply put again.
+
 ### A saved door is only a door for the place it is in
 
 A customer's saved address and pin are **home**. They answer *"where does

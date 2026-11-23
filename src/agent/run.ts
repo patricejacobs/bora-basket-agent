@@ -415,6 +415,7 @@ export function assembleReply(finalText: string, queued: OutboundMessage[]): Out
   const outbound: OutboundMessage[] = [];
   const photoMessages = queued.filter((m) => m.kind === 'image');
   const buttonMessages = queued.filter((m) => m.kind === 'buttons');
+  const listMessages = queued.filter((m) => m.kind === 'list');
   const locationRequests = queued.filter((m) => m.kind === 'location_request');
 
   /** True when the prose only says again what the prompt's own body already says. */
@@ -424,7 +425,30 @@ export function assembleReply(finalText: string, queued: OutboundMessage[]): Out
     return textNorm.length === 0 || bodyNorm.includes(textNorm) || textNorm.includes(bodyNorm);
   };
 
-  if (buttonMessages.length > 0) {
+  // A list, which is a screen the SHOP built and the whole content of the
+  // turn.
+  //
+  // There was no branch for one. `start_delivery` hands checkout over and
+  // queues "Where are we delivering?" with its list of places — and that
+  // message was dropped on the floor, every time, leaving the customer with
+  // whatever courtesy line the model had added ("Checkout is open for you")
+  // and nothing to tap. Worse when the model obeyed its instruction to say
+  // nothing: the turn then had no content at all and fell through to "Sorry,
+  // I lost my train of thought there", which is the shop apologising for a
+  // screen it had just thrown away.
+  //
+  // Read before buttons, and by the same rule: the list is the message, and
+  // prose beside it is plumbing.
+  if (listMessages.length > 0) {
+    const lastBody = listMessages[listMessages.length - 1]?.text ?? '';
+    const said = stripMechanism(finalText);
+    const isFiller = normalize(said).length < FILLER_TEXT_LIMIT;
+    if (!restates(lastBody, said) && !isFiller) outbound.push({ kind: 'text', text: said });
+    outbound.push(...photoMessages);
+    outbound.push(...listMessages);
+    outbound.push(...buttonMessages);
+    outbound.push(...locationRequests);
+  } else if (buttonMessages.length > 0) {
     const lastBody = buttonMessages[buttonMessages.length - 1]?.text ?? '';
     // Without the narration, and measured without it too: a line that is
     // only plumbing becomes nothing and is dropped as the filler it was.

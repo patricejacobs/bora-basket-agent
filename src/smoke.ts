@@ -1581,9 +1581,15 @@ section("The shop's own checkout");
   const settled = await sayTo('pick:drop:place:Beterverwagting');
   check('the place settles the zone', repo.getCustomer(buyer).deliveryZone === 'Beterverwagting');
   check('and the charge with it', repo.feeAgreed(buyer) === 1200, String(repo.feeAgreed(buyer)));
-  check('then the exact spot is offered',
-    settled[0]?.kind === 'buttons' && /exact spot/i.test(settled[0]?.text ?? ''),
-    settled[0]?.text?.slice(0, 50));
+  // The map itself, not a button that asks for it: WhatsApp's own location
+  // request, whose one button opens the picker. Two taps became one.
+  check('then the map is asked for directly',
+    settled[0]?.kind === 'location_request' && /exact spot/i.test(settled[0]?.text ?? ''),
+    `${settled[0]?.kind}: ${settled[0]?.text?.slice(0, 50)}`);
+  check('and the charge is on it, so nobody is surprised later',
+    /\$1,200/.test(settled[0]?.text ?? ''), settled[0]?.text?.slice(0, 80));
+  check('with a way past it in words, there being no second button',
+    /skip/i.test(settled[0]?.text ?? ''), settled[0]?.text);
   check('and the step moved on', repo.checkoutStep(buyer) === 'pin', repo.checkoutStep(buyer));
 
   // 2. the pin, which is the door, so no street is asked
@@ -1739,7 +1745,7 @@ section('Tapping the delivery address');
   check('and records the charge as agreed', repo.feeAgreed(shopper) === 1200,
     String(repo.feeAgreed(shopper)));
   check('then asks for the exact spot',
-    tapped?.kind === 'reply' && tapped.outbound[0]?.kind === 'buttons' &&
+    tapped?.kind === 'reply' && tapped.outbound[0]?.kind === 'location_request' &&
       /Beterverwagting/.test((tapped.outbound[0] as { text: string }).text),
     JSON.stringify(tapped).slice(0, 120));
   check('with the charge on it, so nobody is surprised later',
@@ -12938,6 +12944,93 @@ section('A list nobody can still see');
 
 /* ------------------------------------------------ a door in another village */
 
+
+/* -------------------------------------------- declining a pin, in words */
+
+section('Skip is a tap, a word, and never an address');
+{
+  const { saysSkip, nextAfter: nextStep } = await import('./delivery-checkout.ts');
+  const { handleIncoming: skipSay } = await import('./conversation.ts');
+  const buyer3 = '5920009200';
+
+  check('the bare word, in four languages',
+    ['skip', 'Skip', 'no', 'omitir', 'ignorar', 'não', '跳过'].every(saysSkip),
+    JSON.stringify(['skip', 'no', 'omitir', 'ignorar'].map(saysSkip)));
+  // A sentence about shopping is not somebody declining to pin a door, and
+  // a doorstep note that opens with "no" is a doorstep note.
+  check('and nothing more than the bare word',
+    !saysSkip('skip the rice') && !saysSkip('no onions please') &&
+      !saysSkip('Lot 12 Mocha Scheme'),
+    JSON.stringify(['skip the rice', 'no onions please'].map(saysSkip)));
+
+  repo.saveCustomer(buyer3, { name: 'Skip Tester', contactPhone: buyer3 });
+  repo.chooseLanguage(buyer3, 'en');
+  repo.logMessage(buyer3, 'in', 'smoke', 'shopping');
+  repo.setService(buyer3, 'grocery');
+  const riceSku = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  repo.setCartQty(buyer3, riceSku!.id, 1, '');
+  repo.setCheckoutStep(buyer3, 'place');
+
+  const asked = await skipSay({ phone: buyer3, text: 'Beterverwagting', channel: 'smoke' } as never);
+  check('choosing a place asks for the map itself',
+    asked[0]?.kind === 'location_request', asked[0]?.kind);
+  check('and the step is waiting for a pin', repo.checkoutStep(buyer3) === 'pin');
+
+  // The word, where the button used to be.
+  const said = await skipSay({ phone: buyer3, text: 'skip', channel: 'smoke' } as never);
+  check('"skip" is not written down as a doorstep note',
+    repo.checkoutNote(buyer3) === '', JSON.stringify(repo.checkoutNote(buyer3)));
+  check('it asks for the street instead, this being a new place',
+    (said[0] as { text?: string })?.text?.includes('street address at Beterverwagting') === true,
+    (said[0] as { text?: string })?.text?.slice(0, 70));
+  check('and the step moved to the street', repo.checkoutStep(buyer3) === 'street',
+    repo.checkoutStep(buyer3));
+
+  // "skip" is not somewhere to drive to.
+  const again = await skipSay({ phone: buyer3, text: 'skip', channel: 'smoke' } as never);
+  check('"skip" is refused as an address',
+    (repo.getCustomer(buyer3).address ?? '') === '',
+    JSON.stringify(repo.getCustomer(buyer3).address));
+  check('and the question is simply put again',
+    (again[0] as { text?: string })?.text?.includes('street address at') === true,
+    (again[0] as { text?: string })?.text?.slice(0, 70));
+
+  // A real answer moves it on.
+  await skipSay({ phone: buyer3, text: 'Lot 7 Company Road', channel: 'smoke' } as never);
+  check('a street answers it', (repo.getCustomer(buyer3).address ?? '').includes('Lot 7'),
+    repo.getCustomer(buyer3).address);
+
+  /* --- words where the pin was offered, with no door on file --------- */
+
+  // Typing anything at the pin step was recorded as the note and went
+  // straight to the price — with no address and no pin on the order at all.
+  // The tap on Book it was then refused by place_order: the whole sequence
+  // answered, and a shrug at the end of it.
+  const buyer4 = '5920009300';
+  repo.saveCustomer(buyer4, { name: 'Note Tester', contactPhone: buyer4 });
+  repo.chooseLanguage(buyer4, 'en');
+  repo.logMessage(buyer4, 'in', 'smoke', 'shopping');
+  repo.setService(buyer4, 'grocery');
+  repo.setCartQty(buyer4, riceSku!.id, 1, '');
+  repo.setCheckoutStep(buyer4, 'place');
+  await skipSay({ phone: buyer4, text: 'Beterverwagting', channel: 'smoke' } as never);
+
+  const noted = await skipSay({
+    phone: buyer4, text: 'a gate on the left, upstairs', channel: 'smoke',
+  } as never);
+  check('a doorstep note is still kept',
+    repo.checkoutNote(buyer4).includes('gate on the left'), repo.checkoutNote(buyer4));
+  check('but a note is not a door, so the street is still asked for',
+    (noted[0] as { text?: string })?.text?.includes('street address at') === true,
+    (noted[0] as { text?: string })?.text?.slice(0, 70));
+  check('rather than a price they cannot pay',
+    noted[0]?.kind !== 'buttons', noted[0]?.kind);
+
+  repo.setService(buyer3, null);
+  repo.setService(buyer4, null);
+  repo.setCheckoutStep(buyer3, '');
+  repo.setCheckoutStep(buyer4, '');
+}
 section('A saved door is only a door for the place it is in');
 {
   const { savedPinIsIn, savedStreetIsIn } = await import('./delivery-place.ts');

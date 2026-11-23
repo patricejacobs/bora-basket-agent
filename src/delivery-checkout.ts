@@ -220,8 +220,18 @@ export function nextAfter(
 
   switch (done) {
     case 'pin':
-    case 'note':
       return toThePrice();
+    case 'note':
+      // Words where the pin was offered are the doorstep note — and a note
+      // is not a door. Without this, typing "a gate on the left" went
+      // straight to the price with no address and no pin on the order at
+      // all, and the tap on Book it was refused by place_order: the whole
+      // sequence answered, and a shrug at the end of it.
+      //
+      // The same rule as the skip below, for the same reason. A question
+      // they can still answer belongs in front of them while they are still
+      // answering questions.
+      return hasPin || hasStreet ? toThePrice() : askStreet(phone, going, lang);
     case 'skip':
       // A pin they sent EARLIER is still a door. Asking for a lot number
       // from somebody whose exact spot the shop already holds is asking
@@ -320,4 +330,28 @@ export async function placeTheOrder(phone: string, lang: Language): Promise<Outb
           }),
     },
   ];
+}
+
+/**
+ * Somebody declining to send a pin, in words rather than with the button.
+ *
+ * The button is one tap and most people use it. But the message it sits on
+ * also invites words — "if there is anything they should know, just type it"
+ * — so the two arrive down the same channel, and "skip" was being written
+ * down as a doorstep note. The associate's card then read `skip` under the
+ * address, which is a line somebody at a gate has to interpret.
+ *
+ * It matters more once the map is asked for directly: WhatsApp's own
+ * location request carries exactly one button, its own, so declining has to
+ * be sayable.
+ *
+ * Deliberately only the bare word, in the four languages. "Skip the rice" is
+ * a sentence about shopping and "no onions please" is a doorstep note that
+ * happens to start with no — neither is somebody declining to pin a door.
+ */
+const SKIP_WORDS =
+  /^(skip|skip it|no|none|no thanks|no thank you|not now|later|nope|nah|omitir|saltar|no gracias|ahora no|más tarde|mas tarde|ignorar|saltar isso|não|nao|não obrigado|nao obrigado|agora não|agora nao|mais tarde|跳过|跳過|不用|不用了|稍后|稍後|没有|沒有)[.!]?$/i;
+
+export function saysSkip(text: string): boolean {
+  return SKIP_WORDS.test(text.trim());
 }

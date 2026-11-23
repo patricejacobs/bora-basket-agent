@@ -50,12 +50,14 @@ import {
   GATE_CANCEL,
   GATE_CHANGE,
   askPlace,
+  askStreet,
   endCheckout,
   isCheckoutId,
   isGateId,
   nextAfter,
   priceGate,
   placeTheOrder,
+  saysSkip,
 } from './delivery-checkout.ts';
 import {
   languageScreen,
@@ -723,6 +725,14 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           return ask(askPlace(msg.phone, lang), text);
         }
         if (step === 'street') {
+          // "skip" is not somewhere to drive to. It was being saved as the
+          // address, verbatim, and kept on the customer's record afterwards.
+          // The question stands, because nothing else can answer it: there
+          // is no pin and no street, and the order cannot be placed without
+          // one of them.
+          if (saysSkip(text)) {
+            return ask(askStreet(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '', lang), text);
+          }
           const written = text.slice(0, 160);
           if (chosen === 'parcel') {
             repo.saveParcelParty(msg.phone, 'recipient', { address: written });
@@ -739,6 +749,12 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         // Skip, or words - asking for the words separately was a fourth
         // question between a village and a price.
         if (step === 'pin' || step === 'note') {
+          // Declining in words, which is the only way to decline once the
+          // map is asked for directly: WhatsApp's own location request
+          // carries exactly one button, its own. Read as the tap it stands
+          // for rather than written down as a doorstep note — the
+          // associate's card was carrying instructions reading `skip`.
+          if (saysSkip(text)) return ask(nextAfter(msg.phone, 'skip', lang), text);
           repo.setCheckoutNote(msg.phone, text);
           return ask(nextAfter(msg.phone, 'note', lang), text);
         }
