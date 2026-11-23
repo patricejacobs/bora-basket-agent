@@ -27,7 +27,8 @@ import * as repo from './db/repo.ts';
 import { money } from './config.ts';
 import { t, type Language } from './language.ts';
 import { endPicker } from './place-picker.ts';
-import { savedPinIsIn, savedStreetIsIn } from './delivery-place.ts';
+import { savedPinIsIn, savedStreetIsIn, quoteDeliveryPlace } from './delivery-place.ts';
+import { coordsFor, straightKm } from './place-coords.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 /** Every step of it, in order. '' means they are not in checkout at all. */
@@ -58,10 +59,37 @@ export const ADDR_SKIP = 'addr:skip';
 export const PIN_KEEP = 'pin:keep';
 export const PIN_AGAIN = 'pin:again';
 
+/**
+ * The two answers to a STREET that does not look like the place they chose.
+ *
+ * One of them carries the village the address named, because that is the
+ * whole of what the tap means and no 20-character title could hold it in
+ * four languages: "Golden Grove East Bank" is 22 characters on its own.
+ */
+export const STREET_AGAIN = 'street:again';
+const STREET_MOVE = 'street:move:';
+
+export function streetMoveId(place: string): string {
+  return STREET_MOVE + place;
+}
+
+/** The village a Change-the-village tap was for, or null if it is not one. */
+export function streetMoveTo(id: string): string | null {
+  const said = String(id ?? '').trim();
+  if (!said.startsWith(STREET_MOVE)) return null;
+  const place = said.slice(STREET_MOVE.length).trim();
+  return place === '' ? null : place;
+}
+
+export function isStreetId(id: string): boolean {
+  return String(id ?? '').trim() === STREET_AGAIN || streetMoveTo(id) !== null;
+}
+
 export function isCheckoutId(id: string): boolean {
   const said = String(id ?? '').trim();
   return (
     isGateId(id) ||
+    isStreetId(id) ||
     said === ADDR_PIN ||
     said === ADDR_SKIP ||
     said === PIN_KEEP ||
@@ -105,6 +133,57 @@ export function pinLooksWrong(
       '',
       t('pin_send_again', lang, { place }),
     ].join(nl),
+  };
+}
+
+/**
+ * Puts a street that belongs to another village back to the customer.
+ *
+ * A question with two real answers, because either one of them can be the
+ * mistake. They may have tapped the wrong row off a list of 185 places and
+ * typed their own address correctly; or they chose their village correctly
+ * and typed an address with somebody else's village in it. The shop cannot
+ * tell, and guessing either way sends an associate to the wrong coast.
+ *
+ * So both are offered, and the figure is on the message: changing the
+ * village changes the fare, and a customer who finds that out at the door
+ * is a customer who was not asked.
+ */
+export function streetLooksWrong(
+  phone: string,
+  chosen: string,
+  named: string,
+  lang: Language,
+): OutboundMessage {
+  const quote = quoteDeliveryPlace(phone, named);
+  const here = coordsFor(chosen);
+  const there = coordsFor(named);
+  const km = here && there ? straightKm(here, there) : null;
+
+  const move = t('street_move', lang);
+  const again = t('street_again', lang);
+
+  return {
+    kind: 'buttons',
+    text: [
+      t(km === null ? 'street_elsewhere' : 'street_elsewhere_km', lang, {
+        place: chosen,
+        named,
+        km: km === null ? '' : `${km.toFixed(1)} km`,
+      }),
+      '',
+      t('street_which', lang, {
+        place: chosen,
+        named,
+        fee: quote ? money(quote.fee) : '',
+        move,
+        again,
+      }),
+    ].join(nl),
+    buttons: [
+      { id: streetMoveId(named), title: move },
+      { id: STREET_AGAIN, title: again },
+    ],
   };
 }
 

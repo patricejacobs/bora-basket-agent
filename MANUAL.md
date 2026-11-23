@@ -1584,6 +1584,55 @@ landmark and refusing those would be worse than the fault it fixes:
 sentence is doing — people type *"Lot 4, come quick"*. The same rule guards
 the name question, since a question is not somebody's name either.
 
+
+**And a street in the wrong village is not the village.** The pin has had
+this check since a Uitvlugt pin turned up under a Mocha price; the street had
+none. Choose Mocha, decline the map, type `Lot 12 Buxton Public Road`, and
+the card carried a Mocha price over a Buxton address with nothing on it to
+say the two disagree — Buxton is 15.5 km from Mocha and $200 more a trip.
+
+Either one of them can be the mistake: a wrong row tapped off a list of 185
+places, or a right village with somebody else's village typed into the
+address. The shop cannot tell, so it asks, with the figure on the message:
+
+```
+  ▸ Lot 12 Buxton Public Road
+
+  ◂ ⚠️ You chose *Mocha*, but that address reads like *Buxton* —
+    about 15.5 km away.
+
+    Which is it? Tap *Change the village* to send it to Buxton for
+    $1,800, or *Fix the address* to give me the Mocha address.
+    [ Change the village ]  [ Fix the address ]
+```
+
+*Change the village* moves the delivery to the village the address names and
+**re-prices it under that village** — a parcel from both ends, as ever,
+because the quote on the message and the charge at the gate come from one
+function and cannot drift apart. *Fix the address* puts the street question
+again. Typing a better address instead of tapping either one answers it too:
+the step stays on `street` throughout.
+
+While they decide, **the door is written down under the village it names**,
+not under the one being charged for. That is what stops it answering the next
+question: a Buxton line recorded as Buxton cannot vouch for a Mocha delivery,
+which is the rule that the Georgetown-street-in-Mocha fault bought.
+
+The check is as quiet as the request test, and for the same reason — a false
+alarm costs a real customer an extra question on every order, which teaches
+them to tap past it:
+
+| Taken as written | Asked about |
+|---|---|
+| `Lot 12 Mocha Scheme` at Mocha | `Lot 12 Buxton Public Road` at Mocha |
+| `the yellow house by the mosque` | `Lot 5 Georgetown` at Mocha |
+| `Lot 2 Bel Air Street, Mocha` — the chosen village is named in it | |
+| `Lot 8 BV` at Beterverwagting — an alias of the same place | |
+| `Lot 4 Little Diamond` at Diamond — a longer name containing it | |
+
+An address the tariff cannot place at all is never a conflict: most Guyanese
+addresses are landmarks, and the shop has no business arguing with those.
+
 **A pin owed outranks the service menu.** The block that catches it used to
 sit below the menu, so a customer whose service had been cleared — they
 tapped *Leave groceries*, asked for the menu, or came back after the
@@ -4098,7 +4147,7 @@ nothing.
 
 ### The walkthroughs
 
-Fourteen scripts in the project root that drive the **real handlers** against a
+Fifteen scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4121,6 +4170,7 @@ node walkthrough-grocery.ts
 | `walkthrough-webhook-accept.ts` | The same, driven through the real signed webhook |
 | `walkthrough-call-customer.ts` | The Call customer button, through the channel that swallowed it |
 | `walkthrough-wrong-pin-change.ts` | A change of address with a pin nowhere near it |
+| `walkthrough-wrong-street.ts` | A street typed for another village, answered both ways |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 

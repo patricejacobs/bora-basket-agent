@@ -37,27 +37,88 @@ export type SettledPlace = {
  * caller's cue to offer the list or the flat rate rather than to guess.
  */
 export function settleDeliveryPlace(phone: string, place: string): SettledPlace | null {
+  const quote = quoteDeliveryPlace(phone, place);
+  if (quote === null) return null;
+
+  if (repo.getService(phone) === 'parcel') repo.setParcelZone(phone, quote.place);
+  else repo.setDeliveryZone(phone, quote.place);
+
+  // The promise. place_order and create_parcel_job refuse to charge more
+  // than this, which is what makes a quote a quote rather than a courtesy.
+  repo.setFeeAgreed(phone, quote.fee);
+
+  return quote;
+}
+
+/**
+ * What it WOULD cost, written down nowhere.
+ *
+ * The shop has to be able to say "that village is $1,800" in the middle of
+ * a question, before anybody has agreed to anything — and a figure quoted
+ * by one rule and charged by another is the fault this whole file exists to
+ * prevent. So the settlement above is this function plus three writes, and
+ * there is one place that knows a parcel is priced from both ends.
+ */
+export function quoteDeliveryPlace(phone: string, place: string): SettledPlace | null {
   const known = findZone(place);
   if (known.kind !== 'found') return null;
 
   const forParcel = repo.getService(phone) === 'parcel';
-  if (forParcel) repo.setParcelZone(phone, known.match.place);
-  else repo.setDeliveryZone(phone, known.match.place);
-
   const sender = forParcel ? repo.getParcelDraft(phone).sender.address : '';
   const bothEnds = forParcel && sender ? fareBetween(sender, known.match.place) : null;
-  const fee = bothEnds ? bothEnds.fee : known.match.fee;
-
-  // The promise. place_order and create_parcel_job refuse to charge more
-  // than this, which is what makes a quote a quote rather than a courtesy.
-  repo.setFeeAgreed(phone, fee);
 
   return {
     place: known.match.place,
     zone: known.match.zone,
-    fee,
+    fee: bothEnds ? bothEnds.fee : known.match.fee,
     pricedBy: bothEnds ? bothEnds.explanation : '',
   };
+}
+
+/**
+ * Does this typed street belong to a different village than the one chosen?
+ *
+ * The pin has had a check since Shawn's Uitvlugt pin turned up under a Mocha
+ * price. The street had none, and it is the same fault by the other road:
+ * choose Mocha, decline the map, type "Lot 12 Buxton Public Road", and the
+ * card carries a Mocha price over a Buxton address with nothing on it to say
+ * the two disagree. Buxton is 15 km from Mocha and $200 more, and the
+ * associate is the one who finds out.
+ *
+ * Returns the village the address names, or null when there is nothing to
+ * raise — and it is deliberately quiet, because a false alarm costs a real
+ * customer an extra question every time:
+ *
+ *   an address the tariff cannot place is NOT a conflict. Most Guyanese
+ *   addresses are landmarks — "the yellow house by the mosque" — and the
+ *   shop has no business arguing with those;
+ *
+ *   the chosen village named anywhere in the line settles it. "Lot 2 Bel Air
+ *   Street, Mocha" is a Mocha address with a street in it, and the matcher
+ *   picks the street;
+ *
+ *   so is a village whose name contains the chosen one — "Lot 4 Little
+ *   Diamond" under Diamond. That one can still be the wrong band, but the
+ *   two are neighbours by name and often by road, and asking about every one
+ *   of those would teach people to tap past the question.
+ */
+export function streetNamesElsewhere(typed: string, chosen: string): string | null {
+  const going = chosen.trim();
+  if (going === '') return null;
+
+  const named = findZone(typed);
+  if (named.kind !== 'found') return null;
+  if (named.match.place.trim().toLowerCase() === going.toLowerCase()) return null;
+  if (mentions(typed, going) || mentions(named.match.place, going)) return null;
+
+  return named.match.place;
+}
+
+/** Is this place's name one of the words in that line? */
+function mentions(line: string, place: string): boolean {
+  const flat = (said: string): string =>
+    ` ${said.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')} `;
+  return flat(line).includes(flat(place));
 }
 
 /**

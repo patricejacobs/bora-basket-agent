@@ -42,7 +42,7 @@ import {
   isAisleId,
   withWayOut,
 } from './aisles.ts';
-import { settleDeliveryPlace } from './delivery-place.ts';
+import { settleDeliveryPlace, streetNamesElsewhere } from './delivery-place.ts';
 import { pinTheNewAddress } from './dispatch.ts';
 import {
   ADDR_PIN,
@@ -51,6 +51,7 @@ import {
   GATE_CHANGE,
   PIN_AGAIN,
   PIN_KEEP,
+  STREET_AGAIN,
   askPlace,
   askStreet,
   endCheckout,
@@ -62,6 +63,8 @@ import {
   pinLooksWrong,
   placeTheOrder,
   saysSkip,
+  streetLooksWrong,
+  streetMoveTo,
 } from './delivery-checkout.ts';
 import { checkPin, noteQueried, timesQueried } from './pin-check.ts';
 import {
@@ -761,6 +764,34 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // before the one that ordinarily saves a pin - and a checkout that
       // moved on without writing it down reached the gate with nothing for
       // the associate to steer by, which place_order rightly refuses.
+      // The two answers to "that street is in another village", read here
+      // with the pin's own pair for the same reason: they arrive as taps
+      // while the step is still waiting for a street.
+      if (text === STREET_AGAIN) {
+        const going = (chosen === 'parcel'
+          ? repo.getParcelDraft(msg.phone).zone
+          : repo.getCustomer(msg.phone).deliveryZone) || '';
+        return ask(askStreet(msg.phone, going, lang), 'Fix the address');
+      }
+      {
+        const moveTo = streetMoveTo(text);
+        if (moveTo !== null) {
+          // They tapped the wrong row off a list of 185 places; the street
+          // was right all along. The village moves to the one their address
+          // names and is re-priced under it — a parcel from both ends, as
+          // ever — and the door already written down now belongs to the
+          // place it is in.
+          const settled = settleDeliveryPlace(msg.phone, moveTo);
+          if (settled) {
+            if (chosen !== 'parcel') repo.setAddressZone(msg.phone, settled.place);
+            return ask(nextAfter(msg.phone, 'street', lang), `Change it to ${settled.place}`);
+          }
+          // The tariff has stopped carrying it between the message and the
+          // tap. The list, rather than a figure nobody can stand behind.
+          return ask(askPlace(msg.phone, lang), `Change it to ${moveTo}`);
+        }
+      }
+
       // The two answers to "that pin does not look like the place you
       // chose". Read before the pin branch below, because they arrive as
       // taps while the step is still waiting for one.
@@ -858,14 +889,29 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
             // customer actually said.
           } else {
           const written = text.slice(0, 160);
+          const going = (chosen === 'parcel'
+            ? repo.getParcelDraft(msg.phone).zone
+            : repo.getCustomer(msg.phone).deliveryZone) || '';
+          // An address in a different village than the one being charged
+          // for. The pin has had this check since a Uitvlugt pin turned up
+          // under a Mocha price; this is the same fault by the other road.
+          const elsewhere = streetNamesElsewhere(written, going);
+
           if (chosen === 'parcel') {
             repo.saveParcelParty(msg.phone, 'recipient', { address: written });
           } else {
             repo.saveCustomer(msg.phone, { address: written });
-            // And where it is, so the next order can tell whether it is the
-            // right door rather than assuming it.
-            repo.setAddressZone(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '');
+            // Where the door IS, which is not always where this order is
+            // going. Writing the chosen village over a door that names
+            // another one is how a Georgetown street came to vouch for a
+            // Mocha delivery — so a door in dispute is recorded under the
+            // village it names, where it cannot answer for this one.
+            repo.setAddressZone(msg.phone, elsewhere ?? going);
           }
+
+          // The step stays at `street`, so a corrected address typed
+          // instead of tapped is still read as the answer to this question.
+          if (elsewhere) return ask(streetLooksWrong(msg.phone, going, elsewhere, lang), text);
           return ask(nextAfter(msg.phone, 'street', lang), text);
           }
         }

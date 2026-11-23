@@ -13572,6 +13572,151 @@ section('Skip is a tap, a word, and never an address');
     repo.setService(asker2, null);
     repo.setCheckoutStep(asker2, '');
   }
+  /* --- a street in another village ---------------------------------- */
+
+  // The pin has had this check since a Uitvlugt pin turned up under a Mocha
+  // price. The street had none: choose Mocha, decline the map, type "Lot 12
+  // Buxton Public Road", and the card carried a Mocha price over a Buxton
+  // address with nothing on it to say the two disagree. Buxton is 15 km from
+  // Mocha and $200 more a trip.
+  {
+    const {
+      streetNamesElsewhere: elsewhere,
+      savedStreetIsIn: doorIsIn,
+    } = await import('./delivery-place.ts');
+    const {
+      STREET_AGAIN: streetAgain,
+      streetMoveId: moveId,
+      streetMoveTo: moveTo,
+      isCheckoutId: isOurs,
+    } = await import('./delivery-checkout.ts');
+
+    // Quiet unless it is sure. A false alarm costs a real customer an extra
+    // question on every order, which teaches them to tap past it.
+    for (const [said, chosen] of [
+      ['Lot 12 Mocha Scheme', 'Mocha'],
+      ['the yellow house by the mosque', 'Mocha'],
+      ['second gate after the church', 'Mocha'],
+      // The matcher picks the street out of this one; the chosen village is
+      // named in it, which settles it.
+      ['Lot 2 Bel Air Street, Mocha', 'Mocha'],
+      // An alias the customer typed, expanded to the name it was priced by.
+      ['Lot 8 BV', 'Beterverwagting'],
+      // A longer name containing the chosen one: neighbours by name, and
+      // often by road.
+      ['Lot 4 Little Diamond', 'Diamond'],
+      // Nothing chosen yet is nothing to disagree with.
+      ['Lot 12 Buxton Public Road', ''],
+    ] as const) {
+      check(`"${said.slice(0, 26)}" at ${chosen || '(nowhere)'} is taken as written`,
+        elsewhere(said, chosen) === null, JSON.stringify(elsewhere(said, chosen)));
+    }
+
+    check('but a Buxton address under Mocha is raised',
+      elsewhere('Lot 12 Buxton Public Road', 'Mocha') === 'Buxton',
+      JSON.stringify(elsewhere('Lot 12 Buxton Public Road', 'Mocha')));
+    check('and a Georgetown one is too',
+      elsewhere('Lot 5 Georgetown', 'Mocha') === 'Georgetown',
+      JSON.stringify(elsewhere('Lot 5 Georgetown', 'Mocha')));
+
+    // Both ids survive the channel, which is the fault that has shipped
+    // three times. The sweep below covers them as well.
+    check('the two answers are read as ours',
+      isOurs(streetAgain) && isOurs(moveId('Buxton')), streetAgain);
+    check('and the village rides in the id',
+      moveTo(moveId('Golden Grove East Bank')) === 'Golden Grove East Bank',
+      JSON.stringify(moveTo(moveId('Golden Grove East Bank'))));
+    check('while an ordinary id is not one of them',
+      moveTo('otw_31') === null && moveTo('') === null);
+
+    const wrongSt = '5920009720';
+    const startWrong = async (): Promise<void> => {
+      repo.saveCustomer(wrongSt, { name: 'Street Tester', contactPhone: wrongSt });
+      db.prepare(`UPDATE customers SET address = '' WHERE phone = ?`).run(wrongSt);
+      repo.setAddressZone(wrongSt, '');
+      repo.chooseLanguage(wrongSt, 'en');
+      repo.logMessage(wrongSt, 'in', 'smoke', 'shopping');
+      repo.setService(wrongSt, 'grocery');
+      repo.setCartQty(wrongSt, riceSku!.id, 1, '');
+      repo.setDeliveryZone(wrongSt, 'Mocha');
+      repo.setFeeAgreed(wrongSt, repo.getCart(wrongSt).deliveryFee);
+      repo.setCheckoutStep(wrongSt, 'street');
+    };
+
+    await startWrong();
+    const raised = await skipSay(
+      { phone: wrongSt, text: 'Lot 12 Buxton Public Road', channel: 'smoke' } as never,
+    );
+    const raisedText = (raised[0] as { text?: string })?.text ?? '';
+    check('the customer is asked which village it is',
+      /You chose \*Mocha\*/.test(raisedText) && /Buxton/.test(raisedText),
+      raisedText.slice(0, 80));
+    check('with the distance on it', /15\.\d km/.test(raisedText), raisedText.slice(0, 90));
+    check('and what the other village would cost',
+      /\$1,800/.test(raisedText), raisedText.slice(0, 160));
+    check('both answers are offered',
+      (raised[0] as { buttons?: { id: string }[] })?.buttons?.length === 2,
+      JSON.stringify((raised[0] as { buttons?: unknown })?.buttons));
+    check('and the question is still the street',
+      repo.checkoutStep(wrongSt) === 'street', repo.checkoutStep(wrongSt));
+    // The door is recorded where it IS, so it cannot answer for Mocha.
+    check('the door in dispute is recorded under the village it names',
+      repo.addressZone(wrongSt) === 'Buxton', repo.addressZone(wrongSt));
+    check('so it does not vouch for the chosen one',
+      !doorIsIn(wrongSt, 'Mocha'));
+    check('and nothing has been re-priced yet',
+      repo.getCustomer(wrongSt).deliveryZone === 'Mocha',
+      repo.getCustomer(wrongSt).deliveryZone ?? '');
+
+    // The street was right: the village moves, and is re-priced under it.
+    const moved = await skipSay(
+      { phone: wrongSt, text: moveId('Buxton'), channel: 'smoke' } as never,
+    );
+    check('changing the village re-prices the order',
+      repo.getCustomer(wrongSt).deliveryZone === 'Buxton' && repo.feeAgreed(wrongSt) === 1800,
+      `${repo.getCustomer(wrongSt).deliveryZone} ${repo.feeAgreed(wrongSt)}`);
+    check('and the door now belongs to it',
+      doorIsIn(wrongSt, 'Buxton') && repo.addressZone(wrongSt) === 'Buxton',
+      repo.addressZone(wrongSt));
+    check('and the price is put in front of them, once',
+      repo.checkoutStep(wrongSt) === 'gate' &&
+        /Buxton/.test((moved[0] as { text?: string })?.text ?? ''),
+      (moved[0] as { text?: string })?.text?.slice(0, 60));
+
+    // The village was right: the street is asked again, and the next answer
+    // is read as the street rather than as anything else.
+    await startWrong();
+    await skipSay({ phone: wrongSt, text: 'Lot 12 Buxton Public Road', channel: 'smoke' } as never);
+    const retry = await skipSay({ phone: wrongSt, text: streetAgain, channel: 'smoke' } as never);
+    check('fixing the address asks the street again',
+      /street address at Mocha/.test((retry[0] as { text?: string })?.text ?? ''),
+      (retry[0] as { text?: string })?.text?.slice(0, 60));
+    check('and the step is waiting for it',
+      repo.checkoutStep(wrongSt) === 'street', repo.checkoutStep(wrongSt));
+
+    const fixed = await skipSay(
+      { phone: wrongSt, text: 'Lot 12 Mocha Scheme', channel: 'smoke' } as never,
+    );
+    check('a corrected address lands and goes to the price',
+      repo.addressZone(wrongSt) === 'Mocha' && repo.checkoutStep(wrongSt) === 'gate',
+      `${repo.addressZone(wrongSt)} ${repo.checkoutStep(wrongSt)}`);
+    check('priced for the village they chose all along',
+      /Delivery to Mocha/.test((fixed[0] as { text?: string })?.text ?? ''),
+      (fixed[0] as { text?: string })?.text?.slice(0, 60));
+
+    // A corrected address typed instead of tapped is still an answer to the
+    // street question: the two buttons are not the only way out.
+    await startWrong();
+    await skipSay({ phone: wrongSt, text: 'Lot 12 Buxton Public Road', channel: 'smoke' } as never);
+    await skipSay({ phone: wrongSt, text: 'Lot 3 Mocha Scheme', channel: 'smoke' } as never);
+    check('typing a better address answers it too',
+      (repo.getCustomer(wrongSt).address ?? '').includes('Lot 3') &&
+        repo.addressZone(wrongSt) === 'Mocha',
+      `${repo.getCustomer(wrongSt).address} / ${repo.addressZone(wrongSt)}`);
+
+    repo.setService(wrongSt, null);
+    repo.setCheckoutStep(wrongSt, '');
+  }
   /* --- words where the pin was offered, with no door on file --------- */
 
   // Typing anything at the pin step was recorded as the note and went
@@ -13806,6 +13951,7 @@ section('No button is a dead button');
   const {
     GATE_BOOK: gBook, GATE_CHANGE: gChange, GATE_CANCEL: gCancel,
     ADDR_PIN: aPin, ADDR_SKIP: aSkip, PIN_KEEP: pKeep, PIN_AGAIN: pAgain,
+    STREET_AGAIN: sAgain, streetLooksWrong: streetWrong,
   } = await import('./delivery-checkout.ts');
 
   // Every button the shop can put in front of anybody, gathered from the
@@ -13839,7 +13985,10 @@ section('No button is a dead button');
   ids.push(...destBoth(7, 'yes', 'no').map((b) => b.id));
   ids.push(callBtn(7).id);
   ids.push(...cancelBoth('ORD-00007', 'staff').map((b) => b.id));
-  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain);
+  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain, sAgain);
+  // Built rather than written out: the village rides in the id, so the only
+  // honest way to sweep it is to ask the message that sends it.
+  takeButtons(streetWrong(sweeper, 'Mocha', 'Buxton', 'en'));
   takeButtons(langScreen('Next Minute Delivery'));
   takeButtons(picker(sweeper, 'drop', 'en'));
   takeButtons(spot('from', 'Diamond', 'en'));
