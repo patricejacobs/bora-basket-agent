@@ -1556,6 +1556,69 @@ section('Changing where a delivery is going');
     repo.clearDestProposal(job.orderNo);
     repo.setService(buyer2, 'grocery');
   }
+
+  /* --- a queried pin travels with its query ------------------------- */
+
+  // The customer is asked about a pin that disagrees with the new place, and
+  // the proposal is held back until it matches — unless they answer `skip`,
+  // and then the refused pin goes with the proposal anyway. The person about
+  // to agree to carry a bag there was reading a map link with nothing to say
+  // the shop had already queried it.
+  {
+    const { proposeAddressToAssociate: propose2, dropLines: lines2 } =
+      await import('./dispatch.ts');
+    const { coordsFor: at } = await import('./place-coords.ts');
+
+    repo.clearDestProposal(job.orderNo);
+    repo.proposeDestination(job.orderNo, 'Buxton', 1800);
+    // A pin in Uitvlugt, for a change to Buxton: 30 km of disagreement.
+    const wrong = at('Uitvlugt')!;
+    repo.setProposalPin(job.orderNo, { latitude: wrong.latitude, longitude: wrong.longitude });
+
+    // The card goes out over WhatsApp, which is not configured here, so the
+    // sender drops the payload to the console. That is the only place its
+    // text exists in a test, so it is read from there.
+    const caught: string[] = [];
+    const realWarn = console.warn;
+    console.warn = (...args: unknown[]): void => {
+      const first = String(args[0] ?? '');
+      if (first.startsWith('[whatsapp] not configured')) {
+        try {
+          const payload = JSON.parse(String(args[1] ?? '{}')) as {
+            interactive?: { body?: { text?: string } };
+          };
+          caught.push(payload.interactive?.body?.text ?? '');
+        } catch {
+          /* not one of ours */
+        }
+        return;
+      }
+      realWarn(...(args as []));
+    };
+
+    await propose2(job.orderNo, 'Buxton', 1800);
+    const card = caught[caught.length - 1] ?? '';
+    check('and it carries the link', /maps\?q=/.test(card), card.slice(0, 140));
+    check('with the query on it, before the tap',
+      /we asked them about it/.test(card), card.slice(0, 220));
+    check('naming the village it is really in', /in Uitvlugt/.test(card), card.slice(0, 220));
+
+    // A pin that agrees says nothing extra: a warning on every proposal is
+    // a warning nobody reads.
+    const right = at('Buxton')!;
+    repo.clearDestProposal(job.orderNo);
+    repo.proposeDestination(job.orderNo, 'Buxton', 1800);
+    repo.setProposalPin(job.orderNo, { latitude: right.latitude, longitude: right.longitude });
+    caught.length = 0;
+    await propose2(job.orderNo, 'Buxton', 1800);
+    const clean = caught[caught.length - 1] ?? '';
+    console.warn = realWarn;
+    check('a matching pin is not queried', !/we asked them about it/.test(clean),
+      clean.slice(0, 160));
+
+    repo.clearDestProposal(job.orderNo);
+    void lines2;
+  }
     // ---- `7 details`, the whole job on demand -----------------------
     // The job card is sent once and then buried. Three drops later, the
     // customer's telephone number is up the chat past everything since — and

@@ -530,8 +530,31 @@ export async function proposeAddressToAssociate(
     // which is the ordinary case. Somebody deciding whether they can take a
     // bag there should be looking at where, not at a village name.
     ...(pinned?.lat != null && pinned?.lng != null
-      ? ['Click the link below for the new address:',
-         mapsLink({ latitude: pinned.lat, longitude: pinned.lng })]
+      ? [
+          'Click the link below for the new address:',
+          mapsLink({ latitude: pinned.lat, longitude: pinned.lng }),
+          // And whether that link is even in the village being proposed.
+          //
+          // The customer is asked about a pin that disagrees and is not
+          // forwarded until it matches — unless they answer `skip`, and
+          // then the refused pin travels with the proposal anyway. The
+          // person about to agree to carry a bag somewhere was reading a
+          // map link with nothing to say that the shop had already queried
+          // it. They are the one who has to drive there: they are told
+          // BEFORE they tap, not after.
+          ...(() => {
+            const verdict = checkPin(
+              { latitude: pinned.lat, longitude: pinned.lng },
+              place,
+            );
+            if (verdict.state !== 'elsewhere') return [];
+            const how = verdict.km === null ? 'well away from' : `${verdict.km} km from`;
+            return [
+              `⚠️ That pin is ${how} ${place}` +
+                `${verdict.looksLike ? `, in ${verdict.looksLike}` : ''} — we asked them about it.`,
+            ];
+          })(),
+        ]
       : ['⚠️ No pin for the new address.']),
     ...(fee !== order.deliveryFee
       ? ['', `Delivery ${money(order.deliveryFee)} → *${money(fee)}*`]

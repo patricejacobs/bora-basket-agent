@@ -2480,6 +2480,27 @@ replaces the first one on their card.
 address being *proposed* is checked before the proposal goes out — nobody is
 standing anywhere yet, so the cheapest moment to catch it is then.
 
+**And if they skip the question, the query travels with the pin.** Answering
+`skip` sends the proposal anyway, refused pin and all, so the person about to
+agree to carry a bag there sees what the shop already asked about — *before*
+they tap, not after:
+
+```
+⚠️ *GRO-00001 — the customer wants it taken somewhere else.*
+
+Now: *Buxton*
+Was: Lot 4 Diamond
+Click the link below for the new address:
+https://www.google.com/maps?q=6.874660,-58.307050
+⚠️ That pin is 32.3 km from Buxton, in Uitvlugt — we asked them about it.
+
+Nothing has changed yet. Tap *Acknowledged* only if you can take it there.
+   [ Acknowledged ]  [ No, as booked ]
+```
+
+A pin that agrees says nothing extra. A warning on every proposal is a
+warning nobody reads.
+
 **"Send it again" clears nothing.** The next pin overwrites it; deleting the
 one on file would leave somebody already driving with less than they had.
 
