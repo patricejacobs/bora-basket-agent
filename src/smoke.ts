@@ -1364,8 +1364,11 @@ section('Changing where a delivery is going');
 
     // Their answer lands on the order and goes back to the associate.
     const { pinTheNewAddress } = await import('./dispatch.ts');
-    await pinTheNewAddress(buyer2, { latitude: 6.7, longitude: -58.0, label: 'the blue gate' });
-    check('their pin lands on the job', repo.findOrder(job.orderNo)?.location?.latitude === 6.7,
+    // In Buxton, which is where this order is going: a pin 10 km outside it
+    // is no longer offered as the delivery address, and this test is about
+    // the pin landing rather than about that rule.
+    await pinTheNewAddress(buyer2, { latitude: 6.795, longitude: -58.0257, label: 'the blue gate' });
+    check('their pin lands on the job', repo.findOrder(job.orderNo)?.location?.latitude === 6.795,
       JSON.stringify(repo.findOrder(job.orderNo)?.location));
 
     // Outside WhatsApp's window there is nothing the shop can send.
@@ -1522,7 +1525,7 @@ section('Changing where a delivery is going');
     // shares one shop, and a fixture that outlives its own test is a fault
     // in the next one.
     repo.setService(buyer2, 'grocery');
-    repo.setOrderPin(job.orderNo, { latitude: 6.7, longitude: -58.0, label: 'the blue gate' });
+    repo.setOrderPin(job.orderNo, { latitude: 6.795, longitude: -58.0257, label: 'the blue gate' });
   }
 
   /* --- the word, where only the button was read --------------------- */
@@ -1598,9 +1601,14 @@ section('Changing where a delivery is going');
 
     await propose2(job.orderNo, 'Buxton', 1800);
     const card = caught[caught.length - 1] ?? '';
-    check('and it carries the link', /maps\?q=/.test(card), card.slice(0, 140));
-    check('with the mismatch on it, before the tap',
-      /That pin is .* from Buxton/.test(card), card.slice(0, 240));
+    // The link is gone, not annotated. "Click the link below for the new
+    // address" over a pin 32 km from it is the most misleading thing the
+    // card can say: confident, tappable, and wrong.
+    check('a mismatched pin gets no link at all', !/maps\?q=/.test(card), card.slice(0, 240));
+    check('nor an invitation to tap one',
+      !/Click the link below/.test(card), card.slice(0, 240));
+    check('with the mismatch in its place, before the tap',
+      /The pin they sent is .* from Buxton/.test(card), card.slice(0, 240));
     check('naming the village it is really in', /in Uitvlugt/.test(card), card.slice(0, 240));
     // What to do about it, which is the only thing that settles it: the
     // customer's answer was `skip`, and that settled nothing.
@@ -1670,7 +1678,9 @@ section('Changing where a delivery is going');
       check('and give the number to ring', card.includes('5920007800'), card);
       check('and the door as it stands NOW',
         card.includes('Buxton') && !card.includes('Diamond'), card);
-      check('and the pin for it', /maps\?q=6\.7/.test(card), card);
+      check('and the pin for it', /maps\?q=6\.795/.test(card), card);
+      check('which is shown because it agrees with the village',
+        !/NOT the delivery address/.test(card), card);
       check('and the money to collect', /Collect \$/.test(card), card);
       check('and what is in the bag',
         /\*What it is:\*/.test(card) && /1 x .*Rice/i.test(card), card);
@@ -13428,8 +13438,12 @@ section('A pin that disagrees with the village');
     return cardLines(repo.findOrder(made.orderNo)!).join(String.fromCharCode(10));
   })();
   check('the card warns the person who has to drive there',
-    /pin is .* from Mocha/.test(card), card);
-  check('and names what it looks like instead', /nearer Uitvlugt/.test(card), card);
+    /The pin they sent is .* from Mocha/.test(card), card);
+  check('and names what it looks like instead', /in Uitvlugt/.test(card), card);
+  // And does not offer it as somewhere to drive to.
+  check('and offers no link to it', !/maps\?q=/.test(card), card);
+  check('and says to ring instead',
+    /Ring them and confirm the exact spot/.test(card), card);
 
   repo.setService(asker, null);
   repo.setCheckoutStep(asker, '');

@@ -539,31 +539,27 @@ export async function proposeAddressToAssociate(
     // The door itself, when they pinned it before this was put to anybody -
     // which is the ordinary case. Somebody deciding whether they can take a
     // bag there should be looking at where, not at a village name.
-    ...(pinned?.lat != null && pinned?.lng != null
+    // The same rule on the proposal: a link offered as "the new address"
+    // that is thirty kilometres from it is worse than no link, because it is
+    // confident and tappable and somebody will drive to it.
+    ...(pinned?.lat != null && pinned?.lng != null && queried.state !== 'elsewhere'
       ? [
           'Click the link below for the new address:',
           mapsLink({ latitude: pinned.lat, longitude: pinned.lng }),
-          // And whether that link is even in the village being proposed.
-          //
-          // The customer is asked about a pin that disagrees and is not
-          // forwarded until it matches — unless they answer `skip`, and
-          // then the refused pin travels with the proposal anyway. The
-          // person about to agree to carry a bag somewhere was reading a
-          // map link with nothing to say it did not match.
-          //
-          // What they are told is what to DO about it. That the shop
-          // already asked is of no use to somebody deciding whether to ride
-          // there: the customer's answer was `skip`, which settled nothing,
-          // and the only thing that settles it is a telephone call.
-          ...(queried.state === 'elsewhere'
-            ? [
-                `⚠️ That pin is ${queried.km === null ? 'well away from' : `${queried.km} km from`} ${place}` +
-                  `${queried.looksLike ? `, in ${queried.looksLike}` : ''}.`,
-                'Ring them and confirm the exact spot before you agree.',
-              ]
-            : []),
         ]
-      : ['⚠️ No pin for the new address.']),
+      : []),
+    // In its place: what the pin actually is, and the only thing that
+    // settles it. That the shop already asked is of no use to somebody
+    // deciding whether to ride there — the customer's answer was `skip`,
+    // which settled nothing. A telephone call settles it.
+    ...(queried.state === 'elsewhere'
+      ? [
+          `⚠️ The pin they sent is ${queried.km === null ? 'well away from' : `${queried.km} km from`} ${place}` +
+            `${queried.looksLike ? `, in ${queried.looksLike}` : ''} — so it is NOT the new address.`,
+          'Ring them and confirm the exact spot before you agree.',
+        ]
+      : []),
+    ...(pinned?.lat == null || pinned?.lng == null ? ['⚠️ No pin for the new address.'] : []),
     ...(fee !== order.deliveryFee
       ? ['', `Delivery ${money(order.deliveryFee)} → *${money(fee)}*`]
       : []),
@@ -1122,7 +1118,19 @@ export function dropLines(order: repo.OrderRecord): string[] {
   // threw away the better of the two directions, and the associate was left
   // reading a lot number for a house they could have been driven to.
   const written = withoutPhone(order.address, receiverPhone);
-  const showPin = pinIsForThisDoor && order.location !== null;
+
+  // Does the pin agree with the village this order was priced for?
+  //
+  // It decides whether the link is shown AT ALL, not merely whether a line
+  // is added under it. "Click the link below for the delivery address" over
+  // a map pin thirty kilometres from the address is the most misleading
+  // thing the card can say: it is confident, it is tappable, and it is
+  // wrong. An associate who follows it has been sent there by us.
+  const mismatch =
+    pinIsForThisDoor && order.location && order.deliveryZone
+      ? checkPin(order.location, order.deliveryZone)
+      : { state: 'ok' as const };
+  const showPin = pinIsForThisDoor && order.location !== null && mismatch.state !== 'elsewhere';
 
   // The note earns its line by adding something the address does not.
   //
@@ -1168,6 +1176,15 @@ export function dropLines(order: repo.OrderRecord): string[] {
     ...(showPin && order.location
       ? [...(labelAdds ? [pinLabel] : []), 'Click the link below for the delivery address:', mapsLink(order.location)]
       : []),
+    // In its place, when there is a pin and it is not this door: what it
+    // actually is, and the only thing that settles it.
+    ...(mismatch.state === 'elsewhere'
+      ? [
+          `⚠️ The pin they sent is ${mismatch.km === null ? 'well away from' : `${mismatch.km} km from`} ${order.deliveryZone}` +
+            `${mismatch.looksLike ? `, in ${mismatch.looksLike}` : ''} — so it is NOT the delivery address.`,
+          'Ring them and confirm the exact spot before you set off.',
+        ]
+      : []),
     // Outside the delivery area, said whether or not the link is shown.
     //
     // It is not navigation, so it does not belong to the link: it is the one
@@ -1186,20 +1203,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
         ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area — and in no village we price`]
         : [];
     })(),
-    // And the other distance, which is a different question: not "can we
-    // reach it" but "is it where they said". A pin that disagrees with the
-    // village the order was priced for is the associate's problem long
-    // before it is anybody else's — they are the one who drives there.
-    ...(() => {
-      if (!pinIsForThisDoor || !order.location || !order.deliveryZone) return [];
-      const verdict = checkPin(order.location, order.deliveryZone);
-      if (verdict.state !== 'elsewhere') return [];
-      const how = verdict.km === null ? 'well away from' : `${verdict.km} km from`;
-      return [
-        `⚠️ pin is ${how} ${order.deliveryZone}` +
-          `${verdict.looksLike ? `, nearer ${verdict.looksLike}` : ''} — check before you set off`,
-      ];
-    })(),
+
     '',
     // What it is made of, so the cash can be checked against the bag rather
     // than taken on trust at the door - and WHO hands it over, because

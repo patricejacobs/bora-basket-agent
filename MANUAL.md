@@ -2445,11 +2445,26 @@ the way out is printed in the message. Once an associate is carrying it,
 somebody is waiting on the answer: the question is put twice, and the third
 pin is taken as it stands, with the card telling them to ring.
 
-**And the associate is told, since they are the one who drives there:**
+**And the associate is not offered it as somewhere to drive to.** A link
+labelled *"click here for the delivery address"* that points thirty
+kilometres from the address is the most misleading thing the card can say:
+it is confident, it is tappable, and it is wrong — and an associate who
+follows it was sent there by us. So the link is **removed**, not annotated,
+and what stands in its place is what the pin actually is and the one thing
+that settles it:
 
 ```
-⚠️ pin is 22 km from Mocha, nearer Uitvlugt — check before you set off
+*Deliver to:* Dev Narine
+Lot 9 Mocha
+📞 +5926100004
+⚠️ The pin they sent is 22.4 km from Mocha, in Uitvlugt — so it is NOT the
+delivery address.
+Ring them and confirm the exact spot before you set off.
 ```
+
+The same on a change of address, where the proposal drops *"Click the link
+below for the new address"* and carries the advisory and the `📞 Call
+customer` button instead.
 
 **The customer is asked too, whenever the pin arrives late.** The question at
 checkout only covers a pin sent during checkout. A pin that arrives
