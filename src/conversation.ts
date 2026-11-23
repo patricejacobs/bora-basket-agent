@@ -58,6 +58,7 @@ import {
   isGateId,
   nextAfter,
   priceGate,
+  looksLikeARequest,
   pinLooksWrong,
   placeTheOrder,
   saysSkip,
@@ -843,6 +844,19 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           if (saysSkip(text)) {
             return ask(askStreet(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '', lang), text);
           }
+          // Changed the subject rather than answered the question. "I need
+          // another order" was being saved as the address, verbatim, and an
+          // associate sent to a sentence.
+          //
+          // The sequence stands down and the agent takes the message, which
+          // is what the customer was asking for. The basket is untouched, so
+          // checkout can start again when they are ready — and starting
+          // again is cheaper than a delivery to a sentence.
+          if (looksLikeARequest(text)) {
+            endCheckout(msg.phone);
+            // No return: this falls through to the agent, with the words the
+            // customer actually said.
+          } else {
           const written = text.slice(0, 160);
           if (chosen === 'parcel') {
             repo.saveParcelParty(msg.phone, 'recipient', { address: written });
@@ -853,6 +867,7 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
             repo.setAddressZone(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '');
           }
           return ask(nextAfter(msg.phone, 'street', lang), text);
+          }
         }
         // Typed where the pin was offered: that is the doorstep note, and
         // it goes down as one. The three answers to that message are a pin,
@@ -869,8 +884,13 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           return ask(nextAfter(msg.phone, 'note', lang), text);
         }
         if (step === 'name') {
-          repo.saveCustomer(msg.phone, { name: text.slice(0, 60) });
-          return ask(nextAfter(msg.phone, 'name', lang), text);
+          // The same rule: a question is not somebody's name.
+          if (looksLikeARequest(text)) {
+            endCheckout(msg.phone);
+          } else {
+            repo.saveCustomer(msg.phone, { name: text.slice(0, 60) });
+            return ask(nextAfter(msg.phone, 'name', lang), text);
+          }
         }
         // Words while the price is on the screen. The question stands, so
         // it is put again rather than handed to the agent - which is where

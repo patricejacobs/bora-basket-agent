@@ -404,3 +404,30 @@ const SKIP_WORDS =
 export function saysSkip(text: string): boolean {
   return SKIP_WORDS.test(text.trim());
 }
+
+/**
+ * Somebody who has changed the subject rather than answered the question.
+ *
+ * The street step writes down whatever arrives, because at that moment
+ * anything is presumed to be the answer. A customer who replied "I need
+ * another order" had that saved as their address, verbatim, and an associate
+ * was sent to a sentence.
+ *
+ * Deliberately narrow. A Guyanese address is often a landmark — "the yellow
+ * house by the mosque", "second gate after the church" — and refusing those
+ * would be worse than the fault it fixes. So this asks one question: does
+ * this read as a REQUEST rather than a place? A question mark, or an opening
+ * that announces an intention, and no number anywhere in it. A lot number is
+ * taken as proof of an address whatever else the sentence is doing, because
+ * people do type "Lot 12, come quick".
+ */
+const REQUEST_OPENERS =
+  /\b(i need|i want|i would like|can i|could i|can you|could you|do you|please add|add another|another order|one more order|cancel|how much|how long|what time|instead of)\b/i;
+
+export function looksLikeARequest(text: string): boolean {
+  const said = text.trim();
+  if (said === '') return false;
+  // A number is almost always a lot, a street number or a floor.
+  if (/\d/.test(said)) return false;
+  return said.includes('?') || REQUEST_OPENERS.test(said);
+}

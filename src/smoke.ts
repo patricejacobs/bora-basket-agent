@@ -13510,6 +13510,68 @@ section('Skip is a tap, a word, and never an address');
   check('a street answers it', (repo.getCustomer(buyer3).address ?? '').includes('Lot 7'),
     repo.getCustomer(buyer3).address ?? '');
 
+
+  /* --- a sentence is not an address -------------------------------- */
+
+  // "I need another order" was saved as somebody's address, verbatim, and
+  // the associate was sent to a sentence. The street step writes down
+  // whatever arrives, because at that moment anything is presumed to be the
+  // answer.
+  {
+    const { looksLikeARequest: isAsk } = await import('./delivery-checkout.ts');
+
+    // Narrow on purpose. A Guyanese address is often a landmark, and
+    // refusing those would be worse than the fault this fixes.
+    for (const said of [
+      'Lot 12 Mocha Scheme',
+      'the yellow house by the mosque',
+      'second gate after the church',
+      'Diamond Housing Scheme, last street',
+      // A number is taken as proof of an address whatever else the sentence
+      // is doing: people type "Lot 4, come quick".
+      'Lot 4, I need another order',
+    ]) {
+      check(`"${said.slice(0, 28)}" is taken as an address`, !isAsk(said), said);
+    }
+    for (const said of [
+      'I need another order',
+      'can you add rice?',
+      'how much is delivery',
+      'do you have channa',
+    ]) {
+      check(`"${said.slice(0, 28)}" is not`, isAsk(said), said);
+    }
+
+    // And the sequence stands down rather than writing it down.
+    const asker2 = '5920009710';
+    repo.saveCustomer(asker2, { name: 'Ask Tester', contactPhone: asker2 });
+    db.prepare(`UPDATE customers SET address = '' WHERE phone = ?`).run(asker2);
+    repo.chooseLanguage(asker2, 'en');
+    repo.logMessage(asker2, 'in', 'smoke', 'shopping');
+    repo.setService(asker2, 'grocery');
+    repo.setCartQty(asker2, riceSku!.id, 1, '');
+    repo.setDeliveryZone(asker2, 'Mocha');
+    repo.setCheckoutStep(asker2, 'street');
+
+    await skipSay({ phone: asker2, text: 'I need another order', channel: 'smoke' } as never);
+    check('a request is not written down as an address',
+      (repo.getCustomer(asker2).address ?? '') === '',
+      JSON.stringify(repo.getCustomer(asker2).address));
+    check('and the sequence stands down for it',
+      repo.checkoutStep(asker2) === '', repo.checkoutStep(asker2));
+    check('while the basket is left exactly where it was',
+      repo.getCart(asker2).lines.length === 1, String(repo.getCart(asker2).lines.length));
+
+    // A real answer still lands.
+    repo.setCheckoutStep(asker2, 'street');
+    await skipSay({ phone: asker2, text: 'Lot 9 Mocha Scheme', channel: 'smoke' } as never);
+    check('an address still lands',
+      (repo.getCustomer(asker2).address ?? '').includes('Lot 9'),
+      repo.getCustomer(asker2).address ?? '');
+
+    repo.setService(asker2, null);
+    repo.setCheckoutStep(asker2, '');
+  }
   /* --- words where the pin was offered, with no door on file --------- */
 
   // Typing anything at the pin step was recorded as the note and went

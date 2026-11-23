@@ -1559,6 +1559,31 @@ spot for the new address"*, is a pin for the new door by definition. Left
 unmarked it was stored and then hidden: the associate was told ⚠️ *NO PIN —
 ring before you set off* while the exact door sat on the record.
 
+
+**A sentence is not an address.** The street step writes down whatever
+arrives, because at that moment anything is presumed to be the answer — so a
+customer who replied *"I need another order"* had that saved as their
+address, verbatim, and an associate was sent to a sentence.
+
+A reply that reads as a **request** rather than a place now stands the
+sequence down and goes to the agent, which is what the customer was asking
+for. The basket is untouched, so checkout can start again when they are
+ready, and starting again is cheaper than a delivery to a sentence.
+
+The test is deliberately narrow, because a Guyanese address is often a
+landmark and refusing those would be worse than the fault it fixes:
+
+| Taken as an address | Taken as a request |
+|---|---|
+| `Lot 12 Mocha Scheme` | `I need another order` |
+| `the yellow house by the mosque` | `can you add rice?` |
+| `second gate after the church` | `how much is delivery` |
+| `Lot 4, I need another order` | `do you have channa` |
+
+**A number anywhere in it is proof of an address**, whatever else the
+sentence is doing — people type *"Lot 4, come quick"*. The same rule guards
+the name question, since a question is not somebody's name either.
+
 **A pin owed outranks the service menu.** The block that catches it used to
 sit below the menu, so a customer whose service had been cleared — they
 tapped *Leave groceries*, asked for the menu, or came back after the
