@@ -1,0 +1,57 @@
+PLACES THAT NEED A PIN                     Next Minute Delivery
+                                           22 November 2026
+
+These 15 places are in the delivery tariff but are not on any map.
+The shop cannot measure the road to them, draw them on the dispatch
+map, or check that their price makes sense against their neighbours.
+
+To fix one: stand there, or ask somebody who lives there, and send
+the WhatsApp location pin. Then write the two numbers below, or just
+send the pin on.
+
+--------------------------------------------------------------------------
+PLACE                   AREA                   FEE   LATITUDE, LONGITUDE
+--------------------------------------------------------------------------
+Eccles New Scheme       East Bank near      $1,200   ............................
+
+Rome                    East Bank near      $1,000   ............................
+
+Friendship East Coast   East Coast          $1,800   ............................
+
+Melanie Damishana       East Coast          $2,200   ............................
+
+Meadow Brook            Georgetown            $500   ............................
+
+Dora                    Highway             $4,500   ............................
+
+Long Creek              Highway             $4,500   ............................
+
+Loo Creek               Highway             $4,500   ............................
+
+Belle Vue               West Bank           $3,500   ............................
+
+Canal Number One        West Bank far       $4,500   ............................
+
+Canal Number Two        West Bank far       $4,500   ............................
+
+Goed Intent             West Bank far       $4,000   ............................
+
+Sisters                 West Bank far       $4,000   ............................
+
+Klien Pouderoyen        West Bank near      $2,500 * ............................
+
+Hague Back              West Coast          $3,500   ............................
+
+--------------------------------------------------------------------------
+
+* Klien Pouderoyen matters most. It is the cheapest west-side price
+  in the tariff, so the cost of the bridge is worked out from it, so
+  it quietly sets the fare of every trip between two west-side
+  places. It is the only West Bank price still resting on a guess.
+
+Seven of the fifteen are on the west side. Four (Dora, Long Creek,
+Loo Creek and the rest) are far out on the Soesdyke-Linden road and
+can wait.
+
+A landmark helps as much as a pin: "Sisters Village Public Road"
+can be found by a map service when "Sisters" alone cannot.

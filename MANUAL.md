@@ -3961,6 +3961,43 @@ Render setting at all.
 ## 11. Running it day to day
 
 
+
+### The walkthroughs
+
+Ten scripts in the project root that drive the **real handlers** against a
+scratch database and print what each person receives. They are not tests —
+the suite is the test — they exist to be read, and to answer "what does this
+actually look like on a phone?" without touching the live shop.
+
+```powershell
+node walkthrough-grocery.ts
+```
+
+| | What it follows |
+|---|---|
+| `walkthrough-grocery.ts` | One grocery order, from basket to the money |
+| `walkthrough-details.ts` | `7 details` on all four services |
+| `walkthrough-address-change.ts` | A delivery redirected on the road, and the points line after it |
+| `walkthrough-parcel-move.ts` | The same for a parcel, which is priced from both ends |
+| `walkthrough-wrong-door.ts` | A saved door in the wrong village |
+| `walkthrough-wrong-pin.ts` | A pin the customer stands by, and one they correct |
+| `walkthrough-wrong-village.ts` | A wrong pin down all four roads it can take |
+| `walkthrough-buxton.ts` | A change of address answered both ways |
+| `walkthrough-wrong-pin-change.ts` | A change of address with a pin nowhere near it |
+| `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
+| `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
+
+Every one of them sets `ANTHROPIC_API_KEY` and `WHATSAPP_ACCESS_TOKEN` to
+empty before anything is imported: **nothing can reach a telephone and no
+agent turn is billed.** Several capture the outbound messages by catching
+what the sender drops to the console when it has no token, which is the only
+place that text exists outside a real send.
+
+They are kept in the repository because a walkthrough that is not committed
+is a walkthrough that rots: each one was written against the behaviour of the
+day it was needed, and a run that no longer matches the manual is itself the
+finding.
+
 ### The type check is part of the suite
 
 ```powershell
