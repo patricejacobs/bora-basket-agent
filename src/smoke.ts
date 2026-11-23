@@ -13074,6 +13074,46 @@ section('A priced village is a place the shop serves');
     (anyway[0] as { text?: string })?.text?.slice(0, 80));
 
   repo.setOrderStatus(stray.orderNo, 'delivered');
+
+  /* --- and the one that happens without any radius at all ------------ */
+
+  // Most shops never configure a delivery radius, and this one has not: then
+  // "outside the area" can never fire, and the question worth asking is the
+  // other one — the pin does not agree with the village the delivery was
+  // priced for. It is how a job 16 km from its own village reaches somebody
+  // with Accept on it.
+  // placeOrder empties the basket, so this one needs its own.
+  repo.setCartQty(lostPhone, repo.getProductBySku('RIC-001')!.id, 1, '');
+  const mismatched = repo.placeOrder({
+    phone: lostPhone, customerName: 'Mismatch Customer', address: 'Mocha',
+    contactPhone: lostPhone, deliveryNote: '', paymentMethod: 'cash_on_delivery',
+    // A pin in Kitty: two kilometres from the shop, well inside any radius,
+    // and nowhere near the village this order was priced for. The radius has
+    // nothing to say about it, which is the point.
+    location: { latitude: 6.8089, longitude: -58.1398, label: 'Kitty' },
+  } as never);
+  db.prepare(`UPDATE orders SET delivery_zone = 'Parika', recipient_pin = 1 WHERE order_no = ?`)
+    .run(mismatched.orderNo);
+  repo.setOrderStatus(mismatched.orderNo, 'ready');
+  const mismatchDigits = repo.orderDigits(mismatched.orderNo);
+
+  const queried2 = await farDriver(`${mismatchDigits} uplifted`, farRider);
+  const asked2 = (queried2[0] as { text?: string })?.text ?? '';
+  check('a pin that disagrees with the order asks first too',
+    queried2[0]?.kind === 'buttons' && /priced for \*Parika\*/.test(asked2), asked2.slice(0, 120));
+  check('naming where it actually looks like', /nearer \*/.test(asked2), asked2.slice(0, 140));
+  check('and telling them what to do about it', /Ring them before you set off/.test(asked2),
+    asked2.slice(0, 160));
+  check('it is not theirs until they answer',
+    repo.findOrder(mismatched.orderNo)?.status === 'ready',
+    repo.findOrder(mismatched.orderNo)?.status);
+
+  const took = await farDriver(`faraccept_${mismatchDigits}`, farRider);
+  void took;
+  check('taking it anyway takes it',
+    repo.findOrder(mismatched.orderNo)?.status === 'on_the_way',
+    repo.findOrder(mismatched.orderNo)?.status);
+  repo.setOrderStatus(mismatched.orderNo, 'delivered');
 }
 section('A pin that disagrees with the village');
 {

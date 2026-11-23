@@ -2350,8 +2350,26 @@ queue for a third of the shop's own orders, which is how a warning stops
 being read. It now appears only where the tariff has nothing to say, and says
 so: *"and in no village we price"*.
 
-**And the associate is asked before riding there.** Taking a job whose door
-is in no priced village puts one question first:
+**The associate is asked before riding to a job that does not add up.** Two
+things earn the question, and the second is the one that actually happens:
+
+*Outside the area*, which needs a radius to be configured at all. Most shops
+never set one and this shop has not, so that branch is silent here.
+
+*Not where the order says* — the pin disagrees with the village the delivery
+was priced for. That one needs no radius, and it is how a job 16 km from its
+own village reaches somebody with Accept on it:
+
+```
+⚠️ *GRO-00042* is priced for *Mocha*, but the pin is 16.6 km away,
+nearer *Uitvlugt*.
+
+Ring them before you set off, or leave it and the shop will sort it out.
+
+   [ Take it anyway ]  [ Leave it ]
+```
+
+Taking a job whose door is in no priced village puts the other question:
 
 ```
 ⚠️ *GRO-00042* is 94 km from the shop, past the 15 km area, and in no

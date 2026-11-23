@@ -2339,21 +2339,49 @@ export async function handleDriverMessage(
   // earns it: a priced village beyond the circle is not out of area, it is
   // somewhere the shop chose to serve.
   if ((mayAccept || status === 'on_the_way') && phone && order.location) {
-    const { servedSpot } = await import('./pin-check.ts');
+    const { servedSpot, checkPin: pinAgrees } = await import('./pin-check.ts');
     const spot = servedSpot(order.location);
     const range = checkRange(order.location, config.store.serviceArea);
     const alreadySaid = repo
       .orderHistory(order.orderNo)
       .some((e) => e.event === 'far accepted' && e.actor === phone.replace(/[^0-9]/g, ''));
-    if (!spot.served && range.state === 'outside' && !alreadySaid) {
+
+    // Two different ways a job can be worth a question before anybody rides
+    // to it, and the second is the one that actually happens.
+    //
+    // OUTSIDE THE AREA, which needs a radius to be configured at all. Most
+    // shops never set one, and this shop has not: then the tariff is the
+    // whole answer to where it delivers, and this branch is silent.
+    //
+    // NOT WHERE THE ORDER SAYS. The pin disagrees with the village the
+    // delivery was priced for — the thing the customer was already asked
+    // about and may have stood by, or that arrived later from `7 pin` or an
+    // address changed on the road, where nobody is asked anything. The
+    // associate is the one who finds out at the far end of the trip, so
+    // they are asked at the near end.
+    const outside = !spot.served && range.state === 'outside';
+    const disagrees =
+      order.deliveryZone !== '' && pinAgrees(order.location, order.deliveryZone).state === 'elsewhere';
+
+    if ((outside || disagrees) && !alreadySaid) {
+      const verdict = order.deliveryZone
+        ? pinAgrees(order.location, order.deliveryZone)
+        : { state: 'ok' as const };
+      const head = outside
+        ? `⚠️ *${order.orderNo}* is ${formatDistance(range.distanceKm)} from the shop,` +
+          ` past the ${range.radiusKm} km area${spot.place ? `, and in no village we price (nearest is ${spot.place}, ${spot.km} km off)` : ''}.`
+        : `⚠️ *${order.orderNo}* is priced for *${order.deliveryZone}*, but the pin is` +
+          `${verdict.state === 'elsewhere' && verdict.km !== null ? ` ${verdict.km} km away` : ' somewhere else'}` +
+          `${verdict.state === 'elsewhere' && verdict.looksLike ? `, nearer *${verdict.looksLike}*` : ''}.`;
       return [
         {
           kind: 'buttons',
           text: [
-            `⚠️ *${order.orderNo}* is ${formatDistance(range.distanceKm)} from the shop,` +
-              ` past the ${range.radiusKm} km area${spot.place ? `, and in no village we price (nearest is ${spot.place}, ${spot.km} km off)` : ''}.`,
+            head,
             '',
-            'Nobody has to take this one. Say so and the shop will sort it out.',
+            outside
+              ? 'Nobody has to take this one. Say so and the shop will sort it out.'
+              : 'Ring them before you set off, or leave it and the shop will sort it out.',
           ].join(chr10),
           buttons: [
             { id: `faraccept_${repo.orderDigits(order.orderNo)}`, title: 'Take it anyway' },
