@@ -28,6 +28,7 @@
  * pretend to.
  */
 import { config } from './config.ts';
+import * as repo from './db/repo.ts';
 import { findZone, tariff } from './zones.ts';
 import { coordsFor, straightKm, type Point } from './place-coords.ts';
 
@@ -128,6 +129,24 @@ function tariffPlaces(): string[] {
  * kilometres of a priced village is in that village for every practical
  * purpose.
  */
+/**
+ * How many times this order's pin has already been queried.
+ *
+ * Only for a pin on a job that EXISTS. In checkout nothing is committed yet,
+ * so a customer who keeps sending the same spot costs nothing but their own
+ * patience, and the way out is in the message: reply `skip` and give the
+ * street. Once an associate is carrying it, somebody is waiting on the
+ * answer, and asking a third time serves nobody — the pin is taken and the
+ * card says to ring.
+ */
+export function timesQueried(orderNo: string): number {
+  return repo.orderHistory(orderNo).filter((e) => e.event === 'pin queried').length;
+}
+
+export function noteQueried(orderNo: string): void {
+  repo.recordEvent(orderNo, 'pin queried', '', 'the pin did not match the place');
+}
+
 export function servedSpot(
   pin: Point,
   marginKm = config.store.pinToleranceKm,

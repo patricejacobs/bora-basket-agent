@@ -203,8 +203,12 @@ const STRINGS: Record<Language, Dictionary> = {
     // Asked, never refused: they know their own address better than a
     // geocoded village centre does, and the figure is there so they can
     // judge it rather than take our word for it.
-    pin_far: 'That spot looks about {km} from *{place}*, and the delivery is priced for {place}. Is it right?',
-    pin_far_named: 'That spot looks {km} from *{place}* — it is nearer *{near}*. The delivery is priced for {place}. Is it right?',
+    pin_far: 'That spot is about {km} from *{place}*, and the delivery is priced for {place}.',
+    pin_far_named: 'That spot is {km} from *{place}* — it is in *{near}*. The delivery is priced for {place}.',
+    // One answer, and a way through for somebody who genuinely cannot pin
+    // their own door. Saying "that one is right" is not an option: it costs
+    // an associate a ride across the country.
+    pin_send_again: 'Tap below and send the spot at *{place}*. No map? Reply *skip* and tell me the street instead.',
     pin_keep: 'Yes, that is right',
     pin_again: 'Send it again',
     spot_prompt_from: 'Tap below to send where exactly you are.',
@@ -410,8 +414,9 @@ const STRINGS: Record<Language, Dictionary> = {
     spot_ask_to: '*{place}* — listo. Si sabe el punto exacto, envíelo en el mapa y el conductor le llevará justo ahí.',
     spot_send: '📍 Enviar ubicación',
     spot_skip: 'Omitir',
-    pin_far: 'Ese punto está a unos {km} de *{place}*, y el envío está calculado para {place}. ¿Es correcto?',
-    pin_far_named: 'Ese punto está a {km} de *{place}* — queda más cerca de *{near}*. El envío está calculado para {place}. ¿Es correcto?',
+    pin_far: 'Ese punto está a unos {km} de *{place}*, y el envío está calculado para {place}.',
+    pin_far_named: 'Ese punto está a {km} de *{place}* — está en *{near}*. El envío está calculado para {place}.',
+    pin_send_again: 'Toque abajo y envíe el punto en *{place}*. ¿Sin mapa? Responda *omitir* y dígame la calle.',
     pin_keep: 'Sí, es correcto',
     pin_again: 'Enviar de nuevo',
     spot_prompt_from: 'Toque abajo para enviar dónde está exactamente.',
@@ -601,8 +606,9 @@ const STRINGS: Record<Language, Dictionary> = {
     spot_ask_to: '*{place}* — certo. Se sabe o local exato, envie-o no mapa e o motorista leva-o mesmo até lá.',
     spot_send: '📍 Enviar local',
     spot_skip: 'Ignorar',
-    pin_far: 'Esse ponto fica a cerca de {km} de *{place}*, e a entrega está calculada para {place}. Está certo?',
-    pin_far_named: 'Esse ponto fica a {km} de *{place}* — está mais perto de *{near}*. A entrega está calculada para {place}. Está certo?',
+    pin_far: 'Esse ponto fica a cerca de {km} de *{place}*, e a entrega está calculada para {place}.',
+    pin_far_named: 'Esse ponto fica a {km} de *{place}* — está em *{near}*. A entrega está calculada para {place}.',
+    pin_send_again: 'Toque abaixo e envie o ponto em *{place}*. Sem mapa? Responda *ignorar* e diga-me a rua.',
     pin_keep: 'Sim, está certo',
     pin_again: 'Enviar outra vez',
     spot_prompt_from: 'Toque abaixo para enviar onde está exatamente.',
@@ -789,8 +795,9 @@ const STRINGS: Record<Language, Dictionary> = {
     spot_ask_to: '*{place}* — 好的。如果您知道确切地点，请在地图上发送，司机会直接送您过去。',
     spot_send: '📍 发送位置',
     spot_skip: '跳过',
-    pin_far: '这个位置距离 *{place}* 约 {km}，而配送费是按 {place} 计算的。确认无误吗？',
-    pin_far_named: '这个位置距离 *{place}* {km}，更靠近 *{near}*。配送费是按 {place} 计算的。确认无误吗？',
+    pin_far: '这个位置距离 *{place}* 约 {km}，而配送费是按 {place} 计算的。',
+    pin_far_named: '这个位置距离 *{place}* {km}，位于 *{near}*。配送费是按 {place} 计算的。',
+    pin_send_again: '请点击下方发送 *{place}* 的位置。没有地图？回复 *跳过* 并告诉我街道地址。',
     pin_keep: '是的，没错',
     pin_again: '重新发送',
     spot_prompt_from: '点击下方发送您的确切位置。',

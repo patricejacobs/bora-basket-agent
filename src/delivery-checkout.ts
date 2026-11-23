@@ -84,17 +84,27 @@ export function pinLooksWrong(
   lang: Language,
 ): OutboundMessage {
   const how = verdict.km === null ? '' : `${verdict.km} km`;
+  // One answer, and it is a better pin.
+  //
+  // There used to be a second button saying the spot was right. It was the
+  // wrong thing to offer: the shop is not asking for a preference, it is
+  // saying the map does not agree with the village, and the tap that waves
+  // that away costs somebody else a ride across the country. A customer who
+  // really does live past the village line has a way through that is not a
+  // claim about a pin — the street, in words.
+  //
+  // The native request, so the one answer is one tap to the map.
   return {
-    kind: 'buttons',
-    text: t(
-      verdict.looksLike ? 'pin_far_named' : 'pin_far',
-      lang,
-      { place, km: how, near: verdict.looksLike },
-    ),
-    buttons: [
-      { id: PIN_KEEP, title: t('pin_keep', lang) },
-      { id: PIN_AGAIN, title: t('pin_again', lang) },
-    ],
+    kind: 'location_request',
+    text: [
+      t(verdict.looksLike ? 'pin_far_named' : 'pin_far', lang, {
+        place,
+        km: how,
+        near: verdict.looksLike,
+      }),
+      '',
+      t('pin_send_again', lang, { place }),
+    ].join(nl),
   };
 }
 

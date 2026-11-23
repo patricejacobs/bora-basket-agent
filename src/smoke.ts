@@ -1481,14 +1481,38 @@ section('Changing where a delivery is going');
     // is asked whether they meant it. The debt stays open while that stands,
     // which is what makes their answer an answer to THIS pin.
     check('and a pin in the wrong village is queried',
-      /Is it right\?/.test(words), words.slice(0, 120));
+      /is in \*Timehri\*/.test(words), words.slice(0, 160));
     check('with the debt left open until they answer',
       repo.pinWantedFor(buyer2) === job.orderNo, repo.pinWantedFor(buyer2));
 
+    // Asked twice and no more: somebody is carrying this job, and a third
+    // round of "that is not where you said" leaves them holding nothing
+    // better while the customer keeps sending the only spot they have.
+    const sameAgain = async (): Promise<string> =>
+      (await pinSend2({
+        phone: buyer2, text: '', channel: 'smoke',
+        location: { latitude: 6.4455, longitude: -58.2211, label: 'the red gate' },
+      } as never))
+        .map((m) => (m as { text?: string }).text ?? '')
+        .join(' ');
+
+    const second = await sameAgain();
+    check('the same wrong pin is queried a second time', /is in \*/.test(second),
+      second.slice(0, 120));
+    const third = await sameAgain();
+    check('but not a third — it is taken, and the card carries the warning',
+      !/is in \*/.test(third), third.slice(0, 120));
+    check('and the debt is closed with it', repo.pinWantedFor(buyer2) === '',
+      repo.pinWantedFor(buyer2));
+
+    // No longer offered — but a button sent before the change is still in
+    // somebody's chat, and WhatsApp never retires one. Contrived back into
+    // the state it would have arrived in.
+    repo.wantPinFor(buyer2, job.orderNo);
     const stoodBy = await pinSend2({
       phone: buyer2, text: 'pin:keep', channel: 'smoke',
     } as never);
-    check('standing by it clears the debt', repo.pinWantedFor(buyer2) === '',
+    check('a stale "that is right" button still answers', repo.pinWantedFor(buyer2) === '',
       repo.pinWantedFor(buyer2));
     check('and says so rather than going quiet',
       /map/i.test((stoodBy[0] as { text?: string })?.text ?? ''),
@@ -13202,11 +13226,19 @@ section('A pin that disagrees with the village');
     phone: asker, text: '', channel: 'smoke', location: uitvlugt,
   } as never);
   const put = (queried[0] as { text?: string })?.text ?? '';
-  check('the customer is asked rather than refused',
-    queried[0]?.kind === 'buttons' && /Is it right\?/.test(put), put.slice(0, 90));
+  // One answer, and it is a better pin: the map opens on a single tap and
+  // there is no button that says the spot was right. Waving that away costs
+  // an associate a ride across the country, which is not the customer's to
+  // spend.
+  check('the only way on is a better pin',
+    queried[0]?.kind === 'location_request', queried[0]?.kind);
+  check('and nothing offers to call it correct',
+    !/that is right/i.test(put) && !/Is it right/i.test(put), put.slice(0, 120));
   check('the question names both villages',
     /Mocha/.test(put) && /Uitvlugt/.test(put), put);
   check('and gives the figure, so they can judge it', /km/.test(put), put);
+  check('with a way through for somebody who cannot pin at all',
+    /skip/i.test(put), put);
   check('the sequence has NOT moved on', repo.checkoutStep(asker) === 'pin',
     repo.checkoutStep(asker));
 

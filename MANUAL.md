@@ -2418,19 +2418,32 @@ cries wolf is a warning nobody reads. At 8 km it catches the wrong corridor
 and the wrong side of the river, which is the mistake that actually happens.
 `PIN_TOLERANCE_KM` changes it; `0` switches the whole check off.
 
-**It asks. It never refuses.**
+**It has one answer, and the answer is a better pin.**
 
 ```
-That spot looks 22 km from *Mocha* — it is nearer *Uitvlugt*.
-The delivery is priced for Mocha. Is it right?
+That spot is 22.4 km from *Mocha* — it is in *Uitvlugt*.
+The delivery is priced for Mocha.
 
-   [ Yes, that is right ]  [ Send it again ]
+Tap below and send the spot at *Mocha*. No map? Reply *skip*
+and tell me the street instead.
+
+   [ 📍 Send location ]
 ```
 
-*Yes* takes them at their word — a farm past the village line, a house on a
-boundary, or a geocode of ours that is simply off. *Send it again* forgets
-the pin they just disowned, because a pin left on the record answers the
-next question.
+There used to be a second button saying the spot was right. It was the wrong
+thing to offer: the shop is not asking for a preference, it is saying the map
+does not agree with the village — and the tap that waves that away costs
+somebody else a ride across the country. A customer who really does live past
+the village line still has a way through, and it is not a claim about a pin:
+the street, in words.
+
+The request is WhatsApp's own, so the one answer is one tap to the map.
+
+**Twice, on a job already out.** Nothing is committed during checkout, so a
+customer who keeps sending the same spot costs only their own patience and
+the way out is printed in the message. Once an associate is carrying it,
+somebody is waiting on the answer: the question is put twice, and the third
+pin is taken as it stands, with the card telling them to ring.
 
 **And the associate is told, since they are the one who drives there:**
 

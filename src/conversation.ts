@@ -62,7 +62,7 @@ import {
   placeTheOrder,
   saysSkip,
 } from './delivery-checkout.ts';
-import { checkPin } from './pin-check.ts';
+import { checkPin, noteQueried, timesQueried } from './pin-check.ts';
 import {
   languageScreen,
   readLanguageId,
@@ -457,9 +457,14 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         // they meant it, helps nobody.
         const said = await pinTheNewAddress(msg.phone, msg.location);
         const verdict = going ? checkPin(msg.location, going) : { state: 'ok' as const };
-        if (said && verdict.state === 'elsewhere') {
+        // Twice, and no more. Somebody is carrying this job: a third round of
+        // "that is not where you said" leaves them holding nothing better
+        // while the customer keeps sending the only spot they have. The card
+        // carries the warning either way, and it tells them to ring.
+        if (said && verdict.state === 'elsewhere' && timesQueried(owed) < 2) {
+          noteQueried(owed);
           // The debt is reopened: the question is live again until they
-          // answer it, and their answer is a pin or a tap.
+          // answer it, and their answer is a better pin or the street.
           repo.wantPinFor(msg.phone, owed);
           return shopAnswered(
             msg,
