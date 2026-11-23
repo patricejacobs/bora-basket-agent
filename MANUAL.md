@@ -4010,6 +4010,67 @@ Render setting at all.
 
 
 
+
+### Accept first, then Uplifted
+
+Every associate on duty is offered the same job, so the card opens with the
+one move that settles who is going: **Accept**, and nothing else.
+
+```
+🛵 *GRO-00001*
+
+*Uplift from:* the shop
+2 x Rice
+
+*Deliver to:* Ann Persaud
+Lot 4 Diamond
+📞 +5926100001
+*Collect $5,500 cash* from the customer
+   [ Accept ]
+```
+
+It used to open with **Uplifted** — the move that closes the kitchen's part
+of the job — so two people could be walking to the same counter and the one
+who lost the race found out by being refused at it.
+
+**Accepting claims the job and moves nothing else.** The order stays `ready`,
+because the kitchen's word for *the food is up* is not the associate's word
+for *I am coming for it*. What changes is whose job it is:
+
+```
+✅ *GRO-00001* is yours. Nobody else can take it now.
+…
+Tap *Uplifted* when you have it.
+   [ Uplifted ]
+```
+
+**And then nobody else can touch it.** A reply button never expires, so the
+Accept sent to everybody is still live in every chat — tapping it after
+somebody has taken the job is answered, not obeyed:
+
+```
+GRO-00001 has already been taken by Rider One.
+```
+
+and so is any other move on somebody else's job, with the way to do it
+properly:
+
+```
+GRO-00001 is not yours to move.
+
+Rider One is delivering it. If they have passed it to you,
+they send `1 transfer` — then it is yours and you can close it.
+```
+
+**A parcel and a taxi already worked this way** — they have no kitchen to
+confirm them, so the associate's Accept *is* the confirmation and it moves
+them to `confirmed`. A delivery needed its own word, `take`, because moving a
+`ready` order to `confirmed` would walk it backwards into the kitchen's state.
+
+**The cap counts what is in their hands**, not what is on the road: accepting
+is holding it now, so a limit that only counted collected jobs would mean
+nothing.
+
 ### The walkthroughs
 
 Ten scripts in the project root that drive the **real handlers** against a

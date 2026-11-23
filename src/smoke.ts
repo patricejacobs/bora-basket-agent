@@ -3433,8 +3433,15 @@ section('Kitchen and delivery associate commands');
     'a kitchen gets "food ready" once confirmed',
     nextActions('ORD-00009', 'confirmed', 'outlet').some((a) => a.id.startsWith('ready')),
   );
+  // A job nobody has taken offers one thing, and it is not Uplifted: every
+  // associate on duty sees this card, and two of them walking to the same
+  // counter is how one of them wastes a trip.
   const riderReady = nextActions('ORD-00009', 'ready', 'driver');
-  check('a delivery associate uplifts a ready order', riderReady[0]?.title.startsWith('Uplifted') === true, JSON.stringify(riderReady));
+  check('a job nobody holds offers Accept, and only that',
+    riderReady.length === 1 && riderReady[0]?.title === 'Accept', JSON.stringify(riderReady));
+  const riderMine = nextActions('ORD-00009', 'ready', 'driver', { mine: true });
+  check('and once it is theirs, Uplifted',
+    riderMine[0]?.title.startsWith('Uplifted') === true, JSON.stringify(riderMine));
   check('a delivery associate gets nothing on an unconfirmed order', nextActions('ORD-00009', 'pending', 'driver').length === 0);
 
   const ssc = repo.getOutlet('SSC')!;
@@ -8414,7 +8421,9 @@ section('A kitchen hands over; an associate carries');
   // Both buttons read "Uplifted" because both people say it. They mean
   // different things, and the ids keep them apart.
   const kitchenBtn = nextActions('ORD-00031', 'ready', 'outlet')[0];
-  const driverBtn = nextActions('ORD-00031', 'ready', 'driver')[0];
+  // Theirs already: an associate who has not taken it is offered Accept, and
+  // the two Uplifted buttons are what this section is about.
+  const driverBtn = nextActions('ORD-00031', 'ready', 'driver', { mine: true })[0];
   check('the kitchen is offered Uplifted', kitchenBtn?.title === 'Uplifted', JSON.stringify(kitchenBtn));
   check('so is the associate', driverBtn?.title === 'Uplifted', JSON.stringify(driverBtn));
   check('but they are not the same button', kitchenBtn?.id !== driverBtn?.id);
@@ -13615,6 +13624,104 @@ section('A saved door is only a door for the place it is in');
 
 /* ------------------------------- every id the shop sends is read somewhere */
 
+
+/* ------------------------------------------- one job, one pair of hands */
+
+section('Accept first, and only one of them');
+{
+  const { handleDriverMessage: tap } = await import('./staff.ts');
+  const { readButtonId: readId } = await import('./button-ids.ts');
+  const { nextActions: ladder } = await import('./order-status.ts');
+  const one = '5926004401';
+  const two = '5926004402';
+  const buyer = '5920009900';
+
+  for (const [phone, name] of [[one, 'Taker One'], [two, 'Taker Two']] as const) {
+    repo.upsertAssociate({ phone, name, vehicle: 'PAA 4', active: true });
+    repo.setDuty(phone, true);
+    for (const held of repo.openJobsFor(phone)) {
+      db.prepare(`UPDATE orders SET driver_phone = '' WHERE order_no = ?`).run(held.orderNo);
+    }
+  }
+
+  repo.saveCustomer(buyer, { name: 'Race Tester', contactPhone: buyer, address: 'Lot 1 Diamond' });
+  repo.logMessage(buyer, 'in', 'smoke', 'rice');
+  repo.setCartQty(buyer, (repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0])!.id, 1, '');
+  repo.setDeliveryZone(buyer, 'Diamond');
+  repo.setFeeAgreed(buyer, repo.getCart(buyer).deliveryFee);
+  const race = repo.placeOrder({
+    phone: buyer, customerName: 'Race Tester', address: 'Lot 1 Diamond', contactPhone: buyer,
+    deliveryNote: '', paymentMethod: 'cash_on_delivery', location: null,
+  } as never);
+  repo.setOrderStatus(race.orderNo, 'ready');
+  const raceN = repo.orderDigits(race.orderNo);
+
+  // The button the offer carries, and what the channel makes of its id.
+  const offered = ladder(race.orderNo, 'ready', 'driver', { mine: false });
+  check('a job nobody holds offers Accept alone',
+    offered.length === 1 && offered[0]?.title === 'Accept', JSON.stringify(offered));
+  check('and its id survives the channel',
+    readId(offered[0]!.id) === `${raceN} take`, `${offered[0]?.id} -> ${readId(offered[0]!.id)}`);
+
+  // Taking it.
+  const took = await tap(`${raceN} take`, one);
+  check('taking it says so plainly',
+    /is yours\. Nobody else can take it now/.test((took[0] as { text?: string })?.text ?? ''),
+    (took[0] as { text?: string })?.text?.slice(0, 70));
+  check('and it is theirs on the record',
+    repo.findOrder(race.orderNo)?.driverPhone === one, repo.findOrder(race.orderNo)?.driverPhone);
+  check('while the order itself has not moved',
+    repo.findOrder(race.orderNo)?.status === 'ready', repo.findOrder(race.orderNo)?.status);
+  check('and the next button is Uplifted',
+    took[0]?.kind === 'buttons' &&
+      (took[0] as { buttons: { title: string }[] }).buttons[0]?.title.startsWith('Uplifted') === true,
+    JSON.stringify((took[0] as { buttons?: { title: string }[] }).buttons));
+
+  // The other one, tapping the Accept still sitting in their chat. A reply
+  // button never expires, so this is not a hypothetical.
+  const late = await tap(`${raceN} take`, two);
+  check('the second taker is refused',
+    /already been taken by Taker One/.test((late[0] as { text?: string })?.text ?? ''),
+    (late[0] as { text?: string })?.text?.slice(0, 80));
+  check('and it is still the first one’s',
+    repo.findOrder(race.orderNo)?.driverPhone === one, repo.findOrder(race.orderNo)?.driverPhone);
+
+  // Nor can they move it by any other door.
+  for (const word of ['uplifted', 'delivered']) {
+    const pushed = await tap(`${raceN} ${word}`, two);
+    check(`nor can they ${word} it`,
+      /not yours to move/.test((pushed[0] as { text?: string })?.text ?? ''),
+      (pushed[0] as { text?: string })?.text?.slice(0, 60));
+  }
+  // Sending it back is refused one gate earlier — "not out with you" — which
+  // is the same answer in different words, and true for a job still on the
+  // counter whoever is asking.
+  const sentBack = await tap(`${raceN} nobody there`, two);
+  check('nor send it back',
+    /not out with you|not yours to move/.test((sentBack[0] as { text?: string })?.text ?? ''),
+    (sentBack[0] as { text?: string })?.text?.slice(0, 70));
+  check('so the job never moved', repo.findOrder(race.orderNo)?.status === 'ready',
+    repo.findOrder(race.orderNo)?.status);
+
+  // And the one who took it carries on.
+  const moved = await tap(`${raceN} uplifted`, one);
+  void moved;
+  check('the one who took it can uplift it',
+    repo.findOrder(race.orderNo)?.status === 'on_the_way',
+    repo.findOrder(race.orderNo)?.status);
+
+  // "mistake" must not take a job. The word boundaries are the whole of it.
+  const slip = await tap(`${raceN} sorry my mistake`, one);
+  check('"mistake" does not take anything',
+    !/is yours\. Nobody else/.test((slip[0] as { text?: string })?.text ?? ''),
+    (slip[0] as { text?: string })?.text?.slice(0, 60));
+
+  repo.setOrderStatus(race.orderNo, 'delivered');
+  for (const phone of [one, two]) {
+    repo.setDuty(phone, false);
+    repo.upsertAssociate({ phone, name: 'Taker', vehicle: 'PAA 4', active: false });
+  }
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

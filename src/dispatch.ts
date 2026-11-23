@@ -1504,6 +1504,9 @@ export async function tellTransferred(
   const actions = nextActions(order.orderNo, order.status, 'driver', {
     codeExpected: repo.deliveryCodeExpected(order.orderNo),
     selfAccepted: order.kind === 'parcel' || order.kind === 'taxi',
+    // This card goes to the person whose job it is, so the ladder shows
+    // their next step rather than offering them a job they already hold.
+    mine: order.driverPhone !== '',
   });
 
   return actions.length > 0
@@ -1601,7 +1604,9 @@ export async function dispatchToDrivers(
     ...dropLines(order),
   ].join('\n');
 
-  const actions = nextActions(order.orderNo, 'ready', 'driver');
+  // Nobody has taken it yet, so the card offers the one move that matters:
+  // taking it. Everybody on duty gets this message, and the first tap wins.
+  const actions = nextActions(order.orderNo, 'ready', 'driver', { mine: false });
 
   // Somebody already carrying a delivery is not offered another. Sending it
   // anyway means a card they cannot act on, and a tap that gets refused.

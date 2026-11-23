@@ -303,7 +303,7 @@ export function commandFromButtonId(id: string): string | null {
   };
 
   const simple =
-    /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move|changedest)_(\d+)$/.exec(
+    /^(confirm|ready|otw|delivered|cancel|handover|nocode|nobody|badcode|wait|move|changedest|take)_(\d+)$/.exec(
       id,
     );
   if (simple) {
@@ -444,6 +444,32 @@ export function acceptButton(orderNo: string): { id: string; title: string; comm
 }
 
 /**
+ * Taking a DELIVERY, which is a different move from accepting a parcel.
+ *
+ * A parcel or a taxi has nobody else to accept it, so the associate's tap IS
+ * the confirmation and it moves the order to `confirmed`. Food is already
+ * cooked and the grocery is already picked: the status says `ready` and must
+ * keep saying it, because the kitchen's word for "the food is up" is not the
+ * associate's word for "I am coming for it".
+ *
+ * So this claims the job without moving it. The order stays ready, the
+ * associate's name goes on it, and nobody else is offered or allowed it.
+ */
+export function takeJobButton(orderNo: string): { id: string; title: string; command: string } {
+  const n = String(Number(orderNo.replace(/[^0-9]/g, '')));
+  return { id: `take_${n}`, title: 'Accept', command: `${n} take` };
+}
+
+export function takeJobFromButtonId(id: string): string | null {
+  const tapped = /^take_(\d{1,6})$/i.exec(String(id).trim());
+  return tapped ? (tapped[1] ?? '') : null;
+}
+
+export function isTakeJobId(id: string): boolean {
+  return takeJobFromButtonId(id) !== null;
+}
+
+/**
  * Tapped when there is nobody to take the parcel.
  *
  * "Nobody there", not "Nobody home": a parcel goes to an office, a shop, a
@@ -541,6 +567,15 @@ export function nextActions(
      * a button nobody is offered is a button almost nobody taps.
      */
     outletConfirms?: boolean;
+    /**
+     * This job is already this associate's.
+     *
+     * A job nobody has taken offers one thing — Accept — and a job that is
+     * theirs offers the next step. Passed in rather than looked up, like
+     * everything else here, so this module can be reasoned about from its
+     * arguments alone.
+     */
+    mine?: boolean;
   } = {},
 ): { id: string; title: string; command: string }[] {
   // "ORD-00007" -> "7": dispatchers read the short form, and it keeps titles
@@ -558,6 +593,7 @@ export function nextActions(
   ): { id: string; title: string; command: string } => ({ id, title, command });
 
   const confirm = act(`confirm_${n}`, 'Confirm', `${n} confirm`);
+  const takeJob = act(`take_${n}`, 'Accept', `${n} take`);
   const ready = act(`ready_${n}`, 'Ready', `${n} ready`);
   const otw = act(`otw_${n}`, 'On the way', `${n} on the way`);
   // Shares the id, and therefore the command, with staff's own "On the way".
@@ -648,7 +684,15 @@ export function nextActions(
         }
         return opts.selfAccepted ? [uplifted] : [];
       case 'ready':
-        return [uplifted];
+        // One button on a job nobody has taken, and it is not Uplifted.
+        //
+        // Every associate on duty is offered the same job, and the card used
+        // to open with the move that closes the kitchen's part of it — so
+        // two people could be walking to the same counter, and the one who
+        // lost the race found out by being refused at it. Accept first:
+        // whoever taps it owns the job, and only then does the card offer
+        // the thing you do once you are holding the bag.
+        return opts.mine ? [uplifted] : [takeJob];
       // No Delivered button once a code is expected: typing the customer's four
       // digits IS the delivery, so a button beside it would either be a second
       // way to do the same thing or - worse - a button marked Delivered that

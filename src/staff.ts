@@ -1258,6 +1258,15 @@ const describeForKitchen = (o: repo.OrderRecord): string =>
 const changeDestWord = /\bchange\s*destination\b/i;
 /** `7 pin`, `7 location`, `send the pin for 7` — all one request. */
 const pinWord = /\b(pin|location)\b/i;
+/**
+ * `7 take` — the Accept button on a job card, and the words behind it.
+ *
+ * Word boundaries, deliberately: without them this matches the "take" inside
+ * "mistake", and an associate typing "sorry, my mistake" would be claiming a
+ * job. That has happened to this codebase twice through a `\b` eaten by a
+ * shell, so it is written out and tested rather than assumed.
+ */
+const takeWord = /\b(take|take\s*it|accept\s*job|mine)\b/i;
 /** `7 details` — everything about one job, asked for at the bottom of the chat. */
 const detailsWord = /\b(details?|info|information)\b/i;
 
@@ -2119,6 +2128,68 @@ export async function handleDriverMessage(
     }
   }
 
+  // Taking a delivery. `7 take`, which is what the Accept button on a job
+  // card sends.
+  //
+  // Read before the status words, because "accept" is one of them and would
+  // walk a ready order backwards into `confirmed` — the kitchen's state, not
+  // this one's. Nothing about the order moves here: the food is still on the
+  // counter and the status still says so. What changes is whose job it is.
+  if (takeWord.test(trimmed)) {
+    const mine = phone.replace(/[^0-9]/g, '');
+    const taken = order.driverPhone;
+
+    if (taken && taken !== mine) {
+      const who = repo.getAssociate(taken);
+      return reply(
+        `${order.orderNo} has already been taken${who?.name ? ` by ${who.name}` : ''}.` +
+          `${chr10}${chr10}Send \`jobs\` to see what else is waiting.`,
+      );
+    }
+    if (order.status === 'delivered' || order.status === 'cancelled' || order.status === 'returned') {
+      return reply(`${order.orderNo} is ${STATUS_LABEL[order.status]} — there is nothing to take.`);
+    }
+
+    // The cap, counted against everything in their hands rather than only
+    // what is on the road. Accepting IS holding it now, so a limit that
+    // ignored accepted-but-not-collected jobs would mean nothing.
+    const limit = config.maxJobsPerAssociate;
+    const holding2 = repo.openJobsFor(mine).filter((o) => o.orderNo !== order.orderNo);
+    if (limit > 0 && holding2.length >= limit) {
+      return reply(
+        [
+          `You already have ${holding2.map((o) => o.orderNo).join(', ')}.`,
+          '',
+          `This shop runs ${limit} at a time. Finish that one and ${order.orderNo} will come round again.`,
+        ].join(chr10),
+      );
+    }
+
+    if (!taken) repo.assignDriver(order.orderNo, phone);
+    const fresh = repo.findOrder(order.orderNo) ?? order;
+    const { dropLines: lines } = await import('./dispatch.ts');
+    return [
+      {
+        kind: 'buttons',
+        text: [
+          `✅ *${fresh.orderNo}* is yours. Nobody else can take it now.`,
+          '',
+          ...(fresh.outlet
+            ? [`*Uplift from:* ${fresh.outlet.name}${fresh.outlet.pickupAddress ? `, ${fresh.outlet.pickupAddress}` : ''}`, '']
+            : []),
+          ...lines(fresh),
+          '',
+          'Tap *Uplifted* when you have it.',
+        ].join(chr10),
+        buttons: nextActions(fresh.orderNo, fresh.status, 'driver', {
+          mine: true,
+          selfAccepted: fresh.kind === 'parcel' || fresh.kind === 'taxi',
+          codeExpected: repo.deliveryCodeExpected(fresh.orderNo),
+        }),
+      },
+    ];
+  }
+
   // `7 details` — the whole job, from the record as it stands now.
   //
   // Read before the status words for the same reason the pin is: nothing in
@@ -2361,12 +2432,35 @@ export async function handleDriverMessage(
     );
   }
 
-  // First to accept takes it. The rest find it gone, which is the right
+  // First to take it owns it. The rest find it gone, which is the right
   // answer and not an error: somebody is already on their way to it.
-  if (mayAccept && order.driverPhone && order.driverPhone !== phone.replace(/[^0-9]/g, '')) {
+  //
+  // Every move on somebody else's job, not only accepting one. A reply
+  // button never expires, so an associate who was offered this job an hour
+  // ago still has a live Accept — and an Uplifted — sitting in their chat,
+  // and tapping either of those would take a job out of the hands of the
+  // person carrying it. The ladder is only a courtesy; this is the guard.
+  //
+  // Transfers are the deliberate exception: handing a job over is how it is
+  // SUPPOSED to change hands, and that path assigns the new associate first.
+  if (
+    order.driverPhone &&
+    order.driverPhone !== phone.replace(/[^0-9]/g, '') &&
+    order.status !== 'delivered' &&
+    order.status !== 'cancelled' &&
+    order.status !== 'returned'
+  ) {
     const who = repo.getAssociate(order.driverPhone);
+    const n = String(Number(order.orderNo.replace(/[^0-9]/g, '')));
     return reply(
-      `${order.orderNo} has already been taken${who?.name ? ` by ${who.name}` : ''}. Send \`jobs\` to see what else is waiting.`,
+      [
+        `${order.orderNo} is not yours to move.`,
+        '',
+        `${who?.name || 'Another delivery associate'} is delivering it. If they have passed it to you,`,
+        `they send \`${n} transfer\` — then it is yours and you can close it.`,
+        '',
+        'Send `jobs` to see what else is waiting.',
+      ].join(chr10),
     );
   }
   // A job whose door is in no village the shop prices.
