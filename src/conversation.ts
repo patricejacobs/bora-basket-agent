@@ -784,11 +784,17 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         if (chosen === 'parcel') repo.addParcelPin(msg.phone, msg.location, 'destination');
         else {
           recordLocationPin(msg.phone, msg.location);
-          // Which village this pin is FOR. A pin carries no address, so
-          // without this the next order has no way to tell whether the one
-          // on file is the door it is going to or a door in another part of
-          // the country.
-          repo.setPinZone(msg.phone, repo.getCustomer(msg.phone).deliveryZone || '');
+          // Which village this pin is FOR — and only when it really is.
+          //
+          // A pin carries no address, so without this the next order cannot
+          // tell whether the one on file is the door it is going to or a
+          // door in another part of the country. But a pin that does not
+          // match the village must not be blessed with it either: doing
+          // that made the next question think the shop had a door. Somebody
+          // who pinned Uitvlugt for a Mocha delivery and then replied
+          // `skip` went straight to the price with no street asked and that
+          // pin still on the order.
+          repo.setPinZone(msg.phone, verdict.state === 'ok' ? going : '');
         }
         if (verdict.state === 'elsewhere') {
           return ask(pinLooksWrong(going, verdict, lang), '(sent their location)');

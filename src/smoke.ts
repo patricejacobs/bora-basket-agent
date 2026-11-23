@@ -13239,6 +13239,18 @@ section('A pin that disagrees with the village');
   check('and gives the figure, so they can judge it', /km/.test(put), put);
   check('with a way through for somebody who cannot pin at all',
     /skip/i.test(put), put);
+
+  // And that way out must not inherit the pin they were just told was
+  // wrong. Blessing it with the village before it was checked made the
+  // next question think the shop had a door: `skip` went straight to the
+  // price, no street asked, with a pin 22 km away still on the order.
+  const refusedSkip = await pinSay({ phone: asker, text: 'skip', channel: 'smoke' } as never);
+  check('skipping after a bad pin asks for the street',
+    /street address at Mocha/i.test((refusedSkip[0] as { text?: string })?.text ?? ''),
+    (refusedSkip[0] as { text?: string })?.text?.slice(0, 80));
+  check('because the bad pin was never recorded as that village',
+    repo.pinZone(asker) === '', repo.pinZone(asker));
+  repo.setCheckoutStep(asker, 'pin');
   check('the sequence has NOT moved on', repo.checkoutStep(asker) === 'pin',
     repo.checkoutStep(asker));
 
