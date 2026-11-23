@@ -481,7 +481,16 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           describeTap(text),
         );
       }
-      if (text === ADDR_SKIP) {
+      // The word as well as the button.
+      //
+      // The shop asks for `skip` in writing now — "No map? Reply *skip*" is
+      // printed under every request for a spot — and this block read only
+      // the tap. So a customer who answered in the words they were given
+      // fell straight through it: the debt stayed open, the associate was
+      // never asked about the new address, and the change quietly did not
+      // happen. Offering a word and then not reading it is worse than never
+      // offering it.
+      if (text === ADDR_SKIP || saysSkip(text)) {
         repo.wantPinFor(msg.phone, '');
         // Skipped before the associate has been asked: the question still
         // goes to them, with no pin on it, which is the honest version.

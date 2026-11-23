@@ -1524,6 +1524,38 @@ section('Changing where a delivery is going');
     repo.setService(buyer2, 'grocery');
     repo.setOrderPin(job.orderNo, { latitude: 6.7, longitude: -58.0, label: 'the blue gate' });
   }
+
+  /* --- the word, where only the button was read --------------------- */
+
+  // The shop asks for `skip` in writing now — "No map? Reply *skip*" is
+  // printed under every request for a spot — and this block read only the
+  // tap. A customer who answered in the words they were given fell straight
+  // through: the debt stayed open, the associate was never asked about the
+  // new address, and the change quietly did not happen.
+  {
+    const { handleIncoming: skipWord } = await import('./conversation.ts');
+    repo.clearDestProposal(job.orderNo);
+    repo.proposeDestination(job.orderNo, 'Buxton', 1800);
+    repo.wantPinFor(buyer2, job.orderNo);
+    repo.setService(buyer2, null);
+
+    const typed = await skipWord({ phone: buyer2, text: 'skip', channel: 'smoke' } as never);
+    const back = (typed[0] as { text?: string })?.text ?? '';
+    check('typing "skip" puts it to the associate',
+      /Asked your associate about \*Buxton\*/.test(back), back.slice(0, 110));
+    check('and the debt is closed with it', repo.pinWantedFor(buyer2) === '',
+      repo.pinWantedFor(buyer2));
+    check('and they are NOT sent to the service menu',
+      !/What can we help you with/.test(back), back.slice(0, 90));
+
+    // The proposal is live with the associate, who has not answered yet.
+    check('the proposal is still open for them to answer',
+      repo.destProposal(job.orderNo)?.place === 'Buxton',
+      JSON.stringify(repo.destProposal(job.orderNo)));
+
+    repo.clearDestProposal(job.orderNo);
+    repo.setService(buyer2, 'grocery');
+  }
     // ---- `7 details`, the whole job on demand -----------------------
     // The job card is sent once and then buried. Three drops later, the
     // customer's telephone number is up the chat past everything since — and
