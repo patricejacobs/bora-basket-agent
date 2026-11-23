@@ -25,7 +25,7 @@ import {
   wantedBy,
 } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
-import { checkPin } from './pin-check.ts';
+import { checkPin, servedSpot } from './pin-check.ts';
 import {
   checkRange,
   describePin,
@@ -1139,9 +1139,13 @@ export function dropLines(order: repo.OrderRecord): string[] {
     // the worst version of this card.
     ...(() => {
       if (!pinIsForThisDoor || !order.location) return [];
+      // Only where the tariff has nothing to say. A priced village beyond
+      // the radius is a place the shop chose to serve, and warning about 30
+      // per cent of its own orders is how a warning stops being read.
+      if (servedSpot(order.location).served) return [];
       const range = checkRange(order.location, config.store.serviceArea);
       return range.state === 'outside'
-        ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area`]
+        ? [`⚠️ ${formatDistance(range.distanceKm)} away, OUTSIDE the ${range.radiusKm} km delivery area — and in no village we price`]
         : [];
     })(),
     // And the other distance, which is a different question: not "can we

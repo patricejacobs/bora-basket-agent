@@ -12950,6 +12950,131 @@ section('A list nobody can still see');
 
 /* ------------------------------------- is the pin where they said it was */
 
+
+/* ------------------------------------------------ the tariff decides */
+
+section('A priced village is a place the shop serves');
+{
+  const { servedSpot } = await import('./pin-check.ts');
+  const { coordsFor } = await import('./place-coords.ts');
+  const { dropLines: lines } = await import('./dispatch.ts');
+
+  // The two rules disagreed: 45 of the 185 priced villages sit beyond the
+  // 15 km radius. Hope is priced at $2,800 and is 17 km out, so a customer
+  // there was quoted a figure and then refused at the last tap.
+  const hope = coordsFor('Hope');
+  const mahaicony = coordsFor('Mahaicony');
+  check('the tariff prices places beyond the radius', hope !== null && mahaicony !== null);
+  check('and a pin in one of them is served',
+    hope !== null && servedSpot(hope).served, JSON.stringify(hope && servedSpot(hope)));
+  check('however far out it is',
+    mahaicony !== null && servedSpot(mahaicony).served,
+    JSON.stringify(mahaicony && servedSpot(mahaicony)));
+
+  // New Amsterdam is 95 km east and nobody priced it. There the radius is
+  // the only thing the shop has to go on, and it still refuses.
+  const faraway = { latitude: 6.247, longitude: -57.5172 };
+  check('a pin in a village nobody priced is not served',
+    !servedSpot(faraway).served, JSON.stringify(servedSpot(faraway)));
+
+  /* --- so checkout takes the order it priced ------------------------- */
+
+  const hopePhone = '5920009500';
+  const hopeCtx: ToolContext = { phone: hopePhone, outbound: [] };
+  const hopeCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, hopeCtx));
+
+  repo.saveLocationPin(hopePhone, { ...hope!, label: 'Hope' });
+  repo.saveCustomer(hopePhone, { name: 'Hope Customer', address: 'Hope', contactPhone: hopePhone });
+  repo.setAddressZone(hopePhone, 'Hope');
+  repo.setPinZone(hopePhone, 'Hope');
+  repo.setDeliveryZone(hopePhone, 'Hope');
+  repo.logMessage(hopePhone, 'in', 'smoke', 'rice please');
+  hopeCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+  repo.confirmIdentity(hopePhone);
+  repo.setFeeAgreed(hopePhone, repo.getCart(hopePhone).deliveryFee);
+
+  const taken = hopeCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('an order to a priced village 17 km out is taken',
+    typeof taken.order_number === 'string', JSON.stringify(taken).slice(0, 140));
+
+  // And the card does not cry wolf about it: a warning printed on a third
+  // of the shop's own orders is a warning nobody reads.
+  const placedHope = repo.findOrder(String(taken.order_number));
+  const card = placedHope ? lines(placedHope).join(String.fromCharCode(10)) : '';
+  check('and the card does not call it out of area',
+    !/OUTSIDE/.test(card), card);
+
+  /* --- while a pin nobody priced is still refused -------------------- */
+
+  const lostPhone = '5920009600';
+  const lostCtx: ToolContext = { phone: lostPhone, outbound: [] };
+  const lostCall = (name: string, input: unknown = {}): any =>
+    JSON.parse(executeTool(name, input, lostCtx));
+  repo.saveLocationPin(lostPhone, { ...faraway, label: 'New Amsterdam' });
+  repo.saveCustomer(lostPhone, { name: 'Far Customer', contactPhone: lostPhone });
+  repo.logMessage(lostPhone, 'in', 'smoke', 'rice please');
+  lostCall('add_to_cart', { sku: 'RIC-001', quantity: 1 });
+  repo.confirmIdentity(lostPhone);
+  repo.setFeeAgreed(lostPhone, repo.getCart(lostPhone).deliveryFee);
+  const stopped = lostCall('place_order', { payment_method: 'cash_on_delivery' });
+  check('a pin in no priced village is still refused',
+    typeof stopped.error === 'string' && /delivery area/.test(String(stopped.error)),
+    JSON.stringify(stopped).slice(0, 140));
+
+  /* --- and the associate is asked before riding there ---------------- */
+
+  const { handleDriverMessage: farDriver } = await import('./staff.ts');
+  const farRider = config.driverNumbers[0]!;
+  repo.setDuty(farRider, true);
+  // Park whatever an earlier section left them holding: this shop runs one
+  // job at a time, and a rider already carrying one is refused for that
+  // reason rather than for the one under test.
+  for (const held of repo.activeJobsFor(farRider)) {
+    db.prepare(`UPDATE orders SET driver_phone = '' WHERE order_no = ?`).run(held.orderNo);
+  }
+  const stray = repo.placeOrder({
+    phone: lostPhone, customerName: 'Far Customer', address: 'New Amsterdam',
+    contactPhone: lostPhone, deliveryNote: '', paymentMethod: 'cash_on_delivery',
+    location: { ...faraway, label: 'New Amsterdam' },
+  } as never);
+  repo.setOrderStatus(stray.orderNo, 'ready');
+  const digitsFar = repo.orderDigits(stray.orderNo);
+
+  const warned = await farDriver(`${digitsFar} uplifted`, farRider);
+  const warnText = (warned[0] as { text?: string })?.text ?? '';
+  check('taking a job nobody priced asks first',
+    warned[0]?.kind === 'buttons' && /no village we price/.test(warnText), warnText.slice(0, 120));
+  check('with the distance on it', /km from the shop/.test(warnText), warnText.slice(0, 120));
+  check('and it is NOT theirs yet',
+    repo.findOrder(stray.orderNo)?.status === 'ready',
+    repo.findOrder(stray.orderNo)?.status);
+
+  // And the warning is still there for the place nobody priced: suppressing
+  // it for 30 per cent of the shop's own orders must not suppress it for the
+  // one that earns it.
+  const strayCard = lines(repo.findOrder(stray.orderNo)!).join(String.fromCharCode(10));
+  check('an unpriced pin still carries the warning',
+    /OUTSIDE the 15 km delivery area/.test(strayCard), strayCard);
+  check('and says the tariff has nothing to say about it either',
+    /no village we price/.test(strayCard), strayCard);
+
+  const left = await farDriver(`farleave_${digitsFar}`, farRider);
+  check('leaving it leaves it',
+    /Left /.test((left[0] as { text?: string })?.text ?? '') &&
+      repo.findOrder(stray.orderNo)?.status === 'ready',
+    (left[0] as { text?: string })?.text?.slice(0, 60));
+
+  const anyway = await farDriver(`faraccept_${digitsFar}`, farRider);
+  check('taking it anyway takes it',
+    repo.findOrder(stray.orderNo)?.status === 'on_the_way',
+    repo.findOrder(stray.orderNo)?.status);
+  check('and they are not asked twice',
+    !/no village we price/.test((anyway[0] as { text?: string })?.text ?? ''),
+    (anyway[0] as { text?: string })?.text?.slice(0, 80));
+
+  repo.setOrderStatus(stray.orderNo, 'delivered');
+}
 section('A pin that disagrees with the village');
 {
   const { checkPin } = await import('./pin-check.ts');

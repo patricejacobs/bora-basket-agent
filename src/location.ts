@@ -152,6 +152,26 @@ export type RangeCheck =
   | { state: 'inside'; distanceKm: number }
   | { state: 'outside'; distanceKm: number; radiusKm: number };
 
+/**
+ * The range check, as the shop now asks it: against the delivery area only
+ * where the TARIFF has nothing to say about the place.
+ *
+ * A priced village beyond the circle is somewhere the shop chose to serve
+ * — 45 of the 185 are — and warning about it on the card, in the staff
+ * alert and in the queue is how a warning stops being read.
+ *
+ * Lives here so the four callers cannot drift apart, and takes the verdict
+ * as an argument so this module keeps knowing nothing about tariffs.
+ */
+export function rangeWorthSaying(
+  pin: Coordinates,
+  area: ServiceArea | null,
+  served: boolean,
+): RangeCheck {
+  if (served) return { state: 'unchecked', distanceKm: null, radiusKm: 0 };
+  return checkRange(pin, area);
+}
+
 export function checkRange(pin: Coordinates, area: ServiceArea | null): RangeCheck {
   if (!area || !(area.radiusKm > 0)) return { state: 'unchecked' };
   const distance = distanceKm(pin, area);

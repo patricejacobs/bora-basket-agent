@@ -6,7 +6,8 @@ import { sendText, sendButtons, sendTemplate, sendLocation, sendList } from './c
 import { nextActions, CANCEL_REASONS, describeAge, wantedBy } from './order-status.ts';
 import { summariseStored } from './menu-options.ts';
 import { waitingCharge as taxiWaitingCharge } from './taxi.ts';
-import { checkRange, describePin } from './location.ts';
+import { checkRange, describePin, rangeWorthSaying } from './location.ts';
+import { servedSpot } from './pin-check.ts';
 
 /**
  * Tells the shop an order came in.
@@ -117,7 +118,17 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     ...(order.address && !isTaxi ? [order.address] : []),
     `📞 +${order.contactPhone || order.phone}`,
     ...(order.location
-      ? ['', describePin(order.location, checkRange(order.location, config.store.serviceArea))]
+      ? [
+          '',
+          describePin(
+            order.location,
+            rangeWorthSaying(
+              order.location,
+              config.store.serviceArea,
+              servedSpot(order.location).served,
+            ),
+          ),
+        ]
       : ['', '⚠️ No location pin on this order']),
   ];
   if (order.deliveryNote) lines.push(`Note: ${order.deliveryNote}`);

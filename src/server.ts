@@ -338,6 +338,12 @@ app.get('/health', (_req: Request, res: Response) => {
       // not checkable, and the shop says nothing about them rather than
       // accusing somebody of mis-pinning their own address.
       placesLocated: placesLocated(),
+      // The circle, which now judges only a pin the tariff cannot place.
+      // Reported because the two rules used to disagree silently, and the
+      // first question when they do is what the circle actually is.
+      serviceArea: config.store.serviceArea
+        ? `${config.store.serviceArea.radiusKm} km`
+        : 'not set — the tariff alone decides',
       // Customers who asked for a person and are still waiting to be passed on.
       pendingHelp: pendingHelpCount(),
       // On the road right now. 0 means orders are being refused.

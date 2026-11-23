@@ -105,3 +105,47 @@ function tariffPlaces(): string[] {
   if (!places) places = tariff().map((z) => z.place);
   return places;
 }
+
+/**
+ * Is this spot somewhere the shop has chosen to serve?
+ *
+ * The shop has two rules about where it will deliver and they disagree. The
+ * TARIFF prices 185 villages, 45 of them beyond the delivery radius —
+ * Foulis at 16.7 km for $2,000, Hope at 17 km, Mahaicony at 45 km for
+ * $5,000. The RADIUS refuses anything past its circle. Both were live at
+ * once, so a customer in Hope was quoted a price and then refused at the
+ * last tap, for a village the shop had deliberately priced.
+ *
+ * A place in the tariff is a place somebody decided to serve, at a figure
+ * they worked out. That decision outranks a circle drawn around the shop.
+ * So the tariff answers the question wherever it can, and the radius keeps
+ * the job it is actually good at: judging a pin in a place NOBODY priced,
+ * where the shop genuinely does not know whether anyone can get there.
+ *
+ * "In a priced village" is measured with the same tolerance as the pin
+ * check, and for the same reason: these villages sit 600 m apart and their
+ * coordinates are single points, not boundaries. A pin within a few
+ * kilometres of a priced village is in that village for every practical
+ * purpose.
+ */
+export function servedSpot(
+  pin: Point,
+  marginKm = config.store.pinToleranceKm,
+): { served: boolean; place: string; km: number | null } {
+  let best: { place: string; km: number } | null = null;
+  for (const candidate of tariffPlaces()) {
+    const point = coordsFor(candidate);
+    if (!point) continue;
+    const km = straightKm(pin, point);
+    if (!best || km < best.km) best = { place: candidate, km };
+  }
+  if (!best) return { served: false, place: '', km: null };
+  // A margin of 0 would make this answer "only if it is exactly on the
+  // village's own geocoded point", which nowhere is.
+  const margin = marginKm > 0 ? marginKm : 8;
+  return {
+    served: best.km <= margin,
+    place: best.place,
+    km: Math.round(best.km * 10) / 10,
+  };
+}

@@ -55,7 +55,9 @@ import {
   ONBOARDING_HELP,
 } from './onboarding.ts';
 import type { IncomingImage } from './channels/types.ts';
-import { checkRange, describePin } from './location.ts';
+import { checkRange, describePin, formatDistance, rangeWorthSaying } from './location.ts';
+import { servedSpot as servedPinSpot } from './pin-check.ts';
+const servedPin = (p: { latitude: number; longitude: number }): boolean => servedPinSpot(p).served;
 import type { OutboundMessage } from './channels/types.ts';
 
 export const isStaff = (phone: string): boolean => config.staffNumbers.includes(phone);
@@ -609,7 +611,10 @@ const describe = (o: repo.OrderRecord): string =>
     // ten orders needs something tappable, not two numbers to copy out. The
     // distance comes with it, which is what decides what the delivery associate takes next.
     o.location
-      ? describePin(o.location, checkRange(o.location, config.store.serviceArea))
+      ? describePin(
+          o.location,
+          rangeWorthSaying(o.location, config.store.serviceArea, servedPin(o.location)),
+        )
       : '⚠️ no location pin',
     ...(o.deliveryNote ? [`Note: ${o.deliveryNote}`] : []),
     // Durations, not clock times: nobody reads "ready 13:41, uplifted 13:58"
@@ -2055,6 +2060,26 @@ export async function handleDriverMessage(
     return reply(await askCustomerForPin(order.orderNo));
   }
 
+  // The two answers to "nobody prices this one". `faraccept` records that
+  // they were told and re-runs the acceptance; `farleave` leaves the job
+  // where it is, which is the whole point of asking.
+  {
+    const far = trimmed.match(/^far(accept|leave)_(\d{1,6})$/i);
+    if (far) {
+      const target = repo.findOrder(far[2] ?? '');
+      if (!target) return reply(`No order ${far[2]}. Send \`jobs\` to see what's waiting.`);
+      if ((far[1] ?? '').toLowerCase() === 'leave') {
+        return reply(
+          `Left ${target.orderNo} where it is. Somebody at the shop will have to sort that one out.`,
+        );
+      }
+      repo.recordEvent(target.orderNo, 'far accepted', phone, 'told how far out it is');
+      const { nextActions: acts } = await import('./order-status.ts');
+      void acts;
+      return handleDriverMessage(`${far[2]} ${target.kind === 'restaurant' || target.kind === 'grocery' ? 'uplifted' : 'confirm'}`, phone);
+    }
+  }
+
   // `7 details` — the whole job, from the record as it stands now.
   //
   // Read before the status words for the same reason the pin is: nothing in
@@ -2304,6 +2329,39 @@ export async function handleDriverMessage(
     return reply(
       `${order.orderNo} has already been taken${who?.name ? ` by ${who.name}` : ''}. Send \`jobs\` to see what else is waiting.`,
     );
+  }
+  // A job whose door is in no village the shop prices.
+  //
+  // The tariff decides where the shop delivers, and it has nothing to say
+  // about this one — so the radius is all there is, and the person being
+  // asked to ride there should say so out loud rather than discover it at
+  // the far end of the trip. Asked once, and only for the rare job that
+  // earns it: a priced village beyond the circle is not out of area, it is
+  // somewhere the shop chose to serve.
+  if ((mayAccept || status === 'on_the_way') && phone && order.location) {
+    const { servedSpot } = await import('./pin-check.ts');
+    const spot = servedSpot(order.location);
+    const range = checkRange(order.location, config.store.serviceArea);
+    const alreadySaid = repo
+      .orderHistory(order.orderNo)
+      .some((e) => e.event === 'far accepted' && e.actor === phone.replace(/[^0-9]/g, ''));
+    if (!spot.served && range.state === 'outside' && !alreadySaid) {
+      return [
+        {
+          kind: 'buttons',
+          text: [
+            `⚠️ *${order.orderNo}* is ${formatDistance(range.distanceKm)} from the shop,` +
+              ` past the ${range.radiusKm} km area${spot.place ? `, and in no village we price (nearest is ${spot.place}, ${spot.km} km off)` : ''}.`,
+            '',
+            'Nobody has to take this one. Say so and the shop will sort it out.',
+          ].join(chr10),
+          buttons: [
+            { id: `faraccept_${repo.orderDigits(order.orderNo)}`, title: 'Take it anyway' },
+            { id: `farleave_${repo.orderDigits(order.orderNo)}`, title: 'Leave it' },
+          ],
+        },
+      ];
+    }
   }
   if (mayAccept && phone) repo.assignDriver(order.orderNo, phone);
   // One delivery at a time, and the refusal doubles as the reminder.

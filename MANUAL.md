@@ -2323,6 +2323,51 @@ just thrown away. Tapping **✅ Check out** in groceries never showed it,
 because that path goes straight through the shop and never through the agent.
 
 
+
+### The tariff decides where the shop delivers
+
+Two rules used to answer that question and they disagreed. The **tariff**
+prices 185 villages; the **delivery radius** refuses anything past its circle.
+**45 of those 185 sit beyond 15 km** — Foulis at 16.7 km for $2,000, Hope at
+17 km for $2,800, Mahaicony at 45 km for $5,000. So a customer in Hope was
+quoted a figure, filled a basket, and was refused at the last tap for living
+in a village the shop had deliberately priced.
+
+**A place in the tariff is a place somebody decided to serve, at a figure
+they worked out. That outranks a circle drawn round the shop.** So:
+
+| The pin is | What decides |
+|---|---|
+| In or near a priced village | **The tariff.** Accepted, however far out |
+| In no priced village | **The radius.** Refused if it is outside, as before |
+
+"Near" uses the same tolerance as the pin check, and for the same reason: a
+village's coordinate is a single point, not a boundary.
+
+**The warning follows the same rule.** `⚠️ OUTSIDE the 15 km delivery area`
+used to print on the associate's card, the staff alert and the open-orders
+queue for a third of the shop's own orders, which is how a warning stops
+being read. It now appears only where the tariff has nothing to say, and says
+so: *"and in no village we price"*.
+
+**And the associate is asked before riding there.** Taking a job whose door
+is in no priced village puts one question first:
+
+```
+⚠️ *GRO-00042* is 94 km from the shop, past the 15 km area, and in no
+village we price (nearest is Timehri, 31 km off).
+
+Nobody has to take this one. Say so and the shop will sort it out.
+
+   [ Take it anyway ]  [ Leave it ]
+```
+
+*Leave it* leaves the job where it is. *Take it anyway* records that they were
+told, and nobody is asked twice about the same job.
+
+`/health` reports `serviceArea` beside `placesLocated`, because the first
+question when two rules disagree is what each of them actually says.
+
 ### Is the pin where they said it was
 
 A pin is specific, confident, and opens a maps app — which is what makes a

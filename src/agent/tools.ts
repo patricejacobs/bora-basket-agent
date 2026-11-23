@@ -22,6 +22,7 @@ import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { savedPinIsIn, settleDeliveryPlace } from '../delivery-place.ts';
+import { servedSpot } from '../pin-check.ts';
 import { endPicker } from '../place-picker.ts';
 import { proposeAddressToAssociate } from '../dispatch.ts';
 import { ADDR_PIN, ADDR_SKIP, askPlace } from '../delivery-checkout.ts';
@@ -1855,9 +1856,19 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const doorPin =
         !goingTo || savedPinIsIn(ctx.phone, goingTo) ? customer.location : null;
 
-      const range = doorPin
-        ? checkRange(doorPin, config.store.serviceArea)
-        : { state: 'unchecked' as const, distanceKm: null, radiusKm: 0 };
+      // A place in the tariff is a place somebody decided to serve, at a
+      // figure they worked out. That outranks a circle drawn round the shop:
+      // 45 of the 185 priced villages sit beyond the radius, so the two
+      // rules refused customers the shop had deliberately priced — quoted
+      // $2,800 for Hope, then refused at the last tap for being 17 km out.
+      //
+      // The radius keeps the job it is good at: a pin in a place NOBODY
+      // priced, where the shop does not know whether anyone can get there.
+      const served = doorPin ? servedSpot(doorPin) : { served: false, place: '', km: null };
+      const range =
+        doorPin && !served.served
+          ? checkRange(doorPin, config.store.serviceArea)
+          : { state: 'unchecked' as const, distanceKm: null, radiusKm: 0 };
       if (range.state === 'outside') {
         return fail(
           `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
