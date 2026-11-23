@@ -4073,7 +4073,7 @@ nothing.
 
 ### The walkthroughs
 
-Ten scripts in the project root that drive the **real handlers** against a
+Fourteen scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4092,6 +4092,9 @@ node walkthrough-grocery.ts
 | `walkthrough-wrong-pin.ts` | A pin the customer stands by, and one they correct |
 | `walkthrough-wrong-village.ts` | A wrong pin down all four roads it can take |
 | `walkthrough-buxton.ts` | A change of address answered both ways |
+| `walkthrough-accept-first.ts` | Two associates, one job, and who gets it |
+| `walkthrough-webhook-accept.ts` | The same, driven through the real signed webhook |
+| `walkthrough-call-customer.ts` | The Call customer button, through the channel that swallowed it |
 | `walkthrough-wrong-pin-change.ts` | A change of address with a pin nowhere near it |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
