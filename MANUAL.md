@@ -2438,6 +2438,39 @@ next question.
 ⚠️ pin is 22 km from Mocha, nearer Uitvlugt — check before you set off
 ```
 
+**The customer is asked too, whenever the pin arrives late.** The question at
+checkout only covers a pin sent during checkout. A pin that arrives
+afterwards — from `7 pin`, or for an address changed on the road — used to go
+onto the job with nobody asked anything, and the only mention of it was a
+warning on the associate's card:
+
+```
+⚠️ pin is 9.3 km from Plaisance, nearer Meadow Bank — check before you set off
+```
+
+Now the same fact goes to the person who can actually fix it:
+
+```
+them ◂ Got it — your associate has the new spot on their map.
+
+     ◂ That spot looks 9.3 km from *Plaisance* — it is nearer *Meadow Bank*.
+       The delivery is priced for Plaisance. Is it right?
+       [ Yes, that is right ]  [ Send it again ]
+```
+
+**The associate gets it either way, first.** They asked for it and are
+standing at a door; holding a pin back to ask its sender whether they meant
+it helps nobody. The question follows in the same breath, and a better pin
+replaces the first one on their card.
+
+**Before the associate is troubled at all, where there is time.** A pin for an
+address being *proposed* is checked before the proposal goes out — nobody is
+standing anywhere yet, so the cheapest moment to catch it is then.
+
+**"Send it again" clears nothing.** The next pin overwrites it; deleting the
+one on file would leave somebody already driving with less than they had.
+
+
 **What it cannot do.** It compares the pin to the **village**, never to the
 street. *Lot 12 Mocha Scheme* with a pin three hundred metres away in Mocha is
 indistinguishable from a perfect pin, and it does not pretend otherwise. It is

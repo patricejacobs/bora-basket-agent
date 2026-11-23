@@ -1475,7 +1475,23 @@ section('Changing where a delivery is going');
       repo.findOrder(job.orderNo)?.location?.latitude === 6.4455,
       JSON.stringify(repo.findOrder(job.orderNo)?.location));
     check('and they are not sent back to the menu', !/Pick a number first/.test(words), words.slice(0, 90));
-    check('and the debt is cleared', repo.pinWantedFor(buyer2) === '');
+    // That pin is 10 km from the village the order is priced for, so the
+    // question follows it: the associate has it either way, and the customer
+    // is asked whether they meant it. The debt stays open while that stands,
+    // which is what makes their answer an answer to THIS pin.
+    check('and a pin in the wrong village is queried',
+      /Is it right\?/.test(words), words.slice(0, 120));
+    check('with the debt left open until they answer',
+      repo.pinWantedFor(buyer2) === job.orderNo, repo.pinWantedFor(buyer2));
+
+    const stoodBy = await pinSend2({
+      phone: buyer2, text: 'pin:keep', channel: 'smoke',
+    } as never);
+    check('standing by it clears the debt', repo.pinWantedFor(buyer2) === '',
+      repo.pinWantedFor(buyer2));
+    check('and says so rather than going quiet',
+      /map/i.test((stoodBy[0] as { text?: string })?.text ?? ''),
+      (stoodBy[0] as { text?: string })?.text?.slice(0, 70));
 
     // Put the door back where the rest of this section found it: the suite
     // shares one shop, and a fixture that outlives its own test is a fault

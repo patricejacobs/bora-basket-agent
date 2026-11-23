@@ -396,8 +396,50 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // proposal and goes to the associate with it, so the person deciding
       // whether they can take it there is looking at the door.
       const open = repo.destProposal(owed);
+      const job = repo.findOrder(owed);
+      // Where this pin is supposed to be: the place being proposed, or the
+      // one the order is already priced for.
+      const going = (open?.place || job?.deliveryZone || '').trim();
+
+      // They were asked whether a doubtful pin was right, and said it was.
+      //
+      // The debt is deliberately left open while that question stands, so
+      // these two answers know which pin they are about without a second
+      // piece of state to keep in step.
+      if (text === PIN_KEEP) {
+        repo.wantPinFor(msg.phone, '');
+        if (open) {
+          const { proposeAddressToAssociate } = await import('./dispatch.ts');
+          await proposeAddressToAssociate(owed, open.place, open.fare);
+          return shopAnswered(
+            msg,
+            [{ kind: 'text', text: t('addr_asked', lang, { place: open.place }) }],
+            describeTap(text),
+          );
+        }
+        return shopAnswered(msg, [{ kind: 'text', text: t('addr_pinned', lang) }], describeTap(text));
+      }
+      if (text === PIN_AGAIN) {
+        // Nothing is cleared: the next pin overwrites this one, and a pin
+        // deleted from a job somebody is already driving leaves them with
+        // less than they had. The debt stays open, so the sequence is still
+        // waiting for the better answer.
+        return shopAnswered(
+          msg,
+          [{ kind: 'location_request', text: t('spot_prompt_to', lang) }],
+          describeTap(text),
+        );
+      }
+
       if (msg.location && open) {
         repo.setProposalPin(owed, msg.location);
+        // Asked BEFORE the associate is troubled with it. Nobody is standing
+        // at a gate yet — the proposal has not gone out — so the cheapest
+        // moment to catch a pin in the wrong village is now.
+        const verdict = checkPin(msg.location, going);
+        if (verdict.state === 'elsewhere') {
+          return shopAnswered(msg, [pinLooksWrong(going, verdict, lang)], '(sent their location)');
+        }
         repo.wantPinFor(msg.phone, '');
         const { proposeAddressToAssociate } = await import('./dispatch.ts');
         await proposeAddressToAssociate(owed, open.place, open.fare);
@@ -409,7 +451,22 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       }
 
       if (msg.location) {
+        // The associate asked for this one and is standing at a door, so it
+        // goes to them first and the question follows in the same breath.
+        // Delaying a pin somebody is waiting on, to ask its sender whether
+        // they meant it, helps nobody.
         const said = await pinTheNewAddress(msg.phone, msg.location);
+        const verdict = going ? checkPin(msg.location, going) : { state: 'ok' as const };
+        if (said && verdict.state === 'elsewhere') {
+          // The debt is reopened: the question is live again until they
+          // answer it, and their answer is a pin or a tap.
+          repo.wantPinFor(msg.phone, owed);
+          return shopAnswered(
+            msg,
+            [{ kind: 'text', text: said }, pinLooksWrong(going, verdict, lang)],
+            '(sent their location)',
+          );
+        }
         if (said) return shopAnswered(msg, [{ kind: 'text', text: said }], '(sent their location)');
       }
       if (text === ADDR_PIN) {
