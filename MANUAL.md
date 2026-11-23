@@ -2507,6 +2507,16 @@ answer was `skip`, which settled nothing. A telephone call settles it.
 Three is WhatsApp's limit, and a pin that agrees gets two buttons and no
 warning: a line on every proposal is a line nobody reads.
 
+**An id with nothing behind it is a button that looks right and does
+nothing**, and that has now shipped three times: the driver's *Change
+destination*, the passenger's answer to it, and this one. WhatsApp sends back
+both the title and the id; the title is the right answer for most buttons,
+so an unrecognised id quietly falls through to three words with no order
+number in them. The chain that decides lives in `src/button-ids.ts`, and the
+suite sweeps **every id the shop can send** through it — 43 of them, gathered
+from the code that builds them rather than from a list somebody keeps up to
+date. A new button with no reader is a failing test.
+
 **Tapping it answers with the number**, because a reply button cannot dial
 anything — all it can do is send its id back:
 

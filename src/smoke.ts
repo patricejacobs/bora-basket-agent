@@ -13598,6 +13598,95 @@ section('A saved door is only a door for the place it is in');
 
   repo.setService(shawn, null);
 }
+
+/* ------------------------------- every id the shop sends is read somewhere */
+
+section('No button is a dead button');
+{
+  const { idIsRead, readButtonId } = await import('./button-ids.ts');
+  const { ORDER_STATUSES: everyStatus } = await import('./db/repo.ts');
+  const sweeper = '5920009800';
+  repo.saveCustomer(sweeper, { name: 'Sweep', contactPhone: sweeper });
+  repo.setCartQty(sweeper, (repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0])!.id, 1, '');
+  const {
+    nextActions: everyAction,
+    acceptButton: accept2,
+    nobodyThereButton: nobody2,
+    transferButton: transfer2,
+    destAnswerButtons: destBoth,
+    callCustomerButton: callBtn,
+    cancelButtons: cancelBoth,
+  } = await import('./order-status.ts');
+  const { languageScreen: langScreen } = await import('./language-choice.ts');
+  const { wayOutButtons: wayOut } = await import('./aisles.ts');
+  const { endPicker: picker, spotAsk: spot, fareButtons: fare } = await import('./place-picker.ts');
+  const {
+    GATE_BOOK: gBook, GATE_CHANGE: gChange, GATE_CANCEL: gCancel,
+    ADDR_PIN: aPin, ADDR_SKIP: aSkip, PIN_KEEP: pKeep, PIN_AGAIN: pAgain,
+  } = await import('./delivery-checkout.ts');
+
+  // Every button the shop can put in front of anybody, gathered from the
+  // places that build them rather than written out here — a list typed by
+  // hand goes stale the first time somebody adds a button.
+  const ids: string[] = [];
+  const takeButtons = (m: { kind: string; buttons?: { id: string }[]; rows?: { id: string }[] }): void => {
+    for (const b of m.buttons ?? []) ids.push(b.id);
+    for (const r of m.rows ?? []) ids.push(r.id);
+  };
+
+  // The dispatch ladder, for every audience and every combination of flags.
+  for (const audience of ['staff', 'outlet', 'driver'] as const) {
+    for (const status of everyStatus) {
+      for (const flags of [0, 1, 2, 3, 4, 5, 6, 7]) {
+        for (const act of everyAction('ORD-00007', status, audience, {
+          selfAccepted: (flags & 1) !== 0,
+          canWait: (flags & 2) !== 0,
+          waitingOpen: (flags & 4) !== 0,
+          atPickup: (flags & 1) !== 0,
+          codeExpected: (flags & 2) !== 0,
+          mayReturn: (flags & 4) !== 0,
+        } as never)) {
+          ids.push(act.id);
+        }
+      }
+    }
+  }
+
+  ids.push(accept2('ORD-00007').id, nobody2('ORD-00007').id, transfer2('ORD-00007', '5926001111', 'Rider').id);
+  ids.push(...destBoth(7, 'yes', 'no').map((b) => b.id));
+  ids.push(callBtn(7).id);
+  ids.push(...cancelBoth('ORD-00007', 'staff').map((b) => b.id));
+  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain);
+  takeButtons(langScreen('Next Minute Delivery'));
+  takeButtons(picker(sweeper, 'drop', 'en'));
+  takeButtons(spot('from', 'Diamond', 'en'));
+  takeButtons(fare('$1,200', 'en'));
+  for (const seen of [{}, { onTheAisleList: true }, { onTheBasket: true }]) {
+    for (const b of wayOut(sweeper, 'en', seen)) ids.push(b.id);
+  }
+
+  const unread = [...new Set(ids)].filter((id) => !idIsRead(id));
+  check(
+    `every id the shop sends is read (${new Set(ids).size} of them)`,
+    unread.length === 0,
+    JSON.stringify(unread),
+  );
+
+  // The other half of the contract: an id that is NOT ours must fall through
+  // to the title, which is how the agent's own buttons work.
+  check('an id that is not ours falls through to the title',
+    readButtonId('option_1') === null && readButtonId('') === null);
+
+  // And the three that shipped broken, named so the next person knows why
+  // this section exists.
+  for (const [id, what] of [
+    ['changedest_7', "the driver's Change destination"],
+    ['dest_ok_7', "the passenger's answer to it"],
+    ['callcust_7', 'Call customer'],
+  ] as const) {
+    check(`${what} survives the channel`, idIsRead(id), id);
+  }
+}
 section('A clean shop is clean');
 {
   const { wipeTradingData } = await import('./reset.ts');

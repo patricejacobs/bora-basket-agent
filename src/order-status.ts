@@ -399,6 +399,10 @@ export function callCustomerButton(
   return { id: `callcust_${digits}`, title: '📞 Call customer' };
 }
 
+export function isCallCustomerId(id: string): boolean {
+  return /^callcust_\d{1,6}$/i.test(String(id).trim());
+}
+
 export function callCustomerFromButtonId(id: string): string | null {
   const tapped = /^callcust_(\d{1,6})$/i.exec(String(id).trim());
   return tapped ? (tapped[1] ?? '') : null;

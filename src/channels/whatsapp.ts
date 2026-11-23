@@ -1,9 +1,6 @@
 import crypto from 'node:crypto';
-import { commandFromButtonId, isDestAnswerId } from '../order-status.ts';
+import { readButtonId } from '../button-ids.ts';
 import { isPickerId } from '../place-picker.ts';
-import { isLanguageId } from '../language-choice.ts';
-import { isCheckoutId } from '../delivery-checkout.ts';
-import { isAisleId } from '../aisles.ts';
 import express, { type Request, type Response } from 'express';
 import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
@@ -224,51 +221,20 @@ export function parseWebhook(body: unknown): ParsedInbound[] {
           case 'interactive':
             {
               // A tapped button sends back both what it said and the id we
-              // gave it. For dispatch buttons the id carries the order number,
-              // which frees the title to be a plain word — so the id wins when
-              // we recognise it.
-              //
-              // The title remains the answer for everything else, and that is
-              // not a fallback so much as the main path for customers: the
-              // agent's own buttons say things like "Grocery shopping", and
-              // the model has to receive those words, not "option_1". It also
-              // keeps buttons sent before this change working, since their
-              // titles still carry the number.
-              //
-              // A tapped LIST row is the same story with one exception. Its
-              // title is the answer nearly everywhere — a rating row's title
-              // is a run of stars, and that IS the rating — so the title still
-              // wins, and the id is only read when it is the place picker's.
-              // Those ids carry a corridor and a page, which no 24-character
-              // title could, and `isPickerId` is what keeps every other list
-              // on the title path untouched.
+              // gave it. Which one is acted on is decided in button-ids.ts,
+              // in one place, because an id with nothing behind it is a
+              // button that looks right and does nothing — and that has
+              // shipped three times.
               const reply = m.interactive?.button_reply;
               const row = m.interactive?.list_reply;
               text =
-                (reply?.id ? commandFromButtonId(reply.id) : null) ??
-                // The fare's three answers are buttons, and what they mean is
-                // in the id. Their titles are words in the passenger's own
-                // language, so matching on those would be matching on a
-                // translation.
-                (reply?.id && isPickerId(reply.id) ? reply.id : null) ??
-                // And a passenger answering the destination their driver
-                // raised, for the same reason. Every id passed through here
-                // needs something downstream that reads it; an id with
-                // nothing behind it drops to the title below, which is a
-                // button that appears to work and does nothing.
-                (reply?.id && isDestAnswerId(reply.id) ? reply.id : null) ??
-                // And the opening screen's three. Their titles are the
-                // language names themselves - English, Espanol, Portugues -
-                // which is the one case where the title would nearly work;
-                // the id is read anyway, so that what the shop acts on is
-                // never a word somebody could type by accident.
-                (reply?.id && isLanguageId(reply.id) ? reply.id : null) ??
-                // And checkout's own: the three answers to a price, and the
-                // button for having nothing to add at the door.
-                (reply?.id && isCheckoutId(reply.id) ? reply.id : null) ??
-                // The two that are on every message in the grocery.
-                (reply?.id && isAisleId(reply.id) ? reply.id : null) ??
+                (reply?.id ? readButtonId(reply.id) : null) ??
                 reply?.title ??
+                // A tapped LIST row is the same story with one exception.
+                // Its title is the answer nearly everywhere — a rating row's
+                // title is a run of stars, and that IS the rating — so the
+                // title wins, and the id is read only for the place picker,
+                // whose ids carry a corridor and a page.
                 (row?.id && isPickerId(row.id) ? row.id : null) ??
                 row?.title ??
                 '';
