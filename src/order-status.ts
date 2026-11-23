@@ -381,7 +381,10 @@ export function destAnswerFromButtonId(
 
 /** The two buttons a passenger is given, so the ids are built where they are read. */
 export function destAnswerButtons(
-  digits: string,
+  // A number, as `orderDigits` hands it over, or a string a caller already
+  // holds. Both end up in a template literal, and saying so stops the type
+  // disagreeing with every call site.
+  digits: string | number,
   ackTitle: string,
   keepTitle: string,
 ): { id: string; title: string }[] {

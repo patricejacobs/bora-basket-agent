@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 // Type-only: erased at runtime, so it does not load the module before the
 // scratch DATABASE_PATH below is in place.
 import type { ToolContext } from './agent/tools.ts';
+import type { Language } from './language.ts';
 
 // Point at a scratch database before anything reads the config.
 const TEST_DB = path.resolve('./data/smoke-test.db');
@@ -1745,8 +1746,11 @@ section('Tapping the delivery address');
   check('the delivery list is a list', list.kind === 'list', list.kind);
   check('and asks about delivering, not collecting',
     /deliver/i.test(list.text) && !/collect/i.test(list.text), list.text);
+  // `check` is a function call, not a type guard, so the narrowing above
+  // does not reach here. Written down once instead of asserted four times.
+  const listRows = list.kind === 'list' ? list.rows : [];
   check('it offers a way to type instead',
-    list.rows.some((r) => /type/i.test(r.title)), JSON.stringify(list.rows.map((r) => r.title)));
+    listRows.some((r) => /type/i.test(r.title)), JSON.stringify(listRows.map((r) => r.title)));
 
   const page = handleDropPick(shopper, 'pick:drop:corr:0:East Coast Demerara', 'en');
   const rows = page?.kind === 'reply' ? (page.outbound[0] as { rows: { description?: string }[] }).rows : [];
@@ -1887,13 +1891,14 @@ section('The opening screen');
     await import('./language-choice.ts');
 
   const screen = languageScreen('Next Minute Delivery');
-  check('it is three buttons', screen.kind === 'buttons' && screen.buttons.length === 3,
-    JSON.stringify(screen.buttons?.map((b) => b.title)));
+  const screenButtons = screen.kind === 'buttons' ? screen.buttons : [];
+  check('it is three buttons', screen.kind === 'buttons' && screenButtons.length === 3,
+    JSON.stringify(screenButtons.map((b) => b.title)));
   check('each one named in its own language',
-    JSON.stringify(screen.buttons.map((b) => b.title)) ===
+    JSON.stringify(screenButtons.map((b) => b.title)) ===
       JSON.stringify(['English', 'Español', 'Português']),
-    JSON.stringify(screen.buttons.map((b) => b.title)));
-  check('every title fits WhatsApp', screen.buttons.every((b) => b.title.length <= 20));
+    JSON.stringify(screenButtons.map((b) => b.title)));
+  check('every title fits WhatsApp', screenButtons.every((b) => b.title.length <= 20));
   check('and the question is asked in all three',
     /Please select your language/.test(screen.text) &&
       /elija su idioma/.test(screen.text) &&
@@ -12200,7 +12205,7 @@ section('Points come off the delivery charge');
 
     // The sender raises the change, pins the new door, the associate agrees.
     repo.proposeDestination(moved.orderNo, 'Parika', 5000);
-    repo.setProposalPin(moved.orderNo, { latitude: 6.8167, longitude: -58.4167, label: 'Parika' });
+    repo.setProposalPin(moved.orderNo, { latitude: 6.8167, longitude: -58.4167 });
     await settle(moved.orderNo, true);
 
     const now = repo.findOrder(moved.orderNo)!;
@@ -13302,7 +13307,7 @@ section('Skip is a tap, a word, and never an address');
   // A real answer moves it on.
   await skipSay({ phone: buyer3, text: 'Lot 7 Company Road', channel: 'smoke' } as never);
   check('a street answers it', (repo.getCustomer(buyer3).address ?? '').includes('Lot 7'),
-    repo.getCustomer(buyer3).address);
+    repo.getCustomer(buyer3).address ?? '');
 
   /* --- words where the pin was offered, with no door on file --------- */
 

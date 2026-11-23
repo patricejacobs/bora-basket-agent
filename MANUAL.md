@@ -3926,6 +3926,34 @@ Render setting at all.
 
 ## 11. Running it day to day
 
+
+### The type check is part of the suite
+
+```powershell
+npm run smoke
+```
+
+runs `tsc --noEmit` first and stops if it fails. Ten seconds, and it closes a
+hole the 2,955 checks could not: **a property that does not exist reads as
+`undefined`**, and `undefined` is a perfectly good value for the code around
+it to carry on with.
+
+Two faults in one day came from exactly that, and both were live before a
+test caught them:
+
+- `customer.deliveryZone` on the identity record, which has no such field.
+  The `undefined` read as *"this shop does not price by zone"*, and every
+  stale pin went straight through the check written to stop them.
+- `e.kind` and `e.by` on an order event, which carries `e.event` and
+  `e.actor`. The "have they been told already?" test was always false, so the
+  question came back every time.
+
+Neither is a logic error. Both are a name that is not there, and `tsc` finds
+them in a second each.
+
+`npm run smoke:only` skips the type check, for when you are mid-edit and want
+the suite anyway.
+
 ### Backups
 
 A copy of everything is sent to your WhatsApp every `BACKUP_SEND_HOURS` — an

@@ -55,7 +55,23 @@ const check = async (what: string, run: () => Promise<boolean>) => {
   ok ? pass++ : fail++;
 };
 const get = (p: string) => fetch(base + p, { redirect: 'manual' });
-const json = async (p: string) => (await get(p)).json();
+/**
+ * What these two endpoints answer with, written down once.
+ *
+ * `Response.json()` is typed `unknown`, which is correct and which made
+ * every reading below an error. Saying the shape here types all of them and
+ * doubles as the only description of the contract this file is checking.
+ */
+type Answered = {
+  jobs: { orderNo: string; address: string; lat: number | null; lng: number | null }[];
+  done: { orderNo: string }[];
+  doneValue: string;
+  withoutPin: number;
+  days: number;
+  dispatchMap: boolean;
+};
+
+const json = async (p: string): Promise<Answered> => (await get(p)).json() as Promise<Answered>;
 
 await check('no key is 404', async () => (await get('/dispatch')).status === 404);
 await check('a wrong key is 404', async () => (await get('/dispatch?key=nope')).status === 404);
@@ -91,8 +107,9 @@ await check('a job with no street shows its zone', async () =>
   (await json('/dispatch/data?key=' + KEY)).jobs.some((j: { orderNo: string; address: string }) =>
     j.orderNo === open1.orderNo && j.address === 'Diamond'));
 await check('every drawn job carries coordinates', async () =>
-  (await json('/dispatch/data?key=' + KEY)).jobs.filter((j: { lat: number | null }) => j.lat !== null)
-    .every((j: { lat: number; lng: number }) => Math.abs(j.lat) <= 90 && Math.abs(j.lng) <= 180));
+  (await json('/dispatch/data?key=' + KEY)).jobs
+    .filter((j) => j.lat !== null)
+    .every((j) => Math.abs(j.lat ?? 0) <= 90 && Math.abs(j.lng ?? 0) <= 180));
 await check('health says the map is on', async () => (await json('/health')).dispatchMap === true);
 void open2;
 

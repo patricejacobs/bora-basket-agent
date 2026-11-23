@@ -168,7 +168,7 @@ export function rangeWorthSaying(
   area: ServiceArea | null,
   served: boolean,
 ): RangeCheck {
-  if (served) return { state: 'unchecked', distanceKm: null, radiusKm: 0 };
+  if (served) return { state: 'unchecked' };
   return checkRange(pin, area);
 }
 

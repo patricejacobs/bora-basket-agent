@@ -47,7 +47,7 @@ const readCsv = (file: string, latAt: number, lngAt: number, statusAt: number): 
     // places-found.csv is shaped. It cannot be read by index: the column
     // before it holds a quoted address with commas inside, so a plain split
     // puts the row's own fields at shifting positions.
-    const status = (statusAt < 0 ? cells[cells.length - 1] : cells[statusAt] ?? '').trim();
+    const status = (statusAt < 0 ? cells[cells.length - 1] : cells[statusAt] ?? '')?.trim() ?? '';
     const latitude = Number(cells[latAt]);
     const longitude = Number(cells[lngAt]);
     if (place === '' || status !== 'ok') continue;

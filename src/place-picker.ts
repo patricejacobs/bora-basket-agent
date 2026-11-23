@@ -542,6 +542,16 @@ export type PickResult =
 export function handlePick(phone: string, id: string, lang: Language = 'en'): PickResult | null {
   const pick = readPick(id);
   if (!pick) return null;
+  // A delivery's list has its own handler, which refuses a taxi's ids for
+  // the same reason this refuses a delivery's: the two keep different state,
+  // and a drop row landing here would write a taxi pick for a journey nobody
+  // is taking.
+  //
+  // Narrowed into its own name rather than tested in place, so that every
+  // use below is an END OF A TRIP by type and not by hope.
+  const side: 'from' | 'to' | null =
+    pick.kind === 'fare' ? null : pick.side === 'drop' ? null : pick.side;
+  if (pick.kind !== 'fare' && side === null) return null;
 
   if (pick.kind === 'fare') {
     if (pick.answer === 'cancel') {
@@ -611,11 +621,11 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
     // because the choice was still on file and still in the history the
     // model reads. book_taxi falls back to that stored place too, so the
     // trip could have been booked to the village they had just rejected.
-    repo.setTaxiPick(phone, pick.side, '');
+    repo.setTaxiPick(phone, side!, '');
     // The next thing they send is this end, whatever it turns out to be.
-    repo.setTypingEnd(phone, pick.side);
+    repo.setTypingEnd(phone, side!);
 
-    const end = pick.side === 'from' ? 'pickup' : 'destination';
+    const end = side === 'from' ? 'pickup' : 'destination';
     return {
       kind: 'note',
       note: `[The passenger tapped "Type the address" for the ${end}: none of the places listed is where they mean. Any ${end} named earlier in this conversation is now WRONG — do not repeat it back or ask about it. Ask, in one short question, where the ${end} is, and take whatever they say. Do not send the picker again.]`,
@@ -629,7 +639,7 @@ export function handlePick(phone: string, id: string, lang: Language = 'en'): Pi
     return { kind: 'reply', outbound: [screen ?? endPicker(phone, pick.side, lang)] };
   }
 
-  repo.setTaxiPick(phone, pick.side, pick.place);
+  repo.setTaxiPick(phone, side!, pick.place);
   // The place prices the trip; now the exact spot, which is the driver's
   // half of the answer and no part of the fare.
   return { kind: 'reply', outbound: [spotAsk(pick.side, pick.place, lang)] };
