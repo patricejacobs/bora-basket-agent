@@ -2244,6 +2244,39 @@ Shawn ▸ "take me from Timehri to Georgetown"   (having pinned BV)
                                   [ I am at the pin ]  [ Send it again ]
 ```
 
+**A pickup nobody can place is asked for a pin.** Reported from the live
+shop: *"pick up from King St and take me to Timehri"* booked, and no pin was
+ever asked for.
+
+`book_taxi` is satisfied by **either** a pin or words at each end. That is
+right for the destination — nobody can pin where they are going until they
+get there, so words have to be enough for the far end. It is wrong for the
+**pickup** when the words name nothing the tariff knows. King Street is a
+Georgetown street, not one of the 185 places the tariff prices, so the shop
+lost three things at once:
+
+| | |
+|---|---|
+| no fare | `Fare not set — agree it with the passenger`, haggled at the kerb |
+| no pin | the driver has no idea *where* on King Street |
+| no corridor | `offered to everyone (the pickup is not in the tariff)` rather than to the nearest |
+
+So a pickup the tariff cannot place now asks before it books:
+
+```
+◂ I cannot find *King St* on the map, so your driver would not know
+  where to look for you.
+
+  Tap below to send your exact spot — or tell me the area (Diamond,
+  Kitty, Timehri) and I will price it from there.
+                                            [ 📍 Send location ]
+```
+
+Either answer settles it: a pin, or the name of an area. **A pickup the
+tariff does know is never asked** — the village prices the trip and the
+driver can ring. The prompt has always asked for the pickup pin first; a
+prompt is a request, not a guard.
+
 **And the pin had to be at the right end of the trip first.** The rule for
 which end a taxi pin belongs to read *"the pickup once the pickup has been
 NAMED, otherwise the destination"* — so a pin arriving before anything was

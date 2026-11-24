@@ -4130,11 +4130,29 @@ section('A car, and no fare anywhere');
   // Or the next ride starts at the last one's kerb.
   check('and the draft is spent', repo.getParcelDraft(passenger).pickup === null);
 
-  // Words at both ends, which is what somebody telephoning for a car gives.
-  const worded = taxi('book_taxi', { pickup_address: 'Corner of Light and Charlotte', destination_address: 'Diamond, East Bank' });
+  // Words at both ends, which is what somebody telephoning for a car gives
+  // — so long as the PICKUP is a place the tariff knows. It prices the trip
+  // and the driver can ring; the far end has only ever needed words, since
+  // nobody can pin where they are going until they get there.
+  // A priced pair goes through the fare gate first, as any priced trip does.
+  taxi('book_taxi', { pickup_address: 'Kitty', destination_address: 'Diamond, East Bank' });
+  const worded = taxi('book_taxi', {
+    pickup_address: 'Kitty',
+    destination_address: 'Diamond, East Bank',
+    fare_confirmed: true,
+  });
   const wordedJob = repo.findOrder(String(worded.job_number));
   check('a trip can be booked on words alone', worded.booked === true && wordedJob?.kind === 'taxi', JSON.stringify(worded).slice(0, 120));
   check('with no pin at either end', wordedJob?.pickup?.latitude === null && wordedJob?.location === null, JSON.stringify(wordedJob?.pickup));
+
+  // But a street corner is not a place, and words alone are not enough for
+  // it: "pick up from King St" booked with no pin, no fare and no corridor.
+  const corner = taxi('book_taxi', {
+    pickup_address: 'Corner of Light and Charlotte',
+    destination_address: 'Diamond, East Bank',
+  });
+  check('a pickup the tariff cannot place is asked for a pin instead',
+    corner.booked !== true && corner.asked === true, JSON.stringify(corner).slice(0, 110));
 
   /* --- what the passenger reads --------------------------------------- */
 
@@ -14402,6 +14420,83 @@ section('Where they say they are, against where they pinned');
   });
   check('a pin that agrees is not questioned', agreed.asked !== true,
     JSON.stringify(agreed).slice(0, 80));
+
+  // A pickup nobody can place, with no pin to fall back on.
+  //
+  // Reported from the live shop: "pick up from King St and take me to
+  // Timehri" booked, and no pin was ever asked for. King Street is a
+  // Georgetown street and not one of the 185 places the tariff prices, so
+  // the shop lost three things at once — no fare, so the driver haggles at
+  // the kerb; no pin, so he has no idea where on King Street; and no
+  // corridor, so the job went to every associate rather than the nearest.
+  const street = '5926100912';
+  repo.saveCustomer(street, { name: 'Street Passenger', contactPhone: street });
+  repo.chooseLanguage(street, 'en');
+  repo.logMessage(street, 'in', 'smoke', 'taxi');
+  repo.setService(street, 'taxi');
+  repo.clearParcelDraft(street);
+  repo.clearTaxiPicks(street);
+
+  const ctx4 = { phone: street, outbound: [] as { kind: string; text?: string }[] };
+  const bookStreet = (input: Record<string, unknown>): Record<string, unknown> => {
+    ctx4.outbound.length = 0;
+    return JSON.parse(callTool2('book_taxi', input, ctx4 as never)) as Record<string, unknown>;
+  };
+
+  const unplaced = bookStreet({
+    pickup_address: 'King St',
+    destination_address: 'Timehri',
+    passenger_name: 'Street Passenger',
+    fare_confirmed: true,
+  });
+  check('a pickup the tariff cannot place is not booked on words alone',
+    unplaced.booked !== true && unplaced.asked === true,
+    JSON.stringify(unplaced).slice(0, 90));
+  check('and the map is asked for, with the reason',
+    ctx4.outbound[0]?.kind === 'location_request' &&
+      /cannot find \*King St\*/.test(ctx4.outbound[0]?.text ?? ''),
+    (ctx4.outbound[0]?.text ?? '').slice(0, 70));
+  check('with the other way out on it — name an area instead',
+    /tell me the area/i.test(ctx4.outbound[0]?.text ?? ''),
+    (ctx4.outbound[0]?.text ?? '').slice(0, 140));
+  check('nothing is booked while it stands', repo.liveTaxi(street) === null);
+
+  // A pin settles it.
+  repo.addParcelPin(street, { latitude: bv.latitude, longitude: bv.longitude, label: '' }, 'pickup');
+  const withPin = bookStreet({
+    pickup_address: 'King St',
+    destination_address: 'Timehri',
+    passenger_name: 'Street Passenger',
+    fare_confirmed: true,
+  });
+  check('a pin settles it and the trip books', withPin.booked === true,
+    JSON.stringify(withPin).slice(0, 80));
+
+  // And a pickup the tariff knows is never asked for one: the village
+  // prices the trip and the driver can ring.
+  const known = '5926100913';
+  repo.saveCustomer(known, { name: 'Known Passenger', contactPhone: known });
+  repo.chooseLanguage(known, 'en');
+  repo.logMessage(known, 'in', 'smoke', 'taxi');
+  repo.setService(known, 'taxi');
+  repo.clearParcelDraft(known);
+  repo.clearTaxiPicks(known);
+  const placed = JSON.parse(
+    callTool2(
+      'book_taxi',
+      { pickup_address: 'Diamond', destination_address: 'Timehri', passenger_name: 'Known Passenger' },
+      { phone: known, outbound: [] } as never,
+    ),
+  ) as Record<string, unknown>;
+  check('a pickup the tariff knows is never asked for a pin',
+    placed.asked !== true && typeof placed.fare === 'string',
+    JSON.stringify(placed).slice(0, 80));
+
+  for (const p4 of [street, known]) {
+    repo.setService(p4, null);
+    repo.clearParcelDraft(p4);
+    repo.clearTaxiPicks(p4);
+  }
 
   // Which END a pin belongs to, which is where the whole fault began.
   //

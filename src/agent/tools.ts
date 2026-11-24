@@ -29,14 +29,7 @@ import { servedSpot, checkPin } from '../pin-check.ts';
 import { endPicker } from '../place-picker.ts';
 import { proposeAddressToAssociate } from '../dispatch.ts';
 import { ADDR_PIN, ADDR_SKIP, askPlace } from '../delivery-checkout.ts';
-import {
-  asTariffPlace,
-  findZone,
-  zoneCount,
-  describeZone,
-  zoneFeeFor,
-  fareBetween,
-} from '../zones.ts';
+import { asTariffPlace, findZone, zoneCount, describeZone, zoneFeeFor, fareBetween, tariff } from '../zones.ts';
 import { fareButtons } from '../place-picker.ts';
 import { itemLabel, labelPosition } from '../categories.ts';
 import { readLocationSync, isDoorstep } from '../maps-link.ts';
@@ -2369,6 +2362,40 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return fail(
           'Nothing says where they are going. Ask for a pin with request_location, or take the address in words and pass it as destination_address.',
         );
+      }
+
+      // A pickup nobody can place, with no pin to fall back on.
+      //
+      // `book_taxi` is satisfied by EITHER a pin or words at each end, and
+      // that is right for the destination — nobody can pin where they are
+      // going until they get there, so words have to be enough for the far
+      // end. It is wrong for the pickup when the words name nothing the
+      // tariff knows.
+      //
+      // Reported from the live shop: "pick up from King St and take me to
+      // Timehri" booked, with no pin asked for. King Street is a Georgetown
+      // street and not one of the 185 places the tariff prices, so the shop
+      // lost three things at once — no fare, and the driver haggles at the
+      // kerb; no pin, and he has no idea where on King Street; no corridor,
+      // so the job was offered to every associate rather than the nearest.
+      //
+      // The prompt has always asked for the pickup pin first. A prompt is a
+      // request, not a guard.
+      if (!draft.pickup && pickupAddress && tariff().length > 0) {
+        const placed = findZone(pickupAddress);
+        if (placed.kind !== 'found') {
+          const lang4 = languageFor(ctx.phone);
+          ctx.outbound.push({
+            kind: 'location_request',
+            text: t('pickup_unplaced', lang4, { said: pickupAddress, nl: chr10 }),
+          });
+          return ok({
+            asked: true,
+            booked: false,
+            pickup: pickupAddress,
+            next: 'They have ALREADY been asked for their exact spot, with the reason — say nothing more about it and book nothing. A pin or the name of an area settles it, and either one reaches you as a normal message.',
+          });
+        }
       }
 
       // Two statements of where they are standing, compared before anything
