@@ -2285,6 +2285,33 @@ the trip books with that description on the driver's card. A second ask is
 the shop arguing with a man standing on a road, and the second ask is the
 one that loses the fare.
 
+**And the pin prices the trip.** The tariff is 185 village names, so a trip
+that starts on King Street could not be priced at all: the card read *Fare
+not set — agree it with the passenger*, and a figure got haggled at a kerb
+by two people with no figure in front of either of them.
+
+But by then the shop holds a pin, because an unplaceable pickup is asked for
+one. **A pin is a place; it just carries no name**, so the nearest village in
+the tariff lends it one and the trip is priced from there:
+
+```
+◂ Your fare is *$4,500*, payable to the driver — priced from
+  *Beterverwagting*, the nearest area to the spot you sent. Waiting
+  after pickup is charged separately.
+                      [ Book it ]  [ Change destination ]  [ Cancel ]
+```
+
+**It says which village**, because a figure arrived at some other way is a
+figure nobody can check, and this one is agreed with a tap. **The words are
+untouched** — the driver is still sent to look for *King St*; the village
+decided the figure and nothing else. And beyond the pin tolerance the
+nearest village is not where they are, it is merely the closest the tariff
+comes, so those still go to the driver to agree as they always did.
+
+The same rule applies when such a trip is **redirected**: `change_destination`
+prices from the pin too, or a trip that began on King Street could never be
+re-priced either.
+
 A trip with no pin now says so on the card an associate **accepts from**,
 not only on the one they get afterwards — `⚠️ No pin for the pickup — ring
 them`. Whether there is a map link is part of what the job is worth.

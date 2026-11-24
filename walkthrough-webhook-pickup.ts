@@ -255,7 +255,15 @@ rule('He sends the spot, through the webhook');
 await sendPin(TIMEHRI, 'where he is actually standing');
 
 console.log('');
-console.log('  [MODEL] and the agent books it now that there is somewhere to go.');
+console.log('  [MODEL] and the agent calls book_taxi again now that there is a spot.');
+book({
+  pickup_address: 'King St',
+  destination_address: 'Timehri',
+  passenger_name: 'Shawn Adams',
+});
+
+console.log('');
+console.log('  Shawn taps [ Book it ]');
 const nowBooked = book({
   pickup_address: 'King St',
   destination_address: 'Timehri',

@@ -18,7 +18,8 @@
  * kerb cannot be asked to bill by the minute.
  */
 import { config, money } from './config.ts';
-import { fareBetween } from './zones.ts';
+import { fareBetween, findZone } from './zones.ts';
+import { nearestPlace } from './place-coords.ts';
 
 /**
  * What the shop charges for a trip, from the same tariff as everything else.
@@ -32,6 +33,45 @@ import { fareBetween } from './zones.ts';
  * Null when either end is not in the tariff. Better to say the driver will
  * agree it than to invent a number for a place the shop cannot name.
  */
+/**
+ * The place to PRICE an end from, which is not always the words given.
+ *
+ * The tariff is 185 village names. A passenger standing on King Street has
+ * said something true and useful that the tariff cannot place, and until
+ * now that meant no fare at all: the card read "Fare not set — agree it
+ * with the passenger", and a figure got haggled at a kerb by two people
+ * with no figure in front of them.
+ *
+ * But by then the shop usually holds a pin, because an unplaceable pickup
+ * is asked for one. A pin IS a place; it just does not carry a name. So the
+ * nearest village in the tariff lends it one, and the trip is priced from
+ * there.
+ *
+ * Only when it is genuinely near. Beyond the pin tolerance — the same
+ * figure that decides whether a pin belongs to the village somebody chose —
+ * the nearest village is not where they are, it is merely the closest the
+ * tariff comes, and a fare built on that would be invented. Those still go
+ * to the driver to agree, as they always did.
+ *
+ * The words are untouched: this decides the FARE, never what the driver is
+ * told to look for.
+ */
+export function priceableEnd(
+  words: string,
+  pin: { latitude: number; longitude: number } | null,
+  toleranceKm = config.store.pinToleranceKm,
+): { place: string; fromPin: boolean } {
+  const said = (words ?? '').trim();
+  if (said && findZone(said).kind === 'found') return { place: said, fromPin: false };
+  if (!pin) return { place: said, fromPin: false };
+
+  const near = nearestPlace(pin);
+  if (!near) return { place: said, fromPin: false };
+  if (toleranceKm > 0 && near.km > toleranceKm) return { place: said, fromPin: false };
+
+  return { place: near.place, fromPin: true };
+}
+
 export function taxiFare(pickup: string, destination: string): { fee: number; say: string } | null {
   const quoted = fareBetween(pickup, destination);
   if (!quoted) return null;

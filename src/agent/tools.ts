@@ -18,7 +18,7 @@ import { CUSTOMER_STATUS, describeAge } from '../order-status.ts';
 import { searchCatalog } from '../catalog/search.ts';
 import { hoursStatus } from '../hours.ts';
 import { balanceLines, usualDelivery, valueOf, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
-import { taxiFare } from '../taxi.ts';
+import { taxiFare, priceableEnd } from '../taxi.ts';
 import { numberedOutlets, serviceOpening, languageFor, SERVICES } from '../services.ts';
 import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
@@ -2486,10 +2486,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // first call returns the figure and the words to read back, the second
       // books it. A trip the tariff cannot place has no fare and falls back
       // to the driver agreeing it, which is what every taxi did until now.
-      const quoted = taxiFare(
+      // Priced from the pin when the words name nothing the tariff carries.
+      // The words themselves are untouched — they are what the driver is
+      // told to look for; this decides only the figure.
+      const fromEnd = priceableEnd(
         pickupAddress || draft.pickup?.label || '',
-        destinationAddress || draft.destination?.label || '',
+        draft.pickup ? { latitude: draft.pickup.latitude, longitude: draft.pickup.longitude } : null,
       );
+      const toEnd = priceableEnd(
+        destinationAddress || draft.destination?.label || '',
+        draft.destination
+          ? { latitude: draft.destination.latitude, longitude: draft.destination.longitude }
+          : null,
+      );
+      const quoted = taxiFare(fromEnd.place, toEnd.place);
 
       // Whether this passenger has SEEN this fare, which is the shop's own
       // record and not the model's recollection.
@@ -2519,7 +2529,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         //
         // Sent from here, so the fare cannot be quoted without its answers
         // attached and cannot be skipped by a turn that forgets to ask.
-        ctx.outbound.push(fareButtons(money(quoted.fee), languageFor(ctx.phone)));
+        ctx.outbound.push(
+          fareButtons(
+            money(quoted.fee),
+            languageFor(ctx.phone),
+            fromEnd.fromPin ? fromEnd.place : '',
+          ),
+        );
         // Written down as sent. Nothing books until this matches again.
         repo.setTaxiFareShown(ctx.phone, quoted.fee);
         return ok({
@@ -2704,7 +2720,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return fail('They have no taxi on the road. If they want a car, book a new one.');
       }
 
-      const from = order.pickup?.address || '';
+      // The same rule as booking: a pickup the tariff cannot place is
+      // priced from its pin. Without this a trip that started on King
+      // Street could never be re-priced either — the passenger changed
+      // their destination and the fare stayed "agree it with the driver",
+      // which is the fault this was meant to end.
+      const pickedUpAt = order.pickup;
+      const fromWords = pickedUpAt?.address || '';
+      const fromEnd2 = priceableEnd(
+        fromWords,
+        pickedUpAt && pickedUpAt.latitude !== null && pickedUpAt.longitude !== null
+          ? { latitude: pickedUpAt.latitude, longitude: pickedUpAt.longitude }
+          : null,
+      );
+      const from = fromEnd2.place;
       const quoted = taxiFare(from, named);
 
       // The same gate booking has: the shop will not act on a figure it has

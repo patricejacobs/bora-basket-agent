@@ -160,6 +160,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_on_the_way: '{name}, you are on your way 🚕',
     taxi_fare_with_driver: 'The fare is agreed with the driver.',
     taxi_fare_quoted: 'Your fare is *{fare}*, payable to the driver. Waiting after pickup is charged separately.',
+    taxi_fare_from: 'Your fare is *{fare}*, payable to the driver — priced from *{place}*, the nearest area to the spot you sent. Waiting after pickup is charged separately.',
     taxi_dropped_off: 'Trip {order} complete — you have arrived. 🚕',
     // A passenger who was not at the pickup. The parcel wording has nothing
     // coming back to them and the delivery wording has nobody at a door, and
@@ -412,6 +413,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_on_the_way: '{name}, ya va en camino 🚕',
     taxi_fare_with_driver: 'La tarifa se acuerda con el conductor.',
     taxi_fare_quoted: 'Su tarifa es *{fare}*, a pagar al conductor. La espera después de la recogida se cobra aparte.',
+    taxi_fare_from: 'Su tarifa es *{fare}*, a pagar al conductor — calculada desde *{place}*, la zona más cercana al punto que envió. La espera después de la recogida se cobra aparte.',
     taxi_dropped_off: 'Viaje {order} completado — ha llegado. 🚕',
     taxi_no_show: 'El viaje {order} se cerró — el conductor no pudo encontrarle en el punto de recogida. Escríbanos cuando esté listo y enviaremos otro coche.',
     taxi_driver_outside: 'Su conductor está afuera 🚕 Le dirá su código de seguridad *{code}* antes de que suba.',
@@ -630,6 +632,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_on_the_way: '{name}, está a caminho 🚕',
     taxi_fare_with_driver: 'A tarifa é combinada com o motorista.',
     taxi_fare_quoted: 'A sua tarifa é *{fare}*, a pagar ao motorista. A espera após a recolha é cobrada à parte.',
+    taxi_fare_from: 'A sua tarifa é *{fare}*, a pagar ao motorista — calculada a partir de *{place}*, a zona mais próxima do ponto que enviou. A espera após a recolha é cobrada à parte.',
     taxi_dropped_off: 'Viagem {order} concluída — chegou ao destino. 🚕',
     taxi_no_show: 'A viagem {order} foi encerrada — o motorista não o encontrou no local de recolha. Escreva-nos quando estiver pronto e enviaremos outro carro.',
     taxi_driver_outside: 'O seu motorista está lá fora 🚕 Vai dizer-lhe o seu código de segurança *{code}* antes de entrar.',
@@ -846,6 +849,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_on_the_way: '{name}，您已出发 🚕',
     taxi_fare_with_driver: '车费请与司机商定。',
     taxi_fare_quoted: '您的车费为 *{fare}*，请付给司机。上车后的等候另行收费。',
+    taxi_fare_from: '您的车费为 *{fare}*，请付给司机 — 按离您发送位置最近的地区 *{place}* 计算。上车后的等候另行收费。',
     taxi_dropped_off: '行程 {order} 已完成，您已到达。🚕',
     taxi_no_show: '行程 {order} 已结束，司机在接您的地点没有找到您。您准备好后请告诉我们，我们会再派一辆车。',
     taxi_driver_outside: '司机已在外面等候 🚕 上车前他会先告知您安全码 *{code}*。',

@@ -14497,8 +14497,27 @@ section('Where they say they are, against where they pinned');
   repo.clearParcelDraft(street);
   check('and the next trip starts over', !repo.pickupAsked(street));
 
-  // A pin settles it.
+  // A pin settles it — and prices it.
+  //
+  // The tariff is 185 village names and cannot place King Street, so this
+  // trip used to go out as "Fare not set — agree it with the passenger":
+  // two people haggling at a kerb with no figure in front of either of
+  // them. The pin IS a place, it just carries no name, so the nearest
+  // village in the tariff lends it one.
+  repo.clearParcelDraft(street);
   repo.addParcelPin(street, { latitude: bv.latitude, longitude: bv.longitude, label: '' }, 'pickup');
+  const priced = bookStreet({
+    pickup_address: 'King St',
+    destination_address: 'Timehri',
+    passenger_name: 'Street Passenger',
+  });
+  check('a pin prices a pickup the tariff cannot place',
+    /Beterverwagting to Timehri/.test(String(priced.priced_by ?? '')),
+    JSON.stringify(priced).slice(0, 110));
+  check('and the passenger is told which area it was priced from',
+    /priced from \*Beterverwagting\*/.test((ctx4.outbound[0] as { text?: string })?.text ?? ''),
+    ((ctx4.outbound[0] as { text?: string })?.text ?? '').slice(0, 110));
+
   const withPin = bookStreet({
     pickup_address: 'King St',
     destination_address: 'Timehri',
@@ -14507,6 +14526,24 @@ section('Where they say they are, against where they pinned');
   });
   check('a pin settles it and the trip books', withPin.booked === true,
     JSON.stringify(withPin).slice(0, 80));
+  check('with the fare the passenger agreed',
+    repo.findOrder(String(withPin.job_number))?.quotedFare === 4500,
+    String(repo.findOrder(String(withPin.job_number))?.quotedFare));
+  // The words are untouched: the village decided the figure, not what the
+  // driver is told to look for.
+  check('and the driver still looks for what they said',
+    repo.findOrder(String(withPin.job_number))?.pickup?.address === 'King St',
+    repo.findOrder(String(withPin.job_number))?.pickup?.address ?? '');
+
+  // Beyond the tolerance it is not where they are, it is merely the closest
+  // the tariff comes — so those still go to the driver to agree.
+  const { priceableEnd: priceFrom } = await import('./taxi.ts');
+  check('a pin far from anywhere priced is not used to price',
+    priceFrom('King St', { latitude: 4.9, longitude: -58.9 }).fromPin === false,
+    JSON.stringify(priceFrom('King St', { latitude: 4.9, longitude: -58.9 })));
+  check('and a place the tariff knows is never second-guessed',
+    priceFrom('Diamond', { latitude: bv.latitude, longitude: bv.longitude }).place === 'Diamond',
+    JSON.stringify(priceFrom('Diamond', { latitude: bv.latitude, longitude: bv.longitude })));
 
   // And a pickup the tariff knows is never asked for one: the village
   // prices the trip and the driver can ring.

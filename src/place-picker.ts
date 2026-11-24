@@ -413,10 +413,22 @@ ${t(side === 'to' ? 'pick_corridor_help_to' : 'pick_corridor_help_from', lang)}`
  * be seen and answered before a car is dispatched, and a gate a language
  * model is asked to hold is a gate that one day swings open.
  */
-export function fareButtons(fare: string, lang: Language = 'en'): OutboundMessage {
+export function fareButtons(
+  fare: string,
+  lang: Language = 'en',
+  /**
+   * The village the fare was priced from, when it is NOT what the passenger
+   * said — a pin standing in for words the tariff cannot place. Named
+   * because a figure arrived at some other way is a figure somebody cannot
+   * check, and this one is about to be agreed with a tap.
+   */
+  pricedFrom = '',
+): OutboundMessage {
   return {
     kind: 'buttons',
-    text: t('taxi_fare_quoted', lang, { fare }),
+    text: pricedFrom
+      ? t('taxi_fare_from', lang, { fare, place: pricedFrom })
+      : t('taxi_fare_quoted', lang, { fare }),
     buttons: [
       { id: `${PREFIX}:fare:book`, title: t('fare_book', lang) },
       { id: `${PREFIX}:fare:change`, title: t('fare_change', lang) },
