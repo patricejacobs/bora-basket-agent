@@ -43,6 +43,7 @@ import {
   withWayOut,
 } from './aisles.ts';
 import { settleDeliveryPlace, streetNamesElsewhere } from './delivery-place.ts';
+import { WAIT_GO, WAIT_NO, offerTheRideOn } from './waiting-list.ts';
 import { pinTheNewAddress } from './dispatch.ts';
 import {
   ADDR_PIN,
@@ -513,6 +514,76 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
           describeTap(text),
         );
       }
+    }
+  }
+
+  /* -------------------------------------- answering "there is a car now" */
+
+  // Read before the service menu, for the same reason a pin owed is: this
+  // arrives as a tap on a message the shop sent on its own, and the
+  // conversation it belongs to went cold hours ago. Falling through to the
+  // menu would answer "yes, send it" with "pick a number first".
+  if (text === WAIT_NO || text === WAIT_GO) {
+    const lang = languageFor(msg.phone);
+    const row = repo.waitingRow(msg.phone);
+
+    if (text === WAIT_NO) {
+      repo.clearWaiting(msg.phone);
+      // The car is free again, and somebody behind them has been waiting
+      // longer than anyone else left. A slot given up must not be wasted.
+      if (row?.service === 'taxi') {
+        void offerTheRideOn(msg.phone).catch((err) =>
+          console.error('[waiting] could not pass the ride on:', err),
+        );
+      }
+      return shopAnswered(msg, [{ kind: 'text', text: t('wait_dropped', lang) }], 'Not now');
+    }
+
+    // Between the message and the tap, that associate can have clocked off
+    // or taken the only job going. Checked again rather than assumed: a tap
+    // that books a car which is no longer there is the same broken promise
+    // a second time.
+    if (!repo.anyoneOnDuty()) {
+      repo.noteWaiting(msg.phone, row?.service ?? repo.getService(msg.phone) ?? '', row?.summary ?? '');
+      return shopAnswered(msg, [{ kind: 'text', text: t('wait_gone', lang) }], 'Yes, go ahead');
+    }
+
+    repo.clearWaiting(msg.phone);
+    if (row?.service === 'taxi') {
+      // Back through book_taxi, which reads the draft it was refused with
+      // and puts the fare up with its own three answers. Not a shortcut
+      // past that gate: twenty minutes have passed and the figure has to be
+      // agreed again.
+      const { executeTool } = await import('./agent/tools.ts');
+      const ride = { phone: msg.phone, outbound: [] as OutboundMessage[] };
+      let ends: { from?: string; to?: string } = {};
+      try {
+        ends = row.payload ? (JSON.parse(row.payload) as { from?: string; to?: string }) : {};
+      } catch {
+        // A row written by an older version, or by hand. The tool will ask
+        // for whatever it cannot find.
+      }
+      const answer = JSON.parse(
+        executeTool(
+          'book_taxi',
+          { pickup_address: ends.from ?? '', destination_address: ends.to ?? '' },
+          ride as never,
+        ),
+      ) as { error?: string };
+      if (ride.outbound.length > 0) {
+        for (const out of ride.outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+        return ride.outbound;
+      }
+      if (answer.error) {
+        // Something else is missing — a name, a destination. The agent has
+        // the draft and the words; it can ask for the one thing.
+        console.warn(`[waiting] ${msg.phone} could not be booked straight away:`, answer.error);
+      } else {
+        return shopAnswered(msg, [], 'Yes, send it');
+      }
+    } else {
+      // A basket or a parcel: the price gate, exactly as they left it.
+      return shopAnswered(msg, [priceGate(msg.phone, lang)], 'Yes, go ahead');
     }
   }
 

@@ -395,8 +395,33 @@ export function endCheckout(phone: string): void {
  * unchanged.
  */
 export async function placeTheOrder(phone: string, lang: Language): Promise<OutboundMessage[]> {
-  const { executeTool } = await import('./agent/tools.ts');
+  const { executeTool, basketSummary } = await import('./agent/tools.ts');
   const ctx = { phone, outbound: [] as OutboundMessage[] };
+
+  // Nobody on the road, caught HERE rather than left to the tool.
+  //
+  // place_order refuses it either way, but its reason is written for a model
+  // and this path has no model in it: the refusal came back as
+  // `checkout_failed` — "Something went wrong placing that" — to somebody
+  // who had just tapped Book it. The shop knew exactly what was wrong and
+  // said none of it, and the order was forgotten as well.
+  if (!repo.anyoneOnDuty()) {
+    const { recordTurnedAway, nobodyOutMessage } = await import('./waiting-list.ts');
+    const parcelNow = repo.getService(phone) === 'parcel';
+    const basket = repo.getCart(phone);
+    const draft = repo.getParcelDraft(phone);
+    const held = parcelNow
+      ? [draft.contents, draft.recipient.name && `for ${draft.recipient.name}`]
+          .filter(Boolean)
+          .join(' ')
+      : basketSummary(phone);
+
+    recordTurnedAway(phone, parcelNow ? 'parcel' : repo.getService(phone) || 'grocery', held);
+    // Out of the sequence, basket untouched. The way back in is the message
+    // the shop sends when somebody clocks on, not a gate left hanging.
+    endCheckout(phone);
+    return [nobodyOutMessage(lang, held)];
+  }
 
   // The tap IS the read-back answered: the name and the address were on the
   // message it came from, which is exactly what this gate asks for.

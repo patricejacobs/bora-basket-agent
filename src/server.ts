@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config, assertWhatsAppConfigured, money, dutyLimits } from './config.ts';
-import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen, pendingHelpCount, onDutyCount } from './db/repo.ts';
+import { productCount, photoCoverage, searchMissCount, listOutlets, menuItemCount, orderCounts, associateNumbers, associatesNeverSeen, pendingHelpCount, onDutyCount, waitingCount } from './db/repo.ts';
 import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
@@ -348,6 +348,10 @@ app.get('/health', (_req: Request, res: Response) => {
         : 'not set — the tariff alone decides',
       // Customers who asked for a person and are still waiting to be passed on.
       pendingHelp: pendingHelpCount(),
+      // Customers turned away because nobody was on the road, who will be
+      // gone back to when somebody clocks on. A number that stays high with
+      // associatesOnDuty at 0 is the shop losing work it already had.
+      waitingForACar: waitingCount(config.waitingListMinutes),
       // On the road right now. 0 means orders are being refused.
       associatesOnDuty: onDutyCount(),
       // The duty limits in force now, and the override if one is. Reported

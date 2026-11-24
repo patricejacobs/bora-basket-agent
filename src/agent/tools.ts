@@ -1,6 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
+import { recordTurnedAway } from '../waiting-list.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import {
   announceNewOrder,
@@ -980,6 +981,35 @@ function unmatchedFee(phone: string): number {
   return cart.lines.length > 0 ? cart.deliveryFee : config.store.deliveryFee;
 }
 
+/**
+ * How to say "there is nobody out" without making it the customer's fault.
+ *
+ * The old wording ended "invite them to message again", and the model did
+ * exactly that: "Message me when you are ready and I will check again." The
+ * passenger had already given his pickup, his destination, how many of them
+ * there were and that they had no luggage. He was ready. The shop was not,
+ * and the sentence handed him the next move anyway.
+ */
+/**
+ * A held basket in one line, for reading back to somebody twenty minutes
+ * later. Counted in things rather than in rows: "1 item" for two bags of
+ * rice is the shop telling them they have less than they have.
+ */
+export function basketSummary(phone: string): string {
+  const cart = repo.getCart(phone);
+  const things = cart.lines.reduce((n, l) => n + l.qty, 0);
+  const place = repo.getCustomer(phone).deliveryZone || '';
+  return [
+    `${things} item${things === 1 ? '' : 's'}, ${money(cart.total)}`,
+    place ? `delivery to ${place}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+const SAY_IT_THIS_WAY =
+  'The wait is the shop\'s, not theirs: they have already told you everything and they ARE ready, so never ask them to say when they are ready and never put the next move on them. Say plainly that there is nobody out yet, say nothing about when, and tell them you will come straight back to them the moment somebody is on the road — which the shop will do by itself.';
+
 export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): string {
   const input = (rawInput ?? {}) as Record<string, unknown>;
 
@@ -1797,8 +1827,16 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // tell them why. The shop being open is a different fact - it can be
       // wide open with nobody out.
       if (!repo.anyoneOnDuty()) {
+        // Written down before the refusal is spoken, so the shop can go back
+        // to them when somebody clocks on. Being turned away used to be the
+        // end of it: nothing was recorded and nobody was ever told.
+        const basket = repo.getCart(ctx.phone);
+        recordTurnedAway(ctx.phone, repo.getService(ctx.phone) || 'grocery', basketSummary(ctx.phone));
+        void basket;
         return fail(
-          'Cannot place the order — no delivery associate is on duty, so nothing can be delivered right now. Tell them kindly: there is nobody out on deliveries at the moment, so you cannot get an order to them just yet. Do not say when, you do not know. Offer to hold their list with park_cart and invite them to message again.',
+          'Cannot place the order — no delivery associate is on duty, so nothing can be delivered right now. ' +
+            SAY_IT_THIS_WAY +
+            ' Hold their list with park_cart.',
         );
       }
 
@@ -2278,9 +2316,22 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (wrong) return fail(wrong);
 
       if (!repo.anyoneOnDuty()) {
-        return fail(
-          'Cannot book a car — no delivery associate is on duty, so there is nobody to send. Tell them kindly, say nothing about when, and invite them to message again.',
+        const picks = repo.taxiPicks(ctx.phone);
+        const ride = repo.getParcelDraft(ctx.phone);
+        const from = asString(input.pickup_address).trim() || picks.from || ride.pickup?.label || '';
+        const to =
+          asString(input.destination_address).trim() || picks.to || ride.destination?.label || '';
+        // Both ends kept with the row, because they were tool arguments and
+        // existed only for this call: without them the tap on "Yes, send it"
+        // twenty minutes later is answered with "nothing says where to
+        // collect them", having been told twice.
+        recordTurnedAway(
+          ctx.phone,
+          'taxi',
+          from && to ? `${from} to ${to}` : from || to,
+          JSON.stringify({ from, to }),
         );
+        return fail('Cannot book a car — nobody is on duty, so there is no car to send. ' + SAY_IT_THIS_WAY);
       }
 
       // The pins are filed exactly as a parcel's are: the first one shared is
@@ -2742,8 +2793,16 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // shop cannot keep, and a sender waiting at a door is worse than a
       // customer waiting for groceries.
       if (!repo.anyoneOnDuty()) {
+        const draft = repo.getParcelDraft(ctx.phone);
+        const who = draft.recipient.name || '';
+        const where = draft.recipient.address || draft.zone || '';
+        recordTurnedAway(
+          ctx.phone,
+          'parcel',
+          [draft.contents, who && `for ${who}`, where && `at ${where}`].filter(Boolean).join(' '),
+        );
         return fail(
-          'Cannot book the parcel — no delivery associate is on duty, so nothing can be uplifted right now. Tell them kindly, say nothing about when, and invite them to message again.',
+          'Cannot book the parcel — nobody is on duty, so nothing can be uplifted. ' + SAY_IT_THIS_WAY,
         );
       }
 

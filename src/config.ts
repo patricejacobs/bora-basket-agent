@@ -391,6 +391,20 @@ export const config = {
    */
   dutyCheckInMinutes: Math.max(0, num('DUTY_CHECK_IN_MINUTES', 15)),
   /**
+   * How long somebody turned away for want of a driver stays worth telling.
+   *
+   * Short on purpose. A car wanted at noon is no use at three, and a second
+   * message hours later — "somebody is on the road now" — reaches a person
+   * whose plans have long since changed and reads as the shop wasting their
+   * time twice. Within the window it is the best message the shop can send;
+   * outside it, silence is kinder.
+   *
+   * It is also what keeps the promise inside WhatsApp's 24-hour service
+   * window, which a free-form message to somebody who has not written in a
+   * day cannot cross. 0 switches the whole waiting list off.
+   */
+  waitingListMinutes: Math.max(0, num('WAITING_LIST_MINUTES', 120)),
+  /**
    * A busy few days, and the hours that go with them — with an end date.
    *
    * Both duty limits are raised to this figure until the date passes, and

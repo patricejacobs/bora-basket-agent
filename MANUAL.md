@@ -563,6 +563,90 @@ out?* question moves with the override, so it arrives at the 24-hour mark
 instead of the 12-hour one: the one check on a forgotten shift arrives a day
 late. Worth a word with whoever is working those days.
 
+### Nobody on the road
+
+The shop refuses to take work it cannot carry: with no associate on duty,
+an order, a parcel and a taxi are all turned down. That part is old and
+right — an order taken with nobody out is food packed for a counter.
+
+**What was wrong was everything after the refusal.** A passenger who had
+given his pickup, his destination, four passengers and no luggage was told:
+
+> Message me when you are ready and I will check again straight away.
+
+He *was* ready. The shop was not, and the sentence handed him the next move
+anyway — then forgot him completely. Nothing was recorded, nobody was told,
+and the booking it was holding sat there until he thought to ask again.
+Most people do not ask twice.
+
+So two things changed.
+
+**The wait belongs to the shop.** Every refusal — the agent's three tools,
+and the shop's own checkout gate — now says there is nobody out, says
+nothing about when, and never asks the customer to say when *they* are
+ready. The checkout gate used to be worse than the agent: tapping *Book it*
+with nobody out returned `checkout_failed`, *"Something went wrong placing
+that"*, to somebody whose only problem was that the shop had no driver.
+
+```
+Ann ▸ [ Book it ]
+
+◂ There is nobody out on deliveries just now, so I cannot get this to
+  you yet.
+  Your list is held exactly as it is — 2 items, $5,500, delivery to
+  Diamond.
+
+  Nothing for you to do. I will come straight back to you the moment
+  somebody is on the road.
+```
+
+**And the shop keeps that promise.** Whoever is turned away goes on a
+waiting list, with what they asked for in the shop's own words. When an
+associate comes on duty the shop goes back to them:
+
+```
+◂ 🚕 There is a car on the road now.
+
+  Kitty to Diamond — still on?
+                              [ Yes, send it ]  [ Not now ]
+```
+
+*Yes* runs the booking it was refused — the price gate for a basket, the
+fare gate for a ride — so nothing is booked behind anybody's back and a
+figure twenty minutes old is agreed again. *Not now* clears them, and for a
+taxi the car passes to the next one waiting rather than being wasted.
+
+**Who is told, and why they differ.** A delivery or a parcel **queues**: one
+associate can take Ann's order and three behind it, which is how the shop
+has always worked, so everybody waiting for one is told. A ride does **not**
+queue: four people standing at Kitty need a car now, and telling two
+passengers there is a car when there is one is the same lie told twice. So
+taxis are told **oldest first, one per associate arriving**.
+
+**It fires on both ways on to duty** — typing `on` and sharing a pin. That
+also closed an older hole: the pin path set duty but never called
+`offerWaitingWork`, so an associate who started their day by sharing their
+location was never handed the job already cooked and waiting.
+
+**The window is two hours** (`WAITING_LIST_MINUTES`, 0 switches the list
+off). A car wanted at noon is no use at three, and *"somebody is on the road
+now"* three hours later reaches a person whose plans have changed and reads
+as the shop wasting their time twice. It is also what keeps the promise
+inside WhatsApp's 24-hour service window. Asking again replaces the row
+rather than adding one, and nobody is told twice for the same ask.
+
+**If the car goes between the message and the tap** — the associate clocks
+off, or takes the only job going — the tap is not a booking and not an
+error:
+
+> Sorry — that one has just been taken. You are still first in line, and I
+> will come back the moment there is another.
+
+They keep their place, because they have just said they still want it.
+
+`/health` reports `waitingForACar`. A number that stays high while
+`associatesOnDuty` is 0 is the shop losing work it already had in its hands.
+
 **Only yours to close.** You cannot deliver, return or close an order that is
 not with you. If somebody hands you their job, they send `<order> transfer` and
 choose you.
@@ -4108,6 +4192,7 @@ Render setting at all.
 | `ASSOCIATE_DUTY_HOURS` | 12 | A shift lapses this long after clocking on |
 | `ASSOCIATE_MAX_HOURS_PER_DAY` | 0 | The rolling 24-hour cap. 0 = off, which is what this shop runs |
 | `DUTY_CHECK_IN_MINUTES` | 15 | How long before a clock-in lapses the shop asks "still out?". 0 = silent |
+| `WAITING_LIST_MINUTES` | 120 | How long somebody turned away for want of a driver is worth going back to. 0 = off |
 | `ASSOCIATE_RADIUS_MILES` | 0 | Only offer jobs within this far of a shared pin. 0 = everybody |
 | `DISPATCH_BAND_MINUTES` | 5 | A drop-off this recent means they are in that band now |
 | `DISPATCH_BAND_WAIT_SECONDS` | 20 | Before the offer widens to the corridor |
@@ -4195,7 +4280,7 @@ nothing.
 
 ### The walkthroughs
 
-Seventeen scripts in the project root that drive the **real handlers** against a
+Eighteen scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4221,6 +4306,7 @@ node walkthrough-grocery.ts
 | `walkthrough-wrong-street.ts` | A street typed for another village, answered both ways |
 | `walkthrough-duty.ts` | A driver who works straight through, and one who goes home |
 | `walkthrough-webhook-duty.ts` | The duty taps through the real signed webhook, with their titles made nonsense |
+| `walkthrough-waiting.ts` | Three people turned away, and what happens when a car comes on |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 

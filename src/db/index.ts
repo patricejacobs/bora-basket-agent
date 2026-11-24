@@ -264,6 +264,34 @@ CREATE TABLE IF NOT EXISTS help_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_help_pending ON help_requests(delivered_at);
 
+-- Somebody the shop had to turn away because nobody was on the road.
+--
+-- One row per person, not per attempt: a passenger who asks three times is
+-- one passenger waiting for one car, and three rows would mean three
+-- messages when somebody finally clocks on.
+--
+-- Everything needed to speak to them again is here, because by then the
+-- conversation has moved on and the draft may have been changed: what they
+-- asked for, in the shop's own words, as it stood when it was refused.
+CREATE TABLE IF NOT EXISTS waiting_customers (
+  phone     TEXT PRIMARY KEY,
+  service   TEXT NOT NULL,
+  summary   TEXT NOT NULL DEFAULT '',
+  /**
+   * Whatever is needed to pick the booking up again, as JSON — a ride's two
+   * ends, which were tool arguments and existed only for that one call.
+   *
+   * Kept HERE rather than written into the taxi's own picks, which look like
+   * the right place and are not: those are read by the next booking too, so
+   * a refused ride would quietly supply a pickup for an unrelated one.
+   */
+  payload   TEXT NOT NULL DEFAULT '',
+  asked_at  TEXT NOT NULL,
+  /** Empty until the shop has actually gone back to them. */
+  told_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_waiting_asked ON waiting_customers(asked_at);
+
 -- What the customer thought of it, asked once per order and never twice.
 --
 -- One row per order, written when the question goes out rather than when it

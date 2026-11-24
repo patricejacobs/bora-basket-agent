@@ -58,6 +58,7 @@ import type { IncomingImage } from './channels/types.ts';
 import { checkRange, describePin, formatDistance, rangeWorthSaying } from './location.ts';
 import { servedSpot as servedPinSpot } from './pin-check.ts';
 import { DUTY_OFF } from './duty-buttons.ts';
+import { tellWhoeverIsWaiting } from './waiting-list.ts';
 const servedPin = (p: { latitude: number; longitude: number }): boolean => servedPinSpot(p).served;
 import type { OutboundMessage } from './channels/types.ts';
 
@@ -1430,6 +1431,18 @@ export async function handleDriverMessage(
     const capped = repo.canWorkAgainAt(phone) !== null;
     const wasOff = !repo.isOnDuty(phone);
     if (!capped) repo.setDuty(phone, true);
+    if (!capped && wasOff) {
+      // Clocking on by pin is still clocking on. Without this, an associate
+      // who starts the day by sharing their location was never handed the
+      // job already cooked and waiting, and nobody turned away was ever
+      // told — the typed `on` did both and the pin did neither.
+      void offerWaitingWork(phone).catch((err) =>
+        console.error('[staff] could not offer waiting work after a pin:', err),
+      );
+      void tellWhoeverIsWaiting().catch((err) =>
+        console.error('[staff] could not go back to waiting customers:', err),
+      );
+    }
     const radius = config.associateRadiusMiles;
     return reply(
       [
@@ -1474,6 +1487,11 @@ export async function handleDriverMessage(
     // rather than left for them to go looking for with `jobs`.
     void offerWaitingWork(phone).catch((err) =>
       console.error('[staff] could not offer waiting work on clock-on:', err),
+    );
+    // And the other half of the same moment: the jobs that were never
+    // placed because there was nobody to carry them.
+    void tellWhoeverIsWaiting().catch((err) =>
+      console.error('[staff] could not go back to waiting customers:', err),
     );
     const who = repo.getAssociate(phone);
     return [

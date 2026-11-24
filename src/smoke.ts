@@ -4005,7 +4005,7 @@ section('A car, and no fare anywhere');
   const shut = taxi('book_taxi', { pickup_address: 'Stabroek', destination_address: 'Diamond' });
   check(
     'and refuses with no associate on duty',
-    typeof shut.error === 'string' && /nobody to send|no delivery associate/i.test(String(shut.error)),
+    typeof shut.error === 'string' && /nobody is on duty/i.test(String(shut.error)),
     JSON.stringify(shut).slice(0, 140),
   );
 
@@ -7388,8 +7388,16 @@ section('No one on the road, no orders taken');
   check('for the right reason', /no delivery associate is on duty/i.test(String(refused.error)), String(refused.error));
   // Politely, and with no promise about when - the shop does not know when
   // somebody will clock on any more than the customer does.
-  check('told kindly', /kindly/i.test(String(refused.error)), String(refused.error));
-  check('with no promise of when', /Do not say when/.test(String(refused.error)), String(refused.error));
+  // The qualities that matter in what the agent is told to say: no blame, no
+  // date, and the waiting left where it belongs. It used to end "invite them
+  // to message again", and the model duly wrote "message me when you are
+  // ready" to somebody who already was.
+  check('told without blaming them',
+    /never put the next move on them/.test(String(refused.error)), String(refused.error));
+  check('with no promise of when',
+    /say nothing about when/i.test(String(refused.error)), String(refused.error));
+  check('and the shop promises to come back to them',
+    /come straight back to them/.test(String(refused.error)), String(refused.error));
   check('and their list is kept', /park_cart/.test(String(refused.error)), String(refused.error));
 
   // A parcel too: a sender waiting at a door for an uplift nobody can make is
@@ -7398,7 +7406,7 @@ section('No one on the road, no orders taken');
   const parcel = JSON.parse(
     executeTool('create_parcel_job', { contents: 'a box' }, { phone: buyer, outbound: [] as never[] } as never),
   ) as Record<string, unknown>;
-  check('a parcel is refused too', /no delivery associate is on duty/i.test(String(parcel.error)), String(parcel.error).slice(0, 110));
+  check('a parcel is refused too', /nobody is on duty/i.test(String(parcel.error)), String(parcel.error).slice(0, 110));
   repo.setService(buyer, 'grocery');
 
   /* --- and the agent is told before they shop ------------------------- */
@@ -14026,6 +14034,193 @@ section('A shift that does not end for want of a word');
     repo.upsertAssociate({ phone, name: 'Duty', vehicle: 'PAA 9', active: false });
   }
 }
+section('Nobody out, and the shop goes back to them');
+{
+  const {
+    WAIT_GO: waitGo,
+    WAIT_NO: waitNo,
+    tellWhoeverIsWaiting: goBack,
+    callbackMessage: callback,
+  } = await import('./waiting-list.ts');
+  const { readButtonId: readId } = await import('./button-ids.ts');
+  const { handleDriverMessage: dutySay } = await import('./staff.ts');
+  const { handleIncoming: waitSay } = await import('./conversation.ts');
+  const { GATE_BOOK: bookIt } = await import('./delivery-checkout.ts');
+  const { executeTool: callTool } = await import('./agent/tools.ts');
+
+  // Nobody on the road, whatever earlier sections left behind. Put back at
+  // the end, because the rest of the suite assumes the shop can deliver.
+  const wereOut = repo.associateNumbers().filter((p3) => repo.isOnDuty(p3));
+  for (const p3 of wereOut) repo.setDuty(p3, false);
+  for (const row of repo.waitingList(10_000)) repo.clearWaiting(row.phone);
+  check('the shop has nobody out', !repo.anyoneOnDuty());
+
+  const shawn = '5926100801';
+  const ann = '5926100802';
+  const reeaz = '5926100803';
+  const rider = '5926004601';
+  repo.upsertAssociate({ phone: rider, name: 'Waiting Rider', vehicle: 'PAA 7', active: true });
+
+  // 1. A passenger, through the agent's own tool.
+  repo.saveCustomer(shawn, { name: 'Shawn Adams', contactPhone: shawn });
+  repo.chooseLanguage(shawn, 'en');
+  repo.logMessage(shawn, 'in', 'smoke', 'taxi');
+  repo.setService(shawn, 'taxi');
+  const noCar = JSON.parse(
+    callTool(
+      'book_taxi',
+      { pickup_address: 'Kitty', destination_address: 'Diamond', passenger_name: 'Shawn Adams' },
+      { phone: shawn, outbound: [] } as never,
+    ),
+  ) as { error?: string };
+  check('a car cannot be booked with nobody out', /nobody is on duty/i.test(noCar.error ?? ''),
+    noCar.error?.slice(0, 60));
+  check('and the agent is told never to put the next move on them',
+    /never put the next move on them/.test(noCar.error ?? ''), noCar.error?.slice(0, 120));
+  check('the passenger is written down as waiting',
+    repo.waitingRow(shawn)?.service === 'taxi', JSON.stringify(repo.waitingRow(shawn)));
+  check('with the trip they asked for',
+    repo.waitingRow(shawn)?.summary === 'Kitty to Diamond', repo.waitingRow(shawn)?.summary);
+  // Both ends kept WITH THE ROW, so the tap can rebuild the ride — and
+  // deliberately not in the taxi's own picks, which the next booking reads
+  // too: a refused ride must not supply a pickup for an unrelated one.
+  check('both ends are kept with the row',
+    JSON.parse(repo.waitingRow(shawn)?.payload || '{}').from === 'Kitty' &&
+      JSON.parse(repo.waitingRow(shawn)?.payload || '{}').to === 'Diamond',
+    repo.waitingRow(shawn)?.payload);
+  check('and not written into the next booking',
+    repo.taxiPicks(shawn).from === '' && repo.taxiPicks(shawn).to === '',
+    JSON.stringify(repo.taxiPicks(shawn)));
+
+  // Asking twice is one person waiting, not two.
+  callTool(
+    'book_taxi',
+    { pickup_address: 'Kitty', destination_address: 'Diamond', passenger_name: 'Shawn Adams' },
+    { phone: shawn, outbound: [] } as never,
+  );
+  check('asking again does not put them on the list twice',
+    repo.waitingList(120).filter((r) => r.phone === shawn).length === 1,
+    String(repo.waitingList(120).length));
+
+  // 2. A shopper, through the shop's OWN gate — which used to answer this
+  //    with "Something went wrong placing that".
+  repo.saveCustomer(ann, { name: 'Ann Persaud', contactPhone: ann, address: 'Lot 4 Diamond' });
+  repo.chooseLanguage(ann, 'en');
+  repo.logMessage(ann, 'in', 'smoke', 'rice');
+  repo.setService(ann, 'grocery');
+  const waitRice = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  repo.setCartQty(ann, waitRice!.id, 2, '');
+  repo.setDeliveryZone(ann, 'Diamond');
+  repo.setAddressZone(ann, 'Diamond');
+  repo.setFeeAgreed(ann, repo.getCart(ann).deliveryFee);
+  repo.setCheckoutStep(ann, 'gate');
+  const gated = await waitSay({ phone: ann, text: bookIt, channel: 'smoke' } as never);
+  const gatedText = (gated[0] as { text?: string })?.text ?? '';
+  check('tapping Book it with nobody out says what is actually wrong',
+    /nobody out on deliveries/i.test(gatedText), gatedText.slice(0, 70));
+  check('and does not blame the customer or ask them to come back',
+    !/when you are ready/i.test(gatedText), gatedText.slice(0, 120));
+  check('it promises the shop will come back to them',
+    /come straight back to you/i.test(gatedText), gatedText.slice(0, 160));
+  check('the basket is untouched', repo.getCart(ann).lines.length === 1,
+    String(repo.getCart(ann).lines.length));
+  check('and they are on the list with what is held',
+    /2 items/.test(repo.waitingRow(ann)?.summary ?? ''), repo.waitingRow(ann)?.summary);
+
+  // 3. A second passenger, behind the first.
+  repo.saveCustomer(reeaz, { name: 'Reeaz Khan', contactPhone: reeaz });
+  repo.chooseLanguage(reeaz, 'en');
+  repo.logMessage(reeaz, 'in', 'smoke', 'taxi');
+  repo.setService(reeaz, 'taxi');
+  callTool(
+    'book_taxi',
+    { pickup_address: 'Grove', destination_address: 'Georgetown', passenger_name: 'Reeaz Khan' },
+    { phone: reeaz, outbound: [] } as never,
+  );
+  check('three are waiting', repo.waitingList(120).length === 3,
+    JSON.stringify(repo.waitingList(120).map((r) => r.phone)));
+
+  // The callback itself.
+  const card = callback(repo.waitingRow(shawn)!, 'en');
+  check('the callback reads the trip back',
+    /car on the road now/.test((card as { text?: string }).text ?? '') &&
+      /Kitty to Diamond/.test((card as { text?: string }).text ?? ''),
+    (card as { text?: string }).text?.slice(0, 70));
+  check('with two answers whose ids survive the channel',
+    readId(waitGo) === waitGo && readId(waitNo) === waitNo, `${readId(waitGo)} ${readId(waitNo)}`);
+
+  // 4. Somebody clocks on. Everybody waiting for a DELIVERY is told; the
+  //    taxis are told oldest first, one per car.
+  await dutySay('on', rider);
+  await new Promise((done) => setTimeout(done, 50));
+  check('the first passenger is told', repo.waitingRow(shawn)?.toldAt !== '',
+    repo.waitingRow(shawn)?.toldAt);
+  check('the shopper is told too — a delivery queues',
+    repo.waitingRow(ann)?.toldAt !== '', repo.waitingRow(ann)?.toldAt);
+  check('the second passenger is not — a ride does not',
+    repo.waitingRow(reeaz)?.toldAt === '', repo.waitingRow(reeaz)?.toldAt);
+
+  // And nobody is told twice when the next associate arrives.
+  const toldAt = repo.waitingRow(shawn)?.toldAt;
+  await goBack();
+  check('nobody is told twice', repo.waitingRow(shawn)?.toldAt === toldAt,
+    `${toldAt} -> ${repo.waitingRow(shawn)?.toldAt}`);
+
+  // 5. The shopper taps Place it, and lands on the price gate she left.
+  const resumed = await waitSay({ phone: ann, text: waitGo, channel: 'smoke' } as never);
+  check('Place it puts the price back in front of her',
+    /Delivery to Diamond/.test((resumed[0] as { text?: string })?.text ?? '') &&
+      repo.checkoutStep(ann) === 'gate',
+    (resumed[0] as { text?: string })?.text?.slice(0, 50));
+  check('and she is off the list', repo.waitingRow(ann) === null);
+
+  // 6. The passenger taps Yes, and gets the fare with its three answers —
+  //    not a booking behind his back.
+  const ride = await waitSay({ phone: shawn, text: waitGo, channel: 'smoke' } as never);
+  check('Yes, send it quotes the fare for the trip he asked for',
+    /fare/i.test((ride[0] as { text?: string })?.text ?? ''),
+    (ride[0] as { text?: string })?.text?.slice(0, 60));
+  check('and he is off the list', repo.waitingRow(shawn) === null);
+
+  // 7. Not now gives the car up, and the one behind gets it.
+  repo.noteWaiting(shawn, 'taxi', 'Kitty to Diamond');
+  const declined = await waitSay({ phone: shawn, text: waitNo, channel: 'smoke' } as never);
+  check('Not now takes them off the list without blame',
+    repo.waitingRow(shawn) === null &&
+      !/when you are ready and I will check/.test('') &&
+      /message me whenever/i.test((declined[0] as { text?: string })?.text ?? ''),
+    (declined[0] as { text?: string })?.text?.slice(0, 60));
+  await new Promise((done) => setTimeout(done, 50));
+  check('and the car passes to the next one waiting',
+    repo.waitingRow(reeaz)?.toldAt !== '', repo.waitingRow(reeaz)?.toldAt);
+
+  // 8. The car gone between the message and the tap.
+  repo.setDuty(rider, false);
+  repo.noteWaiting(shawn, 'taxi', 'Kitty to Diamond');
+  const gone = await waitSay({ phone: shawn, text: waitGo, channel: 'smoke' } as never);
+  check('a tap on a car that has gone says so, kindly',
+    /just been taken/i.test((gone[0] as { text?: string })?.text ?? ''),
+    (gone[0] as { text?: string })?.text?.slice(0, 60));
+  check('and keeps their place rather than dropping them',
+    repo.waitingRow(shawn) !== null && repo.waitingRow(shawn)?.toldAt === '',
+    JSON.stringify(repo.waitingRow(shawn)));
+
+  // 9. Stale asks are dropped rather than answered hours later.
+  db.prepare(`UPDATE waiting_customers SET asked_at = ? WHERE phone = ?`)
+    .run(new Date(Date.now() - 3 * 3600_000).toISOString(), shawn);
+  check('an ask from three hours ago is not in the list',
+    !repo.waitingList(120).some((r) => r.phone === shawn),
+    JSON.stringify(repo.waitingList(120).map((r) => r.phone)));
+  check('and is dropped on the next pass', repo.dropStaleWaiting(120) >= 1);
+  check('0 minutes switches the whole list off', repo.waitingList(0).length === 0);
+
+  for (const row of repo.waitingList(10_000)) repo.clearWaiting(row.phone);
+  for (const p3 of [shawn, ann, reeaz]) repo.setService(p3, null);
+  repo.setCheckoutStep(ann, '');
+  repo.upsertAssociate({ phone: rider, name: 'Waiting Rider', vehicle: 'PAA 7', active: false });
+  for (const p3 of wereOut) repo.setDuty(p3, true);
+  check('the road is as it was', repo.anyoneOnDuty() === (wereOut.length > 0));
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
@@ -14044,6 +14239,7 @@ section('No button is a dead button');
   } = await import('./order-status.ts');
   const { languageScreen: langScreen } = await import('./language-choice.ts');
   const { checkInMessage: stillOut } = await import('./duty-check-in.ts');
+  const { WAIT_GO: wGo, WAIT_NO: wNo } = await import('./waiting-list.ts');
   const { wayOutButtons: wayOut } = await import('./aisles.ts');
   const { endPicker: picker, spotAsk: spot, fareButtons: fare } = await import('./place-picker.ts');
   const {
@@ -14083,7 +14279,7 @@ section('No button is a dead button');
   ids.push(...destBoth(7, 'yes', 'no').map((b) => b.id));
   ids.push(callBtn(7).id);
   ids.push(...cancelBoth('ORD-00007', 'staff').map((b) => b.id));
-  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain, sAgain);
+  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain, sAgain, wGo, wNo);
   // Built rather than written out: the village rides in the id, so the only
   // honest way to sweep it is to ask the message that sends it.
   takeButtons(streetWrong(sweeper, 'Mocha', 'Buxton', 'en'));

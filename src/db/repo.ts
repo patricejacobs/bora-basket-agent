@@ -3899,6 +3899,111 @@ export function onDutyCount(now = new Date()): number {
   return associateNumbers().filter((phone) => isOnDuty(phone, now)).length;
 }
 
+export type WaitingCustomer = {
+  phone: string;
+  /** 'grocery' | 'restaurant' | 'parcel' | 'taxi' — what they were refused. */
+  service: string;
+  /** What they asked for, in the shop's words, as it stood when refused. */
+  summary: string;
+  /** What the booking needs to be picked up again, as JSON. May be empty. */
+  payload: string;
+  askedAt: string;
+  toldAt: string;
+};
+
+/**
+ * Somebody turned away because nobody was on the road.
+ *
+ * Written at the moment of refusal and nowhere else: a customer the shop
+ * merely WARNED, before they had asked for anything, is not waiting for
+ * anything. Only a booking that was refused puts somebody on this list.
+ *
+ * Asking again replaces the row rather than adding one. A passenger who
+ * tries three times is one passenger waiting for one car, and the newest
+ * wording of what they want is the right one to read back.
+ */
+export function noteWaiting(
+  phone: string,
+  service: string,
+  summary: string,
+  payload = '',
+): void {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return;
+  db.prepare(
+    `INSERT INTO waiting_customers (phone, service, summary, payload, asked_at, told_at)
+     VALUES (?, ?, ?, ?, ?, '')
+     ON CONFLICT(phone) DO UPDATE SET service = excluded.service,
+       summary = excluded.summary, payload = excluded.payload,
+       asked_at = excluded.asked_at, told_at = ''`,
+  ).run(digits, service, summary.slice(0, 200), payload.slice(0, 500), nowIso());
+}
+
+/**
+ * Who is still worth going back to, oldest first.
+ *
+ * Oldest first because that is the only order anybody would call fair, and
+ * because the person who has been waiting longest is the one most likely to
+ * have given up on us.
+ */
+export function waitingList(maxAgeMinutes: number, now = new Date()): WaitingCustomer[] {
+  if (maxAgeMinutes <= 0) return [];
+  const cutoff = new Date(now.getTime() - maxAgeMinutes * 60_000).toISOString();
+
+  return db
+    .prepare(
+      `SELECT phone, service, summary, payload, asked_at AS askedAt, told_at AS toldAt
+         FROM waiting_customers
+        WHERE told_at = '' AND asked_at >= ?
+        ORDER BY asked_at ASC`,
+    )
+    .all(cutoff) as unknown as WaitingCustomer[];
+}
+
+export function waitingRow(phone: string): WaitingCustomer | null {
+  const row = db
+    .prepare(
+      `SELECT phone, service, summary, payload, asked_at AS askedAt, told_at AS toldAt
+         FROM waiting_customers WHERE phone = ?`,
+    )
+    .get(phone.replace(/[^0-9]/g, '')) as WaitingCustomer | undefined;
+  return row ?? null;
+}
+
+/** Off the list: they have answered, or been served, or said not now. */
+export function clearWaiting(phone: string): void {
+  db.prepare(`DELETE FROM waiting_customers WHERE phone = ?`).run(phone.replace(/[^0-9]/g, ''));
+}
+
+/**
+ * Stamped before the message goes out, never after.
+ *
+ * A send that throws must not leave somebody eligible to be told again on
+ * the next clock-on, and the one after that. The same rule the stall watch
+ * and the duty check-in follow, for the same reason.
+ */
+export function markWaitingTold(phone: string, now = new Date()): void {
+  db.prepare(`UPDATE waiting_customers SET told_at = ? WHERE phone = ?`).run(
+    now.toISOString(),
+    phone.replace(/[^0-9]/g, ''),
+  );
+}
+
+/** Rows too old to be worth a message. Cleared rather than left to pile up. */
+export function dropStaleWaiting(maxAgeMinutes: number, now = new Date()): number {
+  if (maxAgeMinutes <= 0) return 0;
+  const cutoff = new Date(now.getTime() - maxAgeMinutes * 60_000).toISOString();
+  const before = db.prepare(`SELECT COUNT(*) AS n FROM waiting_customers`).get() as { n: number };
+  db.prepare(`DELETE FROM waiting_customers WHERE asked_at < ?`).run(cutoff);
+  const after = db.prepare(`SELECT COUNT(*) AS n FROM waiting_customers`).get() as { n: number };
+  return before.n - after.n;
+}
+
+/** How many are waiting right now. For /health. */
+export function waitingCount(maxAgeMinutes: number, now = new Date()): number {
+  return waitingList(maxAgeMinutes, now).length;
+}
+
 export function anyoneOnDuty(now = new Date()): boolean {
   return onDutyCount(now) > 0;
 }

@@ -40,7 +40,7 @@ export function buildTimeContext(): string {
   // and still have no way to get anything to anybody.
   if (!repo.anyoneOnDuty()) {
     lines.push(
-      'NO DELIVERY ASSOCIATE IS ON DUTY — nothing can be delivered right now, and you must not place an order. Say so before they start shopping, kindly and without blame: there is nobody out on deliveries at the moment, so you cannot get an order to them just yet. Do not say when, because you do not know. Invite them to message again and you will check. If they have already shopped, do not place it — tell them the same thing and offer to hold the list, which park_cart does.',
+      'NO DELIVERY ASSOCIATE IS ON DUTY — nothing can be delivered right now, and you must not place an order. Say so before they start shopping, kindly and without blame: there is nobody out on deliveries at the moment, so you cannot get an order to them just yet. Do not say when, because you do not know. The wait is the shop\'s, not theirs — never ask them to say when they are ready, and never put the next move on them. Tell them you will come straight back to them when somebody is on the road, which the shop does by itself. If they have already shopped, do not place it — tell them the same thing and offer to hold the list, which park_cart does.',
     );
   }
 
