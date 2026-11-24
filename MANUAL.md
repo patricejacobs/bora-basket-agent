@@ -2211,6 +2211,51 @@ A change the passenger makes themselves also spends any question the driver
 has out: leaving it open would put the old place back in front of them with
 two buttons, for a trip that has already changed.
 
+### When the passenger asks the shop
+
+They can also tell the shop directly, and they do — a passenger in a moving
+car with the chat already open does not always lean forward. **It goes
+through the same gate from the other side: priced, agreed by the passenger,
+then put to the driver.**
+
+```
+Shawn   ▸ "actually, take me to Zeelugt"
+Shop    ▸ $70,000 → $5,500. Agreed?
+Shawn   ▸ yes
+
+Driver  ▸ ⚠️ *TXI-00013 — the passenger wants to go somewhere else.*
+
+          Now: *Zeelugt*
+          Was: Grove
+
+          Fare $70,000 → *$5,500*
+
+          Nothing has changed yet. Tap *Acknowledged* only if you can
+          take them there.
+          [ Acknowledged ]  [ No, as booked ]
+
+Shawn   ▸ "Asked your driver about *Zeelugt* — nothing changes until they
+           say they can take you there. I will tell you either way."
+```
+
+**This was the one change that skipped the gate.** Reported on TXI-00013:
+the destination changed the instant the fare was agreed, and the driver was
+told afterwards with the ordinary trip buttons underneath — informed, never
+asked. There was no way to say *I cannot take them there*, and nothing had
+asked. A delivery redirected by the customer has always been a proposal, and
+so is a destination the driver raises; only the passenger's own change went
+straight through.
+
+*Acknowledged* applies it, tells the passenger, and re-sends the live card
+with the new destination on it. *No, as booked* leaves the trip where it was
+and tells the passenger why:
+
+> Your driver cannot take you there, so you are going to *Zeelugt* as
+> booked, *$5,500*. Message us if that does not work.
+
+**Before anybody is carrying it**, there is nobody to ask, so the shop
+changes it outright — the same rule the delivery path follows.
+
 ### When the driver is the one who hears it
 
 A passenger usually asks the person next to them, so the driver's card
@@ -4280,7 +4325,7 @@ nothing.
 
 ### The walkthroughs
 
-Eighteen scripts in the project root that drive the **real handlers** against a
+Nineteen scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4307,6 +4352,7 @@ node walkthrough-grocery.ts
 | `walkthrough-duty.ts` | A driver who works straight through, and one who goes home |
 | `walkthrough-webhook-duty.ts` | The duty taps through the real signed webhook, with their titles made nonsense |
 | `walkthrough-waiting.ts` | Three people turned away, and what happens when a car comes on |
+| `walkthrough-taxi-destination.ts` | A passenger's change of destination, answered both ways by the driver |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 

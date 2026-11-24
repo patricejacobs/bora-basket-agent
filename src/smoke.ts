@@ -5149,13 +5149,50 @@ section('Picking a place instead of typing one');
     check('the trip is still going where it was',
       repo.findOrder(job.orderNo)?.address === 'Grove', repo.findOrder(job.orderNo)?.address);
 
+    // Agreed by the passenger, and PUT TO THE DRIVER rather than applied.
+    //
+    // It used to change on the spot and the driver was told afterwards, with
+    // the ordinary trip buttons under it — informed, never asked, and no way
+    // to say they could not take them there. A delivery redirected by the
+    // customer has always been a proposal; so is this now.
     const done = change({ new_destination: 'Zeelugt', confirmed: true });
-    check('once agreed, it changes', done.changed === true, JSON.stringify(done).slice(0, 100));
+    check('once agreed, it goes to the driver', done.asked === true && done.changed === false,
+      JSON.stringify(done).slice(0, 100));
+    check('and the passenger is told it is with them',
+      ctx2.outbound.some((m) => /Asked your driver/.test((m as { text?: string }).text ?? '')),
+      JSON.stringify(ctx2.outbound.slice(-1)).slice(0, 90));
+    check('nothing has moved yet', repo.findOrder(job.orderNo)?.address === 'Grove',
+      repo.findOrder(job.orderNo)?.address);
+    check('the question is written down against the trip',
+      repo.destProposal(job.orderNo)?.place === 'Zeelugt',
+      JSON.stringify(repo.destProposal(job.orderNo)));
+
+    // The driver's card carries the two answers a delivery's does.
+    const { proposeDestinationToDriver: askDriver } = await import('./dispatch.ts');
+    await askDriver(job.orderNo);
+
+    // And the tap settles it.
+    const { settleProposedAddress: settle } = await import('./dispatch.ts');
+    const said = await settle(job.orderNo, true);
+    check('acknowledging it changes the trip', /now going to Zeelugt/.test(said), said);
     const moved = repo.findOrder(job.orderNo);
     check('the destination is the new one', moved?.address === 'Zeelugt', moved?.address);
     check('and the fare is re-priced from the same pickup', moved?.quotedFare === 5500,
       String(moved?.quotedFare));
     check('the pickup is untouched', moved?.pickup?.address === 'Diamond', moved?.pickup?.address);
+
+    // And a driver who cannot take them there says so, and nothing moves.
+    repo.setTaxiFareShown(rider2, -1);
+    change({ new_destination: 'Parika' });
+    repo.setTaxiFareShown(rider2, repo.findOrder(job.orderNo) ? repo.taxiFareShown(rider2) : -1);
+    const refusedQuote = change({ new_destination: 'Parika', confirmed: true });
+    check('a second change is put to them too', refusedQuote.asked === true,
+      JSON.stringify(refusedQuote).slice(0, 80));
+    const kept = await settle(job.orderNo, false);
+    check('a driver who cannot take them there is allowed to say so',
+      /left as booked/.test(kept), kept);
+    check('and the trip is where it was',
+      repo.findOrder(job.orderNo)?.address === 'Zeelugt', repo.findOrder(job.orderNo)?.address);
 
     // Both figures survive in the trail: a passenger disputing a fare is
     // disputing one of two, and the shop has to say which was agreed when.
@@ -5178,11 +5215,16 @@ section('Picking a place instead of typing one');
     check('nothing has moved on the strength of a question',
       repo.findOrder(job.orderNo)?.address === 'Zeelugt', repo.findOrder(job.orderNo)?.address);
 
-    // A question the driver already has out is overtaken by this.
+    // A question the driver already has out is overtaken by this one.
     repo.proposeDestination(job.orderNo, 'Somewhere else', 9999);
     const onRoadDone = change({ new_destination: 'Kitty', confirmed: true });
-    check('agreeing changes a trip under way', onRoadDone.changed === true,
+    check('a trip under way goes to the driver as well', onRoadDone.asked === true,
       JSON.stringify(onRoadDone).slice(0, 110));
+    check('and the old question is replaced by the new one',
+      repo.destProposal(job.orderNo)?.place === 'Kitty',
+      JSON.stringify(repo.destProposal(job.orderNo)));
+
+    await settle(job.orderNo, true);
     const inCar = repo.findOrder(job.orderNo);
     check('to the new place', inCar?.address === 'Kitty', inCar?.address);
     check('still under way, not re-dispatched', inCar?.status === 'on_the_way', inCar?.status);

@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { recordTurnedAway } from '../waiting-list.ts';
+import { proposeDestinationToDriver } from '../dispatch.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import {
   announceNewOrder,
@@ -2647,31 +2648,48 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         });
       }
 
-      repo.changeTaxiDestination(order.orderNo, named, quoted?.fee ?? 0);
       repo.setTaxiFareShown(ctx.phone, -1);
-      // A question the driver raised is overtaken by the passenger settling
-      // it themselves. Leaving it open would put the old place back in front
-      // of them with two buttons, for a trip that has already changed.
-      repo.clearDestProposal(order.orderNo);
 
-      // The driver is holding a card for the old destination. Telling them is
-      // the whole point — a record that changed quietly is a car that still
-      // goes to the wrong place.
-      void tellDriverOfNewDestination(order.orderNo).catch((err) =>
-        console.error('[tools] could not tell the driver the destination changed:', err),
+      if (!order.driverPhone) {
+        // Nobody is carrying it yet, so there is nobody to agree: the trip
+        // is still the shop's to change.
+        repo.changeTaxiDestination(order.orderNo, named, quoted?.fee ?? 0);
+        repo.clearDestProposal(order.orderNo);
+        return ok({
+          changed: true,
+          job_number: order.orderNo,
+          destination: named,
+          fare: quoted ? money(quoted.fee) : 'to be agreed with the driver',
+          next: 'Tell them it is changed. No driver has it yet, so promise nothing about when.',
+        });
+      }
+
+      // Written down and PUT TO THE DRIVER, not applied.
+      //
+      // It used to change the moment the fare was agreed, and the driver was
+      // told afterwards with the ordinary trip buttons under it — informed,
+      // never asked, with no way to say they could not take them there. A
+      // delivery redirected by the customer has always been a proposal; this
+      // is the same gate, and the same gate the DRIVER goes through when the
+      // other one of them raises it.
+      repo.proposeDestination(order.orderNo, named, quoted?.fee ?? 0);
+      void proposeDestinationToDriver(order.orderNo).catch((err) =>
+        console.error('[tools] could not put the new destination to the driver:', err),
       );
 
+      const lang2 = languageFor(ctx.phone);
+      ctx.outbound.push({
+        kind: 'text',
+        text: t('dest_asked', lang2, { place: named }),
+      });
+
       return ok({
-        changed: true,
+        asked: true,
+        changed: false,
         job_number: order.orderNo,
         destination: named,
-        ...(quoted
-          ? { fare: money(quoted.fee), say: `${order.orderNo} now goes to ${named}, ${money(quoted.fee)}.` }
-          : {
-              fare: 'to be agreed with the driver',
-              say: `${order.orderNo} now goes to ${named}. The tariff cannot price that one, so the driver will agree the fare with them.`,
-            }),
-        next: 'Tell them it is changed and that the driver has been told. Do not promise a new time.',
+        fare: quoted ? money(quoted.fee) : 'to be agreed with the driver',
+        next: 'They have ALREADY been told it is with their driver — say nothing more about it, and do not describe the destination as changed. Nothing moves until the driver answers, and the shop tells them either way.',
       });
     }
 

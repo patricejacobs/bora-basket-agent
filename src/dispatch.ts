@@ -581,6 +581,62 @@ export async function proposeAddressToAssociate(
   );
 }
 
+/**
+ * Puts the PASSENGER's new destination to the driver, and waits.
+ *
+ * A delivery redirected by the customer has always been a proposal: the card
+ * says "Nothing has changed yet. Tap Acknowledged only if you can take it
+ * there", and the order does not move until somebody answers. A taxi was the
+ * odd one out — the destination changed the instant the fare was agreed and
+ * the driver was told afterwards, with the ordinary trip buttons under it.
+ * There was no way to say "I cannot take them there", and nothing asked.
+ *
+ * That asymmetry was never argued for. The shop already treats a taxi
+ * destination as something two people agree: when the DRIVER raises one,
+ * `proposeDestinationToPassenger` puts two figures and two buttons in front
+ * of the passenger and nothing moves until they tap. This is the same gate
+ * from the other side.
+ *
+ * The fare goes on the card, because a driver agreeing to a new destination
+ * is agreeing to what it pays.
+ */
+export async function proposeDestinationToDriver(orderNo: string): Promise<boolean> {
+  const order = repo.findOrder(orderNo);
+  if (!order || order.kind !== 'taxi' || !order.driverPhone) return false;
+
+  const proposal = repo.destProposal(orderNo);
+  if (!proposal) return false;
+
+  const was = order.address || 'where they were going';
+  const nl = String.fromCharCode(10);
+
+  const body = [
+    `⚠️ *${order.orderNo} — the passenger wants to go somewhere else.*`,
+    '',
+    `Now: *${proposal.place}*`,
+    `Was: ${was}`,
+    ...(proposal.fare >= 0 && proposal.fare !== order.quotedFare
+      ? [
+          '',
+          `Fare ${order.quotedFare > 0 ? money(order.quotedFare) : 'to be agreed'} → *${
+            proposal.fare > 0 ? money(proposal.fare) : 'to be agreed with them'
+          }*`,
+        ]
+      : []),
+    '',
+    // The same sentence a delivery carries, for the same reason: a card that
+    // merely announces a change reads as settled, and a driver who cannot go
+    // there finds out too late to say so.
+    'Nothing has changed yet. Tap *Acknowledged* only if you can take them there.',
+  ].join(nl);
+
+  return sendButtons(
+    order.driverPhone,
+    body,
+    destAnswerButtons(repo.orderDigits(orderNo), 'Acknowledged', 'No, as booked'),
+  );
+}
+
 export async function tellDriverOfNewDestination(orderNo: string): Promise<boolean> {
   const order = repo.findOrder(orderNo);
   if (!order || order.kind !== 'taxi' || !order.driverPhone) return false;
@@ -1750,6 +1806,36 @@ export async function settleProposedAddress(orderNo: string, agreed: boolean): P
 
   const lang = languageFor(order.phone);
   repo.clearDestProposal(orderNo);
+
+  // A taxi is settled as a taxi: a fare rather than a basket total, a
+  // destination rather than a door, and no pin to carry across. Same gate,
+  // different trip.
+  if (order.kind === 'taxi') {
+    const fareNow = (): string =>
+      order.quotedFare > 0 ? money(order.quotedFare) : t('taxi_fare_with_driver', lang);
+
+    if (!agreed) {
+      await sendText(
+        order.phone,
+        t('dest_refused', lang, { place: order.address || '', fare: fareNow() }),
+      );
+      return `${order.orderNo} — left as booked. The passenger has been told.`;
+    }
+
+    repo.changeTaxiDestination(orderNo, proposal.place, proposal.fare >= 0 ? proposal.fare : 0);
+    const now = repo.findOrder(orderNo)!;
+    await sendText(
+      order.phone,
+      t('dest_changed', lang, {
+        place: now.address,
+        fare: now.quotedFare > 0 ? money(now.quotedFare) : t('taxi_fare_with_driver', lang),
+      }),
+    );
+    // And the live card again, with the new destination on it, so the trip
+    // they are driving matches the trip they just agreed to.
+    await tellDriverOfNewDestination(orderNo);
+    return `${order.orderNo} — now going to ${proposal.place}. The passenger has been told.`;
+  }
 
   if (!agreed) {
     await sendText(
