@@ -4195,7 +4195,7 @@ nothing.
 
 ### The walkthroughs
 
-Sixteen scripts in the project root that drive the **real handlers** against a
+Seventeen scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4220,6 +4220,7 @@ node walkthrough-grocery.ts
 | `walkthrough-wrong-pin-change.ts` | A change of address with a pin nowhere near it |
 | `walkthrough-wrong-street.ts` | A street typed for another village, answered both ways |
 | `walkthrough-duty.ts` | A driver who works straight through, and one who goes home |
+| `walkthrough-webhook-duty.ts` | The duty taps through the real signed webhook, with their titles made nonsense |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 
