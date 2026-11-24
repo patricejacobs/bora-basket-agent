@@ -14452,10 +14452,16 @@ section('Where they say they are, against where they pinned');
   check('a pickup the tariff cannot place is not booked on words alone',
     unplaced.booked !== true && unplaced.asked === true,
     JSON.stringify(unplaced).slice(0, 90));
-  check('and the map is asked for, with the reason',
+  check('and the map is asked for',
     ctx4.outbound[0]?.kind === 'location_request' &&
-      /cannot find \*King St\*/.test(ctx4.outbound[0]?.text ?? ''),
+      /exact pickup point/.test(ctx4.outbound[0]?.text ?? ''),
     (ctx4.outbound[0]?.text ?? '').slice(0, 70));
+  // Never quoted back at them. The shop's inability to place a street is
+  // the shop's business, not a fault in the address somebody gave.
+  check('without telling them their address cannot be found',
+    !/cannot find|can.t find|not know where/i.test(ctx4.outbound[0]?.text ?? '') &&
+      !/King St/.test(ctx4.outbound[0]?.text ?? ''),
+    (ctx4.outbound[0]?.text ?? '').slice(0, 90));
   check('with the other way out on it — name an area instead',
     /tell me the area/i.test(ctx4.outbound[0]?.text ?? ''),
     (ctx4.outbound[0]?.text ?? '').slice(0, 140));

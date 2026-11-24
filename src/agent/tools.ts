@@ -2385,9 +2385,16 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         const placed = findZone(pickupAddress);
         if (placed.kind !== 'found') {
           const lang4 = languageFor(ctx.phone);
+          // What they typed is deliberately NOT quoted back at them.
+          //
+          // "I cannot find *King St* on the map" is the shop telling a
+          // customer their own address is wrong, in a country where most
+          // addresses are landmarks and the tariff is 185 village names. The
+          // shop's inability to place a street is the shop's business. Ask
+          // for what is needed and leave it at that.
           ctx.outbound.push({
             kind: 'location_request',
-            text: t('pickup_unplaced', lang4, { said: pickupAddress, nl: chr10 }),
+            text: t('pickup_unplaced', lang4),
           });
           return ok({
             asked: true,

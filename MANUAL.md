@@ -2264,13 +2264,17 @@ lost three things at once:
 So a pickup the tariff cannot place now asks before it books:
 
 ```
-◂ I cannot find *King St* on the map, so your driver would not know
-  where to look for you.
-
-  Tap below to send your exact spot — or tell me the area (Diamond,
-  Kitty, Timehri) and I will price it from there.
+◂ Tap below to send your exact pickup point, so the driver comes
+  straight to you — or tell me the area (Diamond, Kitty, Timehri)
+  and I will price it from there.
                                             [ 📍 Send location ]
 ```
+
+**What they typed is never quoted back at them.** The first wording was
+*"I cannot find *King St* on the map"* — the shop telling a customer their
+own address is wrong, in a country where most addresses are landmarks and
+the tariff is 185 village names. The shop's inability to place a street is
+the shop's business. It asks for what it needs and leaves it at that.
 
 Either answer settles it: a pin, or the name of an area. **A pickup the
 tariff does know is never asked** — the village prices the trip and the
