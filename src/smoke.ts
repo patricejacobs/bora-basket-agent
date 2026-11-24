@@ -14263,6 +14263,56 @@ section('Nobody out, and the shop goes back to them');
   for (const p3 of wereOut) repo.setDuty(p3, true);
   check('the road is as it was', repo.anyoneOnDuty() === (wereOut.length > 0));
 }
+section('The shop does not shout at anybody');
+{
+  const { calmShouting: calm } = await import('./agent/run.ts');
+
+  // Reported from the live shop: a reply to a passenger written in capitals.
+  // On WhatsApp that is not emphasis, it is a raised voice — and nothing
+  // asked for it. The instructions this agent reads are full of SHOUTED
+  // words, because that is how this codebase emphasises things to a model,
+  // and a model writes in the register it is spoken to.
+  check('a shouted message is brought back to a speaking voice',
+    calm('HAPPY TO GET A CAR SORTED \u2014 HOW MANY OF YOU ARE TRAVELLING?') ===
+      'Happy to get a car sorted \u2014 how many of you are travelling?',
+    calm('HAPPY TO GET A CAR SORTED \u2014 HOW MANY OF YOU ARE TRAVELLING?'));
+  check('and so is one shouted word in an ordinary sentence',
+    calm('Your order is on the WAY.') === 'Your order is on the way.',
+    calm('Your order is on the WAY.'));
+  check('sentences keep their capital',
+    calm('PLEASE SEND YOUR LOCATION. I WILL CHECK AGAIN.') ===
+      'Please send your location. I will check again.',
+    calm('PLEASE SEND YOUR LOCATION. I WILL CHECK AGAIN.'));
+
+  // What must survive, because it is not shouting.
+  check('order numbers are left alone',
+    calm('That is TXI-00031, GRO-00007 and PCL-00002.') ===
+      'That is TXI-00031, GRO-00007 and PCL-00002.',
+    calm('That is TXI-00031, GRO-00007 and PCL-00002.'));
+  check('so is the coast, as everybody writes it',
+    calm('I am sending it to BV now.') === 'I am sending it to BV now.',
+    calm('I am sending it to BV now.'));
+  check('a village keeps its capital and the tariff spelling',
+    calm('Delivery to MOCHA is $1,600.') === 'Delivery to Mocha is $1,600.',
+    calm('Delivery to MOCHA is $1,600.'));
+  check('a name the shop knows is spared',
+    calm('Hi MOHAMED, your driver is here.', ['Mohamed Khan']) ===
+      'Hi MOHAMED, your driver is here.',
+    calm('Hi MOHAMED, your driver is here.', ['Mohamed Khan']));
+  check('ordinary text is untouched',
+    calm('Nothing here is shouted at all.') === 'Nothing here is shouted at all.');
+  check('and so is an empty reply', calm('') === '');
+
+  // The guard is on the agent's words, where the fault was.
+  const shouter = '5926100901';
+  repo.saveCustomer(shouter, { name: 'Calm Tester', contactPhone: shouter });
+  repo.chooseLanguage(shouter, 'en');
+  check('a lone A does not survive a shouted sentence',
+    !/ A /.test(calm('HOW MANY OF YOU NEED A CAR TODAY?')),
+    calm('HOW MANY OF YOU NEED A CAR TODAY?'));
+  check('and I is still I',
+    /\bI\b/.test(calm('I WILL CHECK NOW.')), calm('I WILL CHECK NOW.'));
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

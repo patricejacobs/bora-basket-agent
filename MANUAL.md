@@ -3080,6 +3080,37 @@ I can get a car to you"*, which is worse than the greeting was. The capital
 goes back on what is left. A reply that is nothing but a greeting survives
 untouched, since an empty message is worse than a stray hello.
 
+**The shop does not shout.** Reported from the live shop: a reply to a
+passenger written in capitals. On WhatsApp that is not emphasis, it is a
+raised voice, and it reads as being shouted at by a business.
+
+Nothing asked for it — but look at what the agent reads all day. Its
+instructions are full of SHOUTED words, because that is how this codebase
+emphasises things *to a model*: `NO DELIVERY ASSOCIATE IS ON DUTY`, `ALREADY
+been asked`, `so it is NOT the new address`. A model writes in the register
+it is spoken to.
+
+So the prompt now says plainly that capitals are how these instructions talk
+to it and not how it talks to a customer — and behind the asking, the words
+are brought back to a speaking voice before they are sent:
+
+```
+HAPPY TO GET A CAR SORTED — HOW MANY OF YOU ARE TRAVELLING?
+      ↓
+Happy to get a car sorted — how many of you are travelling?
+```
+
+What survives, because it is not shouting: **order numbers**
+(`TXI-00031`), the **short forms everybody writes** (`BV`, `GT`, `EBD`,
+`OK`), **any village the tariff carries** — `MOCHA` comes back as *Mocha*,
+spelled the tariff's way, because lowercasing a village is a different kind
+of wrong — and **the customer's own name**, so somebody called MOHAMED is
+not answered as mohamed. Sentence capitals go back on afterwards, and the
+lone `A` left standing in a flattened sentence is dealt with too.
+
+This is the third guard of its kind, beside the greeting and the plumbing,
+and for the same reason each time: **a prompt is a request, not a guard.**
+
 **The turns the shop answered are written into the agent's account.** A tap
 is recorded as the words the passenger saw — `Zeelugt`, not
 `pick:to:place:Zeelugt` — with the shop's reply beside it, in the same shape

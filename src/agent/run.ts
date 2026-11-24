@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { findZone } from '../zones.ts';
 import { config } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
@@ -409,6 +410,79 @@ export function stripMechanism(text: string): string {
   // Nothing but plumbing: the buttons are the whole message, which is what
   // they are for.
   return kept;
+}
+
+/**
+ * Words that are capitals because that is how they are written, not because
+ * anybody is raising their voice.
+ *
+ * Kept deliberately short. An acronym nobody listed comes out in lower case,
+ * which is a small ugliness; a shout that gets through is a customer being
+ * shouted at, which is not.
+ */
+const KEEP_CAPS = new Set([
+  // The coast, as everybody writes it.
+  'BV', 'GT', 'EBD', 'ECD', 'WCD', 'WBD', 'EBE', 'UG',
+  // Ordinary short forms.
+  'OK', 'ID', 'AM', 'PM', 'TV', 'AC', 'SUV', 'ATM', 'VAT', 'NIS', 'GY', 'USD', 'PO',
+]);
+
+/** A run of capitals that is a word in its own right, not part of ORD-00012. */
+const SHOUTED = /\b[A-Z]{2,}\b(?![-\d])/g;
+
+/**
+ * Takes the shouting out of a reply.
+ *
+ * Reported from the live shop: the agent wrote to a customer in capitals,
+ * which on WhatsApp is not emphasis, it is raised voice. Nothing asked it
+ * to — but the instructions it reads are full of SHOUTED words, because
+ * that is how this codebase emphasises things to a model, and a model
+ * writes in the register it is spoken to.
+ *
+ * The prompt now asks for bold instead. This is the guard behind the
+ * asking, for the same reason `sanitizeGreeting` and `stripMechanism`
+ * exist: a prompt is a request, not a guard.
+ *
+ * What survives: order numbers, the short forms above, and anything the
+ * tariff knows as a place — MOCHA comes back as Mocha rather than mocha,
+ * because a village is a name and lowercasing it is a different kind of
+ * wrong. Names the shop knows are passed in by the caller for the same
+ * reason.
+ */
+export function calmShouting(text: string, keep: string[] = []): string {
+  if (!text) return text;
+
+  const spared = new Set(
+    keep
+      .flatMap((name) => name.split(/[^A-Za-z]+/))
+      .filter(Boolean)
+      .map((word) => word.toUpperCase()),
+  );
+
+  const shouts = text.match(SHOUTED) ?? [];
+  if (!shouts.some((word) => !KEEP_CAPS.has(word) && !spared.has(word))) return text;
+
+  const calmed = text.replace(SHOUTED, (word) => {
+    if (KEEP_CAPS.has(word) || spared.has(word)) return word;
+    const place = findZone(word);
+    // A place the tariff carries keeps its capital, spelled the tariff's way.
+    if (place.kind === 'found' && place.match.place.toUpperCase() === word) {
+      return place.match.place;
+    }
+    return word.toLowerCase();
+  });
+
+  // Sentence starts, which the lower-casing above will have flattened.
+  //
+  // The lone `A` is done here rather than above, because a word of one
+  // letter is not shouting anywhere else — only in a sentence that already
+  // was, where it is the last capital standing: "HOW MANY OF YOU" came back
+  // as "how many of you" and left "Happy to get A car sorted".
+  return calmed
+    .replace(/\bA\b/g, 'a')
+    .replace(/(^|[.!?]\s+|\n\s*)([a-z])/g, (_all, before: string, letter: string) =>
+      before + letter.toUpperCase())
+    .replace(/\bi\b/g, 'I');
 }
 
 export function assembleReply(finalText: string, queued: OutboundMessage[]): OutboundMessage[] {

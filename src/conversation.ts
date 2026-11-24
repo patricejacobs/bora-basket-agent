@@ -2,6 +2,7 @@ import {
   runAgent,
   friendlyErrorMessage,
   sanitizeGreeting,
+  calmShouting,
   SESSION_TTL_MS as CONVERSATION_TTL_MS,
 } from './agent/run.ts';
 import { detectLanguage, t } from './language.ts';
@@ -1240,8 +1241,20 @@ ${text}` : note;
     // is the guard behind the asking: it greeted anyway, six taps into a
     // booking, and good evening is not a thing you say to somebody you have
     // been talking to for five minutes.
+    // And it is not to shout at them. Capitals on WhatsApp are not emphasis,
+    // they are a raised voice — and the instructions this agent reads are
+    // full of SHOUTED words, because that is how this codebase emphasises
+    // things to a model. It writes in the register it is spoken to. The
+    // customer's own name is spared, so somebody called MOHAMED is not
+    // answered as mohamed.
+    const known = repo.getCustomer(msg.phone);
     outbound = result.outbound.map((out) =>
-      out.kind === 'text' ? { ...out, text: sanitizeGreeting(out.text, underway) } : out,
+      out.kind === 'text'
+        ? {
+            ...out,
+            text: calmShouting(sanitizeGreeting(out.text, underway), [known.name ?? '']),
+          }
+        : out,
     );
   } catch (err) {
     outbound = [{ kind: 'text', text: friendlyErrorMessage(err) }];
