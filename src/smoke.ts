@@ -14625,6 +14625,89 @@ section('Where they say they are, against where they pinned');
   repo.clearParcelDraft(rider3);
   repo.clearTaxiPicks(rider3);
 }
+section('What does that trip pay?');
+{
+  const { readFareAsk, fareAnswerFor } = await import('./fare-ask.ts');
+  const { handleDriverMessage: askFare } = await import('./staff.ts');
+  const { handleStaffMessage: askFareStaff } = await import('./staff.ts');
+
+  const asker3 = '5926004701';
+  repo.upsertAssociate({ phone: asker3, name: 'Fare Asker', vehicle: 'PAA 3', active: true });
+
+  // The shapes a tired person types one-handed.
+  for (const [said, from, to] of [
+    ['fare Georgetown to Mahaica', 'Georgetown', 'Mahaica'],
+    ['fare Georgetown Mahaica', 'Georgetown', 'Mahaica'],
+    ['fare georgetown -> mahaica', 'georgetown', 'mahaica'],
+    ['how much Diamond to Timehri', 'Diamond', 'Timehri'],
+  ] as const) {
+    const read = readFareAsk(said);
+    check(`"${said}" reads as two ends`,
+      read?.from.toLowerCase() === from.toLowerCase() && read?.to.toLowerCase() === to.toLowerCase(),
+      JSON.stringify(read));
+  }
+  check('one place means from where they are',
+    readFareAsk('fare Mahaica')?.from === '' && readFareAsk('fare Mahaica')?.to === 'Mahaica',
+    JSON.stringify(readFareAsk('fare Mahaica')));
+  check('and an ordinary message is not a fare question',
+    readFareAsk('7 delivered') === null && readFareAsk('on') === null &&
+      readFareAsk('fare') === null);
+
+  // The answer, through the associate's own handler.
+  const answered = await askFare('fare Georgetown to Mahaica', asker3);
+  const said1 = (answered[0] as { text?: string })?.text ?? '';
+  check('an associate is told what the trip pays',
+    /Georgetown → Mahaica/.test(said1) && /\$3,500/.test(said1), said1.slice(0, 70));
+  check('with the waiting rate, which is the other figure argued about',
+    /Waiting/.test(said1), said1.slice(0, 120));
+
+  // Aliases and near-misses, as everywhere else in the shop.
+  const loose = (await askFare('fare gt to mahica', asker3))[0] as { text?: string };
+  check('aliases and misspellings are read',
+    /Georgetown → Mahaica/.test(loose?.text ?? ''), (loose?.text ?? '').slice(0, 60));
+
+  // A name that is two places names both, with both figures: Golden Grove
+  // is $700 one side of the country and $4,100 the other.
+  const two = (await askFare('fare Golden Grove to Diamond', asker3))[0] as { text?: string };
+  check('a name that means two places names both',
+    /more than one place/.test(two?.text ?? '') &&
+      /Golden Grove East Bank/.test(two?.text ?? '') &&
+      /Golden Grove East Coast/.test(two?.text ?? ''),
+    (two?.text ?? '').slice(0, 90));
+  check('with what each one would pay',
+    /\$4,100/.test(two?.text ?? '') && /\$700/.test(two?.text ?? ''),
+    (two?.text ?? '').slice(0, 120));
+
+  // One end only, from where the shop last saw them.
+  check('with nowhere to price from, it says so rather than guessing',
+    /do not know where you are/i.test(fareAnswerFor(asker3, 'fare Mahaica') ?? ''),
+    (fareAnswerFor(asker3, 'fare Mahaica') ?? '').slice(0, 60));
+  repo.saveAssociateLocation(asker3, { latitude: 6.79951, longitude: -58.06167 }, 'shared');
+  const fromPin = fareAnswerFor(asker3, 'fare Mahaica') ?? '';
+  check('a pin on file prices it from there',
+    /Beterverwagting → Mahaica/.test(fromPin), fromPin.slice(0, 60));
+  check('and says which way round it was read',
+    /your last pin/.test(fromPin), fromPin.slice(0, 90));
+
+  // A place the tariff has never heard of is named, not shrugged at.
+  const nowhere = fareAnswerFor(asker3, 'fare Narnia to Diamond') ?? '';
+  check('an unknown place is named as the problem',
+    /does not carry \*Narnia\*/.test(nowhere), nowhere.slice(0, 70));
+  check('and the driver is told to agree that one',
+    /Agree that one with the passenger/.test(nowhere), nowhere.slice(0, 120));
+
+  // Whoever is running the shop asks the same way.
+  const staffAsked = await askFareStaff('fare Georgetown to Mahaica', config.staffNumbers[0] ?? '592999');
+  check('staff can ask it too',
+    /Georgetown → Mahaica/.test((staffAsked[0] as { text?: string })?.text ?? ''),
+    ((staffAsked[0] as { text?: string })?.text ?? '').slice(0, 60));
+
+  // And it is in the help, or nobody knows it exists.
+  const help = (await askFare('help', asker3))[0] as { text?: string };
+  check('and it is in the help', /fare Georgetown to Mahaica/.test(help?.text ?? ''));
+
+  repo.upsertAssociate({ phone: asker3, name: 'Fare Asker', vehicle: 'PAA 3', active: false });
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

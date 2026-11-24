@@ -59,6 +59,7 @@ import { checkRange, describePin, formatDistance, rangeWorthSaying } from './loc
 import { servedSpot as servedPinSpot } from './pin-check.ts';
 import { DUTY_OFF } from './duty-buttons.ts';
 import { tellWhoeverIsWaiting } from './waiting-list.ts';
+import { fareAnswerFor } from './fare-ask.ts';
 const servedPin = (p: { latitude: number; longitude: number }): boolean => servedPinSpot(p).served;
 import type { OutboundMessage } from './channels/types.ts';
 
@@ -721,6 +722,13 @@ export async function handleStaffMessage(
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
 
+  // The same question, for whoever is running the shop: they are the one on
+  // the telephone to a passenger asking what a trip costs.
+  {
+    const answered = fareAnswerFor(phone, trimmed);
+    if (answered) return reply(answered);
+  }
+
   // A photograph from a staff member is a menu being onboarded, unless the
   // caption says which product it is of.
   //
@@ -1324,6 +1332,9 @@ const DRIVER_HELP = [
   '`7 details` — everything about one job: who, the number, the door, the cash',
   '`details` on its own does the same, when you are carrying only one',
   '',
+  '`fare Georgetown to Mahaica` — what a trip pays, before you agree it',
+  '`fare Mahaica` — from where you last pinned',
+  '',
   '`cash` — what you are holding this shift',
   '`7 transfer` — hand order 7 to another associate',
   '',
@@ -1550,6 +1561,15 @@ export async function handleDriverMessage(
           : []),
       ].join(String.fromCharCode(10)),
     );
+  }
+
+  // "What does Georgetown to Mahaica pay?" — the question a driver is asked
+  // at a kerb all day, which until now had no answer short of starting a
+  // booking. Read before the order-number parse: a place name has no digits
+  // in it, and the parse would refuse it with the help text.
+  {
+    const answered = fareAnswerFor(phone, trimmed);
+    if (answered) return reply(answered);
   }
 
   if (/^(help|\?|commands)$/i.test(trimmed)) return reply(DRIVER_HELP);

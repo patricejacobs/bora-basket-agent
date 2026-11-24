@@ -460,7 +460,59 @@ Send `help` to the shop number for this list.
 | `7 details` | Everything about it: who, the number, the door, the cash |
 | `7 pin` | Ask the customer for the exact spot |
 | `7 transfer` | Hand order 7 to another associate |
+| `fare A to B` | What that trip pays, before you agree it |
 | `cash` | What you are holding this shift |
+
+### Asking what a trip pays
+
+A passenger at a kerb asks what a trip costs, and until now the only way for
+the associate to find out was to start a booking or ring somebody. The
+tariff has had the answer the whole time; nothing let a driver ask it.
+
+```
+Rider One ▸ fare Georgetown to Mahaica
+
+◂ 🚕 *Georgetown → Mahaica*: *$3,500*
+
+  ⏱ *Waiting:* $30 a minute, from the first minute.
+```
+
+It is a **question, not a quote**: nothing is written down and no trip
+exists. The figure is the same one `book_taxi` puts in front of a passenger,
+which is the point — a driver told $3,500 at the kerb and a passenger shown
+$3,500 in the chat are not about to have an argument.
+
+Typed the way a tired person types one-handed, and read the same way every
+other place name in the shop is read:
+
+| | |
+|---|---|
+| `fare Georgetown to Mahaica` | the plain form |
+| `fare Georgetown Mahaica` | `to` is optional — the tariff decides where the first name ends |
+| `fare gt to mahica` | aliases and misspellings, as everywhere |
+| `fare Mahaica` | from where they last pinned, and it says so |
+| `how much Diamond to Timehri` | `price`, `cost` and `how much` all open it |
+
+**A name that means two places names both, with both figures.** Golden Grove
+is $700 on the East Bank and $4,100 on the East Coast, and quietly picking
+one would send somebody to a kerb with the wrong number:
+
+```
+◂ 🚕 *Golden Grove* is more than one place. Which one?
+
+  • Golden Grove East Coast — *$4,100*
+  • Golden Grove East Bank — *$700*
+
+  Ask again with the full name.
+```
+
+**A place the tariff has never heard of is named as the problem**, not
+shrugged at — *"The tariff does not carry *Narnia*. Agree that one with the
+passenger."* A driver who asks a fair question and gets "I don't know" does
+not ask twice, and the next passenger gets a figure somebody invented.
+
+Whoever is running the shop can ask it the same way, since they are the one
+on the telephone to a passenger asking what a trip costs.
 
 ### The rules
 
