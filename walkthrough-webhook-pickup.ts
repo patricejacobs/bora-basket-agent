@@ -228,6 +228,45 @@ const fine = book({
 console.log('');
 console.log(`  asked again? ${fine.asked === true}`);
 
+/* ------------------------------------- a pickup the tariff cannot place */
+
+rule('A street corner, with no pin at all');
+
+repo.clearParcelDraft(SHAWN);
+repo.clearTaxiPicks(SHAWN);
+
+console.log('');
+console.log('  Shawn ▸ "pick up from King St and take me to Timehri"');
+console.log('');
+console.log('  [MODEL] the agent takes that and calls book_taxi. There is no API key');
+console.log('          here, so the walkthrough makes that call itself.');
+const street = book({
+  pickup_address: 'King St',
+  destination_address: 'Timehri',
+  passenger_name: 'Shawn Adams',
+  fare_confirmed: true,
+});
+console.log('');
+console.log(`  booked? ${street.booked} · asked for the spot? ${street.asked}`);
+console.log(`  (nothing on the record: ${repo.liveTaxi(SHAWN) === null ? 'no trip' : 'a trip!'})`);
+
+rule('He sends the spot, through the webhook');
+
+await sendPin(TIMEHRI, 'where he is actually standing');
+
+console.log('');
+console.log('  [MODEL] and the agent books it now that there is somewhere to go.');
+const nowBooked = book({
+  pickup_address: 'King St',
+  destination_address: 'Timehri',
+  passenger_name: 'Shawn Adams',
+  fare_confirmed: true,
+});
+console.log('');
+console.log(`  booked? ${nowBooked.booked} · ${nowBooked.job_number ?? ''} · ${nowBooked.fare ?? ''}`);
+const card = repo.findOrder(String(nowBooked.job_number ?? ''));
+console.log(`  the driver gets a pin: ${card?.pickup?.latitude != null}`);
+
 rule('And an unsigned request');
 
 const bad = await fetch(`${base}/whatsapp/webhook`, {
