@@ -8,6 +8,7 @@ import { importCsvText } from './catalog/import-csv.ts';
 import { importOutletsText, importMenuText, fillMissingOutletDetails } from './catalog/import-menu.ts';
 import { importAssociatesText } from './catalog/import-associates.ts';
 import { startStallWatch } from './stalls.ts';
+import { startDutyWatch } from './duty-check-in.ts';
 import {
   ordersCsv,
   ordersJson,
@@ -244,6 +245,7 @@ void flushHelpRequests().catch((err) =>
   console.error('[notify] waiting help requests could not be flushed:', err),
 );
 startStallWatch();
+startDutyWatch();
 startBackupSchedule();
 
 const app = express();
@@ -348,8 +350,13 @@ app.get('/health', (_req: Request, res: Response) => {
       pendingHelp: pendingHelpCount(),
       // On the road right now. 0 means orders are being refused.
       associatesOnDuty: onDutyCount(),
-      // The duty limits in force now, and the override if one is.
+      // The duty limits in force now, and the override if one is. Reported
+      // because they are set in two places — the blueprint and the dashboard
+      // — and this is the copy that is actually running.
       dutyHours: dutyLimits(),
+      // How long before a clock-in lapses the shop asks "still out?". 0 means
+      // the lapse is silent, as it was before.
+      dutyCheckInMinutes: config.dutyCheckInMinutes,
       // How many jobs one associate may hold. A busy associate is offered
       // nothing, so this figure decides how long a taxi or a second order
       // waits for somebody. 0 means no cap. Reported because it is set in two

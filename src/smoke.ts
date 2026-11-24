@@ -8129,7 +8129,11 @@ section('Clocking on and off');
     on[0]?.kind === 'buttons' && on[0].buttons.some((b) => b.title === 'Clock off'),
     JSON.stringify(on[0]),
   );
-  check('told when it lapses', /automatically/i.test(on[0]?.text ?? ''), on[0]?.text ?? '');
+  // What happens at the twelve-hour mark is now a question rather than a
+  // silent clock-off, and the message says so. It used to promise the
+  // silence, which was true then and would be a small lie now.
+  check('told what happens at the end of it',
+    /ask whether you are still out/i.test(on[0]?.text ?? ''), on[0]?.text ?? '');
 
   // The button's own words have to work as a command, because that is what a
   // tap sends back.
@@ -13929,6 +13933,99 @@ section('Accept first, and only one of them');
     repo.upsertAssociate({ phone, name: 'Taker', vehicle: 'PAA 4', active: false });
   }
 }
+section('A shift that does not end for want of a word');
+{
+  const { checkInMessage, sweepCheckIns } = await import('./duty-check-in.ts');
+  const { readButtonId: readId } = await import('./button-ids.ts');
+  const { dutyLimits: limits } = await import('./config.ts');
+  const { DUTY_ON: dutyOn, DUTY_OFF: dutyOff } = await import('./duty-buttons.ts');
+  const { handleDriverMessage: dutySay } = await import('./staff.ts');
+
+  const worker = '5926004501';
+  repo.upsertAssociate({ phone: worker, name: 'Long Day', vehicle: 'PAA 9', active: true });
+
+  // Both taps mean what the typed words mean. `duty_off` shipped with no
+  // reader at all and worked only because its title matched the typed form.
+  check('the clock-on tap reads as `on`', readId(dutyOn) === 'on', String(readId(dutyOn)));
+  check('and the clock-off tap as `off`', readId(dutyOff) === 'off', String(readId(dutyOff)));
+
+  const lapseMs = limits().lapseHours * 3600_000;
+  const backdate = (hours: number): void => {
+    const when = new Date(Date.now() - hours * 3600_000).toISOString();
+    db.prepare(`UPDATE associates SET on_duty_at = ? WHERE phone = ?`).run(when, worker);
+    db.prepare(`UPDATE associate_shifts SET started_at = ? WHERE phone = ? AND ended_at = ''`)
+      .run(when, worker);
+  };
+
+  await dutySay('on', worker);
+  check('clocking on says what will actually happen',
+    /ask whether you are still out/.test(
+      ((await dutySay('on', worker))[0] as { text?: string })?.text ?? '',
+    ),
+    ((await dutySay('on', worker))[0] as { text?: string })?.text?.slice(0, 90));
+
+  // Nobody is asked in the middle of a shift.
+  backdate(limits().lapseHours / 2);
+  check('nobody is asked halfway through a shift',
+    !repo.checkInDue(15).includes(worker), JSON.stringify(repo.checkInDue(15)));
+
+  // A quarter of an hour before it lapses, they are.
+  backdate(limits().lapseHours - 10 / 60);
+  check('but they are asked shortly before it lapses',
+    repo.checkInDue(15).includes(worker), JSON.stringify(repo.checkInDue(15)));
+
+  const message = checkInMessage('Long Day');
+  check('the question carries both answers',
+    message.kind === 'buttons' &&
+      (message as { buttons: { id: string }[] }).buttons.map((b) => b.id).join(',') ===
+        `${dutyOn},${dutyOff}`,
+    JSON.stringify((message as { buttons?: unknown }).buttons));
+  check('and says the jobs keep coming on a tap',
+    /jobs keep coming/.test((message as { text?: string }).text ?? ''),
+    (message as { text?: string }).text?.slice(0, 60));
+
+  // Asked once per stretch, and stamped before the send — or a failed send
+  // asks again every two minutes forever.
+  const sent = await sweepCheckIns();
+  check('the sweep asks them', sent >= 1, String(sent));
+  check('and does not ask twice for the same stretch',
+    !repo.checkInDue(15).includes(worker) && repo.dutyAskedAt(worker) !== '',
+    repo.dutyAskedAt(worker));
+
+  // The tap. A fresh stretch, so the lapse clock restarts — while the hours
+  // already worked stand, because the cap must not be resettable by a tap.
+  const workedBefore = repo.hoursWorkedToday(worker);
+  await dutySay(readId(dutyOn) ?? 'on', worker);
+  const since = new Date(repo.onDutySince(worker)).getTime();
+  check('the tap restarts the clock-in',
+    Date.now() - since < 60_000 && repo.isOnDuty(worker),
+    repo.onDutySince(worker));
+  check('and the hours already worked still count',
+    Math.abs(repo.hoursWorkedToday(worker) - workedBefore) < 0.2,
+    `${workedBefore} -> ${repo.hoursWorkedToday(worker)}`);
+  check('a new stretch is a new question',
+    repo.dutyAskedAt(worker) === '', repo.dutyAskedAt(worker));
+
+  // Somebody who went home and never answered. The window closes behind
+  // them, which is the whole point of the lapse: no cards at 3am.
+  const gone = '5926004502';
+  repo.upsertAssociate({ phone: gone, name: 'Gone Home', vehicle: 'PAA 8', active: true });
+  await dutySay('on', gone);
+  db.prepare(`UPDATE associates SET on_duty_at = ? WHERE phone = ?`)
+    .run(new Date(Date.now() - lapseMs - 2 * 3600_000).toISOString(), gone);
+  check('two hours past the lapse, nobody is asked anything',
+    !repo.checkInDue(15).includes(gone), JSON.stringify(repo.checkInDue(15)));
+  check('and they are off duty', !repo.isOnDuty(gone));
+
+  // The asking can be switched off, and then the lapse is silent again.
+  check('0 minutes switches the asking off', repo.checkInDue(0).length === 0,
+    JSON.stringify(repo.checkInDue(0)));
+
+  for (const phone of [worker, gone]) {
+    repo.setDuty(phone, false);
+    repo.upsertAssociate({ phone, name: 'Duty', vehicle: 'PAA 9', active: false });
+  }
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
@@ -13946,6 +14043,7 @@ section('No button is a dead button');
     cancelButtons: cancelBoth,
   } = await import('./order-status.ts');
   const { languageScreen: langScreen } = await import('./language-choice.ts');
+  const { checkInMessage: stillOut } = await import('./duty-check-in.ts');
   const { wayOutButtons: wayOut } = await import('./aisles.ts');
   const { endPicker: picker, spotAsk: spot, fareButtons: fare } = await import('./place-picker.ts');
   const {
@@ -13990,6 +14088,8 @@ section('No button is a dead button');
   // honest way to sweep it is to ask the message that sends it.
   takeButtons(streetWrong(sweeper, 'Mocha', 'Buxton', 'en'));
   takeButtons(langScreen('Next Minute Delivery'));
+  // Clock on and clock off. `duty_off` was in nothing's reader for months.
+  takeButtons(stillOut('Sweep'));
   takeButtons(picker(sweeper, 'drop', 'en'));
   takeButtons(spot('from', 'Diamond', 'en'));
   takeButtons(fare('$1,200', 'en'));

@@ -57,6 +57,7 @@ import {
 import type { IncomingImage } from './channels/types.ts';
 import { checkRange, describePin, formatDistance, rangeWorthSaying } from './location.ts';
 import { servedSpot as servedPinSpot } from './pin-check.ts';
+import { DUTY_OFF } from './duty-buttons.ts';
 const servedPin = (p: { latitude: number; longitude: number }): boolean => servedPinSpot(p).served;
 import type { OutboundMessage } from './channels/types.ts';
 
@@ -1481,9 +1482,15 @@ export async function handleDriverMessage(
         text: [
           `🛵 You are on duty${who?.name ? `, ${who.name.split(' ')[0]}` : ''}. Jobs will come to you.`,
           '',
-          `You will be clocked off automatically after ${dutyLimits().lapseHours} hours, so send *on* again tomorrow.`,
+          // What actually happens now, which is a question rather than a
+          // silence. Telling somebody they will be clocked off and then
+          // asking them instead is a small lie that costs trust in every
+          // other message the shop sends.
+          config.dutyCheckInMinutes > 0
+            ? `After ${dutyLimits().lapseHours} hours I will ask whether you are still out — one tap and the jobs keep coming.`
+            : `You will be clocked off automatically after ${dutyLimits().lapseHours} hours, so send *on* again tomorrow.`,
         ].join(String.fromCharCode(10)),
-        buttons: [{ id: 'duty_off', title: 'Clock off', command: 'clock off' }],
+        buttons: [{ id: DUTY_OFF, title: 'Clock off', command: 'clock off' }],
       },
     ];
   }

@@ -586,6 +586,11 @@ addColumnIfMissing('associates', 'on_duty_at', "TEXT NOT NULL DEFAULT ''");
 // the coast do we cover at all". The two answer different questions and the
 // shop needs both.
 addColumnIfMissing('associates', 'base_place', "TEXT NOT NULL DEFAULT ''");
+// When the shop last asked "still out?", so the question is put once per
+// stretch and not on every sweep. Compared against `on_duty_at` rather than
+// cleared on a schedule: a clock-in later than the last question means a new
+// stretch, which deserves a new question.
+addColumnIfMissing('associates', 'duty_asked_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 // When they PICKED one off the opening screen, as opposed to a language
 // noticed from what they happened to write. The two are different things: a

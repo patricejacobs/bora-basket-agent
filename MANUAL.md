@@ -482,10 +482,55 @@ settles it when the blueprint and the Render dashboard disagree. They did:
 `render.yaml` declared the key twice, as `0` and again as `1`, and until that
 field existed nothing said which of them the shop was obeying.
 
-**Twelve hours.** A shift ends twelve hours after you clock on, and you cannot
-work more than twelve hours in any rolling twenty-four, however you split them.
-An order already in your hands is always yours to finish — the cap stops new
-work, it never strands a delivery.
+**Work as long as you choose.** The rolling cap is **off**
+(`ASSOCIATE_MAX_HOURS_PER_DAY=0`): the shop refuses nobody for hours. It used
+to answer `on` with
+
+```
+🛑 You have worked 12 hours in the last 24.
+
+The limit is 12. You can clock on again from 8:00 am.
+```
+
+and that is now gone. Fatigue is the associate's call and the shop's to watch,
+not a figure in a config file. The cap still exists and can be put back with a
+number in Render; nothing about it was removed.
+
+**A clock-in still lasts twelve hours — but it asks before it ends.** The lapse
+is there for whoever forgets to clock off: without it a forgotten shift sends
+job cards at three in the morning, and after two of those somebody mutes the
+chat and is lost for the shifts that matter. For an associate still out
+working, though, the lapse was *silent* — the jobs simply stopped arriving,
+which from a saddle reads exactly like a shop with no work.
+
+A quarter of an hour before it runs out, the shop asks:
+
+```
+🛵 Still out, Shawn?
+
+You clocked on nearly 12 hours ago, and a clock-in runs out after
+that so nobody gets job cards in their sleep.
+
+Tap below and the jobs keep coming. Ignore this and you will be
+clocked off shortly — nothing you are already carrying is affected.
+                            [ Yes, still working ]  [ Clock off ]
+```
+
+*Yes, still working* starts a fresh twelve hours, so somebody can work round
+the clock a tap at a time. **The hours already worked still stand** — a tap
+restarts the lapse, never the tally, so putting the cap back later cannot be
+got round by tapping.
+
+Asked **once per stretch**, and only inside a narrow window: a quarter of an
+hour either side of the twelve-hour mark. Somebody who went home at midnight
+without clocking off gets the question once and nothing after it. If the
+service is restarted through that whole window the question is missed and they
+clock on with `on` as before — a missed question, not a wrong one.
+
+`DUTY_CHECK_IN_MINUTES=0` makes the lapse silent again. `/health` reports it.
+
+An order already in your hands is always yours to finish — none of this ever
+strands a delivery.
 
 **A busy few days can lift both, with an end date.** In Render:
 
@@ -513,8 +558,10 @@ there is one.
 One thing to know before lifting it. The twelve-hour lapse is also what closes
 a shift somebody forgot to end. At 24 there is no automatic clock-off for a
 day, so an associate who forgets `off` stays on duty — and since the shop only
-takes orders while somebody is on duty, it will keep taking them. Worth a
-word with whoever is working those days.
+takes orders while somebody is on duty, it will keep taking them. The *still
+out?* question moves with the override, so it arrives at the 24-hour mark
+instead of the 12-hour one: the one check on a forgotten shift arrives a day
+late. Worth a word with whoever is working those days.
 
 **Only yours to close.** You cannot deliver, return or close an order that is
 not with you. If somebody hands you their job, they send `<order> transfer` and
@@ -4059,7 +4106,8 @@ Render setting at all.
 |---|---|---|
 | `MAX_JOBS_PER_ASSOCIATE` | 1 | How many jobs one associate may hold. 0 = no limit, which is what this shop runs |
 | `ASSOCIATE_DUTY_HOURS` | 12 | A shift lapses this long after clocking on |
-| `ASSOCIATE_MAX_HOURS_PER_DAY` | 12 | The rolling 24-hour cap. 0 = off |
+| `ASSOCIATE_MAX_HOURS_PER_DAY` | 0 | The rolling 24-hour cap. 0 = off, which is what this shop runs |
+| `DUTY_CHECK_IN_MINUTES` | 15 | How long before a clock-in lapses the shop asks "still out?". 0 = silent |
 | `ASSOCIATE_RADIUS_MILES` | 0 | Only offer jobs within this far of a shared pin. 0 = everybody |
 | `DISPATCH_BAND_MINUTES` | 5 | A drop-off this recent means they are in that band now |
 | `DISPATCH_BAND_WAIT_SECONDS` | 20 | Before the offer widens to the corridor |
@@ -4147,7 +4195,7 @@ nothing.
 
 ### The walkthroughs
 
-Fifteen scripts in the project root that drive the **real handlers** against a
+Sixteen scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4171,6 +4219,7 @@ node walkthrough-grocery.ts
 | `walkthrough-call-customer.ts` | The Call customer button, through the channel that swallowed it |
 | `walkthrough-wrong-pin-change.ts` | A change of address with a pin nowhere near it |
 | `walkthrough-wrong-street.ts` | A street typed for another village, answered both ways |
+| `walkthrough-duty.ts` | A driver who works straight through, and one who goes home |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 

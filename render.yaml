@@ -180,8 +180,26 @@ services:
       # every stretch - so stopping and starting cannot reset it. Rolling
       # rather than per calendar day, or somebody works 11pm to 11pm and never
       # breaks it. 0 switches the cap off.
+      #
+      # OFF, by decision: an associate works as long as they choose and the
+      # shop refuses nobody for hours. What that gives up is the only place
+      # the shop ever said no on somebody's behalf - at 12 it answered `on`
+      # with "you have worked 12 hours in the last 24, you can clock on again
+      # from 8:00am", which is a conversation a tired person cannot argue
+      # with. Now fatigue is theirs to judge.
+      #
+      # This file is the blueprint, not the running service: a value changed
+      # here reaches the shop only if Render is syncing the blueprint, and
+      # otherwise the dashboard's copy is what counts. /health reports
+      # dutyHours, which is the figure actually in force.
       - key: ASSOCIATE_MAX_HOURS_PER_DAY
-        value: "12"
+        value: "0"
+      # How long before a clock-in lapses the shop asks "still out?" and keeps
+      # somebody working on a tap. The lapse protects whoever forgot to clock
+      # off; it does nothing for somebody still out, whose jobs just stop
+      # arriving. 0 makes the lapse silent again.
+      - key: DUTY_CHECK_IN_MINUTES
+        value: "15"
       # Four digits the customer reads out at the door, so the shop can show
       # the right bag reached the right person - and so an associate accused of
       # keeping an order has something better than their word. It never blocks

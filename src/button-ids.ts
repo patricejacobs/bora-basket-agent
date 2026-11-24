@@ -31,6 +31,7 @@ import { isPickerId } from './place-picker.ts';
 import { isLanguageId } from './language-choice.ts';
 import { isCheckoutId } from './delivery-checkout.ts';
 import { isAisleId } from './aisles.ts';
+import { dutyCommandFor } from './duty-buttons.ts';
 
 /** Every id whose MEANING is in the id rather than in what it said. */
 const PASSED_THROUGH: ((id: string) => boolean)[] = [
@@ -59,6 +60,11 @@ export function readButtonId(id: string): string | null {
   // therefore free to be a plain word.
   const asCommand = commandFromButtonId(said);
   if (asCommand !== null) return asCommand;
+  // Clock on and clock off, which mean the same as the words a driver can
+  // type. `duty_off` had no reader at all and worked only because its title
+  // happens to match the typed form — one translated word from being dead.
+  const asDuty = dutyCommandFor(said);
+  if (asDuty !== null) return asDuty;
   return PASSED_THROUGH.some((reads) => reads(said)) ? said : null;
 }
 

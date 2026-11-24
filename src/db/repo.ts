@@ -3675,9 +3675,13 @@ export function setDuty(phone: string, on: boolean): void {
   const now = nowIso();
 
   db.prepare(
-    `INSERT INTO associates (phone, name, vehicle, active, on_duty_at, updated_at)
-     VALUES (?, '', '', 1, ?, ?)
-     ON CONFLICT(phone) DO UPDATE SET on_duty_at = excluded.on_duty_at, updated_at = excluded.updated_at`,
+    `INSERT INTO associates (phone, name, vehicle, active, on_duty_at, duty_asked_at, updated_at)
+     VALUES (?, '', '', 1, ?, '', ?)
+     ON CONFLICT(phone) DO UPDATE SET on_duty_at = excluded.on_duty_at,
+       -- A new stretch deserves a new question, and clocking off ends the
+       -- one outstanding. Either way the last asking belongs to a shift that
+       -- is over.
+       duty_asked_at = '', updated_at = excluded.updated_at`,
   ).run(digits, on ? now : '', now);
 
   // The log of stretches worked, kept alongside the current state. One
@@ -3831,6 +3835,66 @@ export function onDutySince(phone: string, now = new Date()): string {
  * recently they clocked on, and the twelve-hour cap applies as everywhere
  * else - a shift that has run out is not duty.
  */
+/**
+ * Who is near the end of their clock-in and has not been asked about it.
+ *
+ * The clock-in lapses on its own so that a forgotten shift does not send job
+ * cards at three in the morning. For somebody still out working, though, that
+ * lapse is silent: the jobs simply stop, and the first they know of it is an
+ * hour of quiet. So they are asked shortly before it happens, and a tap keeps
+ * them working.
+ *
+ * The window is deliberately short on both sides. Asking early is the point;
+ * asking hours late would reach somebody who went home at midnight, which is
+ * the fault the lapse exists to prevent. If the process is down for the whole
+ * window the question is missed and the driver clocks on as they do today —
+ * a missed question, not a wrong one.
+ */
+export function checkInDue(graceMinutes: number, now = new Date()): string[] {
+  if (graceMinutes <= 0) return [];
+
+  const lapseMs = dutyLimits(now).lapseHours * 3600_000;
+  const graceMs = graceMinutes * 60_000;
+
+  return associateNumbers().filter((phone) => {
+    const row = db
+      .prepare(
+        `SELECT on_duty_at AS since, duty_asked_at AS asked FROM associates WHERE phone = ?`,
+      )
+      .get(phone.replace(/[^0-9]/g, '')) as { since: string; asked: string } | undefined;
+    if (!row?.since) return false;
+
+    const since = new Date(row.since).getTime();
+    if (!Number.isFinite(since)) return false;
+
+    // Already asked about THIS stretch. A clock-in later than the question
+    // is a new stretch, so the question comes round again.
+    if (row.asked && new Date(row.asked).getTime() >= since) return false;
+
+    const elapsed = now.getTime() - since;
+    return elapsed >= lapseMs - graceMs && elapsed <= lapseMs + graceMs;
+  });
+}
+
+/** Said once per stretch. Stamped before the send, like every other sweep. */
+export function markCheckInAsked(phone: string, now = new Date()): void {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return;
+  db.prepare(`UPDATE associates SET duty_asked_at = ?, updated_at = ? WHERE phone = ?`).run(
+    now.toISOString(),
+    nowIso(),
+    digits,
+  );
+}
+
+/** When the shop last asked them, or empty. For the suite and for /health. */
+export function dutyAskedAt(phone: string): string {
+  const row = db
+    .prepare(`SELECT duty_asked_at AS asked FROM associates WHERE phone = ?`)
+    .get(phone.replace(/[^0-9]/g, '')) as { asked: string } | undefined;
+  return row?.asked ?? '';
+}
+
 export function onDutyCount(now = new Date()): number {
   return associateNumbers().filter((phone) => isOnDuty(phone, now)).length;
 }

@@ -380,6 +380,17 @@ export const config = {
    */
   dutyHoursPerDay: Math.max(0, num('ASSOCIATE_MAX_HOURS_PER_DAY', 12)),
   /**
+   * How long before a clock-in lapses the shop asks "still out?".
+   *
+   * The lapse protects somebody who forgot to clock off; it does nothing for
+   * somebody still working, who just stops getting jobs without being told.
+   * This is the question that closes that gap, and the same figure is the
+   * grace AFTER the lapse: a question put hours late would reach somebody who
+   * went home at midnight. 0 switches the asking off and the lapse goes back
+   * to being silent.
+   */
+  dutyCheckInMinutes: Math.max(0, num('DUTY_CHECK_IN_MINUTES', 15)),
+  /**
    * A busy few days, and the hours that go with them — with an end date.
    *
    * Both duty limits are raised to this figure until the date passes, and
