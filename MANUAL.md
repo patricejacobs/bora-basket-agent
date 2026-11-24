@@ -2265,8 +2265,8 @@ So a pickup the tariff cannot place now asks before it books:
 
 ```
 ◂ Tap below to send your exact pickup point, so the driver comes
-  straight to you — or tell me the area (Diamond, Kitty, Timehri)
-  and I will price it from there.
+  straight to you — or tell me exactly where to look for you:
+  opposite which place, or how far from which corner, and which way.
                                             [ 📍 Send location ]
 ```
 
@@ -2275,6 +2275,19 @@ So a pickup the tariff cannot place now asks before it books:
 own address is wrong, in a country where most addresses are landmarks and
 the tariff is 185 village names. The shop's inability to place a street is
 the shop's business. It asks for what it needs and leaves it at that.
+
+**And the other way out is a landmark, not a village.** *"Opposite the
+market, two lots north of the Regent Street corner"* is how people here say
+where they are, and it is a better answer for a driver than the name of a
+village somebody standing on a street may not use. So it is **asked once**:
+answer with a pin and the trip is pinned; answer in words, any words, and
+the trip books with that description on the driver's card. A second ask is
+the shop arguing with a man standing on a road, and the second ask is the
+one that loses the fare.
+
+A trip with no pin now says so on the card an associate **accepts from**,
+not only on the one they get afterwards — `⚠️ No pin for the pickup — ring
+them`. Whether there is a map link is part of what the job is worth.
 
 Either answer settles it: a pin, or the name of an area. **A pickup the
 tariff does know is never asked** — the village prices the trip and the

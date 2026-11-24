@@ -2381,9 +2381,16 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       //
       // The prompt has always asked for the pickup pin first. A prompt is a
       // request, not a guard.
-      if (!draft.pickup && pickupAddress && tariff().length > 0) {
+      if (!draft.pickup && pickupAddress && tariff().length > 0 && !repo.pickupAsked(ctx.phone)) {
         const placed = findZone(pickupAddress);
         if (placed.kind !== 'found') {
+          // Asked once, and once only. A passenger who answers with a
+          // landmark — "opposite the market, two lots north of the Regent
+          // Street corner" — has given the driver something to find them
+          // by, and it is a better answer than a village name they may not
+          // use. Asking again would be the shop arguing with a man standing
+          // on a road, and the second ask is the one that loses the fare.
+          repo.notePickupAsked(ctx.phone);
           const lang4 = languageFor(ctx.phone);
           // What they typed is deliberately NOT quoted back at them.
           //
@@ -2400,7 +2407,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             asked: true,
             booked: false,
             pickup: pickupAddress,
-            next: 'They have ALREADY been asked for their exact spot, with the reason — say nothing more about it and book nothing. A pin or the name of an area settles it, and either one reaches you as a normal message.',
+            next: 'They have ALREADY been asked where exactly to collect them — say nothing more about it and book nothing yet. Their answer settles it either way: a pin arrives on its own, and if they describe the spot in words instead, pass THOSE WORDS as pickup_address and call book_taxi again. It will book, and the description goes on the driver\'s card.',
           });
         }
       }

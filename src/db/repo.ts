@@ -3303,6 +3303,27 @@ export function saveParcelContents(phone: string, contents: string): void {
   ).run(phone, contents.trim(), nowIso());
 }
 
+/**
+ * Remembers that the shop has asked where exactly to collect them.
+ *
+ * Kept on the draft rather than against the customer, so it goes when the
+ * draft goes: the next trip starts with the question unasked.
+ */
+export function notePickupAsked(phone: string): void {
+  db.prepare(
+    `INSERT INTO parcel_drafts (phone, pickup_asked_at, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET pickup_asked_at = excluded.pickup_asked_at,
+       updated_at = excluded.updated_at`,
+  ).run(phone, nowIso(), nowIso());
+}
+
+export function pickupAsked(phone: string): boolean {
+  const row = db
+    .prepare(`SELECT pickup_asked_at AS asked FROM parcel_drafts WHERE phone = ?`)
+    .get(phone) as { asked: string } | undefined;
+  return (row?.asked ?? '') !== '';
+}
+
 export function clearParcelDraft(phone: string): void {
   db.prepare(`DELETE FROM parcel_drafts WHERE phone = ?`).run(phone);
 }

@@ -619,6 +619,14 @@ addColumnIfMissing('associates', 'base_place', "TEXT NOT NULL DEFAULT ''");
 // cleared on a schedule: a clock-in later than the last question means a new
 // stretch, which deserves a new question.
 addColumnIfMissing('associates', 'duty_asked_at', "TEXT NOT NULL DEFAULT ''");
+// When the shop asked a passenger to say where exactly to collect them,
+// because the words they gave are not a place the tariff carries.
+//
+// Asked ONCE. A passenger who answers with a landmark — "opposite the
+// market, two lots north of the Regent Street corner" — has given the
+// driver something to find them by, and asking again for a village name
+// they may not use is the shop arguing with a man standing on a road.
+addColumnIfMissing('parcel_drafts', 'pickup_asked_at', "TEXT NOT NULL DEFAULT ''");
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 // When they PICKED one off the opening screen, as opposed to a language
 // noticed from what they happened to write. The two are different things: a

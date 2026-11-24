@@ -382,7 +382,13 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
     '',
     `*Collect:* ${order.customerName}${pickup?.address ? `, ${pickup.address}` : ''}`,
     `📞 +${order.contactPhone || order.phone}`,
-    ...(pickupPin ? ['Click the link below for the pickup:', mapsLink(pickupPin)] : []),
+    // The card somebody decides to ACCEPT from. Said here as well as on the
+    // card they get afterwards: whether there is a pin is part of what the
+    // job is worth, and a street in words with no map is a different job
+    // from a dropped pin.
+    ...(pickupPin
+      ? ['Click the link below for the pickup:', mapsLink(pickupPin)]
+      : ['⚠️ No pin for the pickup — ring them']),
     '',
     `*Take to:* ${order.address || 'they will direct you'}`,
     ...(order.location ? ['Click the link below for the drop-off:', mapsLink(order.location)] : []),

@@ -14342,6 +14342,7 @@ section('Where they say they are, against where they pinned');
   const { handleIncoming: pickupSay } = await import('./conversation.ts');
   const { coordsFor: at, nearestPlace: nearest } = await import('./place-coords.ts');
   const { executeTool: callTool2 } = await import('./agent/tools.ts');
+  const { taxiPickupCard } = await import('./dispatch.ts');
 
   // Reported from the live shop: a passenger said Timehri and pinned
   // Beterverwagting, 38 km away, and nothing was said to anybody. The fare
@@ -14462,10 +14463,39 @@ section('Where they say they are, against where they pinned');
     !/cannot find|can.t find|not know where/i.test(ctx4.outbound[0]?.text ?? '') &&
       !/King St/.test(ctx4.outbound[0]?.text ?? ''),
     (ctx4.outbound[0]?.text ?? '').slice(0, 90));
-  check('with the other way out on it — name an area instead',
-    /tell me the area/i.test(ctx4.outbound[0]?.text ?? ''),
-    (ctx4.outbound[0]?.text ?? '').slice(0, 140));
+  // The other way out is a LANDMARK, not a village name. "Opposite the
+  // market, two lots north of the Regent Street corner" is how people in
+  // Guyana say where they are, and it is a better answer for a driver than
+  // a village a passenger standing on a street may not use.
+  check('with the other way out on it — say where exactly to look',
+    /where to look for you/i.test(ctx4.outbound[0]?.text ?? '') &&
+      /which corner/i.test(ctx4.outbound[0]?.text ?? ''),
+    (ctx4.outbound[0]?.text ?? '').slice(0, 160));
   check('nothing is booked while it stands', repo.liveTaxi(street) === null);
+
+  // Asked ONCE. A passenger who answers with a landmark instead of a pin
+  // has given the driver something to find them by — and a second ask is
+  // the shop arguing with a man standing on a road.
+  check('the asking is remembered', repo.pickupAsked(street));
+  const described = bookStreet({
+    pickup_address: 'Opposite the market, two lots north of the Regent Street corner',
+    destination_address: 'Timehri',
+    passenger_name: 'Street Passenger',
+    fare_confirmed: true,
+  });
+  check('a landmark answers it, and the trip books', described.booked === true,
+    JSON.stringify(described).slice(0, 90));
+  const byLandmark = repo.findOrder(String(described.job_number));
+  check('and the description is what the driver is given',
+    /two lots north/.test(byLandmark?.pickup?.address ?? ''),
+    byLandmark?.pickup?.address ?? '');
+  check('on a card that says there is no pin',
+    /No pin for the pickup/.test(taxiPickupCard(byLandmark!)),
+    taxiPickupCard(byLandmark!).slice(0, 120));
+
+  // A fresh trip starts with the question unasked.
+  repo.clearParcelDraft(street);
+  check('and the next trip starts over', !repo.pickupAsked(street));
 
   // A pin settles it.
   repo.addParcelPin(street, { latitude: bv.latitude, longitude: bv.longitude, label: '' }, 'pickup');
