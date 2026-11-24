@@ -20,6 +20,7 @@
  * Loaded once, at first use. Nothing writes here; to fill a gap, pin the
  * village and re-run the geocoder.
  */
+import { findZone } from './zones.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -94,7 +95,13 @@ export function nearestPlace(pin: Point): { place: string; km: number } | null {
   }
   if (!best) return null;
   // Back to the tariff's own spelling, since the map is keyed in lower case.
-  return best;
+  //
+  // The comment said this and the code did not do it, which nobody noticed
+  // while the only readers were comparing names. The first caller to SHOW
+  // one to a customer got "beterverwagting", and the first to write one
+  // down wrote a pickup nobody would recognise on a card.
+  const named = findZone(best.place);
+  return named.kind === 'found' ? { place: named.match.place, km: best.km } : best;
 }
 
 /** Straight-line kilometres. The same haversine location.ts uses. */

@@ -3101,6 +3101,24 @@ export function addParcelPin(
 }
 
 /**
+ * Drops one end's pin.
+ *
+ * A passenger who says the spot they sent was wrong has said it is not
+ * where they are, and a pin left in place would answer the next question
+ * with the mistake — the same rule a refused checkout pin follows.
+ */
+export function clearParcelPin(phone: string, slot: 'pickup' | 'destination'): void {
+  const columns =
+    slot === 'pickup'
+      ? 'pickup_lat = NULL, pickup_lng = NULL, pickup_label = \'\''
+      : 'dest_lat = NULL, dest_lng = NULL, dest_label = \'\'';
+  db.prepare(`UPDATE parcel_drafts SET ${columns}, updated_at = ? WHERE phone = ?`).run(
+    nowIso(),
+    phone,
+  );
+}
+
+/**
  * Writes down one end of a parcel, once the customer has agreed it.
  *
  * One side at a time, and only what was given - a blank field leaves what was

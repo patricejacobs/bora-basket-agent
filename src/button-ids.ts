@@ -33,6 +33,7 @@ import { isCheckoutId } from './delivery-checkout.ts';
 import { isAisleId } from './aisles.ts';
 import { dutyCommandFor } from './duty-buttons.ts';
 import { isWaitingId } from './waiting-list.ts';
+import { isPickupId } from './taxi-pickup.ts';
 
 /** Every id whose MEANING is in the id rather than in what it said. */
 const PASSED_THROUGH: ((id: string) => boolean)[] = [
@@ -54,6 +55,8 @@ const PASSED_THROUGH: ((id: string) => boolean)[] = [
   isCallCustomerId,
   // "Somebody is on the road now", sent to whoever was turned away.
   isWaitingId,
+  // "Which one are you at?", when the pin and the words disagree.
+  isPickupId,
 ];
 
 export function readButtonId(id: string): string | null {

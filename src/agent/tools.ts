@@ -3,6 +3,7 @@ import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { recordTurnedAway } from '../waiting-list.ts';
 import { proposeDestinationToDriver } from '../dispatch.ts';
+import { pickupLooksWrong } from '../taxi-pickup.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import {
   announceNewOrder,
@@ -24,7 +25,7 @@ import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
 import { savedPinIsIn, settleDeliveryPlace } from '../delivery-place.ts';
-import { servedSpot } from '../pin-check.ts';
+import { servedSpot, checkPin } from '../pin-check.ts';
 import { endPicker } from '../place-picker.ts';
 import { proposeAddressToAssociate } from '../dispatch.ts';
 import { ADDR_PIN, ADDR_SKIP, askPlace } from '../delivery-checkout.ts';
@@ -2368,6 +2369,46 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return fail(
           'Nothing says where they are going. Ask for a pin with request_location, or take the address in words and pass it as destination_address.',
         );
+      }
+
+      // Two statements of where they are standing, compared before anything
+      // is priced.
+      //
+      // Reported from the live shop: a passenger said Timehri and pinned
+      // Beterverwagting, 38 km away, and nothing was said to anybody. The
+      // fare is priced FROM the pickup, so the shop was about to quote
+      // $1,200 for a $3,800 ride and send a driver to the wrong end of the
+      // coast on a figure it had already promised.
+      //
+      // `checkPin` has read exactly this for weeks. All five of its callers
+      // were delivery-side; a taxi's pin goes in through the parcel draft,
+      // which files it and asks nothing.
+      if (draft.pickup && pickupAddress) {
+        const standoff = checkPin(
+          { latitude: draft.pickup.latitude, longitude: draft.pickup.longitude, label: draft.pickup.label },
+          pickupAddress,
+        );
+        if (standoff.state === 'elsewhere') {
+          const lang3 = languageFor(ctx.phone);
+          // Both ends kept where book_taxi itself looks for them. They
+          // arrived as tool arguments and would otherwise exist only for
+          // this call: the walkthrough tapped "I am at the pin" and the
+          // shop had no idea where the passenger was going, so it said
+          // nothing at all back.
+          repo.setTaxiPick(ctx.phone, 'from', pickupAddress);
+          if (destinationAddress) repo.setTaxiPick(ctx.phone, 'to', destinationAddress);
+          ctx.outbound.push(
+            pickupLooksWrong(pickupAddress, standoff, destinationAddress || draft.destination?.label || '', lang3),
+          );
+          return ok({
+            asked: true,
+            booked: false,
+            said: pickupAddress,
+            pinned: standoff.looksLike,
+            apart: standoff.km === null ? 'unknown' : `${standoff.km} km`,
+            next: 'They have ALREADY been asked which of the two they are at, with both fares on it — say nothing more about it and book nothing. Their tap settles it and the shop handles both answers.',
+          });
+        }
       }
 
       const customer = repo.getIdentity(ctx.phone);

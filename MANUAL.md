@@ -2211,6 +2211,61 @@ A change the passenger makes themselves also spends any question the driver
 has out: leaving it open would put the old place back in front of them with
 two buttons, for a trip that has already changed.
 
+### Where they say they are, against where they pinned
+
+Reported from the live shop: a passenger said they were at **Timehri** and
+pinned **Beterverwagting**. Nothing was said to anybody.
+
+They are 38.1 km apart, and it is not only a wrong address — **the fare is
+priced from the pickup.** The shop was about to quote Beterverwagting's
+$1,200 for a ride that costs $3,800 out of Timehri, send a driver to the
+wrong end of the coast, and have already promised the figure.
+
+The check itself had existed for weeks. `checkPin` reads a BV pin against
+Timehri and answers *elsewhere, 38.1 km, looksLike Beterverwagting* without
+being taught anything. **It was simply never called on a taxi** — all five
+callers were delivery-side, and a taxi's pin goes in through the parcel
+draft, which files it and asks nothing.
+
+It is asked in `book_taxi`, where both facts exist and nothing can go round
+it:
+
+```
+Shawn ▸ "take me from Timehri to Georgetown"   (having pinned BV)
+
+◂ ⚠️ You said *Timehri*, but the spot you sent is 38.1 km away, in
+  *Beterverwagting*.
+
+  It matters for the fare: from Timehri it is $3,800, from
+  Beterverwagting it is $1,200.
+
+  Which one are you at? If you are at Beterverwagting, tap below and I
+  will price it from there. If you are at Timehri, send me the spot again.
+                                  [ I am at the pin ]  [ Send it again ]
+```
+
+**Both answers are real, which is why this asks rather than refuses.** A
+delivery's address is a place the customer has named, and a wrong pin there
+is simply wrong — that one is told to send it again and offered nothing
+else. A **pickup** is different: the pin is live evidence of where somebody
+is standing this minute, and the word may be the loose half. *"I'm at
+Timehri"* from a passenger on the airport road is a reasonable thing to say
+and a reasonable thing to be 38 km wrong about.
+
+*I am at the pin* re-prices the trip from there and carries on to the fare
+gate. *Send it again* drops the pin they have just disowned — it must not
+sit there answering the next question — and asks for the map again.
+**Nothing is booked while the question stands.**
+
+Two faults turned up building it, both found by walking it rather than by
+the suite. The two ends arrived as tool arguments and existed only for that
+call, so the first tap had nowhere to carry the booking to and the shop said
+nothing at all back; they are now kept where `book_taxi` looks for them. And
+`nearestPlace` carried a comment promising the tariff's spelling while
+returning the lower-case map key — harmless while its only readers compared
+names, and *"the pickup is now beterverwagting"* the moment one was shown to
+somebody.
+
 ### When the passenger asks the shop
 
 They can also tell the shop directly, and they do — a passenger in a moving
@@ -4356,7 +4411,7 @@ nothing.
 
 ### The walkthroughs
 
-Twenty scripts in the project root that drive the **real handlers** against a
+Twenty-one scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4385,6 +4440,7 @@ node walkthrough-grocery.ts
 | `walkthrough-waiting.ts` | Three people turned away, and what happens when a car comes on |
 | `walkthrough-taxi-destination.ts` | A passenger's change of destination, answered both ways by the driver |
 | `walkthrough-webhook-destination.ts` | The same two answers through the real signed webhook, with their titles made nonsense |
+| `walkthrough-pickup-pin.ts` | "I'm at Timehri", pinned 38 km away at Beterverwagting |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 

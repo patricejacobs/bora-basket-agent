@@ -45,6 +45,8 @@ import {
 } from './aisles.ts';
 import { settleDeliveryPlace, streetNamesElsewhere } from './delivery-place.ts';
 import { WAIT_GO, WAIT_NO, offerTheRideOn } from './waiting-list.ts';
+import { PICKUP_AGAIN, PICKUP_HERE } from './taxi-pickup.ts';
+import { nearestPlace } from './place-coords.ts';
 import { pinTheNewAddress } from './dispatch.ts';
 import {
   ADDR_PIN,
@@ -516,6 +518,49 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         );
       }
     }
+  }
+
+  /* ------------------------------- answering "which one are you at?" */
+
+  // The passenger said one place and pinned another. Read here, before the
+  // service menu, for the reason every tap in this block is: it answers a
+  // message the shop sent, and the menu would answer it with "pick a number
+  // first".
+  if (text === PICKUP_HERE || text === PICKUP_AGAIN) {
+    const lang = languageFor(msg.phone);
+    const pinned = repo.getParcelDraft(msg.phone).pickup;
+
+    if (text === PICKUP_AGAIN) {
+      // The place they named wins, so the pin they sent is the mistake and
+      // must not sit there answering the next question. The same rule the
+      // checkout's own wrong pin follows.
+      repo.clearParcelPin(msg.phone, 'pickup');
+      return shopAnswered(
+        msg,
+        [{ kind: 'location_request', text: t('spot_prompt_from', lang) }],
+        'Send it again',
+      );
+    }
+
+    // The pin wins. Where it is becomes where they are, so the trip is
+    // priced from there — which is the whole reason this was worth asking.
+    const where = pinned ? findZone(pinned.label || '') : { kind: 'unknown' as const };
+    const place =
+      where.kind === 'found'
+        ? where.match.place
+        : pinned
+          ? (nearestPlace({ latitude: pinned.latitude, longitude: pinned.longitude })?.place ?? '')
+          : '';
+    if (place) repo.setTaxiPick(msg.phone, 'from', place);
+
+    const { executeTool } = await import('./agent/tools.ts');
+    const ride = { phone: msg.phone, outbound: [] as OutboundMessage[] };
+    executeTool('book_taxi', { pickup_address: place }, ride as never);
+    if (ride.outbound.length > 0) {
+      for (const out of ride.outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+      return ride.outbound;
+    }
+    return shopAnswered(msg, [], 'I am at the pin');
   }
 
   /* -------------------------------------- answering "there is a car now" */

@@ -14313,6 +14313,105 @@ section('The shop does not shout at anybody');
   check('and I is still I',
     /\bI\b/.test(calm('I WILL CHECK NOW.')), calm('I WILL CHECK NOW.'));
 }
+section('Where they say they are, against where they pinned');
+{
+  const {
+    PICKUP_HERE: pinWins,
+    PICKUP_AGAIN: wordWins,
+    isPickupId: oursToo,
+  } = await import('./taxi-pickup.ts');
+  const { readButtonId: readPickupId } = await import('./button-ids.ts');
+  const { handleIncoming: pickupSay } = await import('./conversation.ts');
+  const { coordsFor: at, nearestPlace: nearest } = await import('./place-coords.ts');
+  const { executeTool: callTool2 } = await import('./agent/tools.ts');
+
+  // Reported from the live shop: a passenger said Timehri and pinned
+  // Beterverwagting, 38 km away, and nothing was said to anybody. The fare
+  // is priced FROM the pickup, so the shop was about to quote $1,200 for a
+  // $3,800 ride and send a driver to the wrong end of the coast.
+  const timehri = at('Timehri')!;
+  const bv = at('Beterverwagting')!;
+  const rider3 = '5926100910';
+
+  repo.saveCustomer(rider3, { name: 'Pin Tester', contactPhone: rider3 });
+  repo.chooseLanguage(rider3, 'en');
+  repo.logMessage(rider3, 'in', 'smoke', 'taxi');
+  repo.setService(rider3, 'taxi');
+  repo.clearParcelDraft(rider3);
+  repo.clearTaxiPicks(rider3);
+  repo.addParcelPin(rider3, { latitude: bv.latitude, longitude: bv.longitude, label: '' }, 'pickup');
+
+  const ctx3 = { phone: rider3, outbound: [] as { kind: string; text?: string; buttons?: { id: string }[] }[] };
+  const ride = (input: unknown): Record<string, unknown> => {
+    ctx3.outbound.length = 0;
+    return JSON.parse(callTool2('book_taxi', input, ctx3 as never)) as Record<string, unknown>;
+  };
+
+  const stood = ride({
+    pickup_address: 'Timehri',
+    destination_address: 'Georgetown',
+    passenger_name: 'Pin Tester',
+  });
+  check('a pin 38 km from the stated pickup stops the booking',
+    stood.booked !== true && stood.asked === true, JSON.stringify(stood).slice(0, 90));
+  check('and names both places and the distance',
+    String(stood.said) === 'Timehri' && String(stood.pinned) === 'Beterverwagting' &&
+      /38/.test(String(stood.apart)),
+    JSON.stringify(stood).slice(0, 110));
+
+  const put = ctx3.outbound[0] as { text?: string; buttons?: { id: string }[] };
+  check('the passenger is asked which one they are at',
+    /Which one are you at/.test(put?.text ?? ''), put?.text?.slice(0, 60));
+  check('with both fares on it, because the pickup prices the trip',
+    /\$3,800/.test(put?.text ?? '') && /\$1,200/.test(put?.text ?? ''),
+    put?.text?.slice(0, 140));
+  check('and two answers whose ids survive the channel',
+    put?.buttons?.length === 2 && readPickupId(pinWins) === pinWins && oursToo(wordWins),
+    JSON.stringify(put?.buttons));
+  check('nothing is booked while it stands',
+    repo.liveTaxi(rider3) === null, JSON.stringify(repo.liveTaxi(rider3)));
+  // Both ends are kept, or the tap has nowhere to carry the booking to.
+  check('both ends are kept for the answer',
+    repo.taxiPicks(rider3).from === 'Timehri' && repo.taxiPicks(rider3).to === 'Georgetown',
+    JSON.stringify(repo.taxiPicks(rider3)));
+
+  // 1. The pin was right: the trip is re-priced from where they actually are.
+  const fromPin = await pickupSay({ phone: rider3, text: pinWins, channel: 'smoke' } as never);
+  check('tapping the pin re-prices from there',
+    /\$1,200/.test((fromPin[0] as { text?: string })?.text ?? ''),
+    (fromPin[0] as { text?: string })?.text?.slice(0, 60));
+  check('and the pickup is written in the tariff spelling',
+    repo.taxiPicks(rider3).from === 'Beterverwagting', repo.taxiPicks(rider3).from);
+
+  // 2. The word was right: the pin is dropped and asked for again.
+  repo.clearTaxiPicks(rider3);
+  repo.addParcelPin(rider3, { latitude: bv.latitude, longitude: bv.longitude, label: '' }, 'pickup');
+  ride({ pickup_address: 'Timehri', destination_address: 'Georgetown', passenger_name: 'Pin Tester' });
+  const again = await pickupSay({ phone: rider3, text: wordWins, channel: 'smoke' } as never);
+  check('sending it again asks for the map', again[0]?.kind === 'location_request', again[0]?.kind);
+  check('and drops the pin they have just disowned',
+    repo.getParcelDraft(rider3).pickup === null,
+    JSON.stringify(repo.getParcelDraft(rider3).pickup));
+
+  // And a pin that agrees is never argued with.
+  repo.addParcelPin(rider3, { latitude: timehri.latitude, longitude: timehri.longitude, label: '' }, 'pickup');
+  const agreed = ride({
+    pickup_address: 'Timehri',
+    destination_address: 'Georgetown',
+    passenger_name: 'Pin Tester',
+  });
+  check('a pin that agrees is not questioned', agreed.asked !== true,
+    JSON.stringify(agreed).slice(0, 80));
+
+  // The helper that was promising the tariff's spelling and returning the key.
+  check('the nearest place comes back spelled as the tariff spells it',
+    nearest({ latitude: bv.latitude, longitude: bv.longitude })?.place === 'Beterverwagting',
+    JSON.stringify(nearest({ latitude: bv.latitude, longitude: bv.longitude })));
+
+  repo.setService(rider3, null);
+  repo.clearParcelDraft(rider3);
+  repo.clearTaxiPicks(rider3);
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
@@ -14332,6 +14431,7 @@ section('No button is a dead button');
   const { languageScreen: langScreen } = await import('./language-choice.ts');
   const { checkInMessage: stillOut } = await import('./duty-check-in.ts');
   const { WAIT_GO: wGo, WAIT_NO: wNo } = await import('./waiting-list.ts');
+  const { PICKUP_HERE: pHere, PICKUP_AGAIN: pAgain2 } = await import('./taxi-pickup.ts');
   const { wayOutButtons: wayOut } = await import('./aisles.ts');
   const { endPicker: picker, spotAsk: spot, fareButtons: fare } = await import('./place-picker.ts');
   const {
@@ -14371,7 +14471,7 @@ section('No button is a dead button');
   ids.push(...destBoth(7, 'yes', 'no').map((b) => b.id));
   ids.push(callBtn(7).id);
   ids.push(...cancelBoth('ORD-00007', 'staff').map((b) => b.id));
-  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain, sAgain, wGo, wNo);
+  ids.push(gBook, gChange, gCancel, aPin, aSkip, pKeep, pAgain, sAgain, wGo, wNo, pHere, pAgain2);
   // Built rather than written out: the village rides in the id, so the only
   // honest way to sweep it is to ask the message that sends it.
   takeButtons(streetWrong(sweeper, 'Mocha', 'Buxton', 'en'));
