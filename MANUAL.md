@@ -2244,6 +2244,20 @@ Shawn ▸ "take me from Timehri to Georgetown"   (having pinned BV)
                                   [ I am at the pin ]  [ Send it again ]
 ```
 
+**And the pin had to be at the right end of the trip first.** The rule for
+which end a taxi pin belongs to read *"the pickup once the pickup has been
+NAMED, otherwise the destination"* — so a pin arriving before anything was
+named, which is the opening move of most bookings and the one the prompt
+asks for, was filed as the **far end**. The shop asked where they were,
+was told, and wrote it down as where they were going. A Beterverwagting pin
+and the word *Timehri* could sit in one booking without ever being
+compared, because they were never the same end of it. The first pin is now
+the pickup and the second the destination.
+
+Found by driving it through the real webhook rather than the handlers: the
+walkthrough that called the pin in directly had been passing `'pickup'`
+itself, and was proving a path no customer takes.
+
 **Both answers are real, which is why this asks rather than refuses.** A
 delivery's address is a place the customer has named, and a wrong pin there
 is simply wrong — that one is told to send it again and offered nothing
@@ -4411,7 +4425,7 @@ nothing.
 
 ### The walkthroughs
 
-Twenty-one scripts in the project root that drive the **real handlers** against a
+Twenty-two scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
 actually look like on a phone?" without touching the live shop.
@@ -4441,6 +4455,7 @@ node walkthrough-grocery.ts
 | `walkthrough-taxi-destination.ts` | A passenger's change of destination, answered both ways by the driver |
 | `walkthrough-webhook-destination.ts` | The same two answers through the real signed webhook, with their titles made nonsense |
 | `walkthrough-pickup-pin.ts` | "I'm at Timehri", pinned 38 km away at Beterverwagting |
+| `walkthrough-webhook-pickup.ts` | The same, with the pin and both answers through the real signed webhook |
 | `errand-model.ts` | A service that does not exist yet, modelled to be argued with |
 | `tmp-cardboard.ts` | One collection job, on the unpriced parcel path |
 

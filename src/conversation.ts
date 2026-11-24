@@ -1236,8 +1236,25 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     // standing today is not where they live.
     if (chosen === 'taxi') {
       const lang = languageFor(msg.phone);
+      // The FIRST pin is where they are standing. The second is where they
+      // are going.
+      //
+      // It used to read `picks.from && !picks.to ? 'pickup' : 'destination'`
+      // — the pin belonged to the pickup only once the pickup had been
+      // NAMED, and in every other state, including a conversation where
+      // nothing had been named at all, it went to the destination.
+      //
+      // That is the opening move of most taxi bookings. The prompt says so
+      // itself: ask for the pickup pin first, because somebody waiting for a
+      // car can almost always drop one on where they are standing, and
+      // nobody can pin where they are going until they get there. The shop
+      // asked for the pickup, was given it, and filed it as the far end —
+      // which is how a Beterverwagting pin and the word "Timehri" sat in one
+      // booking without ever being compared: they were never the same end.
       const picks = repo.taxiPicks(msg.phone);
-      const slot: 'pickup' | 'destination' = picks.from && !picks.to ? 'pickup' : 'destination';
+      void picks;
+      const slot: 'pickup' | 'destination' =
+        repo.getParcelDraft(msg.phone).pickup === null ? 'pickup' : 'destination';
       repo.addParcelPin(msg.phone, msg.location, slot);
       console.log(`[taxi] ${msg.phone} pinned ${slot} ${formatCoordinates(msg.location)}`);
 

@@ -14403,6 +14403,51 @@ section('Where they say they are, against where they pinned');
   check('a pin that agrees is not questioned', agreed.asked !== true,
     JSON.stringify(agreed).slice(0, 80));
 
+  // Which END a pin belongs to, which is where the whole fault began.
+  //
+  // The rule was `picks.from && !picks.to ? 'pickup' : 'destination'`: the
+  // pin was the pickup only once the pickup had been NAMED, and in every
+  // other state — including a conversation where nothing had been named at
+  // all — it went to the destination. That is the opening move of most taxi
+  // bookings, and the prompt asks for it: "somebody waiting for a car can
+  // almost always drop one on where they are standing".
+  //
+  // So the shop asked for the pickup, was given it, and filed it as the far
+  // end. A Beterverwagting pin and the word "Timehri" could sit in one
+  // booking without ever being compared, because they were never the same
+  // end of it.
+  const firstPin = '5926100911';
+  repo.saveCustomer(firstPin, { name: 'First Pin', contactPhone: firstPin });
+  repo.chooseLanguage(firstPin, 'en');
+  repo.logMessage(firstPin, 'in', 'smoke', 'taxi');
+  repo.setService(firstPin, 'taxi');
+  repo.clearParcelDraft(firstPin);
+  repo.clearTaxiPicks(firstPin);
+
+  await pickupSay({
+    phone: firstPin,
+    channel: 'smoke',
+    text: '',
+    location: { latitude: bv.latitude, longitude: bv.longitude, label: '' },
+  } as never);
+  check('the first pin of a booking is where they are standing',
+    repo.getParcelDraft(firstPin).pickup !== null &&
+      repo.getParcelDraft(firstPin).destination === null,
+    JSON.stringify(repo.getParcelDraft(firstPin).pickup));
+
+  await pickupSay({
+    phone: firstPin,
+    channel: 'smoke',
+    text: '',
+    location: { latitude: timehri.latitude, longitude: timehri.longitude, label: '' },
+  } as never);
+  check('and the second is where they are going',
+    repo.getParcelDraft(firstPin).destination !== null,
+    JSON.stringify(repo.getParcelDraft(firstPin).destination));
+
+  repo.setService(firstPin, null);
+  repo.clearParcelDraft(firstPin);
+
   // The helper that was promising the tariff's spelling and returning the key.
   check('the nearest place comes back spelled as the tariff spells it',
     nearest({ latitude: bv.latitude, longitude: bv.longitude })?.place === 'Beterverwagting',
