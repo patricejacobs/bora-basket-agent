@@ -156,7 +156,7 @@ const STRINGS: Record<Language, Dictionary> = {
     // chauffeur and the passenger agree it between them — so every line here is
     // written to say what is happening without naming money the shop does
     // not know. "Total $0" was the alternative, and it was a lie.
-    taxi_confirmed: 'Thanks {name} — a chauffeur is on the way to collect you. Trip {order}. 🚕',
+    taxi_confirmed: 'Thanks {name} — your chauffeur is on the way to collect you. Trip {order}. 🚕',
     taxi_on_the_way: '{name}, you are on your way 🚕',
     taxi_fare_with_driver: 'The fare is agreed with the chauffeur.',
     taxi_fare_quoted: 'Your fare is *{fare}*, payable to the chauffeur. Waiting after pickup is charged separately.',
@@ -410,7 +410,7 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: '¿No está ahí ahora? Mueva el mapa, o busque el lugar, antes de enviarlo.',
     returned_wrong_code: 'El paquete {order} vuelve a usted — el código que dio {name} no coincidió, así que el asociado de entrega no lo entregó. Confirme con {name} que tenía el código que usted le pasó. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     parcel_on_the_way: 'El paquete {order} ha sido recogido y va camino a {name}.',
-    taxi_confirmed: 'Gracias {name} — un chófer va en camino a recogerle. Viaje {order}. 🚕',
+    taxi_confirmed: 'Gracias {name} — su chófer va en camino a recogerle. Viaje {order}. 🚕',
     taxi_on_the_way: '{name}, ya va en camino 🚕',
     taxi_fare_with_driver: 'La tarifa se acuerda con el chófer.',
     taxi_fare_quoted: 'Su tarifa es *{fare}*, a pagar al chófer. La espera después de la recogida se cobra aparte.',
@@ -630,7 +630,7 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: 'Não está lá agora? Arraste o mapa, ou procure o local, antes de enviar.',
     returned_wrong_code: 'A encomenda {order} está a voltar para si — o código que {name} deu não coincidiu, por isso o associado de entrega não a entregou. Confirme com {name} que tinha o código que lhe passou. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     parcel_on_the_way: 'A encomenda {order} foi recolhida e está a caminho de {name}.',
-    taxi_confirmed: 'Obrigado {name} — um chofer está a caminho para o recolher. Viagem {order}. 🚕',
+    taxi_confirmed: 'Obrigado {name} — o seu chofer está a caminho para o recolher. Viagem {order}. 🚕',
     taxi_on_the_way: '{name}, está a caminho 🚕',
     taxi_fare_with_driver: 'A tarifa é combinada com o chofer.',
     taxi_fare_quoted: 'A sua tarifa é *{fare}*, a pagar ao chofer. A espera após a recolha é cobrada à parte.',
@@ -848,7 +848,7 @@ const STRINGS: Record<Language, Dictionary> = {
     pin_elsewhere: '现在不在那里？发送前请拖动地图，或搜索该地点。',
     returned_wrong_code: '包裹 {order} 正在退回给您 — {name} 提供的收货码不正确，配送专员因此没有交付。请与 {name} 核对您转告的收货码。费用已用于本次行程，故不予退还。',
     parcel_on_the_way: '包裹 {order} 已提取，正在送往 {name}。',
-    taxi_confirmed: '谢谢{name}，专车司机正在前往接您。行程 {order}。🚕',
+    taxi_confirmed: '谢谢{name}，您的专车司机正在前往接您。行程 {order}。🚕',
     taxi_on_the_way: '{name}，您已出发 🚕',
     taxi_fare_with_driver: '车费请与专车司机商定。',
     taxi_fare_quoted: '您的车费为 *{fare}*，请付给专车司机。上车后的等候另行收费。',
