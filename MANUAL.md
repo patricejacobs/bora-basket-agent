@@ -490,6 +490,39 @@ Send `help` to the shop number for this list.
 | `fare A to B` | What that trip pays, before you agree it |
 | `cash` | What you are holding this shift |
 
+### Booked, in writing
+
+Reported from the live shop: a passenger booked **two cars** and was never
+told either was booked. What reached them was the model's own reassurance —
+*"I'll let you know as soon as a car's on it"*, *"Nothing more needed from
+you"*, *"Right you are"* — with no job number, no fare, nothing they could
+hold anybody to.
+
+A grocery order has had its own fixed confirmation since the beginning. A
+taxi had none: `book_taxi` handed the model the words and trusted it to
+pass them on, which is the one thing a message with a right answer and no
+judgement in it must never depend on. **The shop sends it now:**
+
+```
+✅ Booked — trip *TXI-00031*.
+Stabroek to Diamond
+*Fare $1,800*, payable to the chauffeur. Waiting after pickup is
+charged separately.
+
+I am looking for a car now and will tell you the moment one is on the way.
+```
+
+**And a worse fault underneath it.** `assembleReply` forwarded images,
+buttons, lists and pin requests from a tool's queue — and silently dropped
+plain text. So the one tool that queued a sentence, *"Asked your chauffeur
+about Zeelugt — nothing changes until they say so"*, had it thrown away
+every time, while the model was told it had already gone out and to say
+nothing more about it. The passenger got neither. The shop went quiet at
+exactly the moment it had something to say.
+
+Queued text is now sent, first, and the model's prose is dropped when it
+only says the same thing again.
+
 ### Asking what a trip pays
 
 A passenger at a kerb asks what a trip costs, and until now the only way for

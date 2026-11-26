@@ -2586,22 +2586,37 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // tariff, wrong since it got one, and the reason a priced trip could
       // reach the road without a figure ever being said out loud. A fare the
       // shop quoted and the passenger agreed to is the shop's to repeat.
+      // The shop says it, not the model.
+      //
+      // Reported from the live shop: a passenger booked two cars and was
+      // never told either was booked. What they got was the model's own
+      // reassurance — "I'll let you know as soon as a car's on it",
+      // "Nothing more needed from you", "Right you are" — and no job
+      // number, no fare, nothing in writing. This tool handed the model the
+      // words and trusted it to pass them on, which is the one thing a
+      // message with a right answer and no judgement in it must never
+      // depend on. A grocery order has had its own fixed confirmation since
+      // the beginning; a taxi had none.
+      ctx.outbound.push({
+        kind: 'text',
+        text: t(quoted ? 'taxi_booked' : 'taxi_booked_unpriced', languageFor(ctx.phone), {
+          order: job.orderNo,
+          from: fromEnd.place || pickupAddress || 'where you are',
+          to: toEnd.place || destinationAddress || 'where you are going',
+          fare: quoted ? money(quoted.fee) : '',
+          nl: chr10,
+        }),
+      });
+
       return ok({
         booked: true,
         job_number: job.orderNo,
         passenger: passengerName,
+        confirmation_sent: true,
         ...(quoted
-          ? {
-              fare: money(quoted.fee),
-              priced_by: quoted.say,
-              say: `${job.orderNo} is in, ${money(quoted.fee)} as agreed. I am looking for a car now.`,
-              next: 'Give them the job number and repeat the fare they agreed, which is theirs to have in writing. Say waiting after pickup is charged on top. Do not promise a car or a time — neither is yours to give.',
-            }
-          : {
-              fare: 'to be agreed with the chauffeur',
-              say: `${job.orderNo} is in. I am looking for a car now.`,
-              next: 'Tell them the job number, and that the chauffeur agrees the fare with them — the tariff could not price this trip, so the shop has no figure. Do not promise a car, a time or a fare.',
-            }),
+          ? { fare: money(quoted.fee), priced_by: quoted.say }
+          : { fare: 'to be agreed with the chauffeur' }),
+        next: 'The confirmation has ALREADY gone to them — the job number, both ends and the fare, in writing, from the shop itself. Do not repeat any of it and do not describe what is arriving; they can see it. Say only what is NEW, or nothing at all. Never promise a car or a time: neither is yours to give.',
       });
     }
 

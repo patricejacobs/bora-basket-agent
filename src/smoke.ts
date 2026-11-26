@@ -4109,8 +4109,22 @@ section('A car, and no fare anywhere');
   // left over from when a taxi had no tariff, and the second half of why a
   // priced trip could reach the road with no price ever said out loud.
   check('the booking repeats the fare they agreed', /^\$[0-9,]+$/.test(String(booked.fare)), String(booked.fare));
-  check('and tells the agent to say it', /repeat the fare/i.test(String(booked.next)), String(booked.next));
-  check('with waiting mentioned on top', /waiting/i.test(String(booked.next)), String(booked.next));
+
+  // And the SHOP sends it, rather than telling the model to. A passenger
+  // booked two cars and was told neither was booked: what reached them was
+  // the model's own reassurance, with no job number and nothing in writing.
+  const confirmation = ctx.outbound.at(-1) as { kind: string; text?: string } | undefined;
+  check('the shop sends the confirmation itself',
+    confirmation?.kind === 'text' && /Booked/.test(confirmation.text ?? ''),
+    JSON.stringify(confirmation).slice(0, 90));
+  check('with the job number in writing',
+    (confirmation?.text ?? '').includes(String(booked.job_number)), confirmation?.text?.slice(0, 80));
+  check('the fare they agreed',
+    (confirmation?.text ?? '').includes(String(booked.fare)), confirmation?.text?.slice(0, 90));
+  check('with waiting mentioned on top', /waiting/i.test(confirmation?.text ?? ''),
+    confirmation?.text?.slice(0, 120));
+  check('and the agent is told it has already gone',
+    /ALREADY gone to them/.test(String(booked.next)), String(booked.next).slice(0, 80));
 
   const job = repo.findOrder(String(booked.job_number));
   check('the job is a taxi', job?.kind === 'taxi', job?.kind);

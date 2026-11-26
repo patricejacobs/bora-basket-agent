@@ -485,8 +485,21 @@ export function calmShouting(text: string, keep: string[] = []): string {
     .replace(/\bi\b/g, 'I');
 }
 
+/** What the shop says when a turn produced nothing at all. */
+const LOST_THREAD = 'Sorry, I lost my train of thought there. Could you say that again?';
+
 export function assembleReply(finalText: string, queued: OutboundMessage[]): OutboundMessage[] {
   const outbound: OutboundMessage[] = [];
+  // Words the SHOP queued, which were being thrown away.
+  //
+  // A tool that queues a message means it to be sent. This function
+  // forwarded images, buttons, lists and pin requests, and silently dropped
+  // plain text — so `change_destination` told the passenger "Asked your
+  // chauffeur about Zeelugt, nothing changes until they say so", the model
+  // was told it had already gone out and to say nothing further, and the
+  // passenger got neither. The shop went quiet at exactly the moment it had
+  // something to say.
+  const textMessages = queued.filter((m) => m.kind === 'text');
   const photoMessages = queued.filter((m) => m.kind === 'image');
   const buttonMessages = queued.filter((m) => m.kind === 'buttons');
   const listMessages = queued.filter((m) => m.kind === 'list');
@@ -554,13 +567,20 @@ export function assembleReply(finalText: string, queued: OutboundMessage[]): Out
   } else if (photoMessages.length > 0) {
     outbound.push(...photoMessages);
   } else {
-    outbound.push({
-      kind: 'text',
-      text: "Sorry, I lost my train of thought there. Could you say that again?",
-    });
+    outbound.push({ kind: 'text', text: LOST_THREAD });
   }
 
-  return outbound;
+  if (textMessages.length === 0) return outbound;
+
+  // The shop's own words go first: they carry the fact, and the model's
+  // prose is a gloss on it. Anything of the model's that only says the same
+  // thing again goes — including the "I lost my train of thought" fallback,
+  // which is an apology for a turn that did have something in it.
+  const body = (textMessages[textMessages.length - 1] as { text: string }).text;
+  const kept = outbound.filter(
+    (m) => !(m.kind === 'text' && (restates(body, m.text) || m.text === LOST_THREAD)),
+  );
+  return [...textMessages, ...kept];
 }
 
 /** Maps an API failure to something a customer can read, and logs the real cause. */
