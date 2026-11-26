@@ -364,14 +364,7 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
     pickup && pickup.latitude !== null && pickup.longitude !== null
       ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
-  // How far the job is, said plainly. "50 m across town" was two faults in
-  // four words: the pins were the same spot, and 50 metres is not across
-  // anything. The first is caught where the pin arrives now; this is the
-  // second.
-  const trip =
-    pickupPin && order.location
-      ? `📏 ${formatDistance(distanceKm(pickupPin, order.location))} to the drop-off`
-      : '';
+
 
   return [
     `🚕 *New taxi job ${order.orderNo}*`,
@@ -397,7 +390,6 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
     `*Take to:* ${order.address || 'they will direct you'}`,
     ...(order.location ? ['Click the link below for the drop-off:', mapsLink(order.location)] : []),
     ...(order.parcelDetails ? ['', order.parcelDetails] : []),
-    ...(trip ? ['', trip] : []),
   ].join(String.fromCharCode(10));
 }
 
@@ -787,14 +779,7 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
     pickup && pickup.latitude !== null && pickup.longitude !== null
       ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
-  // How far the job is, said plainly. "50 m across town" was two faults in
-  // four words: the pins were the same spot, and 50 metres is not across
-  // anything. The first is caught where the pin arrives now; this is the
-  // second.
-  const trip =
-    pickupPin && order.location
-      ? `📏 ${formatDistance(distanceKm(pickupPin, order.location))} to the drop-off`
-      : '';
+
 
   return [
     `📦 *New parcel job ${order.orderNo}*`,
@@ -809,7 +794,6 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
     // four messages about one parcel should not have to work out that "Take
     // to" and "Deliver to" mean the same thing.
     `*Deliver to:* ${order.recipientName}${order.address ? `, ${order.address}` : ''}`,
-    ...(trip ? ['', trip] : []),
   ].join(String.fromCharCode(10));
 }
 

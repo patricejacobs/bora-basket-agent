@@ -14780,9 +14780,13 @@ section('A destination on top of the pickup');
     note: '', wantedAt: '', wantedNote: '',
   } as never);
   const offered2 = taxiOfferCard(repo.findOrder(far.orderNo)!);
-  check('the offer card says how far it is, plainly',
-    /to the drop-off/.test(offered2) && !/across town/.test(offered2),
-    offered2.split(String.fromCharCode(10)).filter((l) => /drop-off|across/.test(l)).join(' | '));
+  // And the card says nothing about how far it is. A straight line between
+  // two pins is not the distance anybody drives — the river, the one bridge
+  // and the sea wall make a 12 km line a 25 km trip — and a figure on a
+  // card is read as the trip. The fare says what the job is worth.
+  check('the offer card says nothing about how far it is',
+    !/across town/.test(offered2) && !/to the drop-off/.test(offered2) && !/📏/.test(offered2),
+    offered2.split(String.fromCharCode(10)).filter((l) => /km|across|drop-off/.test(l)).join(' | '));
 
   repo.setOrderStatus(far.orderNo, 'delivered');
   repo.setService(rider4, null);

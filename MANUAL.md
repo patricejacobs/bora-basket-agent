@@ -2296,8 +2296,12 @@ Nothing is filed. **150 metres** is the line: wider than a GPS fix wanders,
 narrower than any taxi ride anybody books — nobody calls a car to cross the
 same junction — so two pins inside it are one pin sent twice.
 
-And the card says how far the job is plainly, `📏 12.4 km to the drop-off`.
-Fifty metres is not across anything.
+**And the card says nothing about how far the job is.** The line was a
+straight one between two pins, which is not the distance anybody drives —
+the river, the one bridge and the sea wall turn a 12 km line into a 25 km
+trip — and a figure on a card is read as the trip. The fare already says
+what the job is worth, and it is priced by the tariff rather than by a
+ruler.
 
 ### Where they say they are, against where they pinned
 
