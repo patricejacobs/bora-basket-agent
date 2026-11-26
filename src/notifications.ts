@@ -84,7 +84,7 @@ export async function notifyStaffOfNewOrder(orderNo: string): Promise<void> {
     order.total > 0
       ? `*Total ${money(order.total)}* (${order.status === 'pending' ? 'unconfirmed' : order.status})`
       : isTaxi
-        ? '*Fare not set* — the driver agrees it with the passenger'
+        ? '*Fare not set* — the chauffeur agrees it with the passenger'
         : '*Fee not set* — the associate agrees it with the sender at the pickup',
     // When it is wanted, on the desk's copy too. It is the one fact that
     // changes what to do with the order right now rather than later.

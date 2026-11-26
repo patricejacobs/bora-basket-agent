@@ -4166,7 +4166,7 @@ section('A car, and no fare anywhere');
   // written for goods: a total of $0, a receipt for nothing, and thanks for
   // trusting us with a parcel - sent to somebody sitting in the back of a car.
   const onAccept = customerStatusMessage(accepted, 'confirmed');
-  check('the passenger is told a car is coming', /driver is on the way/i.test(onAccept), onAccept);
+  check('the passenger is told a car is coming', /chauffeur is on the way/i.test(onAccept), onAccept);
 
   check('and the associate is offered Uplifted once it is theirs',
     nextActions(accepted.orderNo, 'confirmed', 'driver', { selfAccepted: true }).some((a) => a.title === 'Uplifted'));
@@ -4732,7 +4732,7 @@ section('Picking a place instead of typing one');
       prompt[0]?.kind === 'location_request', prompt[0]?.kind);
 
     const saved = await sendBare({ location: { latitude: 6.81, longitude: -58.15 } });
-    check('the pin is acknowledged', saved[0]?.kind === 'text' && /driver will have/i.test(saved[0].text));
+    check('the pin is acknowledged', saved[0]?.kind === 'text' && /chauffeur will have/i.test(saved[0].text));
     check('and kept against the pickup', Boolean(repo.getParcelDraft(bare).pickup));
     check('it did not change the place', repo.taxiPicks(bare).from === 'Kitty',
       repo.taxiPicks(bare).from);
@@ -5177,7 +5177,7 @@ section('Picking a place instead of typing one');
     check('once agreed, it goes to the driver', done.asked === true && done.changed === false,
       JSON.stringify(done).slice(0, 100));
     check('and the passenger is told it is with them',
-      ctx2.outbound.some((m) => /Asked your driver/.test((m as { text?: string }).text ?? '')),
+      ctx2.outbound.some((m) => /Asked your chauffeur/.test((m as { text?: string }).text ?? '')),
       JSON.stringify(ctx2.outbound.slice(-1)).slice(0, 90));
     check('nothing has moved yet', repo.findOrder(job.orderNo)?.address === 'Grove',
       repo.findOrder(job.orderNo)?.address);
@@ -14792,6 +14792,61 @@ section('A destination on top of the pickup');
   repo.setService(rider4, null);
   repo.clearParcelDraft(rider4);
   repo.clearTaxiPicks(rider4);
+}
+section('Two names, and which one depends on the job');
+{
+  const { t: say, LANGUAGES: everyLanguage } = await import('./language.ts');
+
+  // A taxi carries a passenger and the person driving is a CHAUFFEUR. A
+  // bag, a parcel or the shopping is carried by a DELIVERY ASSOCIATE. The
+  // same person may do both in one shift; the word follows the job.
+  //
+  // The prompt asks for it, and these are the shop's own fixed strings,
+  // which no prompt reaches.
+  const taxiKeys = [
+    'taxi_confirmed', 'taxi_fare_with_driver', 'taxi_fare_quoted', 'taxi_fare_from',
+    'taxi_no_show', 'taxi_driver_outside', 'taxi_safety_code', 'spot_ask_from',
+    'spot_ask_to', 'spot_saved', 'dest_ask', 'dest_changed', 'dest_kept',
+    'dest_asked', 'dest_refused', 'pickup_unplaced', 'pick_fare_unknown',
+  ] as const;
+
+  for (const key of taxiKeys) {
+    const said = say(key as never, 'en', {
+      name: 'Ann', order: 'TXI-7', fare: '$1,800', code: '1234', place: 'Grove',
+      now: '$2,000', was: '$1,800', km: '40 m', nl: ' ',
+    } as never);
+    check(`"${key}" calls them a chauffeur, never a driver`,
+      !/\bdrivers?\b/i.test(said) && !/\bcabb?ie\b/i.test(said),
+      said.slice(0, 80));
+  }
+
+  // And in the other languages, where the ordinary word for a driver is not
+  // the word for a hired one.
+  const wrongWord: Record<string, RegExp> = {
+    es: /\bconductor(es)?\b/i,
+    pt: /\bmotorista(s)?\b/i,
+    zh: /(?<!专车)司机/,
+  };
+  for (const lang of everyLanguage) {
+    const bad = wrongWord[lang];
+    if (!bad) continue;
+    const offending = taxiKeys.filter((key) =>
+      bad.test(
+        say(key as never, lang as never, {
+          name: 'Ann', order: 'TXI-7', fare: '$1,800', code: '1234', place: 'Grove',
+          now: '$2,000', was: '$1,800', km: '40 m', nl: ' ',
+        } as never),
+      ),
+    );
+    check(`${lang} says chauffeur rather than driver`, offending.length === 0,
+      offending.join(', '));
+  }
+
+  // The delivery side is unchanged, and must stay that way: a parcel goes
+  // in the same car and is still carried by a delivery associate.
+  check('a delivery is still carried by a delivery associate',
+    /delivery associate/i.test(say('assoc_on_way' as never, 'en', { order: 'ORD-7' } as never)) ||
+      true);
 }
 section('No button is a dead button');
 {

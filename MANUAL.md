@@ -38,7 +38,7 @@ runs it through to the door. There are four services:
 |---|---|
 | **Grocery** | Shopping from a grocery shop |
 | **Restaurant** | Food from a partner kitchen |
-| **Taxi** | A car for people, driven by the delivery associates — no fare is quoted |
+| **Taxi** | A car for people, driven by the same associates — who are called *chauffeurs* while they carry one |
 | **Parcel** | Collect something from one address, take it to another |
 | **Other** | Anything else — handed to a person |
 
@@ -52,6 +52,33 @@ by the number they message from:
 Anyone whose number is on none of those lists is a customer.
 
 ---
+
+### What the shop calls people
+
+**Two names, and which one depends on the job — never on the person.** The
+same associate may carry a bag at noon and a passenger at four.
+
+| Carrying | Called |
+|---|---|
+| An order, the shopping, a parcel | a **delivery associate** |
+| A passenger | a **chauffeur** |
+
+Both words, every time, in every language — and never the local trade word,
+which always reads back as "delivery man" or plain "driver":
+
+| | Delivery | Taxi |
+|---|---|---|
+| English | delivery associate | chauffeur |
+| Spanish | `asociado de entrega` | `chófer`, never `conductor` |
+| Portuguese | `associado de entrega` | `chofer`, never `motorista` |
+| Chinese | `配送专员` | `专车司机`, never `司机` |
+
+A parcel is carried by a delivery associate **even though it goes in the
+same car**. Only a passenger makes a chauffeur.
+
+The agent is told this, and the shop's own fixed messages already obey it —
+but a prompt is a request, not a guard, so the suite reads every taxi string
+in all four languages and fails if any of them says "driver".
 
 ## 2. For the shop
 

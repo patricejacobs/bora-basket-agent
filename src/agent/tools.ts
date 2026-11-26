@@ -507,7 +507,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         note: {
           type: 'string',
           description:
-            'Anything the driver should know: how many passengers, luggage, a wheelchair, a child seat. Their words, short.',
+            'Anything the chauffeur should know: how many passengers, luggage, a wheelchair, a child seat. Their words, short.',
         },
         pick_up_at: {
           type: 'string',
@@ -530,7 +530,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'change_destination',
     description:
-      "Send a taxi, or a delivery on the road, somewhere else. A TAXI: works whether the car is on its way to them or they are already in it, and the passenger settles it. A DELIVERY: the customer may change where it is going as often as they like, but the ASSOCIATE carrying it has to agree first — this tool puts it to them and nothing moves until they do, so never tell the customer it has changed. Same two calls either way. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and tells the driver. Never change a destination they have not agreed the new fare for, and never promise a person will ring about it — this tool is how it is done. This does NOT move the pickup — if that is what they want, call request_staff_help.",
+      "Send a taxi, or a delivery on the road, somewhere else. A TAXI: works whether the car is on its way to them or they are already in it, and the passenger settles it. A DELIVERY: the customer may change where it is going as often as they like, but the ASSOCIATE carrying it has to agree first — this tool puts it to them and nothing moves until they do, so never tell the customer it has changed. Same two calls either way. Two calls, like book_taxi: the first returns the new fare, which you read back; the second, with confirmed true, makes the change and puts it to the chauffeur. Never change a destination they have not agreed the new fare for, and never promise a person will ring about it — this tool is how it is done. This does NOT move the pickup — if that is what they want, call request_staff_help.",
     input_schema: {
       type: 'object',
       properties: {
@@ -2407,7 +2407,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             asked: true,
             booked: false,
             pickup: pickupAddress,
-            next: 'They have ALREADY been asked where exactly to collect them — say nothing more about it and book nothing yet. Their answer settles it either way: a pin arrives on its own, and if they describe the spot in words instead, pass THOSE WORDS as pickup_address and call book_taxi again. It will book, and the description goes on the driver\'s card.',
+            next: 'They have ALREADY been asked where exactly to collect them — say nothing more about it and book nothing yet. Their answer settles it either way: a pin arrives on its own, and if they describe the spot in words instead, pass THOSE WORDS as pickup_address and call book_taxi again. It will book, and the description goes on the chauffeur\'s card.',
           });
         }
       }
@@ -2456,7 +2456,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const passengerName = asString(input.passenger_name).trim() || customer.name || '';
       if (!passengerName) {
         return fail(
-          'Still need a name for the passenger — the driver has to ask for somebody. Take it with save_customer_details, or pass passenger_name when it is not the person you are talking to.',
+          'Still need a name for the passenger — the chauffeur has to ask for somebody. Take it with save_customer_details, or pass passenger_name when it is not the person you are talking to.',
         );
       }
       const passengerPhone =
@@ -2598,9 +2598,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
               next: 'Give them the job number and repeat the fare they agreed, which is theirs to have in writing. Say waiting after pickup is charged on top. Do not promise a car or a time — neither is yours to give.',
             }
           : {
-              fare: 'to be agreed with the driver',
+              fare: 'to be agreed with the chauffeur',
               say: `${job.orderNo} is in. I am looking for a car now.`,
-              next: 'Tell them the job number, and that the driver agrees the fare with them — the tariff could not price this trip, so the shop has no figure. Do not promise a car, a time or a fare.',
+              next: 'Tell them the job number, and that the chauffeur agrees the fare with them — the tariff could not price this trip, so the shop has no figure. Do not promise a car, a time or a fare.',
             }),
       });
     }
@@ -2770,7 +2770,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           changed: true,
           job_number: order.orderNo,
           destination: named,
-          fare: quoted ? money(quoted.fee) : 'to be agreed with the driver',
+          fare: quoted ? money(quoted.fee) : 'to be agreed with the chauffeur',
           next: 'Tell them it is changed. No driver has it yet, so promise nothing about when.',
         });
       }
@@ -2799,7 +2799,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         changed: false,
         job_number: order.orderNo,
         destination: named,
-        fare: quoted ? money(quoted.fee) : 'to be agreed with the driver',
+        fare: quoted ? money(quoted.fee) : 'to be agreed with the chauffeur',
         next: 'They have ALREADY been told it is with their driver — say nothing more about it, and do not describe the destination as changed. Nothing moves until the driver answers, and the shop tells them either way.',
       });
     }
