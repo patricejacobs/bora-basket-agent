@@ -364,9 +364,13 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
     pickup && pickup.latitude !== null && pickup.longitude !== null
       ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
+  // How far the job is, said plainly. "50 m across town" was two faults in
+  // four words: the pins were the same spot, and 50 metres is not across
+  // anything. The first is caught where the pin arrives now; this is the
+  // second.
   const trip =
     pickupPin && order.location
-      ? `${formatDistance(distanceKm(pickupPin, order.location))} across town`
+      ? `📏 ${formatDistance(distanceKm(pickupPin, order.location))} to the drop-off`
       : '';
 
   return [
@@ -783,9 +787,13 @@ export function parcelOfferCard(order: repo.OrderRecord): string {
     pickup && pickup.latitude !== null && pickup.longitude !== null
       ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
+  // How far the job is, said plainly. "50 m across town" was two faults in
+  // four words: the pins were the same spot, and 50 metres is not across
+  // anything. The first is caught where the pin arrives now; this is the
+  // second.
   const trip =
     pickupPin && order.location
-      ? `${formatDistance(distanceKm(pickupPin, order.location))} across town`
+      ? `📏 ${formatDistance(distanceKm(pickupPin, order.location))} to the drop-off`
       : '';
 
   return [

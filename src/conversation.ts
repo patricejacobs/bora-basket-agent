@@ -46,7 +46,7 @@ import {
 import { settleDeliveryPlace, streetNamesElsewhere } from './delivery-place.ts';
 import { WAIT_GO, WAIT_NO, offerTheRideOn } from './waiting-list.ts';
 import { PICKUP_AGAIN, PICKUP_HERE } from './taxi-pickup.ts';
-import { nearestPlace } from './place-coords.ts';
+import { nearestPlace, straightKm } from './place-coords.ts';
 import { pinTheNewAddress } from './dispatch.ts';
 import {
   ADDR_PIN,
@@ -102,6 +102,15 @@ import type { IncomingMessage, OutboundMessage } from './channels/types.ts';
  * introduces the chance of a digit changing, and a digit in the fifth decimal
  * place is a different street.
  */
+/**
+ * Close enough to be the same place, for a trip's two ends.
+ *
+ * 150 metres is wider than a GPS fix wanders and narrower than any taxi
+ * ride anybody books: nobody calls a car to go to the other side of the
+ * same junction. Two pins inside it are one pin sent twice.
+ */
+const SAME_SPOT_KM = 0.15;
+
 export function recordLocationPin(phone: string, pin: LocationPin): string {
   const saved = repo.saveLocationPin(phone, pin);
   // Saved either way, even when it falls outside the delivery area: it is still
@@ -1253,8 +1262,32 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // booking without ever being compared: they were never the same end.
       const picks = repo.taxiPicks(msg.phone);
       void picks;
-      const slot: 'pickup' | 'destination' =
-        repo.getParcelDraft(msg.phone).pickup === null ? 'pickup' : 'destination';
+      const held = repo.getParcelDraft(msg.phone).pickup;
+      const slot: 'pickup' | 'destination' = held === null ? 'pickup' : 'destination';
+
+      // A "destination" on top of the pickup is not a destination.
+      //
+      // WhatsApp sends where you are standing unless you move the map, so a
+      // passenger answering "where are you going?" from the kerb sends the
+      // kerb. The shop filed it, gave the driver a drop-off link pointing at
+      // the pickup, and put "50 m across town" on the card — a trip nobody
+      // is taking, described to the man deciding whether to take it.
+      //
+      // The ask now carries the hint; this is the guard behind the asking.
+      if (slot === 'destination' && held) {
+        const apart = straightKm(
+          { latitude: held.latitude, longitude: held.longitude },
+          msg.location,
+        );
+        if (apart < SAME_SPOT_KM) {
+          const how = `${Math.max(10, Math.round(apart * 1000))} m`;
+          return shopAnswered(
+            msg,
+            [{ kind: 'text', text: t('spot_same_as_pickup', lang, { km: how, nl: chr10 }) }],
+            '(sent their location)',
+          );
+        }
+      }
       repo.addParcelPin(msg.phone, msg.location, slot);
       console.log(`[taxi] ${msg.phone} pinned ${slot} ${formatCoordinates(msg.location)}`);
 

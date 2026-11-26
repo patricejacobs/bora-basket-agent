@@ -2263,6 +2263,42 @@ A change the passenger makes themselves also spends any question the driver
 has out: leaving it open would put the old place back in front of them with
 two buttons, for a trip that has already changed.
 
+### A destination on top of the pickup
+
+Reported from the live shop: an associate's card reading **"50 m across
+town"**. Two faults in four words.
+
+**WhatsApp sends where you are standing unless you move the map.** That is
+exactly right for *"where are you?"* and exactly wrong for *"where are you
+going?"* — so a passenger at the kerb tapped `📍 Send location` at the
+destination question and the shop filed the kerb as the destination. The
+driver got a drop-off link pointing at the spot he was collecting from, and
+a trip nobody was taking described to the man deciding whether to take it.
+
+The shop has owned the sentence that prevents this for months — *"Not where
+you are now? Drag the map, or search for the place, before you send it"* —
+and used it in the agent's own `request_location` and nowhere else. **The
+destination ask carries it now**, and the pickup ask deliberately does not.
+
+Behind the asking, the guard:
+
+```
+Shawn ▸ 📍 (taps Send location at the destination question)
+
+◂ That is the spot you are being collected FROM — about 40 m from it.
+
+  WhatsApp sends where you are standing unless you move the map. If you
+  are going somewhere else, drag the map or search for the place before
+  you send it — or just tell me the area.
+```
+
+Nothing is filed. **150 metres** is the line: wider than a GPS fix wanders,
+narrower than any taxi ride anybody books — nobody calls a car to cross the
+same junction — so two pins inside it are one pin sent twice.
+
+And the card says how far the job is plainly, `📏 12.4 km to the drop-off`.
+Fifty metres is not across anything.
+
 ### Where they say they are, against where they pinned
 
 Reported from the live shop: a passenger said they were at **Timehri** and

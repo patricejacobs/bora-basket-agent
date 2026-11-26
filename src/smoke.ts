@@ -14708,6 +14708,87 @@ section('What does that trip pay?');
 
   repo.upsertAssociate({ phone: asker3, name: 'Fare Asker', vehicle: 'PAA 3', active: false });
 }
+section('A destination on top of the pickup');
+{
+  const { handleIncoming: pinSay } = await import('./conversation.ts');
+  const { spotAsk: askSpot } = await import('./place-picker.ts');
+  const { coordsFor: at2 } = await import('./place-coords.ts');
+  const { taxiOfferCard } = await import('./dispatch.ts');
+
+  // Reported from the live shop: a card reading "50 m across town".
+  //
+  // WhatsApp sends where you are STANDING unless you move the map. The
+  // pickup ask wants exactly that; the destination ask does not, and a
+  // passenger at the kerb tapped Send location and the shop filed the kerb
+  // as where they were going. The driver got a drop-off link pointing at
+  // the spot he was collecting from.
+  const toAsk = askSpot('to', 'Georgetown', 'en') as { text?: string };
+  check('the destination ask says the map sends where you are',
+    /Not where you are now/.test(toAsk.text ?? ''), (toAsk.text ?? '').slice(0, 120));
+  const fromAsk = askSpot('from', 'Diamond', 'en') as { text?: string };
+  check('and the pickup ask does not, because there it is right',
+    !/Not where you are now/.test(fromAsk.text ?? ''), (fromAsk.text ?? '').slice(0, 80));
+
+  const rider4 = '5926100914';
+  repo.saveCustomer(rider4, { name: 'Same Spot', contactPhone: rider4 });
+  repo.chooseLanguage(rider4, 'en');
+  repo.logMessage(rider4, 'in', 'smoke', 'taxi');
+  repo.setService(rider4, 'taxi');
+  repo.clearParcelDraft(rider4);
+  repo.clearTaxiPicks(rider4);
+
+  const diamond = at2('Diamond')!;
+  repo.addParcelPin(rider4, { latitude: diamond.latitude, longitude: diamond.longitude, label: '' }, 'pickup');
+
+  // 40 metres away: the same kerb, sent twice.
+  const again = await pinSay({
+    phone: rider4,
+    channel: 'smoke',
+    text: '',
+    location: { latitude: diamond.latitude + 0.00036, longitude: diamond.longitude, label: '' },
+  } as never);
+  check('a second pin on the pickup is not taken as the destination',
+    repo.getParcelDraft(rider4).destination === null,
+    JSON.stringify(repo.getParcelDraft(rider4).destination));
+  check('and the passenger is told why, with the distance',
+    /collected FROM/.test((again[0] as { text?: string })?.text ?? '') &&
+      /40 m/.test((again[0] as { text?: string })?.text ?? ''),
+    ((again[0] as { text?: string })?.text ?? '').slice(0, 80));
+  check('and told what to do about it',
+    /drag the map/i.test((again[0] as { text?: string })?.text ?? ''),
+    ((again[0] as { text?: string })?.text ?? '').slice(0, 160));
+
+  // A real destination still lands.
+  const georgetown = at2('Georgetown')!;
+  await pinSay({
+    phone: rider4,
+    channel: 'smoke',
+    text: '',
+    location: { latitude: georgetown.latitude, longitude: georgetown.longitude, label: '' },
+  } as never);
+  check('a destination somewhere else is filed as one',
+    repo.getParcelDraft(rider4).destination !== null,
+    JSON.stringify(repo.getParcelDraft(rider4).destination));
+
+  // And the card says how far plainly, not "across town".
+  const far = repo.createTaxiJob({
+    phone: rider4, fare: 2500, passengerName: 'Same Spot', passengerPhone: rider4,
+    pickup: { latitude: diamond.latitude, longitude: diamond.longitude, label: 'Diamond' },
+    pickupAddress: 'Diamond',
+    destination: { latitude: georgetown.latitude, longitude: georgetown.longitude, label: 'Georgetown' },
+    destinationAddress: 'Georgetown',
+    note: '', wantedAt: '', wantedNote: '',
+  } as never);
+  const offered2 = taxiOfferCard(repo.findOrder(far.orderNo)!);
+  check('the offer card says how far it is, plainly',
+    /to the drop-off/.test(offered2) && !/across town/.test(offered2),
+    offered2.split(String.fromCharCode(10)).filter((l) => /drop-off|across/.test(l)).join(' | '));
+
+  repo.setOrderStatus(far.orderNo, 'delivered');
+  repo.setService(rider4, null);
+  repo.clearParcelDraft(rider4);
+  repo.clearTaxiPicks(rider4);
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

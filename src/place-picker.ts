@@ -66,6 +66,8 @@ const MAX_ROWS = 10;
  * of ours. `isPickerId` is that guard, and it is why the ratings list is
  * untouched by any of this.
  */
+const chr10 = String.fromCharCode(10);
+
 const PREFIX = 'pick';
 
 /**
@@ -476,9 +478,21 @@ export function spotAsk(
     return { kind: 'location_request', text: t('spot_ask_drop', lang, { place, fee }) };
   }
 
+  // The destination ask carries the hint the shop already owns, and the
+  // pickup ask does not need it: WhatsApp sends where you are standing
+  // unless you move the map, which is exactly right for "where are you?"
+  // and exactly wrong for "where are you going?". Without it, a passenger
+  // at the kerb tapped Send location and the shop filed the kerb as the
+  // destination — a drop-off pin on the spot the driver was collecting
+  // from, and a card reading "50 m across town".
+  const body =
+    side === 'from'
+      ? t('spot_ask_from', lang, { place })
+      : `${t('spot_ask_to', lang, { place })}${chr10}${chr10}${t('pin_elsewhere', lang)}`;
+
   return {
     kind: 'buttons',
-    text: t(side === 'from' ? 'spot_ask_from' : 'spot_ask_to', lang, { place }),
+    text: body,
     buttons: [
       { id: `${PREFIX}:${side}:spot`, title: t('spot_send', lang) },
       { id: `${PREFIX}:${side}:skip`, title: t('spot_skip', lang) },
