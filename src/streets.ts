@@ -24,7 +24,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { findZone } from './zones.ts';
+import { findZone, tariff } from './zones.ts';
 import { streetKey } from './street-memory.ts';
 
 const OUT = path.resolve('./data/streets.csv');
@@ -36,8 +36,43 @@ const OUT = path.resolve('./data/streets.csv');
  * West to east: Parika and the East Bank Essequibo, the two banks of the
  * Demerara, Georgetown itself, and the East Coast out to Mahaica.
  */
-const TILES: { name: string; south: number; west: number; north: number; east: number }[] = [
+type Tile = { name: string; south: number; west: number; north: number; east: number };
+
+/**
+ * How far a street may sit from a marker and still belong to it — decided
+ * by the MARKER, not by the tile it was fetched in.
+ *
+ * It was a property of the tile, and the tiles overlap: Georgetown was
+ * asked at 600 metres and then asked again as part of the East Bank, which
+ * reaches into the city at three kilometres. Ruimveldt kept every street
+ * it had before, up to 1.08 km away, and the tightening did nothing. A
+ * radius that depends on which rectangle a street happened to be fetched
+ * in is not a rule about anything.
+ *
+ * Georgetown's wards sit 370 metres apart — I measured the markers — so a
+ * street more than 600 metres from one is in a different ward. The coast
+ * is the opposite: villages are strung along one road with their markers a
+ * kilometre or two apart, and a tight radius there throws away streets
+ * that really are in the village.
+ */
+const GEORGETOWN_KM = 0.6;
+const COAST_KM = 3;
+
+const TILES: Tile[] = [
+  // Georgetown's wards sit 370 metres apart on average — I measured the
+  // markers — so a wide radius stops meaning "which ward is this street in"
+  // and starts meaning "which ward is somewhere in this half of the city".
+  //
+  // It matters more than it looks, because only wards the TARIFF carries
+  // are kept: a street in Block 7 or Section B, which the shop does not
+  // price, was not dropped but attached to the nearest priced ward up to
+  // three kilometres away. Ruimveldt and East La Penitence, two large
+  // priced wards ringed by unpriced ones, quietly hoovered up the
+  // neighbourhood.
   { name: 'Georgetown', south: 6.76, west: -58.19, north: 6.84, east: -58.10 },
+  // The coast is the opposite case: villages are strung out along one road
+  // and their markers are a kilometre or two apart, so a tight radius here
+  // would throw away streets that are genuinely in the village.
   { name: 'East Bank Demerara', south: 6.5, west: -58.28, north: 6.79, east: -58.12 },
   { name: 'East Coast Demerara', south: 6.75, west: -58.11, north: 6.87, east: -57.88 },
   { name: 'West Bank and West Coast', south: 6.72, west: -58.42, north: 6.87, east: -58.14 },
@@ -142,15 +177,21 @@ function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }): n
 }
 
 /**
- * How far a street may be from a marker and still belong to it.
+ * A wrong ward is worse than no ward.
  *
- * Georgetown's wards are a few hundred metres across; the villages along
- * the coast are strung out over a kilometre or two. Beyond three the
- * nearest marker is not where the street is, it is merely the closest the
- * map comes — and a wrong ward is worse than none, because the shop would
- * price a trip from it.
+ * No ward means the shop asks, which costs one tap. A wrong one prices the
+ * trip from the wrong place and sends a car across town, and nobody finds
+ * out until the chauffeur is standing somewhere else.
  */
-const NEAR_ENOUGH_KM = 3;
+/**
+ * The city's own wards, read from the tariff rather than listed here: the
+ * corridor is already the shop's own answer to "is this Georgetown?".
+ */
+const inGeorgetown = new Set(
+  tariff()
+    .filter((z) => /georgetown/i.test(z.corridor))
+    .map((z) => z.place),
+);
 
 const found = new Map<string, { street: string; place: string; km: number }>();
 let streetsSeen = 0;
@@ -173,14 +214,18 @@ for (const tile of TILES) {
 
   // Only places the TARIFF carries. A street in a village the shop does not
   // price is a street it cannot use.
-  const markers: { place: string; at: { lat: number; lon: number } }[] = [];
+  const markers: { place: string; at: { lat: number; lon: number }; reach: number }[] = [];
   for (const p of places) {
     const name = p.tags?.name?.trim();
     const at = where(p);
     if (!name || !at) continue;
     const known = findZone(name);
     if (known.kind !== 'found') continue;
-    markers.push({ place: known.match.place, at });
+    markers.push({
+      place: known.match.place,
+      at,
+      reach: inGeorgetown.has(known.match.place) ? GEORGETOWN_KM : COAST_KM,
+    });
   }
   placesSeen += markers.length;
 
@@ -193,12 +238,16 @@ for (const tile of TILES) {
     const key = streetKey(name);
     if (!key) continue;
 
+    // The nearest marker that is within ITS OWN reach. A ward marker 900
+    // metres away is not this street's ward however close it is compared
+    // with the others.
     let best: { place: string; km: number } | null = null;
     for (const m of markers) {
       const d = km(at, m.at);
+      if (d > m.reach) continue;
       if (!best || d < best.km) best = { place: m.place, km: d };
     }
-    if (!best || best.km > NEAR_ENOUGH_KM) continue;
+    if (!best) continue;
 
     // The same street may appear as a dozen ways. Keep the nearest reading.
     const id = `${key}|${best.place}`;

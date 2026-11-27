@@ -140,9 +140,24 @@ writes its own. The run that produced the committed file:
 
 ```
 4400 named ways on the map, 266 markers the tariff carries.
-1293 street-and-place pairs written to data/streets.csv
-222 street name(s) occur in more than one place — the shop will ask.
+1275 street-and-place pairs written to data/streets.csv
+210 street name(s) occur in more than one place — the shop will ask.
 ```
+
+**How near is near enough depends on the place, not the tile.** Georgetown's
+ward markers sit **370 metres apart** — measured, not guessed — so a street
+more than **600 metres** from one is in a different ward. The coast is the
+opposite: villages are strung along a single road with their markers a
+kilometre or two apart, so **3 km** there keeps streets that really are in
+the village.
+
+That radius was a property of the tile at first, and the tiles overlap —
+Georgetown was asked at 600 metres and then asked again as part of the East
+Bank, which reaches into the city at three. Ruimveldt kept every street it
+had, up to 1.08 km away, and the tightening did nothing. A radius that
+depends on which rectangle a street happened to be fetched in is not a rule
+about anything. It belongs to the marker, and now no Georgetown street sits
+more than **0.59 km** from its ward.
 
 The shop reads it at boot. **Map rows go in at a count of zero**, which is
 the whole point: a street somebody actually delivered to has a count, and a

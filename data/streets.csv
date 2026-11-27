@@ -84,7 +84,6 @@ agriculture road,Triumph,0.22
 agriculture road,Mon Repos,0.27
 agriculture road,Beterverwagting,0.79
 airport road,Timehri,1.68
-airstrip access road,Cummings Lodge,1.27
 airstrip access road,Industry,1.55
 airstrip access road,Goedverwagting,1.60
 airstrip road,Bachelor's Adventure,1.72
@@ -120,7 +119,7 @@ aubrey barker road,South Ruimveldt Gardens,0.20
 aubrey barker road,Ruimveldt,0.22
 aubrey barker road,North Ruimveldt,0.25
 aubrey barker road,Tucville,0.25
-aubrey barker road,East La Penitence,1.38
+aubrey barker road,Houston,2.61
 austin place,Stabroek,0.08
 austin street,Campbellville,0.41
 austin street,Kitty,0.45
@@ -129,7 +128,7 @@ avenue b,Great Diamond,0.34
 avenue of the republic,Lacytown,0.19
 avenue of the republic,Werk-en-Rust,0.31
 avocado place,Ruimveldt,0.23
-avocado place,South Ruimveldt Gardens,0.63
+avocado place,Houston,2.60
 back street,Bel Air,0.12
 back street,Eccles,0.14
 back street,Better Hope,0.23
@@ -138,12 +137,10 @@ back street,Windsor Forest,0.76
 back street,Success,1.22
 back street squatting area,Schoonord,0.33
 backdam road,Den Amstel,2.02
-banks avenue,Meadow Bank,0.65
-banks avenue,Ruimveldt,0.67
-baramita street,Tucville,0.69
-baramita street,Ruimveldt,0.87
+banks avenue,Houston,0.66
+baramita street,Houston,2.97
 barbershop street,Lamaha Gardens,0.58
-barbershop street,Meadow Brook Gardens,0.71
+barbershop street,Plaisance,2.69
 barclay street,Goed Fortuin,0.36
 barima avenue,Bel Air Park,0.14
 barr street,Albouystown,0.05
@@ -161,7 +158,6 @@ berbice avenue,Houston,0.79
 berbice street,Lamaha Springs,0.18
 best road,Vreed-en-Hoop,0.15
 best road,Crane,0.25
-bievlsofia road,Festival City,0.61
 billamby place,North Ruimveldt,0.35
 bird place,North Ruimveldt,0.53
 bishop street,Stabroek,0.41
@@ -218,7 +214,7 @@ caneview avenue,South Ruimveldt Gardens,0.14
 caneview avenue,South Ruimveldt Park,0.23
 caneview avenue,Tucville,0.58
 caneview avenue,North Ruimveldt,0.59
-caneview avenue,Ruimveldt,0.99
+caneview avenue,Agricola,2.94
 canje street,Lamaha Gardens,0.39
 canjie pheasant lane,South Ruimveldt Park,0.15
 canterbury walk,Beterverwagting,0.10
@@ -317,7 +313,6 @@ curtis street,East La Penitence,0.20
 cuthbert street,Goed Fortuin,0.31
 cuyuni street,Meadow Brook Gardens,0.19
 cuyuni street,Lamaha Springs,0.29
-cuyuni street,Cummings Lodge,0.77
 d'andrade street,Newtown,0.03
 da silva street,Newtown,0.13
 da silva street,Nabaclis,0.70
@@ -342,12 +337,12 @@ delph avenue,Bel Air Park,0.42
 delph avenue,Campbellville,0.42
 delph street,Campbellville,0.33
 demerara street,Lamaha Springs,0.41
-demico avenue,Ruimveldt,0.80
 demico avenue,Houston,0.87
 dennis street,Cummings Lodge,0.17
 dennis street,Campbellville,0.19
 dennis street,Lamaha Gardens,0.30
 dennis street,Newtown,0.55
+dennis street,Plaisance,1.08
 deobarani street,Prashad Nagar,0.09
 doctor dam,La Grange,0.38
 dorris street,East La Penitence,0.34
@@ -409,7 +404,6 @@ eighth street,Enterprise,1.26
 eldorado avenue,South Ruimveldt Gardens,0.13
 eleazar street,Meadow Brook Gardens,0.50
 eleventh street,Hope,0.77
-eleventh street,Cummings Lodge,0.88
 eleventh street,La Grange,0.90
 eleventh street,Industry,0.94
 ellis road,Sophia,0.47
@@ -419,8 +413,7 @@ english road,Sophia,0.45
 enid vangendren street,Den Amstel,0.41
 eping avenue,Bel Air Park,0.07
 eping avenue,Queenstown,0.31
-esquibo avenue,Ruimveldt,0.72
-esquibo avenue,Meadow Bank,0.78
+esquibo avenue,Houston,0.82
 essesquibo street,Lamaha Springs,0.08
 essesquibo street,Festival City,0.46
 estate road,Stewartville,1.40
@@ -517,7 +510,7 @@ fourth street,Enterprise,0.46
 fourth street,Paradise,0.80
 fourth street,La Grange,0.83
 fourth street,Garden of Eden,1.68
-francois street,Lamaha Gardens,0.64
+francois street,Plaisance,2.56
 freeman street,East La Penitence,0.10
 friendship road,Buxton,0.36
 friendship road,Vigilance,0.63
@@ -549,8 +542,7 @@ graham street,Better Hope,0.40
 grant road,Paradise,0.78
 grant sand road,Soesdyke,0.52
 grays avenue,Mocha,0.14
-greenheart street,Ruimveldt,0.61
-greenheart street,South Ruimveldt Gardens,0.70
+greenheart street,Houston,2.67
 grovesnor avenue,Nandy Park,0.04
 guitar street,Schoonord,0.85
 hadfield street,Georgetown,0.07
@@ -558,6 +550,7 @@ hadfield street,Wortmanville,0.14
 hadfield street,Stabroek,0.16
 hadfield street,Werk-en-Rust,0.23
 hadfield street,Meadow Brook Gardens,0.58
+hadfield street,Plaisance,2.72
 haley street,Wortmanville,0.25
 hanuman street,Wales,0.71
 hardina street,Wortmanville,0.13
@@ -578,27 +571,27 @@ henry street,Werk-en-Rust,0.21
 heroes highway,Mocha Arcadia,0.48
 heroes highway,Ruimveldt,0.54
 heroes highway,Mocha,0.59
-heroes highway,South Ruimveldt Gardens,0.62
 heroes highway,Great Diamond,1.31
 heroes highway,Eccles,1.71
+heroes highway,Agricola,2.14
+heroes highway,Houston,2.54
 hibiscus avenue,Agricola,0.31
 hibiscus drive,Bachelor's Adventure,0.74
 hibiscus place,North Ruimveldt,0.57
 hibuscus drive,Ruimveldt,0.04
 hibuscus place,Ruimveldt,0.13
 high palm street,Tucville,0.55
-high palm street,Ruimveldt,1.04
 high street,Kingston,0.14
 high street,Werk-en-Rust,0.16
 high street,Charlestown,0.26
 hill street,Albouystown,0.15
 hinck street,Lacytown,0.28
 hinds street,Republic Park,0.04
-holder's street,Cummings Lodge,0.99
+holder's street,Plaisance,1.15
 holmes street,Cummingsburg,0.24
 home place,North Ruimveldt,0.55
 homestretch avenue,Georgetown,0.13
-homestretch avenue,Meadow Brook Gardens,0.77
+homestretch avenue,Plaisance,2.70
 howes street,Albouystown,0.17
 humming bird street,Tucville,0.31
 hunter street,Albouystown,0.12
@@ -621,14 +614,12 @@ ixora avenue,Republic Park,0.40
 jacaranda avenue,Bel Air Park,0.43
 jackson street,Tucville,0.37
 jackson street,Guyhoc Park,0.41
-jackson street,East La Penitence,0.90
 jagan street,Paradise,1.12
 jagan street,Bachelor's Adventure,1.26
 james street,Albouystown,0.07
 james street,La Penitence,0.23
 james street,East La Penitence,0.25
 jamoon drive,Meadow Brook Gardens,0.18
-jamoon drive,Cummings Lodge,0.63
 jardim street,Triumph,0.57
 jasmaine lane,South Ruimveldt Gardens,0.18
 jasmine avenue,Republic Park,0.31
@@ -653,7 +644,7 @@ kamarang road,Bel Air Park,0.12
 kamarang street,Lamaha Springs,0.17
 kamoa street,Lamaha Gardens,0.38
 kanuku street,Prashad Nagar,0.42
-keitsha street,Cummings Lodge,0.70
+keitsha street,Plaisance,1.51
 kelman drive,Tucville,0.12
 kent dam,Parika,0.50
 kent dam,Hydronie,0.78
@@ -667,11 +658,10 @@ king edward street,Albouystown,0.37
 king street,Lacytown,0.08
 king street,Republic Park,0.12
 king street,Goed Fortuin,0.27
-king street,Sophia,0.98
+king street,Plaisance,1.96
 kirkpatrick street,Lacytown,0.33
 kiskadee drive,East La Penitence,0.20
 kiskadee drive,Tucville,0.54
-kiskadee drive,Ruimveldt,0.94
 lachme street,Better Hope,0.12
 lahama park street,Guyhoc Park,0.43
 laing avenue,East La Penitence,0.12
@@ -730,8 +720,8 @@ mandela avenue,East La Penitence,0.27
 mandela avenue,South Ruimveldt Gardens,0.29
 mandela avenue,Meadow Brook Gardens,0.34
 mandela avenue,Bel Air Park,0.55
-mandela avenue,Cummings Lodge,0.60
-mandela avenue,Georgetown,0.78
+mandela avenue,Plaisance,2.66
+mandela avenue,Houston,2.76
 manget place,Werk-en-Rust,0.32
 mango lane,Ruimveldt,0.08
 mango lane,South Ruimveldt Gardens,0.50
@@ -739,8 +729,7 @@ mangoose lane,North Ruimveldt,0.13
 mansell avenue,Republic Park,0.04
 maple street,Success,0.64
 maraburea street,Meadow Brook Gardens,0.20
-maraburea street,East La Penitence,0.70
-marcy wing road (farmer's field),Sophia,0.63
+marcy wing road (farmer's field),Plaisance,2.61
 marigold avenue,Eccles,0.37
 marigold street,Ruimveldt,0.34
 marigold street,Bachelor's Adventure,0.96
@@ -782,7 +771,7 @@ middleton street,Newtown,0.35
 middleton street,Kitty,0.42
 middleton street,Campbellville,0.51
 middlewalk road,Buxton,0.46
-mitchell street,Sophia,0.95
+mitchell street,Plaisance,1.23
 mittleholzer street,Festival City,0.27
 moffatt drive,Buxton,0.58
 moffatt drive,Vigilance,0.62
@@ -823,7 +812,6 @@ nutmeg street,Tucville,0.27
 ocean view drive,Wales,0.78
 ogle to eccles road,Eccles,1.84
 ogle to eccles road,Hague,2.41
-ogle to eccles road,South Ruimveldt Park,2.66
 old road,Good Hope,0.12
 old road,Farm,0.20
 old road,Hydronie,0.22
@@ -870,7 +858,6 @@ petticome street,Hope,0.37
 phulwarie street,Better Hope,0.09
 pierai street,Guyhoc Park,0.45
 pierai street,Meadow Brook Gardens,0.46
-pierai street,East La Penitence,0.63
 pigeon place,South Ruimveldt Park,0.10
 pike street,Kitty,0.06
 pike street,Prashad Nagar,0.24
@@ -1063,7 +1050,6 @@ shribasant street,Prashad Nagar,0.11
 side street,Goed Fortuin,0.28
 sideline dam,Beterverwagting,0.23
 silverballi road,Meadow Brook Gardens,0.25
-silverballi road,East La Penitence,0.69
 simpson street,Beterverwagting,0.23
 sixteenth street,La Grange,0.97
 sixteenth street,Hope,0.97
@@ -1133,7 +1119,6 @@ tank street,Success,0.57
 temple street,Goed Fortuin,0.25
 temple street,Crane,0.46
 tenth street,Hope,0.76
-tenth street,Cummings Lodge,0.84
 tenth street,Industry,0.87
 tenth street,La Grange,0.95
 third avenue,Subryanville,0.08
@@ -1172,19 +1157,16 @@ thomas street,Kitty,0.14
 thomas street,Alberttown,0.25
 thomas street path,Alberttown,0.26
 thorne street,Guyhoc Park,0.18
-thorne's drive,Meadow Brook Gardens,0.66
-thorne's drive,Cummings Lodge,0.69
+thorne's drive,Plaisance,2.91
 times square street,Great Diamond,1.01
 tinning cup street,Prashad Nagar,0.52
 titus street,Agricola,0.25
 toucan drive,Tucville,0.53
-toucan drive,Ruimveldt,1.08
 toucan street,East La Penitence,0.07
 train line road,Haslington,0.37
 train line road,Enmore,0.54
 trench road,East La Penitence,0.27
-tukeit street,Ruimveldt,0.74
-tukeit street,Tucville,0.83
+tukeit street,Houston,2.82
 tulsie street,Lamaha Springs,0.35
 twelfth street,Hope,0.80
 twelfth street,La Grange,1.01
