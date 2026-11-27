@@ -100,6 +100,38 @@ usual address in Diamond?" is a shop that knows them; reading back their
 address, their last four orders and their number is a shop that has been
 watching them.
 
+### Pleasantries are not small talk
+
+Somebody who writes *"good morning"* or *"how you deh?"* has opened the way
+people here open. A shop that answers with a delivery fee has snubbed them,
+and they will not say so — they will simply be a little cooler for the rest
+of the conversation, and remember it longer than they remember the fee.
+
+```
+Shawn ▸ Morning!
+      ◂ Morning, Shawn! All well here, thanks. What can I get you today?
+
+Shawn ▸ how you deh?
+      ◂ I deh good, thanks for asking 😊 And you? What are we getting today?
+```
+
+**"How are you?" is a question**, and gets an answer before the business.
+Thanks, blessings and goodbyes are answered too — *"Any time"*, not silence
+and not straight back to the order. The warmth is **mirrored, never
+outrun**: somebody brisk gets brisk back.
+
+**And the guard had to be taught the difference.** The shop strips a
+greeting from its own reply once a conversation is under way — *"good
+evening"* is not a thing you say to somebody you have been talking to for
+five minutes. But it was blind to **who spoke first**, so a customer who
+opened with "morning" had the greeting back cut off and was answered with a
+fee. It now keeps a greeting that is *answering* one, in any of the four
+languages, and still cuts one nobody asked for.
+
+| Kept | Still cut |
+|---|---|
+| morning · night · how you deh? · wha happenin · hope you well · long time · 你好 | where is my order · 2 bags of rice · how much is delivery |
+
 ### How people here say things
 
 The agent reads whatever language or mix somebody writes in. This is the

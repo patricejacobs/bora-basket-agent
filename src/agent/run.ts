@@ -344,6 +344,37 @@ const HELLO =
 // stop.
 const GREETING = new RegExp('^\\s*' + HELLO + '[^.!?。！\\n—–]{0,40}[.!?。！—–]+\\s*', 'iu');
 
+/**
+ * Did the CUSTOMER open with a greeting or a pleasantry?
+ *
+ * The guard below exists to stop the shop greeting somebody six taps into a
+ * booking — "good evening" is not a thing you say to a person you have been
+ * talking to for five minutes. But it was blind to who spoke first, and
+ * here a greeting is not small talk to be got past. Somebody who writes
+ * "good morning" or "how you deh?" and is answered with a delivery fee has
+ * been snubbed by the shop, and they will feel it long after they have
+ * forgotten the fee.
+ *
+ * So when they greet, the greeting back survives.
+ */
+const PLEASANTRY = new RegExp(
+  '^[\\s*_]*(?:' +
+    HELLO +
+    // Bare "Morning" is how half the coast opens a chat, with no "good" in
+    // front of it and often nothing after.
+    '|morning|afternoon|evening|night' +
+    '|how\\s+(?:are\\s+you|you\\s+(?:deh|doing|going|been))' +
+    '|wha(?:t)?s?\\s*(?:happenin[g]?|going\\s+on)' +
+    '|hope\\s+(?:you|all)\\s+(?:are\\s+)?(?:well|good|keeping\\s+well)' +
+    '|long\\s+time|greetings|blessings' +
+    ')',
+  'iu',
+);
+
+export function greetedFirst(text: string): boolean {
+  return PLEASANTRY.test(String(text ?? '').trim());
+}
+
 export function sanitizeGreeting(text: string, underway: boolean): string {
   if (!underway || !text) return text;
   const trimmed = text.replace(GREETING, '').trimStart();

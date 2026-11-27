@@ -3,6 +3,7 @@ import {
   friendlyErrorMessage,
   sanitizeGreeting,
   calmShouting,
+  greetedFirst,
   SESSION_TTL_MS as CONVERSATION_TTL_MS,
 } from './agent/run.ts';
 import { detectLanguage, t } from './language.ts';
@@ -1347,7 +1348,10 @@ ${text}` : note;
       out.kind === 'text'
         ? {
             ...out,
-            text: calmShouting(sanitizeGreeting(out.text, underway), [known.name ?? '']),
+            text: calmShouting(
+              sanitizeGreeting(out.text, underway && !greetedFirst(text)),
+              [known.name ?? ''],
+            ),
           }
         : out,
     );

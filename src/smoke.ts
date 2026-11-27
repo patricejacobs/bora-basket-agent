@@ -14862,6 +14862,39 @@ section('Two names, and which one depends on the job');
     /delivery associate/i.test(say('assoc_on_way' as never, 'en', { order: 'ORD-7' } as never)) ||
       true);
 }
+section('A greeting is answered, not swallowed');
+{
+  const { greetedFirst: greeted, sanitizeGreeting: trim } = await import('./agent/run.ts');
+
+  // The guard exists to stop the shop saying "good evening" six taps into a
+  // booking. It was blind to who spoke first — so a customer who opened
+  // with "morning" had the shop's greeting back cut off, and was answered
+  // with a delivery fee. Here a greeting is not small talk to be got past.
+  for (const said of [
+    'good morning', 'Morning!', 'morning', 'night', 'hello', 'hi',
+    'how you deh?', 'wha happenin', 'how are you', 'hope you well',
+    'long time', 'buenos días', 'bom dia', '你好',
+  ]) {
+    check(`"${said}" is a greeting`, greeted(said), said);
+  }
+
+  // And business is still business: the guard must keep working.
+  for (const said of [
+    'where is my order', '2 bags of rice', 'how much is delivery to Diamond',
+    'good rice please', '7 delivered', 'cancel my order',
+  ]) {
+    check(`"${said}" is not`, !greeted(said), said);
+  }
+
+  const reply = 'Good evening, Shawn. Your rice is on the way.';
+  check('mid-conversation, an unprompted greeting is still cut',
+    trim(reply, true) === 'Your rice is on the way.', trim(reply, true));
+  check('but a greeting that answers one survives',
+    trim(reply, true && !greeted('good evening')) === reply,
+    trim(reply, true && !greeted('good evening')));
+  check('and the first message of all keeps its greeting',
+    trim(reply, false) === reply, trim(reply, false));
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
