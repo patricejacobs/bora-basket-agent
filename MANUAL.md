@@ -100,6 +100,38 @@ usual address in Diamond?" is a shop that knows them; reading back their
 address, their last four orders and their number is a shop that has been
 watching them.
 
+### Why a conversation goes cold
+
+Silence is the worst answer the shop can give. It reads as a business that
+has stopped listening, and the customer's next move is to stop writing. Four
+things could produce it, and three are now closed.
+
+**A message the shop wrote and threw away.** `assembleReply` forwarded
+images, buttons, lists and pin requests from a tool's queue and dropped
+plain text — so the one tool that queued a sentence had it discarded while
+the model was told it had already gone out. Fixed; queued text is sent
+first.
+
+**A tap that produced nothing.** Two taps could return an empty reply.
+Beyond fixing those two, **the entry point now refuses to return nothing at
+all**: an empty turn is logged loudly, with what the customer sent, and
+answered with *"Sorry, I lost my train of thought there"* — in their own
+language, where before that line was English for everybody.
+
+**A turn that hung.** The model client had no timeout, so the SDK's default
+of **ten minutes** applied. Worse, conversations are serialised per phone —
+two fast messages must not race on one cart — so a single stuck call held
+the whole conversation, and then delivered a burst of late replies when it
+finally returned. It now gives up after **90 seconds**, which is far longer
+than a normal turn and short enough to become an honest apology rather than
+a dead chat.
+
+**A deploy mid-sentence.** Render restarts on every push; the webhook has
+already answered Meta with a 200, so nothing is retried and whoever was
+mid-turn gets nothing. Nothing in the code can fix that one — it is the
+price of deploying while people are talking, and it argues for batching
+pushes rather than shipping twenty times in an afternoon.
+
 ### The receipt carries the year
 
 It used to read `🧾 *Receipt* — 24 Nov, 14:12`. Nobody decided to leave the

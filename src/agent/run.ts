@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { findZone } from '../zones.ts';
+import { t } from '../language.ts';
 import { config } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
@@ -9,7 +10,25 @@ import { buildConversationContext, buildTurnContext, CONTEXT_MARKER } from './co
 import { splitReply } from './pacing.ts';
 import type { OutboundMessage, IncomingImage } from '../channels/types.ts';
 
-const client = new Anthropic({ apiKey: config.anthropic.apiKey || undefined });
+/**
+ * The model, with a clock on it.
+ *
+ * The SDK waits ten minutes by default. A customer on WhatsApp has decided
+ * the shop is dead after about thirty seconds, and worse, every message
+ * they send while a turn is stuck queues BEHIND it — the conversation is
+ * serialised per phone so two fast messages cannot race on one cart. So a
+ * single slow call did not just delay one reply: it held the whole
+ * conversation, and then delivered a burst of late ones when it finally
+ * came back.
+ *
+ * Ninety seconds is far longer than a normal turn with tool calls in it,
+ * and short enough that a stuck one becomes an honest "we're having
+ * trouble" rather than a shop that went quiet.
+ */
+const client = new Anthropic({
+  apiKey: config.anthropic.apiKey || undefined,
+  timeout: 90_000,
+});
 
 /** Conversations older than this start fresh — a shopper returning next week is not mid-order. */
 /**
@@ -517,7 +536,9 @@ export function calmShouting(text: string, keep: string[] = []): string {
 }
 
 /** What the shop says when a turn produced nothing at all. */
-const LOST_THREAD = 'Sorry, I lost my train of thought there. Could you say that again?';
+// The same line the conversation's own guard uses, and now in four
+// languages rather than English for everybody.
+const LOST_THREAD = t('lost_thread', 'en');
 
 export function assembleReply(finalText: string, queued: OutboundMessage[]): OutboundMessage[] {
   const outbound: OutboundMessage[] = [];

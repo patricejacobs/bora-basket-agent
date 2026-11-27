@@ -14909,6 +14909,45 @@ section('A greeting is answered, not swallowed');
   check('and the first message of all keeps its greeting',
     trim(reply, false) === reply, trim(reply, false));
 }
+section('The shop never goes quiet');
+{
+  const { handleIncoming: anySay } = await import('./conversation.ts');
+  const { LANGUAGES: everyTongue, t: say2 } = await import('./language.ts');
+
+  // Silence is the worst answer the shop can give: it reads as a business
+  // that has stopped listening, and the customer's next move is to stop
+  // writing. Two taps could already produce it — a tap on "I am at the pin"
+  // and one on "Yes, send it" — and this handler is long enough that a
+  // third would be added one day by somebody who did not think about it.
+  const quiet = '5926100921';
+  repo.saveCustomer(quiet, { name: 'Quiet Tester', contactPhone: quiet });
+  repo.chooseLanguage(quiet, 'en');
+  repo.logMessage(quiet, 'in', 'smoke', 'hello');
+
+  // Every tap the shop can receive, including ones that arrive at the wrong
+  // moment — which is how a dead reply happens in the first place.
+  const { PICKUP_HERE: ph, PICKUP_AGAIN: pa } = await import('./taxi-pickup.ts');
+  const { WAIT_GO: wg, WAIT_NO: wn } = await import('./waiting-list.ts');
+  const { PIN_KEEP: pk, PIN_AGAIN: pg, ADDR_PIN: ap, ADDR_SKIP: as2 } =
+    await import('./delivery-checkout.ts');
+
+  for (const tapped of [ph, pa, wg, wn, pk, pg, ap, as2]) {
+    repo.setService(quiet, null);
+    repo.clearParcelDraft(quiet);
+    repo.clearTaxiPicks(quiet);
+    const back = await anySay({ phone: quiet, text: tapped, channel: 'smoke' } as never);
+    check(`"${tapped}" out of the blue still gets an answer`, back.length > 0, tapped);
+  }
+
+  // And the line it falls back to exists in every language, rather than
+  // English for everybody.
+  for (const tongue of everyTongue) {
+    const line = say2('lost_thread' as never, tongue as never);
+    check(`the fallback is written in ${tongue}`,
+      typeof line === 'string' && line.length > 10 && !line.startsWith('lost_thread'),
+      line);
+  }
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

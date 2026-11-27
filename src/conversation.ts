@@ -213,7 +213,30 @@ const inFlight = new Map<string, Promise<OutboundMessage[]>>();
  */
 export function handleIncoming(msg: IncomingMessage): Promise<OutboundMessage[]> {
   const previous = inFlight.get(msg.phone) ?? Promise.resolve<OutboundMessage[]>([]);
-  const next = previous.catch(() => []).then(() => processMessage(msg));
+  const next = previous
+    .catch(() => [])
+    .then(() => processMessage(msg))
+    .then((out) => {
+      // A customer is NEVER left with nothing.
+      //
+      // Silence is the worst answer the shop can give: it looks like a
+      // business that has stopped reading, and the customer's next move is
+      // to stop writing. Two taps could already produce it, and the
+      // handler is long enough that a third will be added one day by
+      // somebody who did not think about this case.
+      //
+      // Logged loudly as well as answered, with what they sent, because a
+      // turn that produced nothing is a fault to be found rather than a
+      // thing to be papered over.
+      if (out.length > 0) return out;
+      console.error(
+        `[conversation] ${msg.phone} got NO reply to ` +
+          `${msg.location ? '[pin]' : msg.image ? '[photo]' : JSON.stringify(msg.text)}`,
+      );
+      const sorry: OutboundMessage = { kind: 'text', text: t('lost_thread', languageFor(msg.phone)) };
+      repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(sorry));
+      return [sorry];
+    });
   inFlight.set(msg.phone, next);
   void next.finally(() => {
     if (inFlight.get(msg.phone) === next) inFlight.delete(msg.phone);
@@ -570,7 +593,10 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       for (const out of ride.outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
       return ride.outbound;
     }
-    return shopAnswered(msg, [], 'I am at the pin');
+    // Never an empty reply. book_taxi has already queued its own words on
+    // every road that works; this is the one where it did not, and silence
+    // is the worst of the possible answers to a tap.
+    return shopAnswered(msg, [{ kind: 'text', text: t('wait_gone', lang) }], 'I am at the pin');
   }
 
   /* -------------------------------------- answering "there is a car now" */
@@ -635,7 +661,11 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
         // the draft and the words; it can ask for the one thing.
         console.warn(`[waiting] ${msg.phone} could not be booked straight away:`, answer.error);
       } else {
-        return shopAnswered(msg, [], 'Yes, send it');
+        // Booked, and book_taxi has already sent the confirmation. Nothing
+        // further to add — but something must go back, because a tap that
+        // produces no message at all reads as a shop that has stopped
+        // listening.
+        return shopAnswered(msg, ride.outbound, 'Yes, send it');
       }
     } else {
       // A basket or a parcel: the price gate, exactly as they left it.
