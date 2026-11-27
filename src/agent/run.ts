@@ -629,8 +629,35 @@ export function assembleReply(finalText: string, queued: OutboundMessage[]): Out
   // thing again goes — including the "I lost my train of thought" fallback,
   // which is an apology for a turn that did have something in it.
   const body = (textMessages[textMessages.length - 1] as { text: string }).text;
+
+  /**
+   * A line that only says the shop's own message again, in other words.
+   *
+   * `restates` compares the text itself, so it catches a repeat and misses a
+   * PARAPHRASE. Reported from the live shop: the shop sent "I am looking for
+   * a car now and will tell you the moment one is on the way", and the model
+   * added "That's with the chauffeurs now — I'll come back to you here as
+   * soon as someone's on the road." Two sentences, one fact, and the second
+   * one is the shop talking to itself.
+   *
+   * So when the shop has already said something, the model's line has to
+   * EARN its place: it stays if it carries a figure, a job number or a time
+   * the shop's own words do not, and goes otherwise. That is a blunt test
+   * and deliberately so — the cost of dropping a pleasant sentence is
+   * nothing, and the cost of keeping a redundant one is a shop that sounds
+   * like it is padding.
+   */
+  const addsAFact = (prose: string): boolean => {
+    const extra = (prose.match(/\d[\d:,.]*/g) ?? []).filter((n) => !body.includes(n));
+    return extra.length > 0;
+  };
+
   const kept = outbound.filter(
-    (m) => !(m.kind === 'text' && (restates(body, m.text) || m.text === LOST_THREAD)),
+    (m) =>
+      !(
+        m.kind === 'text' &&
+        (restates(body, m.text) || m.text === LOST_THREAD || !addsAFact(m.text))
+      ),
   );
   return [...textMessages, ...kept];
 }

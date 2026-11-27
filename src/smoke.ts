@@ -15074,6 +15074,75 @@ section('The gate reads back the door for THIS order');
   repo.setService(gated, null);
   repo.setCheckoutStep(gated, '');
 }
+section('The shop says it once');
+{
+  const { assembleReply: assemble } = await import('./agent/run.ts');
+  const { t: say3 } = await import('./language.ts');
+
+  const nl2 = String.fromCharCode(10);
+  const confirmation = say3('taxi_booked_unpriced' as never, 'en', {
+    order: 'TXI-00033', from: 'Lot 20 Garnet Street', to: 'Parika', nl: nl2,
+  } as never);
+
+  // Reported from the live shop. The shop said "I am looking for a car now
+  // and will tell you the moment one is on the way", and the model added
+  // "That's with the chauffeurs now — I'll come back to you here as soon as
+  // someone's on the road." Two sentences, one fact, and the second is the
+  // shop talking to itself.
+  //
+  // `restates` compares the words, so it catches a repeat and misses a
+  // paraphrase. Once the shop has spoken, the model's line has to EARN its
+  // place by carrying a figure, a number or a time the shop's own words do
+  // not have.
+  const glossed = assemble(
+    "That's with the chauffeurs now — I'll come back to you here as soon as someone's on the road.",
+    [{ kind: 'text', text: confirmation }],
+  );
+  check('a paraphrase of the shop\'s own message is dropped',
+    glossed.length === 1 && (glossed[0] as { text: string }).text === confirmation,
+    JSON.stringify(glossed.map((m) => (m as { text?: string }).text?.slice(0, 40))));
+
+  const useful = assemble(
+    'Your chauffeur will call you on 5926497570 when he is close.',
+    [{ kind: 'text', text: confirmation }],
+  );
+  check('but a line with something new in it is kept',
+    useful.length === 2 && /5926497570/.test((useful[1] as { text: string }).text),
+    String(useful.length));
+
+  // And with nothing queued, the model's prose is the message as before.
+  const alone = assemble('Two bags of rice, added.', []);
+  check('with nothing queued, the model still speaks',
+    alone.length === 1 && /Two bags/.test((alone[0] as { text: string }).text),
+    JSON.stringify(alone));
+}
+section('The area is what prices the trip');
+{
+  const { t: say4 } = await import('./language.ts');
+  const { findZone: place4, fareBetween: fare4 } = await import('./zones.ts');
+
+  // Reported from the live shop: "Lot 20 Garnet Street to Parika" booked
+  // with "the fare is agreed with the chauffeur". The tariff is 185 village
+  // names and Garnet Street is not one — but "Lot 20 Garnet Street, Kitty"
+  // IS Kitty, and Kitty to Parika is priced. The fare was lost for want of
+  // one word.
+  check('a street alone cannot be priced',
+    place4('Lot 20 Garnet Street').kind !== 'found', '');
+  check('the same street with its area can',
+    place4('Lot 20 Garnet Street, Kitty').kind === 'found', '');
+  check('and that trip has a fare', (fare4('Kitty', 'Parika')?.fee ?? 0) > 0,
+    String(fare4('Kitty', 'Parika')?.fee));
+
+  // So the ask has to ask for it. An earlier wording did; it was replaced
+  // with a landmark-only one, which is how the fare went missing.
+  const asked = say4('pickup_unplaced' as never, 'en');
+  check('the ask asks for the area, not only a landmark',
+    /which area/i.test(asked), asked.slice(0, 120));
+  check('and says why it matters',
+    /price/i.test(asked), asked.slice(-80));
+  check('while still asking for the landmark',
+    /opposite which place|which corner/i.test(asked), asked.slice(0, 160));
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

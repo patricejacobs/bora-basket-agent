@@ -100,6 +100,50 @@ usual address in Diamond?" is a shop that knows them; reading back their
 address, their last four orders and their number is a shop that has been
 watching them.
 
+### The shop says it once
+
+Reported from the live shop:
+
+```
+✅ Booked — trip *TXI-00033*.
+Lot 20 Garnet Street to Parika
+I am looking for a car now and will tell you the moment one is on the way.
+
+That's with the chauffeurs now — I'll come back to you here as soon as
+someone's on the road.
+```
+
+Two messages, one fact. The second is the shop talking to itself.
+
+The guard that was meant to stop this compares the **words**, so it catches a
+repeat and misses a **paraphrase**. Now, once the shop has said something of
+its own, the model's line has to earn its place: it stays if it carries a
+figure, a number or a time the shop's words do not, and goes otherwise.
+Blunt, deliberately — the cost of dropping a pleasant sentence is nothing,
+and the cost of keeping a redundant one is a shop that sounds like it is
+padding.
+
+### The area is what prices the trip
+
+The same booking read **"The fare is agreed with the chauffeur"**, and it
+should not have.
+
+The tariff is 185 village names. `Lot 20 Garnet Street` is not one of them —
+but **`Lot 20 Garnet Street, Kitty` is Kitty**, and Kitty to Parika is
+$5,000. The fare was lost for want of one word.
+
+The ask is why. An earlier version said *"or tell me the area (Diamond,
+Kitty, Timehri) and I will price it from there"*; when it was reworded to
+invite a landmark instead, the area went with it — and a passenger who
+answers a landmark-only question gives a landmark with no village in it.
+
+It now asks for both, in one line, and says why:
+
+> Tap below to send your exact pickup point, so the chauffeur comes straight
+> to you — or tell me where to look for you and which area it is in (Kitty,
+> Diamond, Parika): opposite which place, or how far from which corner, and
+> which way. **The area is what lets me price it.**
+
 ### The gate reads back the door for this order
 
 Reported from the live shop, on the price gate itself:
