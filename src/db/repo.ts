@@ -4078,6 +4078,16 @@ function healthRow(): SendHealth {
  * order is somebody's intention, and a delivered one is a fact that an
  * associate proved by arriving.
  */
+/**
+ * How many places a street name may mean before the shop stops offering a
+ * list and simply asks.
+ *
+ * Six, because the data has a clean gap there: 516 names mean one place,
+ * 127 mean two, 34 mean three, 13 mean four, 7 mean six — and then nothing
+ * until eight, where the corridor roads and the numbered streets begin.
+ */
+const TOO_MANY_PLACES = 6;
+
 export function rememberStreetArea(written: string, place: string, now = new Date()): void {
   const key = streetKey(written, place);
   const village = place.trim();
@@ -4100,12 +4110,34 @@ export function areasForStreet(written: string): { place: string; seen: number }
   if (!key) return [];
 
   // Delivered-to first, and among the map's own guesses the nearest one.
-  return db
+  const all = db
     .prepare(
       `SELECT place, seen FROM street_areas WHERE street = ?
         ORDER BY seen DESC, km ASC, last_at DESC`,
     )
     .all(key) as unknown as { place: string; seen: number }[];
+
+  // A name that means too many places means nothing.
+  //
+  // "Railway Embankment Road" is one road through 28 villages and "East
+  // Bank Road" through 24: saying you are on it is closer to saying you
+  // are on the coast. Three villages out of twenty-eight is a guess
+  // dressed as a question, and the customer has to tap past it to reach
+  // the real one. Below the line the index earns its keep — 516 of its 727
+  // names mean exactly one place.
+  //
+  // UNLESS somebody has delivered to one. A count is proof, and once this
+  // customer's First Street has been driven to in Campbellville, that is
+  // worth offering however many other First Streets exist.
+  // A name with few enough meanings is offered whole, proved ones first:
+  // one delivery to Regent Street in Bourda does not make Lacytown and
+  // Stabroek wrong, and a customer who means one of those should see it
+  // rather than tap past a confident guess.
+  if (all.length <= TOO_MANY_PLACES) return all;
+
+  // Too wide to offer. Only what has been proved by a delivery survives,
+  // and when nothing has, the shop asks plainly instead of guessing.
+  return all.filter((a) => a.seen > 0);
 }
 
 /**

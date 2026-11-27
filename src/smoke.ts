@@ -15337,6 +15337,52 @@ section('The map knows the streets the shop has not been to');
 
   fs.rmSync(mapCsv, { force: true });
 }
+section('A name that means too many places means nothing');
+{
+  // "Railway Embankment Road" is one road through 28 villages and "East
+  // Bank Road" through 24. Saying you are on it is closer to saying you
+  // are on the coast, and offering three villages out of twenty-eight is a
+  // guess dressed as a question. 516 of the index's 727 names mean exactly
+  // one place; it is the tail of 19 that has to be handled.
+  const wide = './data/streets-wide-smoke.csv';
+  const lines = ['street,place,km_from_marker'];
+  for (const p5 of [
+    'Kitty', 'Stabroek', 'Bourda', 'Lacytown', 'Alberttown', 'Campbellville',
+    'Queenstown', 'Kingston', 'Newtown',
+  ]) {
+    lines.push(`wide road,${p5},0.40`);
+  }
+  for (const p5 of ['Kitty', 'Bourda', 'Lacytown']) lines.push(`narrow road,${p5},0.30`);
+  fs.writeFileSync(wide, lines.join(String.fromCharCode(10)) + String.fromCharCode(10), 'utf8');
+  repo.loadStreetsFromMap(wide);
+
+  check('a street in three places is offered',
+    repo.areasForStreet('Narrow Road').length === 3,
+    JSON.stringify(repo.areasForStreet('Narrow Road')));
+  check('a street in nine is not offered at all',
+    repo.areasForStreet('Wide Road').length === 0,
+    JSON.stringify(repo.areasForStreet('Wide Road')));
+
+  // The rows are kept, not deleted: proof outranks the noise, so one
+  // delivery rescues even a name that means nine places.
+  repo.rememberStreetArea('Lot 9 Wide Road', 'Campbellville');
+  const rescued = repo.areasForStreet('Wide Road');
+  check('but one delivery to it is worth offering',
+    rescued.length === 1 && rescued[0]?.place === 'Campbellville',
+    JSON.stringify(rescued));
+  check('and the map rows are still there, below it',
+    (db.prepare(`SELECT COUNT(*) AS n FROM street_areas WHERE street = 'wide road'`).get() as { n: number }).n === 9,
+    '');
+
+  // Two deliveries to two different wards are both worth offering: that is
+  // a real ambiguity rather than a meaningless name.
+  repo.rememberStreetArea('Lot 2 Wide Road', 'Kitty');
+  check('two proved wards are both offered',
+    repo.areasForStreet('Wide Road').length === 2,
+    JSON.stringify(repo.areasForStreet('Wide Road')));
+
+  fs.rmSync(wide, { force: true });
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

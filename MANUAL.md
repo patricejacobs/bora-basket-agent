@@ -173,6 +173,42 @@ Garnet Street    Kitty(1)                       ← learned
 Church Street    Kitty(1), Goed Fortuin(0), Lacytown(0)
 ```
 
+**A name that means too many places means nothing.** The index is mostly
+sharp — 516 of its 727 names mean exactly one place, 127 mean two — but a
+tail of 19 does not:
+
+| | |
+|---|---|
+| `railway embankment road` | 28 villages |
+| `east bank road` | 24 |
+| `second street` · `first street` | 24 · 23 |
+| `west bank road` · `west demerara highway` | 18 · 12 |
+
+One road through twenty-eight villages tells the shop nothing — saying you
+are on the East Bank Road is close to saying you are on the coast — and
+offering three of them is a guess dressed as a question. **Above six places
+the shop offers nothing and asks plainly instead.** Below six it offers what
+it has, nearest marker first.
+
+The rows are kept rather than deleted, because **a delivery outranks the
+noise**: once somebody's First Street has actually been driven to in
+Campbellville, that one is worth offering however many other First Streets
+exist on the map.
+
+```
+East Bank Road      (asks plainly)
+First Street        (asks plainly)
+Regent Street       Lacytown, Stabroek, Bourda
+
+... after a delivery to each:
+First Street        Campbellville(1)
+Regent Street       Bourda(1), Lacytown, Stabroek
+```
+
+Note the difference on the last line: Regent Street means only three places,
+so proving Bourda does **not** hide the other two — a customer who means
+Lacytown should see it rather than tap past a confident guess.
+
 **What it will not do.** Coverage is uneven: Georgetown's main streets are
 well mapped, lanes and newer schemes are not — Garnet Street is not in OSM
 at all, which is exactly why the memory exists beside it. Street names
