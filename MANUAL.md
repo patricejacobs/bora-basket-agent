@@ -100,6 +100,46 @@ usual address in Diamond?" is a shop that knows them; reading back their
 address, their last four orders and their number is a shop that has been
 watching them.
 
+### The gate reads back the door for this order
+
+Reported from the live shop, on the price gate itself:
+
+```
+Delivery to Beterverwagting — $1,200
+*Total $8,100*, cash to the associate at your door.
+
+For *Shawn. Harry*, at 4 Diamond EBD (QWWM+VJF, Beterverwagting, Guyana).
+```
+
+Three things in one line, and only the price was right.
+
+The pin's **label** has been checked against the place since the Uitvlugt
+plus-code turned up under a Mocha price. The **address beside it** was
+printed whatever it said. And no street had been asked for, because a pin
+had arrived and **a pin IS the door** — which is exactly why the stale
+street must not then be printed as though it were the answer.
+
+It now reads:
+
+```
+For *Shawn. Harry*, at the spot you pinned in Beterverwagting.
+```
+
+**And a plus code is not an address.** `QWWM+VJF, Beterverwagting, Guyana`
+is what Google hands back for a spot with no street; printing it as the door
+tells somebody at a gate nothing they can use. The village goes on the card
+and the map link beside it carries the precision:
+
+```
+*Deliver to:* Shawn. Harry
+Beterverwagting
+Click the link below for the delivery address:
+https://www.google.com/maps?q=6.799510,-58.061670
+```
+
+A pin with a real label — "Stabroek Market" — is still used as written. A
+door that genuinely is in this village is still read back exactly as before.
+
 ### Home is not where every order goes
 
 A delivery set to **Beterverwagting** went out as *"Shawn, Lot 4 Diamond"* —

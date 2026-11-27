@@ -259,6 +259,7 @@ const STRINGS: Record<Language, Dictionary> = {
     // Printed in place of a pin, because silence here reads as "they have
     // my exact spot" to somebody who skipped it three messages ago.
     checkout_no_spot: 'No exact spot sent — your associate will ring when they are close.',
+    checkout_at_pin: 'the spot you pinned in {place}',
     checkout_failed: 'Something went wrong placing that, and nothing has been ordered. Let me take another look — one moment.',
     lost_thread: 'Sorry, I lost my train of thought there. Could you say that again?',
     checkout_the_shop: 'The shop',
@@ -496,6 +497,7 @@ const STRINGS: Record<Language, Dictionary> = {
     checkout_gate_parcel: '📦 {contents}{nl}Para *{to}* en {where}{nl}*Envío {fee}*, se cobra a usted en la recogida.{nl}{nl}¿Lo reservo?',
     checkout_gate: '{items}{nl}Envío a {place} — {fee}{nl}*Total {total}*, en efectivo al asociado en su puerta.{nl}{nl}A nombre de *{name}*, en {where}.{spot}{nl}{nl}¿Hago el pedido?',
     checkout_no_spot: 'No envió la ubicación exacta — su asociado le llamará cuando esté cerca.',
+    checkout_at_pin: 'el punto que marcó en {place}',
     checkout_failed: 'Algo falló al registrar el pedido y no se ha pedido nada. Déjeme revisarlo — un momento.',
     lost_thread: 'Perdón, me perdí ahí. ¿Puede repetirlo?',
     checkout_the_shop: 'La tienda',
@@ -719,6 +721,7 @@ const STRINGS: Record<Language, Dictionary> = {
     checkout_gate_parcel: '📦 {contents}{nl}Para *{to}* em {where}{nl}*Entrega {fee}*, cobrada a si no levantamento.{nl}{nl}Reservo?',
     checkout_gate: '{items}{nl}Entrega para {place} — {fee}{nl}*Total {total}*, em dinheiro ao associado à sua porta.{nl}{nl}Em nome de *{name}*, em {where}.{spot}{nl}{nl}Faço o pedido?',
     checkout_no_spot: 'Não enviou o local exato — o seu associado liga quando estiver perto.',
+    checkout_at_pin: 'o ponto que marcou em {place}',
     checkout_failed: 'Algo correu mal ao registar o pedido e nada foi pedido. Deixe-me ver outra vez — um momento.',
     lost_thread: 'Desculpe, perdi-me aqui. Pode repetir?',
     checkout_the_shop: 'A loja',
@@ -939,6 +942,7 @@ const STRINGS: Record<Language, Dictionary> = {
     checkout_gate_parcel: '📦 {contents}{nl}送给 *{to}*，地址 {where}{nl}*运费 {fee}*，取件时向您收取。{nl}{nl}要下单吗？',
     checkout_gate: '{items}{nl}配送至 {place} — {fee}{nl}*合计 {total}*，到门后以现金支付给配送员。{nl}{nl}收件人 *{name}*，地址 {where}。{spot}{nl}{nl}要下单吗？',
     checkout_no_spot: '未发送精确位置 — 配送员快到时会打电话给您。',
+    checkout_at_pin: '您在 {place} 标记的位置',
     checkout_failed: '下单时出了点问题，什么都没有订。让我再看一下 — 请稍候。',
     lost_thread: '抱歉，我这边没跟上。您可以再说一次吗？',
     checkout_the_shop: '本店',

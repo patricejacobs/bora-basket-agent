@@ -238,9 +238,25 @@ export function priceGate(phone: string, lang: Language): OutboundMessage {
   // a plus-code for a village he had not mentioned, and no way to tell
   // whether the shop had understood him.
   const pinIsHere = savedPinIsIn(phone, place);
-  const where = pinIsHere && customer.location?.label
-    ? `${customer.address || place} (${customer.location.label})`
-    : customer.address || place;
+  // And the same question of the STREET, which was never asked here.
+  //
+  // The pin's label has been checked against the place since the Uitvlugt
+  // plus-code turned up under a Mocha price. The address beside it was
+  // printed whatever it said — so somebody who chose Beterverwagting and
+  // pinned a spot there read "at 4 Diamond EBD (QWWM+VJF, Beterverwagting)"
+  // and was asked to confirm it.
+  //
+  // A pin IS the door, which is why no street is asked for once one
+  // arrives. That is right, and it is exactly why the stale street must not
+  // be printed as though it were the answer.
+  const doorIsHere = (customer.address ?? '').trim() !== '' && savedStreetIsIn(phone, place);
+  const label = pinIsHere ? (customer.location?.label ?? '') : '';
+
+  const where = doorIsHere
+    ? `${customer.address}${label ? ` (${label})` : ''}`
+    : pinIsHere
+      ? t('checkout_at_pin', lang, { place })
+      : place;
 
   return {
     kind: 'buttons',

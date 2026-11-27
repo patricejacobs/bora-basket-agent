@@ -1970,6 +1970,18 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const savedDoorFits = !goingTo || savedStreetIsIn(ctx.phone, goingTo);
       const deliveryAddress = givenAddress || (savedDoorFits ? customer.address || '' : '');
 
+      // With a pin and no usable street, the pin IS the address — written
+      // down as the label it came with, or the village, so the card never
+      // carries an empty line where a door should be.
+      // A plus code is not an address. "QWWM+VJF, Beterverwagting, Guyana"
+      // is what Google hands back for a spot with no street, and printing
+      // it as the door tells somebody at a gate nothing they can use. The
+      // village is the honest line; the map link beside it is the precision.
+      const pinLabel = (doorPin?.label ?? '').trim();
+      const plusCode = /^[A-Z0-9]{4,}\+[A-Z0-9]{2,}/i.test(pinLabel);
+      const addressForCard =
+        deliveryAddress || (doorPin ? (plusCode ? goingTo : pinLabel || goingTo) : '');
+
       if (!deliveryAddress && !doorPin) {
         return fail(
           `Cannot place the order — the address on file is their home and this one is going to ${goingTo}, so it is not where this delivery goes. Ask where in ${goingTo} it should go: a lot number and road, or a landmark. Pass it as delivery_address, or save it with save_customer_details, then try again.`,
@@ -2034,7 +2046,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // and did the only thing it could: it put one of them in the field
           // and the other in the free-text note, so the card carried two
           // delivery addresses that disagreed.
-          address: deliveryAddress,
+          address: addressForCard,
           contactPhone: customer.contactPhone ?? ctx.phone,
           deliveryNote,
           kitchenNote,

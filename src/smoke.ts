@@ -2470,7 +2470,11 @@ section('Location pins');
   const stored = repo.findOrder(placed.order_number);
   check('the order row keeps the pin', stored?.location?.latitude === 6.80714, JSON.stringify(stored?.location));
   check('the order keeps the label', stored?.location?.label === 'Stabroek Market');
-  check('an order needs no typed address', stored?.address === '', JSON.stringify(stored?.address));
+  // No typed address needed — and the pin's own label stands in for one, so
+  // the card never carries a blank line where a door should be. A plus code
+  // would not: "QWWM+VJF, Beterverwagting" tells nobody at a gate anything,
+  // and the village goes down instead.
+  check('an order needs no typed address', stored?.address === 'Stabroek Market', JSON.stringify(stored?.address));
 
   // People move. A new pin must not relocate an order already placed.
   repo.saveLocationPin(pinPhone, { latitude: 6.5, longitude: -58.3, label: 'Somewhere else' });
@@ -15013,6 +15017,62 @@ section('Home is not where every order goes');
     repo.findOrder(String(home.order_number))?.address ?? '');
 
   repo.setService(mover, null);
+}
+section('The gate reads back the door for THIS order');
+{
+  const { priceGate: gate } = await import('./delivery-checkout.ts');
+  const { coordsFor: at3 } = await import('./place-coords.ts');
+
+  // Reported from the live shop, on a gate that read:
+  //
+  //   Delivery to Beterverwagting — $1,200
+  //   For *Shawn. Harry*, at 4 Diamond EBD (QWWM+VJF, Beterverwagting).
+  //
+  // The pin's LABEL has been checked against the place since the Uitvlugt
+  // plus-code turned up under a Mocha price. The address beside it was
+  // printed whatever it said. No street was asked for because a pin had
+  // arrived — a pin IS the door — which is exactly why the stale street
+  // must not be printed as though it were the answer.
+  const gated = '5926100941';
+  const riceG = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  repo.saveCustomer(gated, { name: 'Shawn Harry', contactPhone: gated, address: '4 Diamond EBD' });
+  repo.chooseLanguage(gated, 'en');
+  repo.logMessage(gated, 'in', 'smoke', 'rice');
+  repo.setService(gated, 'grocery');
+  repo.setAddressZone(gated, 'Diamond');
+  repo.setCartQty(gated, riceG!.id, 1, '');
+
+  const bvAt = at3('Beterverwagting')!;
+  repo.setDeliveryZone(gated, 'Beterverwagting');
+  repo.saveLocationPin(gated, {
+    latitude: bvAt.latitude,
+    longitude: bvAt.longitude,
+    label: 'QWWM+VJF, Beterverwagting, Guyana',
+  });
+  repo.setPinZone(gated, 'Beterverwagting');
+  repo.setFeeAgreed(gated, repo.getCart(gated).deliveryFee);
+
+  const shown = (gate(gated, 'en') as { text: string }).text;
+  check('the gate does not read back a door in another village',
+    !/4 Diamond EBD/.test(shown), shown.split(String.fromCharCode(10)).find((l) => /For /.test(l)) ?? '');
+  check('it names the spot they pinned instead',
+    /spot you pinned in Beterverwagting/.test(shown),
+    shown.split(String.fromCharCode(10)).find((l) => /For /.test(l)) ?? '');
+  check('and the village it is priced for is still on it',
+    /Delivery to Beterverwagting/.test(shown), '');
+
+  // A door that IS in this village is still read back, as it always was.
+  repo.setDeliveryZone(gated, 'Diamond');
+  repo.setAddressZone(gated, 'Diamond');
+  repo.setPinZone(gated, '');
+  repo.setFeeAgreed(gated, repo.getCart(gated).deliveryFee);
+  const home2 = (gate(gated, 'en') as { text: string }).text;
+  check('a door in the right village is read back as before',
+    /4 Diamond EBD/.test(home2),
+    home2.split(String.fromCharCode(10)).find((l) => /For /.test(l)) ?? '');
+
+  repo.setService(gated, null);
+  repo.setCheckoutStep(gated, '');
 }
 section('No button is a dead button');
 {
