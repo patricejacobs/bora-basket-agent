@@ -34,3 +34,6 @@ data/zone-tariff-matrix.csv
 # The editor's own run configuration. Useful locally, nobody else's business:
 # it names ports and commands for one machine.
 .claude/
+
+# Working material for npm run streets: big, regenerable, not the shop's.
+data/overpass-cache/

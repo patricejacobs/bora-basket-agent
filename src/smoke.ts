@@ -15291,6 +15291,52 @@ section('The shop learns its customers\' streets');
   repo.setService(walker, null);
   repo.clearTaxiPicks(walker);
 }
+section('The map knows the streets the shop has not been to');
+{
+  const mapCsv = './data/streets-smoke.csv';
+  fs.writeFileSync(
+    mapCsv,
+    [
+      'street,place,km_from_marker',
+      'regent street,Lacytown,0.12',
+      'regent street,Bourda,0.44',
+      'smoke lane,Kitty,0.30',
+    ].join(String.fromCharCode(10)) + String.fromCharCode(10),
+    'utf8',
+  );
+
+  // The shop's own memory only knows streets it has delivered to, which on
+  // the first day is none. The map knows 1,293 of them.
+  const added2 = repo.loadStreetsFromMap(mapCsv);
+  check('the map is read', added2 >= 3, String(added2));
+  check('and a street nobody has been to is now known',
+    repo.areasForStreet('Smoke Lane')[0]?.place === 'Kitty',
+    JSON.stringify(repo.areasForStreet('Smoke Lane')));
+  check('a street in two wards keeps both, nearest marker first',
+    repo.areasForStreet('Regent Street').map((a) => a.place).join(',') === 'Lacytown,Bourda',
+    JSON.stringify(repo.areasForStreet('Regent Street')));
+
+  // The two sources answer the same question with different authority.
+  repo.rememberStreetArea('Lot 9 Regent Street', 'Bourda');
+  check('a delivery outranks the map',
+    repo.areasForStreet('Regent Street')[0]?.place === 'Bourda',
+    JSON.stringify(repo.areasForStreet('Regent Street')));
+  check('and the map rows are still there behind it',
+    repo.areasForStreet('Regent Street').length === 2,
+    JSON.stringify(repo.areasForStreet('Regent Street')));
+
+  // Reading it twice adds nothing and loses nothing.
+  const again2 = repo.loadStreetsFromMap(mapCsv);
+  check('reading the map again changes nothing', again2 === 0, String(again2));
+  check('and the delivery still stands',
+    repo.areasForStreet('Regent Street')[0]?.seen === 1,
+    JSON.stringify(repo.areasForStreet('Regent Street')));
+
+  check('a missing map file is an ordinary state',
+    repo.loadStreetsFromMap('./data/there-is-no-such-file.csv') === 0);
+
+  fs.rmSync(mapCsv, { force: true });
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

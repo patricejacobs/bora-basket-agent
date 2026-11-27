@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { db, nowIso, HOUSE_GROCERY_CODE } from './index.ts';
+import { readFileSync } from 'node:fs';
 import { config, dutyLimits } from '../config.ts';
 import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
@@ -4098,9 +4099,11 @@ export function areasForStreet(written: string): { place: string; seen: number }
   const key = streetKey(written);
   if (!key) return [];
 
+  // Delivered-to first, and among the map's own guesses the nearest one.
   return db
     .prepare(
-      `SELECT place, seen FROM street_areas WHERE street = ? ORDER BY seen DESC, last_at DESC`,
+      `SELECT place, seen FROM street_areas WHERE street = ?
+        ORDER BY seen DESC, km ASC, last_at DESC`,
     )
     .all(key) as unknown as { place: string; seen: number }[];
 }
@@ -4112,6 +4115,46 @@ export function areasForStreet(written: string): { place: string; seen: number }
  * starting from nothing: a shop with a few hundred finished orders already
  * knows most of the streets it serves.
  */
+/**
+ * Reads the streets the map knows, from the CSV `npm run streets` writes.
+ *
+ * Put in at a count of ZERO, which is the whole point: a street somebody
+ * actually delivered to has a count, and a count outranks a line from a
+ * map. The two sources answer the same question with different authority,
+ * and the delivery wins.
+ *
+ * Run on every boot rather than once. It only ever adds pairs that are not
+ * there, so a refreshed CSV is picked up and nothing already learned is
+ * touched.
+ */
+export function loadStreetsFromMap(file = './data/streets.csv'): number {
+  let text = '';
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    return 0; // No map on this machine, which is a perfectly ordinary state.
+  }
+
+  const put = db.prepare(
+    `INSERT INTO street_areas (street, place, seen, km, last_at) VALUES (?, ?, 0, ?, '')
+     ON CONFLICT(street, place) DO NOTHING`,
+  );
+
+  let added = 0;
+  const rows = text.split(/\r?\n/).slice(1);
+  for (const line of rows) {
+    const [street, place, km] = line.split(',');
+    if (!street || !place) continue;
+    const before = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
+    put.run(street.trim(), place.trim(), Number(km) || 0);
+    const after = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
+    if (after.n > before.n) added += 1;
+  }
+
+  if (added > 0) console.log(`[streets] ${added} street(s) read from the map`);
+  return added;
+}
+
 export function learnStreetsFromHistory(): number {
   const already = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
   if (already.n > 0) return 0;

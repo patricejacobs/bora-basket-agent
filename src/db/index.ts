@@ -669,6 +669,10 @@ addColumnIfMissing('associates', 'duty_asked_at', "TEXT NOT NULL DEFAULT ''");
 // driver something to find them by, and asking again for a village name
 // they may not use is the shop arguing with a man standing on a road.
 addColumnIfMissing('parcel_drafts', 'pickup_asked_at', "TEXT NOT NULL DEFAULT ''");
+// How far a street sat from the marker the map matched it to. Zero for a
+// street the shop learned by delivering to it, which needs no tie-break:
+// it has a count, and a count outranks a guess.
+addColumnIfMissing('street_areas', 'km', 'REAL NOT NULL DEFAULT 0');
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 // When they PICKED one off the opening screen, as opposed to a language
 // noticed from what they happened to write. The two are different things: a

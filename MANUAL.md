@@ -123,6 +123,52 @@ Blunt, deliberately — the cost of dropping a pleasant sentence is nothing,
 and the cost of keeping a redundant one is a shop that sounds like it is
 padding.
 
+### The streets the shop has never been to
+
+The memory below only knows streets the shop has delivered to, which on the
+first day is none of them. OpenStreetMap knows them already.
+
+```powershell
+npm run streets
+```
+
+Asks Overpass for every named street in the strip the shop serves and every
+ward and village marked on it, pairs each street with the **nearest marker
+the tariff carries**, and writes `data/streets.csv`. No key, no account,
+nothing applied — a CSV for a person to read, the way `npm run roads`
+writes its own. The run that produced the committed file:
+
+```
+4400 named ways on the map, 266 markers the tariff carries.
+1293 street-and-place pairs written to data/streets.csv
+222 street name(s) occur in more than one place — the shop will ask.
+```
+
+The shop reads it at boot. **Map rows go in at a count of zero**, which is
+the whole point: a street somebody actually delivered to has a count, and a
+count outranks a line from a map. Among the map's own guesses, the nearest
+marker comes first.
+
+```
+Regent Street    Lacytown, Stabroek, Bourda     ← from the map
+Garnet Street    (unknown)
+
+... after one delivery to each:
+Garnet Street    Kitty(1)                       ← learned
+Church Street    Kitty(1), Goed Fortuin(0), Lacytown(0)
+```
+
+**What it will not do.** Coverage is uneven: Georgetown's main streets are
+well mapped, lanes and newer schemes are not — Garnet Street is not in OSM
+at all, which is exactly why the memory exists beside it. Street names
+repeat, so 222 of them carry more than one ward and the shop asks rather
+than guessing. And it is a snapshot: re-run it to refresh, while deliveries
+keep correcting it every day.
+
+The raw Overpass answers are cached under `data/overpass-cache/` so a second
+run does not ask a donated server the same large questions again. That
+folder is working material and is not committed; the CSV is.
+
 ### The shop learns its customers' streets
 
 Asking which ward a street is in works, and asking a regular the same

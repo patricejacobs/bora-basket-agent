@@ -23,7 +23,8 @@
     "zones:matrix": "node --env-file-if-exists=.env src/zone-matrix.ts",
     "tariff:check": "node --env-file-if-exists=.env src/tariff-check.ts",
     "map:check": "node --env-file-if-exists=.env src/map-check.ts",
-    "roads": "node --env-file-if-exists=.env src/roads.ts"
+    "roads": "node --env-file-if-exists=.env src/roads.ts",
+    "streets": "node --env-file-if-exists=.env src/streets.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

@@ -10,7 +10,7 @@ import { importAssociatesText } from './catalog/import-associates.ts';
 import { startStallWatch } from './stalls.ts';
 import { startDutyWatch } from './duty-check-in.ts';
 import { deliveryFault } from './delivery-watch.ts';
-import { learnStreetsFromHistory } from './db/repo.ts';
+import { learnStreetsFromHistory, loadStreetsFromMap } from './db/repo.ts';
 import {
   ordersCsv,
   ordersJson,
@@ -251,6 +251,7 @@ startDutyWatch();
 // Once, if the table is empty: a shop with finished orders already knows
 // most of the streets it serves.
 learnStreetsFromHistory();
+loadStreetsFromMap();
 startBackupSchedule();
 
 const app = express();
