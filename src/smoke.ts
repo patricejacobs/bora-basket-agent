@@ -8006,13 +8006,17 @@ section('A receipt at the door');
      VALUES (?, ?, 'delivered', '', '', '')`,
   ).run(order.orderNo, droppedAt);
 
+  // The same shape the receipt uses: with the year, because a cash delivery
+  // disputed in January has no other record, and on a twelve-hour clock,
+  // because the shop writes 2:12 pm everywhere else.
   const stamp = (iso: string): string =>
     new Date(iso).toLocaleString('en-GB', {
       day: 'numeric',
       month: 'short',
-      hour: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: config.store.timezone,
     });
 
@@ -8020,6 +8024,16 @@ section('A receipt at the door');
   check('the receipt is dated at the doorstep', dated.includes(stamp(droppedAt)), dated.split(String.fromCharCode(10))[0]);
   check('and not when the order was placed', !dated.includes(stamp(placedLong)), dated.split(String.fromCharCode(10))[0]);
   check('read from the trail, which cannot be overwritten', repo.deliveredAt(order.orderNo) === droppedAt, repo.deliveredAt(order.orderNo));
+
+  // With the YEAR on it. Nobody decided to leave it out; the shape was
+  // never argued about. It costs nothing on the day and it is the whole of
+  // the record in January, when somebody produces this message about a cash
+  // delivery and there is no card trail behind it.
+  const head = dated.split(String.fromCharCode(10))[0] ?? '';
+  check('the receipt carries the year', /20\d\d/.test(head), head);
+  // And the same clock the shop writes everywhere else.
+  check('and a twelve-hour clock', /\d(am|pm)|\d\s?(am|pm)/i.test(head), head);
+  check('not a twenty-four hour one', !/\b(1[3-9]|2[0-3]):\d\d/.test(head), head);
 
   // A parcel that came back and went out again was delivered the second time.
   db.prepare(

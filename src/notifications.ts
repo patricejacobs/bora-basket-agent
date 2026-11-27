@@ -456,12 +456,25 @@ export function receiptLines(order: repo.OrderRecord, lang: Language): string[] 
   const when = (() => {
     const at = new Date(repo.deliveredAt(order.orderNo) || order.placedAt);
     if (Number.isNaN(at.getTime())) return '';
+    // With the YEAR, and on a twelve-hour clock.
+    //
+    // It said "24 Nov, 14:12". Nobody decided to leave the year out — the
+    // comments above argue about WHICH time to print and never about the
+    // shape of it — and it does not matter at all on the day. It matters in
+    // January, when somebody produces this message about a cash delivery
+    // and the only record either side has says "24 Nov" with no year on it.
+    // This shop takes no cards; the receipt IS the trail.
+    //
+    // And the clock follows the same rule everything else does here: the
+    // shop writes 2:12 pm, not 14:12, or the receipt disagrees with the
+    // message above it.
     return at.toLocaleString('en-GB', {
       day: 'numeric',
       month: 'short',
-      hour: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
       timeZone: config.store.timezone,
     });
   })();

@@ -100,6 +100,23 @@ usual address in Diamond?" is a shop that knows them; reading back their
 address, their last four orders and their number is a shop that has been
 watching them.
 
+### The receipt carries the year
+
+It used to read `🧾 *Receipt* — 24 Nov, 14:12`. Nobody decided to leave the
+year out: the code argues at length about *which* time to print — the
+doorstep, not the order — and never about the shape of it.
+
+It costs nothing on the day. It is the whole of the record in January, when
+somebody produces that message about a cash delivery and there is no card
+trail behind it. **This shop takes no cards; the receipt is the trail.**
+
+```
+🧾 *Receipt* — 24 Nov 2026, 2:12 pm
+```
+
+The clock changed with it. The shop writes `2:12 pm` everywhere else now, so
+a receipt saying `14:12` disagreed with the message directly above it.
+
 ### Pleasantries are not small talk
 
 Somebody who writes *"good morning"* or *"how you deh?"* has opened the way
@@ -3700,7 +3717,7 @@ a passenger standing on a pavement should get one thing to read:
 ```
 Trip TXI-00019 complete — you have arrived. 🚕
 
-🧾 *Receipt* — 19 Nov, 18:51
+🧾 *Receipt* — 19 Nov 2026, 6:51 pm
 🚕 Trip: Stabroek Market → 14 Delph Street, Campbellville
 
 Fare $500
@@ -4552,7 +4569,7 @@ actually did, and the wish is drawn from a pool for that kind of order.
 Order ORD-00042 delivered.          ← it arrived
 Delivery code: confirmed.
 
-🧾 *Receipt* — 17 Nov, 16:47        ← the receipt, dated at the doorstep
+🧾 *Receipt* — 17 Nov 2026, 4:47 pm        ← the receipt, dated at the doorstep
 
 1 x Goat Curry — $2,700
 1 x Plain Rice _Large_ — $500
@@ -4600,7 +4617,7 @@ nothing shown to a customer had to say what the total was made of.
 settled where it actually was:
 
 ```
-🧾 *Receipt* — 16 Nov, 17:59
+🧾 *Receipt* — 16 Nov 2026, 5:59 pm
 
 📦 6 flattened cardboard boxes
 
