@@ -36,9 +36,52 @@ export const PICKUP_HERE = 'pickup:here';
 /** "Send it again" — the place they named wins, and the pin was a slip. */
 export const PICKUP_AGAIN = 'pickup:again';
 
+/** "Garnet Street — the one in Kitty" — an area the shop has seen before. */
+const PICKUP_AREA = 'pickup:area:';
+
+export function pickupAreaId(place: string): string {
+  return PICKUP_AREA + place;
+}
+
+export function pickupAreaFrom(id: string): string | null {
+  const said = String(id ?? '').trim();
+  if (!said.startsWith(PICKUP_AREA)) return null;
+  const place = said.slice(PICKUP_AREA.length).trim();
+  return place === '' ? null : place;
+}
+
+/**
+ * Puts the areas this street has turned out to be in before.
+ *
+ * One candidate is a question with a yes in it — most people tap it and
+ * never think about wards at all. Two or more is the honest version of the
+ * same question: several Georgetown streets run through more than one
+ * ward, and guessing between them silently is how a car goes to the wrong
+ * end of a street somebody has already named correctly.
+ */
+export function askWhichArea(
+  said: string,
+  guesses: { place: string; seen: number }[],
+  lang: Language,
+): OutboundMessage {
+  const top = guesses.slice(0, 3);
+
+  return {
+    kind: 'buttons',
+    text:
+      top.length === 1
+        ? t('pickup_area_one', lang, { said, place: top[0]!.place })
+        : t('pickup_area_many', lang, { said }),
+    buttons: [
+      ...top.map((g) => ({ id: pickupAreaId(g.place), title: g.place.slice(0, 20) })),
+      ...(top.length < 3 ? [{ id: PICKUP_AGAIN, title: t('pickup_area_no', lang) }] : []),
+    ],
+  };
+}
+
 export function isPickupId(id: string): boolean {
   const said = String(id ?? '').trim();
-  return said === PICKUP_HERE || said === PICKUP_AGAIN;
+  return said === PICKUP_HERE || said === PICKUP_AGAIN || pickupAreaFrom(said) !== null;
 }
 
 /**

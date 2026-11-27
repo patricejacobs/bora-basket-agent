@@ -46,7 +46,7 @@ import {
 } from './aisles.ts';
 import { settleDeliveryPlace, streetNamesElsewhere } from './delivery-place.ts';
 import { WAIT_GO, WAIT_NO, offerTheRideOn } from './waiting-list.ts';
-import { PICKUP_AGAIN, PICKUP_HERE } from './taxi-pickup.ts';
+import { PICKUP_AGAIN, PICKUP_HERE, pickupAreaFrom } from './taxi-pickup.ts';
 import { nearestPlace, straightKm } from './place-coords.ts';
 import { pinTheNewAddress } from './dispatch.ts';
 import {
@@ -559,6 +559,30 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // service menu, for the reason every tap in this block is: it answers a
   // message the shop sent, and the menu would answer it with "pick a number
   // first".
+  // "Garnet Street — the one in Kitty?" answered.
+  {
+    const chosenArea = pickupAreaFrom(text);
+    if (chosenArea !== null) {
+      const picks = repo.taxiPicks(msg.phone);
+      // The street keeps its words; the AREA is what prices it, so the two
+      // are written together — "Lot 20 Garnet Street, Kitty" is a place the
+      // tariff can read.
+      const street = picks.from && !picks.from.toLowerCase().includes(chosenArea.toLowerCase())
+        ? `${picks.from}, ${chosenArea}`
+        : chosenArea;
+      repo.setTaxiPick(msg.phone, 'from', street);
+
+      const { executeTool } = await import('./agent/tools.ts');
+      const ride = { phone: msg.phone, outbound: [] as OutboundMessage[] };
+      executeTool('book_taxi', { pickup_address: street }, ride as never);
+      if (ride.outbound.length > 0) {
+        for (const out of ride.outbound) repo.logMessage(msg.phone, 'out', msg.channel, outboundLogBody(out));
+        return ride.outbound;
+      }
+      return shopAnswered(msg, [{ kind: 'text', text: t('wait_gone', languageFor(msg.phone)) }], chosenArea);
+    }
+  }
+
   if (text === PICKUP_HERE || text === PICKUP_AGAIN) {
     const lang = languageFor(msg.phone);
     const pinned = repo.getParcelDraft(msg.phone).pickup;

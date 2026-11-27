@@ -3,7 +3,7 @@ import { config, money } from '../config.ts';
 import * as repo from '../db/repo.ts';
 import { recordTurnedAway } from '../waiting-list.ts';
 import { proposeDestinationToDriver } from '../dispatch.ts';
-import { pickupLooksWrong } from '../taxi-pickup.ts';
+import { pickupLooksWrong, askWhichArea } from '../taxi-pickup.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import {
   announceNewOrder,
@@ -2423,6 +2423,28 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!draft.pickup && pickupAddress && tariff().length > 0 && !repo.pickupAsked(ctx.phone)) {
         const placed = findZone(pickupAddress);
         if (placed.kind !== 'found') {
+          // Before asking, look at what the shop has already delivered.
+          //
+          // "Garnet Street" is not in the tariff and never will be, but the
+          // shop has driven to it: every finished delivery is a street and
+          // a village that were right. Asking a regular which ward their
+          // own street is in, when an associate went there last Tuesday,
+          // is the shop forgetting in front of them.
+          const known = repo.areasForStreet(pickupAddress);
+          if (known.length > 0) {
+            repo.notePickupAsked(ctx.phone);
+            repo.setTaxiPick(ctx.phone, 'from', pickupAddress);
+            if (destinationAddress) repo.setTaxiPick(ctx.phone, 'to', destinationAddress);
+            ctx.outbound.push(askWhichArea(pickupAddress, known, languageFor(ctx.phone)));
+            return ok({
+              asked: true,
+              booked: false,
+              pickup: pickupAddress,
+              known_areas: known.map((k) => k.place),
+              next: 'They have ALREADY been asked which area that street is in, with what the shop has seen before offered as taps — say nothing more about it and book nothing. Their answer settles it.',
+            });
+          }
+
           // Asked once, and once only. A passenger who answers with a
           // landmark — "opposite the market, two lots north of the Regent
           // Street corner" — has given the driver something to find them

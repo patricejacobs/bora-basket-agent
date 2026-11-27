@@ -123,6 +123,52 @@ Blunt, deliberately — the cost of dropping a pleasant sentence is nothing,
 and the cost of keeping a redundant one is a shop that sounds like it is
 padding.
 
+### The shop learns its customers' streets
+
+Asking which ward a street is in works, and asking a regular the same
+question every week is the shop forgetting in front of them. So it
+remembers.
+
+**Every finished delivery is a street and a village that were right** —
+somebody drove there and handed over a bag. That pair is kept, and after a
+few weeks the shop knows the streets its own customers live on:
+
+```
+Shawn ▸ pick me up from Lot 20 Garnet Street, take me to Parika
+
+◂ *Lot 20 Garnet Street* — the one in *Kitty*?
+                              [ Kitty ]  [ Somewhere else ]
+
+Shawn ▸ [ Kitty ]
+
+◂ Your fare is *$5,000*, payable to the chauffeur.
+```
+
+One tap, and a trip that had no fare at all has one.
+
+**A street in two wards keeps both**, and then the question is honest
+rather than a guess — there is a First Street in Alberttown and another in
+Albouystown, and picking one silently sends a car to the wrong end of a
+street somebody named correctly:
+
+```
+◂ *First Street* — which one?
+                  [ Alberttown ]  [ Albouystown ]  [ Somewhere else ]
+```
+
+**What it remembers, and what it does not.** A street has to name itself —
+*street, road, dam, scheme, avenue* — because "the yellow house by the
+mosque" is a perfectly good address and a useless key: it will never be
+written twice the same way. House numbers are stripped, so `Lot 20 Garnet
+Street` and `20 garnet st.` are one street. A village the tariff already
+carries is not a street at all.
+
+**It is learned at delivery, not at booking** — a placed order is somebody's
+intention, a delivered one is a fact an associate proved by arriving. And
+on first boot it reads the orders already finished, so a shop with a few
+hundred deliveries behind it starts out knowing most of the streets it
+serves rather than nothing.
+
 ### The area is what prices the trip
 
 The same booking read **"The fare is agreed with the chauffeur"**, and it

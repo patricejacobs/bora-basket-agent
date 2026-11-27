@@ -5,6 +5,7 @@ import { searchCatalog, invalidateSearchIndex } from '../catalog/search.ts';
 import { parseOptionSpec, applySelection, summariseStored } from '../menu-options.ts';
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
 import { zoneFeeFor } from '../zones.ts';
+import { streetKey } from '../street-memory.ts';
 import { inShoppingOrder } from '../categories.ts';
 import { pointsFor, rewardsIn, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
 import { waitingCharge } from '../taxi.ts';
@@ -4069,6 +4070,70 @@ function healthRow(): SendHealth {
 }
 
 /** What /health reads, and what the watcher decides from. */
+/**
+ * Remembers that this street turned out to be in this village.
+ *
+ * Called when a delivery is DONE rather than when it is placed: a placed
+ * order is somebody's intention, and a delivered one is a fact that an
+ * associate proved by arriving.
+ */
+export function rememberStreetArea(written: string, place: string, now = new Date()): void {
+  const key = streetKey(written, place);
+  const village = place.trim();
+  if (!key || !village) return;
+
+  db.prepare(
+    `INSERT INTO street_areas (street, place, seen, last_at) VALUES (?, ?, 1, ?)
+     ON CONFLICT(street, place) DO UPDATE SET seen = seen + 1, last_at = excluded.last_at`,
+  ).run(key, village, now.toISOString());
+}
+
+/**
+ * Where this street has turned out to be before, most often first.
+ *
+ * Empty when the shop has never delivered to it, which is the ordinary
+ * answer for a long while after this is switched on.
+ */
+export function areasForStreet(written: string): { place: string; seen: number }[] {
+  const key = streetKey(written);
+  if (!key) return [];
+
+  return db
+    .prepare(
+      `SELECT place, seen FROM street_areas WHERE street = ? ORDER BY seen DESC, last_at DESC`,
+    )
+    .all(key) as unknown as { place: string; seen: number }[];
+}
+
+/**
+ * Reads the streets out of deliveries the shop has already made.
+ *
+ * Run once, when the table is empty, so switching this on does not mean
+ * starting from nothing: a shop with a few hundred finished orders already
+ * knows most of the streets it serves.
+ */
+export function learnStreetsFromHistory(): number {
+  const already = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
+  if (already.n > 0) return 0;
+
+  const done = db
+    .prepare(
+      `SELECT address, delivery_zone AS zone FROM orders
+        WHERE status = 'delivered' AND address <> '' AND delivery_zone <> ''`,
+    )
+    .all() as unknown as { address: string; zone: string }[];
+
+  let learned = 0;
+  for (const row of done) {
+    const before = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
+    rememberStreetArea(row.address, row.zone);
+    const after = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
+    if (after.n > before.n) learned += 1;
+  }
+  if (learned > 0) console.log(`[streets] learned ${learned} street(s) from past deliveries`);
+  return learned;
+}
+
 export function sendHealth(): SendHealth {
   return healthRow();
 }
@@ -4619,6 +4684,15 @@ function status(orderNo: string): string {
 }
 
 export function setOrderStatus(orderNo: string, status: OrderStatus): void {
+  // A delivery that is DONE has proved where its street is. Learned here
+  // because every road to "delivered" passes through this one function.
+  if (status === 'delivered') {
+    const done = findOrder(orderNo);
+    if (done && done.kind !== 'taxi' && done.address && done.deliveryZone) {
+      rememberStreetArea(done.address, done.deliveryZone);
+    }
+  }
+
   // The stall stamp is cleared with every move, so each stage gets its own
   // alarm. An order warned about while waiting for a delivery associate must be able to
   // raise a second warning if the delivery then drags.

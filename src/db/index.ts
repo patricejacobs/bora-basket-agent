@@ -314,6 +314,26 @@ CREATE TABLE IF NOT EXISTS delivery_health (
 );
 INSERT OR IGNORE INTO delivery_health (id) VALUES (1);
 
+-- Streets the shop has actually delivered to, and the village each one
+-- turned out to be in.
+--
+-- Nobody will ever type a street index for Guyana and no tariff carries
+-- one. But every finished delivery is a street and a village that were
+-- right — somebody drove there and handed over a bag — so the shop keeps
+-- the pairs it has proved and stops asking regulars a question they have
+-- already answered.
+--
+-- Counted rather than merely recorded: a street that spans two wards will
+-- have both, and the count is what decides whether to confirm one or offer
+-- the choice.
+CREATE TABLE IF NOT EXISTS street_areas (
+  street   TEXT NOT NULL,
+  place    TEXT NOT NULL,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  last_at  TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (street, place)
+);
+
 -- What the customer thought of it, asked once per order and never twice.
 --
 -- One row per order, written when the question goes out rather than when it

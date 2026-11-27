@@ -15213,6 +15213,84 @@ section('A number nobody watches is not a warning');
   check('but the hour is being counted', repo.sendHealth().windowFailures >= 1,
     String(repo.sendHealth().windowFailures));
 }
+section('The shop learns its customers\' streets');
+{
+  const { streetKey: key } = await import('./street-memory.ts');
+  const { pickupAreaId: areaId, pickupAreaFrom: areaFrom, isPickupId: pickupId } =
+    await import('./taxi-pickup.ts');
+  const { executeTool: streetTool } = await import('./agent/tools.ts');
+  const { handleIncoming: streetSay } = await import('./conversation.ts');
+
+  // "Lot 20 Garnet Street to Parika" booked with no fare, because the
+  // tariff is 185 village names and Garnet Street is not one. But
+  // "Garnet Street, KITTY" is Kitty, and Kitty to Parika is $5,000 — the
+  // fare was lost for want of one word, and a regular has already answered
+  // that question by having had a delivery there.
+  check('two ways of writing a street are one street',
+    key('Lot 20 Garnet Street') === key('20 garnet st.') && key('Lot 20 Garnet Street') === 'garnet street',
+    `${key('Lot 20 Garnet Street')} / ${key('20 garnet st.')}`);
+  check('the village is not part of the street',
+    key('Garnet Street, Kitty', 'Kitty') === 'garnet street', key('Garnet Street, Kitty', 'Kitty'));
+  check('a landmark is not a street and is not remembered',
+    key('the yellow house by the mosque') === '', key('the yellow house by the mosque'));
+  check('nor is a village with a lot number',
+    key('Lot 4 Diamond', 'Diamond') === '', key('Lot 4 Diamond', 'Diamond'));
+
+  // Learned from deliveries that actually happened.
+  repo.rememberStreetArea('Lot 20 Garnet Street', 'Kitty');
+  repo.rememberStreetArea('25 Garnet St', 'Kitty');
+  check('a street delivered to twice is known once, counted twice',
+    repo.areasForStreet('Garnet Street').length === 1 &&
+      repo.areasForStreet('Garnet Street')[0]?.seen === 2,
+    JSON.stringify(repo.areasForStreet('Garnet Street')));
+
+  // A street that runs through two wards keeps both.
+  repo.rememberStreetArea('Lot 9 First Street', 'Alberttown');
+  repo.rememberStreetArea('Lot 3 First Street', 'Albouystown');
+  check('a street in two wards keeps both',
+    repo.areasForStreet('First Street').length === 2,
+    JSON.stringify(repo.areasForStreet('First Street')));
+  check('and a street nobody has been to is unknown',
+    repo.areasForStreet('Sixth Street').length === 0);
+
+  // The ids survive the channel, like every other tap.
+  check('the area tap carries its place', areaFrom(areaId('Kitty')) === 'Kitty');
+  check('and is one of ours', pickupId(areaId('Kitty')) && !pickupId('otw_7'));
+
+  // And the booking that used to lose the fare.
+  const walker = '5926100951';
+  repo.saveCustomer(walker, { name: 'Street Walker', contactPhone: walker });
+  repo.chooseLanguage(walker, 'en');
+  repo.logMessage(walker, 'in', 'smoke', 'taxi');
+  repo.setService(walker, 'taxi');
+  repo.clearParcelDraft(walker);
+  repo.clearTaxiPicks(walker);
+
+  const ctx5 = { phone: walker, outbound: [] as { kind: string; text?: string; buttons?: { id: string }[] }[] };
+  const asked5 = JSON.parse(
+    streetTool(
+      'book_taxi',
+      { pickup_address: 'Lot 20 Garnet Street', destination_address: 'Parika', passenger_name: 'Street Walker' },
+      ctx5 as never,
+    ),
+  ) as Record<string, unknown>;
+  check('a street the shop knows is offered back, not asked open',
+    asked5.booked !== true && Array.isArray(asked5.known_areas) &&
+      (asked5.known_areas as string[])[0] === 'Kitty',
+    JSON.stringify(asked5).slice(0, 110));
+  check('as a question with the answer in it',
+    /the one in \*Kitty\*/.test(ctx5.outbound[0]?.text ?? ''),
+    (ctx5.outbound[0]?.text ?? '').slice(0, 70));
+
+  // One tap, and the trip has a fare it never had.
+  const priced = await streetSay({ phone: walker, text: areaId('Kitty'), channel: 'smoke' } as never);
+  check('and one tap prices the trip',
+    /\$5,000/.test((priced[0] as { text?: string })?.text ?? ''),
+    (priced[0] as { text?: string })?.text?.slice(0, 70));
+
+  repo.setService(walker, null);
+  repo.clearTaxiPicks(walker);
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
