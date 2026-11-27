@@ -6,6 +6,7 @@ import { config } from '../config.ts';
 import { claimEvent } from '../db/repo.ts';
 import { handleIncoming } from '../conversation.ts';
 import { deliver, markReadAndTyping, deliveryStats } from './whatsapp-send.ts';
+import { noteDeliveryFailure, noteDeliverySuccess } from '../delivery-watch.ts';
 import { downloadMedia, downloadAudio, mediaFailureMessage } from './whatsapp-media.ts';
 import { transcribeAudio, transcriptionAvailable } from '../transcribe.ts';
 import { parseCoordinates, pinLabel, type LocationPin } from '../location.ts';
@@ -144,6 +145,14 @@ export type DeliveryReport = {
   status: 'sent' | 'delivered' | 'read' | 'failed';
   /** Meta's own reason, on a failure. */
   reason: string;
+  /**
+   * Meta's error code, kept as a number.
+   *
+   * The same block read "unsettled payments" at one moment and "one or more
+   * errors related to your payment method" twenty minutes later. The words
+   * move; 131042 does not.
+   */
+  code: number;
 };
 
 export function parseStatuses(body: unknown): DeliveryReport[] {
@@ -178,7 +187,7 @@ export function parseStatuses(body: unknown): DeliveryReport[] {
               .filter(Boolean)
               .join(' ')
           : '';
-        out.push({ phone, status, reason });
+        out.push({ phone, status, reason, code: Number(err?.code ?? 0) });
       }
     }
   }
@@ -351,13 +360,24 @@ whatsappRouter.post('/webhook', (req: Request, res: Response) => {
  */
 function recordDelivery(reports: DeliveryReport[]): void {
   for (const r of reports) {
-    if (r.status === 'delivered') deliveryStats.delivered++;
-    else if (r.status === 'read') deliveryStats.read++;
+    if (r.status === 'delivered') {
+      deliveryStats.delivered++;
+      // Which is also how the shop learns a fault has cleared.
+      void noteDeliverySuccess().catch((err) =>
+        console.error('[delivery] could not record a delivery:', err),
+      );
+    } else if (r.status === 'read') deliveryStats.read++;
     else if (r.status === 'failed') {
       deliveryStats.failed++;
       deliveryStats.lastFailure = `+${r.phone}${r.reason ? ` — ${r.reason}` : ''}`;
       deliveryStats.lastFailureAt = new Date().toISOString();
       console.error(`[whatsapp] undelivered to +${r.phone}: ${r.reason || 'no reason given'}`);
+      // Counted AND said out loud. The counter was there the whole time a
+      // nineteen-hour outage was building, and a number nobody is watching
+      // is not a warning.
+      void noteDeliveryFailure(r.phone, r.code, r.reason).catch((err) =>
+        console.error('[delivery] could not raise the alarm:', err),
+      );
     }
   }
 }

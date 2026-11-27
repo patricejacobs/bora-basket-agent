@@ -212,6 +212,54 @@ The read-back changed with it: confirming *"Shawn, Lot 4 Diamond"* to
 somebody sending a bag to Beterverwagting asks them to agree to the wrong
 thing.
 
+### When WhatsApp stops carrying the messages
+
+The shop sent 165 messages. Meta accepted all 165 and delivered 20 of them
+nowhere:
+
+```
+(131042) Message failed to send because your WhatsApp Business account
+has unsettled payments.
+```
+
+From the shop's side everything read as sent — `outbound: attempted 165,
+sent 165, failed 0` — because Meta accepts the call and fails the delivery
+afterwards, on a status webhook. That ran for nineteen hours. It was all
+visible the whole time, in a counter on `/health` and a line in the log,
+and **a number nobody is watching is not a warning.**
+
+**Two kinds of failure, told apart by Meta's code** — matched on the number,
+because the words moved between two rejections twenty minutes apart:
+
+| | | |
+|---|---|---|
+| **Account-level** | `131042` payment · `131031` restricted · account disabled | The whole shop is mute. Raised on the **first one** |
+| **Per-recipient** | number not on WhatsApp · closed 24-hour window | One customer. Raised only when the **rate** says something is wrong — five in an hour, and a fifth of everything sent |
+
+**It goes out by two roads**, because the channel that breaks is the channel
+the alarm would use. To `STAFF_NUMBERS` over WhatsApp, which usually works
+since these blocks are partial — and to `ALERT_WEBHOOK_URL`, one setting,
+posted a JSON `{text}`, which is the shape Slack, ntfy, Pushover, Make and
+Zapier all accept. With neither set, it says so in the log rather than
+failing quietly.
+
+```
+🛑 *WhatsApp is not delivering the shop's messages.*
+
+Meta refused delivery to +5926497570:
+(131042) ... unsettled payments.
+
+That is the first one. Customers are being answered into silence from
+now until it is fixed.
+```
+
+It repeats **at most hourly** while the fault stands, and says when it
+clears — *"✅ WhatsApp is delivering again. 20 messages failed over 19.2
+hours."* The state lives in the **database**: the old counters were in
+memory and wiped by every deploy, which is how a fault nineteen hours old
+kept reading as clean. `/health` carries `deliveryFault` as a standing
+fault, not a number to compare against one you did not write down.
+
 ### Why a conversation goes cold
 
 Silence is the worst answer the shop can give. It reads as a business that

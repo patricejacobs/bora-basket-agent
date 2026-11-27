@@ -9,6 +9,7 @@ import { importOutletsText, importMenuText, fillMissingOutletDetails } from './c
 import { importAssociatesText } from './catalog/import-associates.ts';
 import { startStallWatch } from './stalls.ts';
 import { startDutyWatch } from './duty-check-in.ts';
+import { deliveryFault } from './delivery-watch.ts';
 import {
   ordersCsv,
   ordersJson,
@@ -371,6 +372,10 @@ app.get('/health', (_req: Request, res: Response) => {
     },
     webhooks: webhookStats,
     outbound: sendStats,
+    // Standing, and read from the database rather than from memory: the
+    // counters below are wiped by every deploy, which is how a fault
+    // nineteen hours old kept reading as clean.
+    deliveryFault: deliveryFault(),
     // What Meta says became of them. `outbound.sent` only means the Graph API
     // accepted the message; this is the half that says somebody got it.
     delivery: deliveryStats,

@@ -292,6 +292,28 @@ CREATE TABLE IF NOT EXISTS waiting_customers (
 );
 CREATE INDEX IF NOT EXISTS idx_waiting_asked ON waiting_customers(asked_at);
 
+-- Whether WhatsApp is actually carrying what the shop sends.
+--
+-- One row, because there is one answer. In the DATABASE rather than in
+-- memory: the counters that would have shown this lived in a module and
+-- were wiped by every deploy, so a fault building over nineteen hours read
+-- as clean every time anybody looked.
+CREATE TABLE IF NOT EXISTS delivery_health (
+  id              INTEGER PRIMARY KEY CHECK (id = 1),
+  /** When the current account-level fault began. '' when all is well. */
+  failing_since   TEXT NOT NULL DEFAULT '',
+  failures        INTEGER NOT NULL DEFAULT 0,
+  last_code       INTEGER NOT NULL DEFAULT 0,
+  last_reason     TEXT NOT NULL DEFAULT '',
+  last_failure_at TEXT NOT NULL DEFAULT '',
+  last_alert_at   TEXT NOT NULL DEFAULT '',
+  /** A rolling hour, for judging the RATE of ordinary failures. */
+  window_started  TEXT NOT NULL DEFAULT '',
+  window_failures INTEGER NOT NULL DEFAULT 0,
+  window_sent     INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO delivery_health (id) VALUES (1);
+
 -- What the customer thought of it, asked once per order and never twice.
 --
 -- One row per order, written when the question goes out rather than when it

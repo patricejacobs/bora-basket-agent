@@ -4043,6 +4043,130 @@ export function waitingCount(maxAgeMinutes: number, now = new Date()): number {
   return waitingList(maxAgeMinutes, now).length;
 }
 
+type SendHealth = {
+  failingSince: string;
+  failures: number;
+  lastCode: number;
+  lastReason: string;
+  lastFailureAt: string;
+  lastAlertAt: string;
+  windowStarted: string;
+  windowFailures: number;
+  windowSent: number;
+};
+
+function healthRow(): SendHealth {
+  db.prepare(`INSERT OR IGNORE INTO delivery_health (id) VALUES (1)`).run();
+  return db
+    .prepare(
+      `SELECT failing_since AS failingSince, failures, last_code AS lastCode,
+              last_reason AS lastReason, last_failure_at AS lastFailureAt,
+              last_alert_at AS lastAlertAt, window_started AS windowStarted,
+              window_failures AS windowFailures, window_sent AS windowSent
+         FROM delivery_health WHERE id = 1`,
+    )
+    .get() as unknown as SendHealth;
+}
+
+/** What /health reads, and what the watcher decides from. */
+export function sendHealth(): SendHealth {
+  return healthRow();
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+const REPEAT_MS = HOUR_MS;
+/** Enough failures, and a high enough share of them, to be worth saying. */
+const RATE_FLOOR = 5;
+const RATE_SHARE = 0.2;
+
+/**
+ * Records a message Meta would not deliver, and says whether to shout.
+ *
+ * The decision lives here rather than in the watcher because it depends on
+ * what came before — the first failure of a fault, the hour since the last
+ * alarm — and that is the row's business.
+ */
+export function noteSendFailure(
+  phone: string,
+  code: number,
+  reason: string,
+  accountLevel: boolean,
+  now = new Date(),
+): {
+  accountLevel: boolean;
+  alertNow: boolean;
+  failures: number;
+  failingSince: string;
+  windowFailures: number;
+  windowSent: number;
+} {
+  const was = healthRow();
+  const at = now.toISOString();
+
+  // A fresh hour for the rate, whenever the last one has run out.
+  const windowAlive =
+    was.windowStarted && now.getTime() - new Date(was.windowStarted).getTime() < HOUR_MS;
+  const windowStarted = windowAlive ? was.windowStarted : at;
+  const windowFailures = (windowAlive ? was.windowFailures : 0) + 1;
+  const windowSent = windowAlive ? was.windowSent : 0;
+
+  const failingSince = accountLevel ? was.failingSince || at : was.failingSince;
+  const failures = accountLevel ? (was.failingSince ? was.failures + 1 : 1) : was.failures;
+
+  const quiet =
+    !was.lastAlertAt || now.getTime() - new Date(was.lastAlertAt).getTime() >= REPEAT_MS;
+  const alertNow = accountLevel
+    ? !was.failingSince || quiet
+    : quiet &&
+      windowFailures >= RATE_FLOOR &&
+      windowFailures >= (windowFailures + windowSent) * RATE_SHARE;
+
+  db.prepare(
+    `UPDATE delivery_health
+        SET failing_since = ?, failures = ?, last_code = ?, last_reason = ?,
+            last_failure_at = ?, last_alert_at = ?, window_started = ?,
+            window_failures = ?, window_sent = ?
+      WHERE id = 1`,
+  ).run(
+    failingSince,
+    failures,
+    code,
+    reason.slice(0, 300),
+    at,
+    alertNow ? at : was.lastAlertAt,
+    windowStarted,
+    windowFailures,
+    windowSent,
+  );
+
+  return { accountLevel, alertNow, failures, failingSince, windowFailures, windowSent };
+}
+
+/**
+ * Records one that arrived — and clears a fault, which is the only way the
+ * shop ever learns it is well again.
+ */
+export function noteSendSuccess(now = new Date()): { since: string; failures: number } | null {
+  const was = healthRow();
+  const at = now.toISOString();
+
+  const windowAlive =
+    was.windowStarted && now.getTime() - new Date(was.windowStarted).getTime() < HOUR_MS;
+
+  db.prepare(
+    `UPDATE delivery_health
+        SET failing_since = '', failures = 0, last_alert_at = '',
+            window_started = ?, window_failures = ?, window_sent = ?
+      WHERE id = 1`,
+  ).run(
+    windowAlive ? was.windowStarted : at,
+    windowAlive ? was.windowFailures : 0,
+    (windowAlive ? was.windowSent : 0) + 1,
+  );
+
+  return was.failingSince ? { since: was.failingSince, failures: was.failures } : null;
+}
+
 export function anyoneOnDuty(now = new Date()): boolean {
   return onDutyCount(now) > 0;
 }

@@ -405,6 +405,15 @@ export const config = {
    */
   waitingListMinutes: Math.max(0, num('WAITING_LIST_MINUTES', 120)),
   /**
+   * Somewhere to shout that is NOT WhatsApp.
+   *
+   * The fault this exists for is WhatsApp refusing to deliver, so an alarm
+   * that can only travel over WhatsApp is an alarm that goes off inside the
+   * burning building. One URL, posted a JSON {text}, which is the shape
+   * Slack, ntfy, Pushover, Make and Zapier all accept.
+   */
+  alertWebhookUrl: (process.env.ALERT_WEBHOOK_URL ?? '').trim(),
+  /**
    * A busy few days, and the hours that go with them — with an end date.
    *
    * Both duty limits are raised to this figure until the date passes, and

@@ -15143,6 +15143,76 @@ section('The area is what prices the trip');
   check('while still asking for the landmark',
     /opposite which place|which corner/i.test(asked), asked.slice(0, 160));
 }
+section('A number nobody watches is not a warning');
+{
+  const { isAccountLevel, noteDeliveryFailure, noteDeliverySuccess, deliveryFault } =
+    await import('./delivery-watch.ts');
+  const { parseStatuses } = await import('./channels/whatsapp.ts');
+
+  // The shop sent 165 messages, Meta accepted all 165 and delivered 20 of
+  // them nowhere — "(131042) ... unsettled payments" — for nineteen hours,
+  // with a counter on /health and a line in the log that nobody reads at
+  // one in the morning.
+
+  // Account-level means the whole shop is mute; per-recipient means one
+  // customer. Matched on the CODE, because the words moved between two
+  // rejections twenty minutes apart.
+  check('a billing refusal is account-level', isAccountLevel(131042, 'unsettled payments'));
+  check('so is a restricted account', isAccountLevel(131031, ''));
+  check('and so is wording the code list has not met',
+    isAccountLevel(999999, 'your account has been disabled pending payment'));
+  check('a number not on WhatsApp is not',
+    !isAccountLevel(131026, 'Message undeliverable'));
+  check('nor is a closed 24-hour window', !isAccountLevel(131047, 're-engagement message'));
+
+  // The code survives the webhook, as a number.
+  const reported = parseStatuses({
+    entry: [{ changes: [{ value: { statuses: [{
+      recipient_id: '5926497570',
+      status: 'failed',
+      errors: [{ code: 131042, title: 'Payment issue', error_data: { details: 'unsettled payments' } }],
+    }] } }] }],
+  });
+  check('a failure arrives with its code intact',
+    reported[0]?.code === 131042 && reported[0]?.status === 'failed',
+    JSON.stringify(reported[0]));
+
+  // The first one raises, the second does not, and /health carries it as a
+  // standing fault rather than a number to compare against last time.
+  await noteDeliverySuccess();
+  const t0 = new Date('2026-11-27T01:00:00Z');
+  await noteDeliveryFailure('5926497570', 131042, '(131042) unsettled payments', t0);
+  check('a fault stands on /health', deliveryFault().failing === true,
+    JSON.stringify(deliveryFault()));
+  check('dated from the first failure', deliveryFault().since === t0.toISOString(),
+    String(deliveryFault().since));
+
+  await noteDeliveryFailure('5926497571', 131042, '(131042) unsettled payments',
+    new Date('2026-11-27T01:05:00Z'));
+  check('and a second within the hour does not raise again',
+    deliveryFault().failures === 2, JSON.stringify(deliveryFault()));
+
+  // It survives a restart, which the old counters did not.
+  check('the fault is in the database, not in memory',
+    repo.sendHealth().failingSince === t0.toISOString(), repo.sendHealth().failingSince);
+
+  // A delivery clears it — the only way the shop learns it is well again.
+  await noteDeliverySuccess(new Date('2026-11-27T02:00:00Z'));
+  check('a delivery clears the fault', deliveryFault().failing === false,
+    JSON.stringify(deliveryFault()));
+  check('and the count starts again', repo.sendHealth().failures === 0);
+
+  // One ordinary failure is ordinary. A lot of them is not.
+  const quietAt = new Date('2026-11-27T03:00:00Z');
+  await noteDeliveryFailure('5926497572', 131026, 'Message undeliverable', quietAt);
+  check('one undeliverable number raises nothing',
+    deliveryFault().failing === false, JSON.stringify(deliveryFault()));
+  check('and is not treated as an outage', repo.sendHealth().failingSince === '');
+  // The hour counts every failure in it, billing ones included — the rate
+  // is about whether messages are arriving at all, not about why.
+  check('but the hour is being counted', repo.sendHealth().windowFailures >= 1,
+    String(repo.sendHealth().windowFailures));
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
