@@ -14948,6 +14948,72 @@ section('The shop never goes quiet');
       line);
   }
 }
+section('Home is not where every order goes');
+{
+  const { executeTool: orderTool } = await import('./agent/tools.ts');
+
+  // Reported from the live shop: a delivery set to Beterverwagting went out
+  // as "Shawn, Lot 4 Diamond", because Diamond is where he lives.
+  //
+  // The PIN has had this test since the Uitvlugt pin turned up under a
+  // Mocha price. The written address never got it, so the same record
+  // answered the same question the same wrong way in words — and the shop's
+  // own checkout guards it while the agent's place_order did not.
+  const mover = '5926100931';
+  const riceFor = repo.getProductBySku('RIC-001') ?? repo.searchProducts('rice')[0];
+  repo.saveCustomer(mover, { name: 'Shawn Adams', contactPhone: mover, address: 'Lot 4 Diamond' });
+  repo.chooseLanguage(mover, 'en');
+  repo.logMessage(mover, 'in', 'smoke', 'rice');
+  repo.setService(mover, 'grocery');
+  repo.setAddressZone(mover, 'Diamond');
+  repo.confirmIdentity(mover);
+  repo.setCartQty(mover, riceFor!.id, 1, '');
+
+  // This one is going to Beterverwagting.
+  repo.setDeliveryZone(mover, 'Beterverwagting');
+  repo.setFeeAgreed(mover, repo.getCart(mover).deliveryFee);
+
+  const refused = JSON.parse(
+    orderTool('place_order', { payment_method: 'cash_on_delivery' }, { phone: mover, outbound: [] } as never),
+  ) as Record<string, unknown>;
+  check('an order to another village is not sent to the home address',
+    typeof refused.error === 'string' && /not where this delivery goes/.test(String(refused.error)),
+    String(refused.error).slice(0, 110));
+  check('and the agent is told to ask where in that village',
+    /Ask where in Beterverwagting/.test(String(refused.error)),
+    String(refused.error).slice(0, 140));
+  check('nothing was placed', repo.recentOrders(mover, 1).length === 0);
+
+  // Given this order's own address, it books — and the card carries that.
+  const placed = JSON.parse(
+    orderTool(
+      'place_order',
+      { payment_method: 'cash_on_delivery', delivery_address: 'Lot 9 Company Road, BV' },
+      { phone: mover, outbound: [] } as never,
+    ),
+  ) as Record<string, unknown>;
+  check('with this order\'s own address it goes through', placed.placed === true,
+    JSON.stringify(placed).slice(0, 90));
+  const sent = repo.findOrder(String(placed.order_number));
+  check('and the delivery address is the one for THIS order',
+    /Company Road/.test(sent?.address ?? ''), sent?.address ?? '');
+  check('not the home on file', !/Lot 4 Diamond/.test(sent?.address ?? ''), sent?.address ?? '');
+
+  // And an order that really is going home still uses the saved door.
+  repo.setDeliveryZone(mover, 'Diamond');
+  repo.setCartQty(mover, riceFor!.id, 1, '');
+  repo.setFeeAgreed(mover, repo.getCart(mover).deliveryFee);
+  const home = JSON.parse(
+    orderTool('place_order', { payment_method: 'cash_on_delivery' }, { phone: mover, outbound: [] } as never),
+  ) as Record<string, unknown>;
+  check('an order going home still uses the door on file', home.placed === true,
+    JSON.stringify(home).slice(0, 90));
+  check('which is the saved one',
+    /Lot 4 Diamond/.test(repo.findOrder(String(home.order_number))?.address ?? ''),
+    repo.findOrder(String(home.order_number))?.address ?? '');
+
+  repo.setService(mover, null);
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

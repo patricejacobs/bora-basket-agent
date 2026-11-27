@@ -100,6 +100,34 @@ usual address in Diamond?" is a shop that knows them; reading back their
 address, their last four orders and their number is a shop that has been
 watching them.
 
+### Home is not where every order goes
+
+A delivery set to **Beterverwagting** went out as *"Shawn, Lot 4 Diamond"* —
+because Diamond is where Shawn lives.
+
+A saved address is **home**. It answers "where is this going?" only when
+this one is going home, and the moment it is not, it is worse than nothing:
+specific, confident and wrong.
+
+The **pin** has had that test since the Uitvlugt pin turned up under a Mocha
+price. The written **address** never got it. The shop's own checkout guards
+it — that is what the street question is for — but the agent's `place_order`
+fell straight back to `customer.address` with no check at all, so an order
+placed through conversation rather than through checkout carried the home
+door to another village.
+
+Now the written address gets the same test as the pin:
+
+| | |
+|---|---|
+| An address the agent passes in | always wins — that is the customer saying where, today |
+| The saved door, order going home | used, as before |
+| The saved door, order going elsewhere | **not used**. The agent is told to ask where in that village, and nothing is placed until it has one |
+
+The read-back changed with it: confirming *"Shawn, Lot 4 Diamond"* to
+somebody sending a bag to Beterverwagting asks them to agree to the wrong
+thing.
+
 ### Why a conversation goes cold
 
 Silence is the worst answer the shop can give. It reads as a business that

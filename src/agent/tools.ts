@@ -24,7 +24,7 @@ import { t } from '../language.ts';
 import { available, availabilityLabel, refuseQty } from '../availability.ts';
 import { parseOptionSpec, describeOptions, applySelection } from '../menu-options.ts';
 import { checkRange, formatDistance, saysTheSamePlace } from '../location.ts';
-import { savedPinIsIn, settleDeliveryPlace } from '../delivery-place.ts';
+import { savedPinIsIn, settleDeliveryPlace, savedStreetIsIn } from '../delivery-place.ts';
 import { servedSpot, checkPin } from '../pin-check.ts';
 import { endPicker } from '../place-picker.ts';
 import { proposeAddressToAssociate } from '../dispatch.ts';
@@ -1911,7 +1911,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Goods go to a person at a place. Confirming who and where is not
       // something to leave to the model's discretion.
       if (!customer.confirmed) {
-        const where = doorPin?.label || customer.address || 'the pin they shared';
+        // The door for THIS order, not the one on file: reading back a
+        // Diamond address to somebody sending a bag to Beterverwagting
+        // asks them to confirm the wrong thing.
+        const thisDoor = asString(input.delivery_address).trim();
+        const goingHome = !goingTo || savedStreetIsIn(ctx.phone, goingTo);
+        const where =
+          thisDoor || doorPin?.label || (goingHome ? customer.address : goingTo) || 'the pin they shared';
         return fail(
           `Identity not confirmed. Read back "${customer.name}, ${where}", get a clear yes, then call confirm_identity before ordering.`,
         );
@@ -1947,7 +1953,28 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       // Settled before the order is written, because both fields are about to
       // be stored and the card is not the only place they are read.
-      const deliveryAddress = asString(input.delivery_address) || customer.address || '';
+      // The saved door, and only when it is in the village THIS order is
+      // going to.
+      //
+      // The pin has had this test since Shawn's Uitvlugt pin turned up under
+      // a Mocha price — `doorPin` above. The written address never got it,
+      // so the same record answered the same question the same wrong way in
+      // words: a delivery set to Beterverwagting went out as "Shawn, Lot 4
+      // Diamond" because Diamond is where he lives. A saved address is HOME,
+      // and home answers "where is this going?" only when this one is going
+      // home.
+      //
+      // An address the agent passes IN is this order's own and always wins:
+      // that is the customer saying where, today.
+      const givenAddress = asString(input.delivery_address).trim();
+      const savedDoorFits = !goingTo || savedStreetIsIn(ctx.phone, goingTo);
+      const deliveryAddress = givenAddress || (savedDoorFits ? customer.address || '' : '');
+
+      if (!deliveryAddress && !doorPin) {
+        return fail(
+          `Cannot place the order — the address on file is their home and this one is going to ${goingTo}, so it is not where this delivery goes. Ask where in ${goingTo} it should go: a lot number and road, or a landmark. Pass it as delivery_address, or save it with save_customer_details, then try again.`,
+        );
+      }
       // The saved pin, but only when the saved door is in the place this
       // order is going to. Where the shop prices by zone and the two
       // disagree, the pin is somebody else's village and is dropped.
