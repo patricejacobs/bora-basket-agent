@@ -49,6 +49,27 @@ The thing with twelve aisles and a basket is **the shop**.
 | **Chauffeur** | An associate while they are carrying a passenger |
 | **Delivery associate** | The same person carrying groceries, food or a parcel |
 
+The word follows the **job**, not the person — the same associate may carry
+a bag at noon and a passenger at four — and one helper, `carrierWord(kind)`,
+decides it for every message either half of the shop sends. The customer's
+messages have read properly for a while and the suite sweeps them for it;
+the people doing the work were told *delivery associate* whatever the job
+was, so a taxi with nobody to drive it reported **no delivery associate**, a
+handed-over trip arrived from one, and a trip somebody else was driving was
+*being delivered*. Those now read:
+
+```
+No chauffeur is clocked on. The job has gone to everyone — check somebody
+is working.
+```
+
+```
+TXI-00021 is out with Rohan, so its details are not yours to read.
+```
+
+Swept on the staff and associate side too now, so the two halves cannot
+drift apart again.
+
 Customers see almost none of this: the only places the word appears in front
 of a customer are the catalogue header and the checkout label, both of which
 say *the shop*, because that is what a grocery customer is talking to.

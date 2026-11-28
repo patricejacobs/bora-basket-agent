@@ -14906,6 +14906,53 @@ section('Two names, and which one depends on the job');
       said.slice(0, 80));
   }
 
+  // The STAFF and ASSOCIATE side of the same rule, which nothing swept.
+  //
+  // The customer's messages have called them a chauffeur for a while. The
+  // people doing the work were told "delivery associate" whatever the job
+  // was, so a taxi with nobody to drive it reported no delivery associate,
+  // a handed-over trip arrived from one, and a trip somebody else was
+  // driving was "being delivered". The word follows the JOB, not the
+  // person — the same associate may carry a bag at noon and a passenger at
+  // four — so one helper decides it and both halves read from it.
+  {
+    const { carrierWord, carrierWordCapped } = await import('./dispatch.ts');
+    check('a taxi is driven by a chauffeur', carrierWord('taxi') === 'chauffeur');
+    check('and everything else is carried by a delivery associate',
+      ['grocery', 'restaurant', 'parcel'].every((k) => carrierWord(k) === 'delivery associate'),
+      ['grocery', 'restaurant', 'parcel'].map(carrierWord).join('|'));
+    check('and it opens a sentence too',
+      carrierWordCapped('taxi') === 'Chauffeur' &&
+        carrierWordCapped('parcel') === 'Delivery associate',
+      `${carrierWordCapped('taxi')}|${carrierWordCapped('parcel')}`);
+
+    const { handleDriverMessage: toDriver } = await import('./staff.ts');
+    // Somebody on the road who is NOT the one holding the job below.
+    const other = '5926001111';
+
+    // A trip in somebody else's hands, read by an associate it is not with.
+    const mineRide = repo.createTaxiJob({
+      phone: '5926100061', passengerName: 'H Passenger', passengerPhone: '5926100061',
+      pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+      destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+    });
+    repo.assignDriver(mineRide.orderNo, '5926009999');
+    const rn = String(Number(mineRide.orderNo.replace(/\D/g, '')));
+
+    const notYours = (await toDriver(`${rn} details`, other))[0]?.text ?? '';
+    check('a trip somebody else has is not called a delivery',
+      !/delivery associate/i.test(notYours), notYours.slice(0, 110));
+    check('and it is out with a chauffeur',
+      /chauffeur/i.test(notYours), notYours.slice(0, 110));
+
+    const cannot = (await toDriver(`${rn} onboard`, other))[0]?.text ?? '';
+    check('and moving it is refused in the right word',
+      !/delivery associate/i.test(cannot), cannot.slice(0, 110));
+
+    db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(mineRide.orderNo);
+    db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(mineRide.orderNo);
+  }
+
   // And in the other languages, where the ordinary word for a driver is not
   // the word for a hired one.
   const wrongWord: Record<string, RegExp> = {

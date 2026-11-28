@@ -75,13 +75,36 @@ const wait = (ms: number): Promise<void> =>
  * The same rule the distance filter follows: a filter that leaves nobody is a
  * filter that should not have run.
  */
-function onDuty(associates: string[]): string[] {
+/**
+ * What to call the person doing THIS job.
+ *
+ * One register of people, and the word follows the job rather than the
+ * person: the same associate may carry a bag at noon and a passenger at
+ * four. The customer-facing strings have said it properly for a while, and
+ * the suite sweeps them for it — but staff and associates were told
+ * "delivery associate" whatever the job was, so a taxi with nobody to drive
+ * it reported no delivery associate, and a handed-over trip arrived from
+ * one.
+ *
+ * In one place, so the two halves of the shop cannot drift apart again.
+ */
+export function carrierWord(kind: string): string {
+  return kind === 'taxi' ? 'chauffeur' : 'delivery associate';
+}
+
+/** The same word to open a sentence with. */
+export function carrierWordCapped(kind: string): string {
+  const word = carrierWord(kind);
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function onDuty(associates: string[], kind: string): string[] {
   const working = associates.filter((phone) => repo.isOnDuty(phone));
   if (working.length > 0) return working;
 
   console.warn('[dispatch] nobody is clocked on - offering the job to everyone');
   void warnStaff(
-    'No delivery associate is clocked on. The job has gone to everyone - check somebody is working.',
+    `No ${carrierWord(kind)} is clocked on. The job has gone to everyone - check somebody is working.`,
   ).catch(() => {});
   return associates;
 }
@@ -313,7 +336,9 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
   // a base that has taken somebody on adds them, and they start.
   const associates = repo.associateNumbers();
   if (associates.length === 0) {
-    console.warn(`[dispatch] ${orderNo} booked but there are no active delivery associates — nobody was offered it`);
+    console.warn(
+      `[dispatch] ${orderNo} booked but there are no active ${carrierWord(order.kind)}s — nobody was offered it`,
+    );
     return 'no_drivers';
   }
 
@@ -330,7 +355,7 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
     pickup && pickup.latitude !== null && pickup.longitude !== null
       ? { latitude: pickup.latitude, longitude: pickup.longitude }
       : null;
-  const nearby = withinReach(onDuty(free), pickupPin);
+  const nearby = withinReach(onDuty(free, order.kind), pickupPin);
   if (nearby.length === 0) return 'all_busy';
 
   for (const associate of nearby) {
@@ -1525,7 +1550,9 @@ export async function tellTransferred(
   if (!order) return false;
 
   const giver = repo.getAssociate(from.replace(/[^0-9]/g, ''));
-  const head = `🤝 *${order.orderNo}* has been handed to you by ${giver?.name || 'another delivery associate'}.`;
+  const head =
+    `🤝 *${order.orderNo}* has been handed to you by ` +
+    `${giver?.name || `another ${carrierWord(order.kind)}`}.`;
 
   const body = [
     head,
@@ -1688,7 +1715,7 @@ export async function dispatchToDrivers(
     return 'all_busy';
   }
 
-  const nearby = withinReach(onDuty(free), pickupPin);
+  const nearby = withinReach(onDuty(free, order.kind), pickupPin);
   if (nearby.length === 0) return 'all_busy';
 
   for (const associate of nearby) {

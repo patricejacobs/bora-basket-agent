@@ -39,6 +39,8 @@ import {
   offerWaitingWork,
   parcelUpliftCard,
   taxiPickupCard,
+  carrierWord,
+  carrierWordCapped,
   flushOutletTickets,
   onTheWayCard,
   tellAssociatesCancelled,
@@ -1966,7 +1968,7 @@ export async function handleDriverMessage(
       });
       if (!to) {
         return reply(
-          `No free delivery associate matching "${named}". Send \`${handing[1]} transfer\` to see who can take it.`,
+          `No free ${carrierWord(job.kind)} matching "${named}". Send \`${handing[1]} transfer\` to see who can take it.`,
         );
       }
 
@@ -2275,7 +2277,7 @@ export async function handleDriverMessage(
     if (order.driverPhone && order.driverPhone !== mine) {
       const who = repo.getAssociate(order.driverPhone);
       return reply(
-        `${order.orderNo} is out with ${who?.name || 'another delivery associate'}, so its details are not yours to read.` +
+        `${order.orderNo} is out with ${who?.name || `another ${carrierWord(order.kind)}`}, so its details are not yours to read.` +
           `${chr10}${chr10}Send \`jobs\` to see what you have and what is waiting.`,
       );
     }
@@ -2483,7 +2485,7 @@ export async function handleDriverMessage(
   if (status !== 'on_the_way' && status !== 'delivered' && !mayAccept && !mayReturn) {
     return reply(
       selfAccepted
-        ? `A delivery associate can accept ${order.kind === 'taxi' ? 'a job' : 'a parcel'}, mark it uplifted, delivered, or returned. Anything else is for the base.`
+        ? `A ${carrierWord(order.kind)} can accept ${order.kind === 'taxi' ? 'a job' : 'a parcel'}, mark it uplifted, delivered, or returned. Anything else is for the base.`
         : 'A delivery associate can mark an order uplifted, delivered, or returned. Anything else is for the base.',
     );
   }
@@ -2537,7 +2539,7 @@ export async function handleDriverMessage(
       [
         `${order.orderNo} is not yours to move.`,
         '',
-        `${who?.name || 'Another delivery associate'} is delivering it. If they have passed it to you,`,
+        `${who?.name || carrierWordCapped(order.kind)} is ${order.kind === 'taxi' ? 'driving' : 'delivering'} it. If they have passed it to you,`,
         `they send \`${n} transfer\` — then it is yours and you can close it.`,
         '',
         'Send `jobs` to see what else is waiting.',
@@ -2704,7 +2706,7 @@ export async function handleDriverMessage(
       [
         `${order.orderNo} is not yours to close.`,
         '',
-        `${who?.name || 'Another delivery associate'} is delivering it. If they have passed it to you,`,
+        `${who?.name || carrierWordCapped(order.kind)} is ${order.kind === 'taxi' ? 'driving' : 'delivering'} it. If they have passed it to you,`,
         `ask them to send \`${n} transfer\`.`,
       ].join(chr10),
     );
