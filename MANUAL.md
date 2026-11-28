@@ -298,6 +298,98 @@ on first boot it reads the orders already finished, so a shop with a few
 hundred deliveries behind it starts out knowing most of the streets it
 serves rather than nothing.
 
+### A street spelled wrong is still that street
+
+Village names have been matched by sound since the first week — doubled
+letters collapse, `c` and `k` are one letter, `ph` is `f`. The street index
+was the last place in the shop still demanding an exact spelling, so a
+customer who typed `Sherriff` was asked an open question about a street the
+shop knew perfectly well.
+
+It now matches in three steps, stopping at the first that answers:
+
+| | |
+|---|---|
+| The spelling itself | `Sheriff Street` |
+| The sound of it | `Sherriff St`, `sherif street`, `Kamp Street` |
+| One letter per seven, never more than three | `Regant Street` → Regent Street |
+
+Three things hold the last step down, because a street matched nearly to
+the *wrong* street sends a chauffeur to the wrong road:
+
+- **The kind of road must agree.** Blenkinsop Street and Blenkinsop Road
+  are two roads in two wards, not one misspelled.
+- **The slack is measured on the name alone.** Measured across the whole
+  key, `street` contributed a letter of slack it did not need and the name
+  spent it — which is how `Sixth Street` came back as the ward of
+  `First Street`, two letters away.
+- **A short name gets no slack, and a numbered one gets none ever.** There
+  are 23 First Streets and 24 Second Streets in this index. A misspelling
+  of a word has a right answer; a misspelling of a number is another
+  number, and another street. So `Sevens Street` is never answered with
+  Seventh Street's ward, and a numbered street answers only to its own
+  spelling and its own sound.
+
+### The streets nobody can place are the worklist
+
+A street the shop could not place used to become a question and vanish.
+Kept, the misses are a list of **exactly the streets customers ask for**,
+which beats any guess at where the index is thin — Garnet Street would have
+been top of it from the first week.
+
+```
+Rider One ▸ streets
+
+◂ 🛣 *2 street(s) the shop cannot place*
+
+  • Lot 3 Zebediah Street — asked 3 times
+  • Hesperus Street — asked 1 time
+
+  Teach one with `street Garnet Street = Kitty`.
+```
+
+Counted under the stripped name, so `Lot 3 Zebediah Street` and
+`zebediah st` are one line asked twice. A street the shop *can* place never
+reaches the list, however it was spelled. And learning one — from a
+delivery, from the map, or from the command below — takes it off, so the
+list stays a list of work rather than a log.
+
+### An associate can tell the shop where a street is
+
+The two sources above are both slow: a delivery has to happen, and the map
+has what the map has. An associate who has driven Georgetown for years
+knows where Garnet Street is **now**, and one message is the whole cost of
+asking.
+
+```
+Rider One ▸ street Garnet Street = Kitty
+
+◂ 🛣 Noted — *Garnet Street* is in *Kitty*.
+
+  The shop will use it from now on.
+```
+
+| | |
+|---|---|
+| `street Garnet Street = Kitty` | Teaches it. `is` and `in` work too |
+| `street Garnet Street` | What the shop has, and where it came from |
+| `streets` | The worklist above |
+
+Staff and associates both have it, and both help lists carry it.
+
+Two things are refused, because a bad row in this index is worse than a
+missing one:
+
+- **A place the tariff does not carry.** A street in Atlantis could not be
+  priced, which is the only reason the shop wanted the ward at all.
+- **A name with no kind of road in it.** `street Garnet = Kitty` is
+  refused: Garnet could be a village, a person or a shop, and the key would
+  never be written the same way twice.
+
+If the street is already on file for somewhere else, both are kept and the
+shop goes on asking which one — a second ward is an ambiguity, not a
+correction.
+
 ### The area is what prices the trip
 
 The same booking read **"The fare is agreed with the chauffeur"**, and it
@@ -645,6 +737,8 @@ errand and collection services, so nobody picks letters that clash later.
 | `7 history` | Everything that happened to order 7 |
 | `backup` | The trading record, sent to you here |
 | `wanted` | What customers asked for and you did not have |
+| `streets` | Streets customers asked about that the shop cannot place |
+| `street Garnet Street = Kitty` | Tell the shop where a street is |
 
 ### Reward points
 

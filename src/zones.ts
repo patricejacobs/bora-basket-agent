@@ -253,7 +253,7 @@ export function soundalike(s: string): string {
  *
  * Capped, so a long mismatch costs nothing to reject.
  */
-function distance(a: string, b: string, cap = 4): number {
+export function distance(a: string, b: string, cap = 4): number {
   if (a === b) return 0;
   if (Math.abs(a.length - b.length) > cap) return cap + 1;
 
@@ -306,7 +306,7 @@ function holds(whole: string, part: string): boolean {
  * question costs a message, a wrong village costs the difference between $700
  * and $4,800 and nobody notices until the car arrives.
  */
-function allowance(name: string): number {
+export function allowance(name: string): number {
   // A letter of slack per seven, counted WORD BY WORD and never less than one
   // a word, up to three for the whole name.
   //

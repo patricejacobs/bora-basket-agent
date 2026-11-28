@@ -15447,6 +15447,176 @@ section('Where a street is, the shop looks up');
 
   fs.rmSync(where, { force: true });
 }
+section('A street spelled wrong is still that street');
+{
+  const nl10 = String.fromCharCode(10);
+  const fuzzy = './data/streets-fuzzy-smoke.csv';
+  fs.writeFileSync(
+    fuzzy,
+    [
+      'street,place,km_from_marker',
+      'blenkinsop street,Kitty,0.20',
+      'blenkinsop road,Bourda,0.30',
+      'seventh street,Alberttown,0.25',
+    ].join(nl10) + nl10,
+    'utf8',
+  );
+  repo.loadStreetsFromMap(fuzzy);
+
+  const at = (street: string): string =>
+    repo.areasForStreet(street).map((a) => a.place).join(',');
+
+  // People type street names on a telephone. Village names have been
+  // matched by sound since the first week — doubled letters collapse, c
+  // and k are one letter — and the street index was the last place in this
+  // shop still demanding an exact spelling, which meant a customer who
+  // wrote "Sherriff" was asked an open question about a street the shop
+  // knew perfectly well.
+  check('the spelling the map has is found', at('Lot 4 Blenkinsop Street') === 'Kitty',
+    at('Lot 4 Blenkinsop Street'));
+  check('a doubled letter is the same street', at('Blenkinsopp Street') === 'Kitty',
+    at('Blenkinsopp Street'));
+  check('and s heard as z is too', at('Blenkinzop Street') === 'Kitty',
+    at('Blenkinzop Street'));
+  check('a letter simply wrong is still found', at('Blenkinsep Street') === 'Kitty',
+    at('Blenkinsep Street'));
+  check('and the short form with it', at('blenkinsop st') === 'Kitty',
+    at('blenkinsop st'));
+
+  // The kind of road is part of the name, not decoration: Blenkinsop
+  // Street and Blenkinsop Road are two roads in two wards.
+  check('the kind of road is part of the name', at('Blenkinsop Road') === 'Bourda',
+    at('Blenkinsop Road'));
+  check('and a misspelled road stays a road', at('Blenkinsep Road') === 'Bourda',
+    at('Blenkinsep Road'));
+
+  // Numbered streets are the one family where no letter is spare. "Sevens"
+  // is one letter from "Seventh", and guessing would answer a street
+  // nobody asked about with another street's ward — in a city with 23
+  // First Streets that is a chauffeur sent to the wrong road.
+  check('a name one letter from a numbered street is not answered with it',
+    repo.areasForStreet('Sevens Street').length === 0,
+    JSON.stringify(repo.areasForStreet('Sevens Street')));
+  check('while the numbered street itself is still found',
+    at('Seventh Street') === 'Alberttown', at('Seventh Street'));
+
+  // And a name near nothing is still near nothing. The whole point of
+  // asking is that a wrong answer costs more than a question.
+  check('a street near nothing on file is not guessed at',
+    repo.areasForStreet('Zebediah Street').length === 0,
+    JSON.stringify(repo.areasForStreet('Zebediah Street')));
+
+  fs.rmSync(fuzzy, { force: true });
+}
+section('The streets nobody can place are the worklist');
+{
+  const { executeTool: ask7 } = await import('./agent/tools.ts');
+  const look7 = (street: string): void => {
+    ask7('where_is_street', { street }, { phone: '5926100002', outbound: [] } as never);
+  };
+  const listed = (): string[] => repo.streetsNobodyCanPlace(20).map((m) => m.street);
+
+  // A miss used to become a question and vanish. Kept, the misses are a
+  // list of exactly the streets customers ask for, which beats any guess
+  // at where the index is thin — Garnet Street would have been top of it.
+  look7('Lot 3 Zebediah Street');
+  check('a street the shop could not place is written down',
+    listed().includes('zebediah street'), JSON.stringify(listed()));
+  check('under the name without the lot number',
+    !listed().includes('lot 3 zebediah street'), JSON.stringify(listed()));
+
+  look7('Zebediah Street');
+  look7('zebediah st');
+  const twice = repo.streetsNobodyCanPlace(20).find((m) => m.street === 'zebediah street');
+  check('and asked three times, counted three times', twice?.asked === 3,
+    JSON.stringify(twice));
+  check('keeping what the customer actually wrote',
+    /zebediah/i.test(twice?.wrote ?? ''), twice?.wrote ?? '');
+
+  look7('Hesperus Street');
+  check('the most asked for comes first',
+    repo.streetsNobodyCanPlace(20)[0]?.street === 'zebediah street',
+    JSON.stringify(listed()));
+
+  // A street it CAN place is not a gap, however it was spelled.
+  look7('Blenkinsep Street');
+  check('a street it can place is not on the list',
+    !listed().some((m) => /blenkins/.test(m)), JSON.stringify(listed()));
+
+  // And learning one takes it off, from either source — otherwise the
+  // list grows for ever and stops being a list of work.
+  repo.rememberStreetArea('Lot 3 Hesperus Street', 'Kitty');
+  check('learning a street takes it off the list',
+    !listed().includes('hesperus street'), JSON.stringify(listed()));
+}
+section('An associate can tell the shop where a street is');
+{
+  const { readStreetCommand, streetCommandFor } = await import('./street-command.ts');
+  const { handleStaffMessage: staffSay7, handleDriverMessage: driverSay7 } =
+    await import('./staff.ts');
+
+  // The shop learns streets from finished deliveries and from the map, and
+  // both are slow: a delivery has to happen, and the map has what the map
+  // has. An associate who has driven Georgetown for years knows where
+  // Garnet Street is now, and one message is the whole cost of asking.
+  check('the three ways of writing it are all read',
+    readStreetCommand('street Zebediah Street = Kitty')?.kind === 'teach' &&
+      readStreetCommand('street Zebediah Street is Kitty')?.kind === 'teach' &&
+      readStreetCommand('street Zebediah Street in Kitty')?.kind === 'teach');
+  check('a bare street is a question, not a lesson',
+    readStreetCommand('street Zebediah Street')?.kind === 'lookup');
+  check('and the plural is the worklist',
+    readStreetCommand('streets')?.kind === 'misses');
+  check('an ordinary message is none of them',
+    readStreetCommand('7 delivered') === null && readStreetCommand('orders') === null);
+
+  const taught = streetCommandFor('street Zebediah Street = Kitty') ?? '';
+  check('teaching it says so', /Noted/.test(taught), taught.slice(0, 60));
+  check('and the shop can place it from then on',
+    repo.areasForStreet('Zebediah Street')[0]?.place === 'Kitty',
+    JSON.stringify(repo.areasForStreet('Zebediah Street')));
+  check('which takes it off the worklist',
+    !repo.streetsNobodyCanPlace(20).some((m) => m.street === 'zebediah street'),
+    JSON.stringify(repo.streetsNobodyCanPlace(20).map((m) => m.street)));
+
+  // A place the tariff does not carry could not be priced, which is the
+  // only reason the shop wanted the ward in the first place.
+  const nowhere = streetCommandFor('street Nowhere Street = Atlantis') ?? '';
+  check('a place the tariff does not carry is refused',
+    /does not carry/.test(nowhere), nowhere.slice(0, 70));
+  check('and nothing is filed from it',
+    repo.areasForStreet('Nowhere Street').length === 0);
+
+  // And a name that is not a road name at all: "Garnet" could be a
+  // village, a person or a shop, and filing it would poison the index.
+  const notARoad = streetCommandFor('street Garnet = Kitty') ?? '';
+  check('a name with no kind of road in it is refused',
+    /kind of road/.test(notARoad), notARoad.slice(0, 70));
+
+  const asked7 = streetCommandFor('street Blenkinsop Road') ?? '';
+  check('asking about one names the ward', /Bourda/.test(asked7), asked7.slice(0, 70));
+  check('and says where that came from', /from the map/.test(asked7), asked7.slice(0, 90));
+
+  const unknown7 = streetCommandFor('street Nowhere Street') ?? '';
+  check('asking about one it cannot place says so and how to fix it',
+    /cannot place/.test(unknown7) && /street Nowhere Street = /.test(unknown7),
+    unknown7.slice(0, 90));
+
+  // Both the people who would use it can reach it, and both are told.
+  const viaStaff = (await staffSay7('street Blenkinsop Road', '5926497570'))[0]?.text ?? '';
+  check('staff can ask it', /Bourda/.test(viaStaff), viaStaff.slice(0, 60));
+  const viaDriver = (await driverSay7('street Blenkinsop Road'))[0]?.text ?? '';
+  check('and an associate can', /Bourda/.test(viaDriver), viaDriver.slice(0, 60));
+  check('it is in the staff help',
+    ((await staffSay7('help', '5926497570'))[0]?.text ?? '').includes('street Garnet Street = Kitty'));
+  check('and in the associate help',
+    ((await driverSay7('help'))[0]?.text ?? '').includes('street Garnet Street = Kitty'));
+
+  const worklist = (await driverSay7('streets'))[0]?.text ?? '';
+  check('the worklist reads as work', /cannot place/.test(worklist), worklist.slice(0, 70));
+  check('and tells them how to clear a line',
+    /street Garnet Street = Kitty/.test(worklist), worklist.slice(-60));
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');

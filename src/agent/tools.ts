@@ -1646,6 +1646,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // street the shop does not know, and the customer is the one who
       // does.
       if (places.length === 0) {
+        // The misses are the worklist: these are the streets customers
+        // actually ask for.
+        repo.noteStreetMiss(street);
         return ok({
           street,
           known: false,
@@ -2485,6 +2488,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // own street is in, when an associate went there last Tuesday,
           // is the shop forgetting in front of them.
           const known = repo.areasForStreet(pickupAddress);
+          if (known.length === 0) repo.noteStreetMiss(pickupAddress);
           if (known.length > 0) {
             repo.notePickupAsked(ctx.phone);
             repo.setTaxiPick(ctx.phone, 'from', pickupAddress);

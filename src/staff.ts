@@ -60,6 +60,7 @@ import { servedSpot as servedPinSpot } from './pin-check.ts';
 import { DUTY_OFF } from './duty-buttons.ts';
 import { tellWhoeverIsWaiting } from './waiting-list.ts';
 import { fareAnswerFor } from './fare-ask.ts';
+import { streetCommandFor } from './street-command.ts';
 const servedPin = (p: { latitude: number; longitude: number }): boolean => servedPinSpot(p).served;
 import type { OutboundMessage } from './channels/types.ts';
 
@@ -551,6 +552,8 @@ const HELP = [
   '`7` — show one order',
   '',
   '`wanted` — what customers asked for and we did not have',
+  '`streets` — streets customers asked about that we cannot place',
+  '`street Garnet Street = Kitty` — tell the shop where a street is',
   '',
   '`where` — where the delivery associates are',
   '`where <name>` — ask one of them for a fresh pin',
@@ -726,6 +729,11 @@ export async function handleStaffMessage(
   // the telephone to a passenger asking what a trip costs.
   {
     const answered = fareAnswerFor(phone, trimmed);
+    if (answered) return reply(answered);
+  }
+
+  {
+    const answered = streetCommandFor(trimmed);
     if (answered) return reply(answered);
   }
 
@@ -1333,6 +1341,8 @@ const DRIVER_HELP = [
   '`details` on its own does the same, when you are carrying only one',
   '',
   '`fare Georgetown to Mahaica` — what a trip pays, before you agree it',
+  '`street Garnet Street = Kitty` — tell the shop where a street is',
+  '`streets` — streets it has been asked about and cannot place',
   '`fare Mahaica` — from where you last pinned',
   '',
   '`cash` — what you are holding this shift',
@@ -1569,6 +1579,14 @@ export async function handleDriverMessage(
   // in it, and the parse would refuse it with the help text.
   {
     const answered = fareAnswerFor(phone, trimmed);
+    if (answered) return reply(answered);
+  }
+
+  // Teaching the shop a street. An associate who has driven Georgetown for
+  // years knows where Garnet Street is; the map does not carry it and no
+  // delivery has proved it yet.
+  {
+    const answered = streetCommandFor(trimmed);
     if (answered) return reply(answered);
   }
 

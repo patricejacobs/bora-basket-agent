@@ -326,6 +326,18 @@ INSERT OR IGNORE INTO delivery_health (id) VALUES (1);
 -- Counted rather than merely recorded: a street that spans two wards will
 -- have both, and the count is what decides whether to confirm one or offer
 -- the choice.
+-- Streets the shop was asked about and could not place.
+--
+-- A miss used to become a question and vanish. Kept, it is a worklist of
+-- exactly the streets customers ask for, which is a better guide to what
+-- is missing than any guess at coverage.
+CREATE TABLE IF NOT EXISTS street_misses (
+  street   TEXT PRIMARY KEY,
+  asked    INTEGER NOT NULL DEFAULT 0,
+  wrote    TEXT NOT NULL DEFAULT '',
+  last_at  TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS street_areas (
   street   TEXT NOT NULL,
   place    TEXT NOT NULL,
@@ -673,6 +685,12 @@ addColumnIfMissing('parcel_drafts', 'pickup_asked_at', "TEXT NOT NULL DEFAULT ''
 // street the shop learned by delivering to it, which needs no tie-break:
 // it has a count, and a count outranks a guess.
 addColumnIfMissing('street_areas', 'km', 'REAL NOT NULL DEFAULT 0');
+// The street's sound-alike form, so a misspelling finds it. People type
+// "sherif", "sherriff" and "regant" on a telephone all day, and the shop
+// has matched village names this way since the beginning — the streets
+// were the one index still demanding an exact spelling.
+addColumnIfMissing('street_areas', 'sound', "TEXT NOT NULL DEFAULT ''");
+
 addColumnIfMissing('customers', 'language', "TEXT NOT NULL DEFAULT ''");
 // When they PICKED one off the opening screen, as opposed to a language
 // noticed from what they happened to write. The two are different things: a

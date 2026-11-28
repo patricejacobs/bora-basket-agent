@@ -7,6 +7,7 @@ import { parseOptionSpec, applySelection, summariseStored } from '../menu-option
 import { parseCoordinates, type LocationPin, type SavedPin } from '../location.ts';
 import { zoneFeeFor } from '../zones.ts';
 import { streetKey } from '../street-memory.ts';
+import { soundalike, distance, allowance } from '../zones.ts';
 import { inShoppingOrder } from '../categories.ts';
 import { pointsFor, rewardsIn, REWARD_POINTS, REWARD_VALUE } from '../rewards.ts';
 import { waitingCharge } from '../taxi.ts';
@@ -4088,15 +4089,126 @@ function healthRow(): SendHealth {
  */
 const TOO_MANY_PLACES = 6;
 
+/**
+ * A street the shop was asked about and could not place.
+ *
+ * Recorded rather than merely answered, because the misses ARE the
+ * worklist: they are the streets customers actually ask for, which is a
+ * better guide to what is missing than any guess at coverage. Garnet
+ * Street would have been at the top of it.
+ */
+export function noteStreetMiss(written: string, now = new Date()): void {
+  const key = streetKey(written);
+  if (!key) return;
+  if (areasForStreet(written).length > 0) return;
+
+  db.prepare(
+    `INSERT INTO street_misses (street, asked, wrote, last_at) VALUES (?, 1, ?, ?)
+     ON CONFLICT(street) DO UPDATE SET asked = asked + 1, wrote = excluded.wrote,
+       last_at = excluded.last_at`,
+  ).run(key, written.trim().slice(0, 80), now.toISOString());
+}
+
+/** The worklist, most asked for first. */
+export function streetsNobodyCanPlace(limit = 20): {
+  street: string;
+  asked: number;
+  wrote: string;
+}[] {
+  return db
+    .prepare(
+      `SELECT street, asked, wrote FROM street_misses ORDER BY asked DESC, last_at DESC LIMIT ?`,
+    )
+    .all(limit) as unknown as { street: string; asked: number; wrote: string }[];
+}
+
 export function rememberStreetArea(written: string, place: string, now = new Date()): void {
   const key = streetKey(written, place);
   const village = place.trim();
   if (!key || !village) return;
 
   db.prepare(
-    `INSERT INTO street_areas (street, place, seen, last_at) VALUES (?, ?, 1, ?)
-     ON CONFLICT(street, place) DO UPDATE SET seen = seen + 1, last_at = excluded.last_at`,
-  ).run(key, village, now.toISOString());
+    `INSERT INTO street_areas (street, place, seen, sound, last_at) VALUES (?, ?, 1, ?, ?)
+     ON CONFLICT(street, place) DO UPDATE SET seen = seen + 1, sound = excluded.sound,
+       last_at = excluded.last_at`,
+  ).run(key, village, soundalike(key), now.toISOString());
+
+  // It is no longer missing.
+  db.prepare(`DELETE FROM street_misses WHERE street = ?`).run(key);
+}
+
+/**
+ * Streets named by a number, where no letter is spare.
+ *
+ * First, Third, Fifth, Sixth and Ninth Street are five different streets
+ * in Georgetown, and "sikst" is two letters from "first" — inside the
+ * slack that catches "regant" for "regent". A misspelling of a word has a
+ * right answer; a misspelling of a number is another number, and another
+ * street. So these are matched by spelling and sound only, never nearly.
+ */
+const NUMBERED =
+  /^(\d+(st|nd|rd|th)?|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|(thir|four|fif|six|seven|eigh|nine)teen(th)?|(twen|thir|for|fif|six|seven|eigh|nine)tie(th)?|(twen|thir|for|fif|six|seven|eigh|nine)ty)$/i;
+
+/** The name without the kind of road on the end — "regent" of "regent street". */
+function streetNameOnly(key: string): string {
+  const words = key.split(' ');
+  return words.length > 1 ? words.slice(0, -1).join(' ') : key;
+}
+
+/**
+ * The key the shop will actually look under.
+ *
+ * Exact first. Then the sound-alike form, which is how every village name
+ * in this shop has been matched since the beginning — doubled letters
+ * collapse, c and k are one letter — and it catches "sherriff" and "kamp"
+ * for nothing. Then the tariff's own near-match, a letter of slack per
+ * seven, which catches "regant" for "regent".
+ *
+ * Three things hold that last step down, because a street matched nearly
+ * to the wrong street sends a chauffeur to the wrong street:
+ *
+ *   - The kind of road must agree. Regent Street and Regent Road are two
+ *     streets, not one misspelled.
+ *   - The slack is measured on the NAME alone. Measured on the whole key,
+ *     "street" contributed a letter it did not need and the name spent it.
+ *   - A short name gets none, and a numbered one gets none ever. One
+ *     letter of slack in a five-letter name is a different five-letter
+ *     name about as often as it is a typo.
+ */
+const SHORTEST_TO_GUESS_AT = 6;
+
+function nearestKnownStreet(key: string): string | null {
+  const exact = db
+    .prepare(`SELECT 1 FROM street_areas WHERE street = ? LIMIT 1`)
+    .get(key) as unknown;
+  if (exact) return key;
+
+  const sound = soundalike(key);
+  const bySound = db
+    .prepare(`SELECT street FROM street_areas WHERE sound = ? LIMIT 1`)
+    .get(sound) as { street: string } | undefined;
+  if (bySound) return bySound.street;
+
+  const name = streetNameOnly(key);
+  if (NUMBERED.test(name)) return null;
+  const heard = soundalike(name);
+  if (heard.length < SHORTEST_TO_GUESS_AT) return null;
+
+  const tail = key.split(' ').pop() ?? '';
+  const sameKind = db
+    .prepare(`SELECT DISTINCT street, sound FROM street_areas WHERE street LIKE ?`)
+    .all(`% ${tail}`) as unknown as { street: string; sound: string }[];
+
+  const slack = allowance(name);
+  let best: { street: string; off: number } | null = null;
+  for (const row of sameKind) {
+    const theirs = streetNameOnly(row.street);
+    if (NUMBERED.test(theirs)) continue;
+    const off = distance(heard, soundalike(theirs));
+    if (off > slack) continue;
+    if (!best || off < best.off) best = { street: row.street, off };
+  }
+  return best?.street ?? null;
 }
 
 /**
@@ -4106,7 +4218,9 @@ export function rememberStreetArea(written: string, place: string, now = new Dat
  * answer for a long while after this is switched on.
  */
 export function areasForStreet(written: string): { place: string; seen: number }[] {
-  const key = streetKey(written);
+  const typed = streetKey(written);
+  if (!typed) return [];
+  const key = nearestKnownStreet(typed);
   if (!key) return [];
 
   // Delivered-to first, and among the map's own guesses the nearest one.
@@ -4168,7 +4282,7 @@ export function loadStreetsFromMap(file = './data/streets.csv'): number {
   }
 
   const put = db.prepare(
-    `INSERT INTO street_areas (street, place, seen, km, last_at) VALUES (?, ?, 0, ?, '')
+    `INSERT INTO street_areas (street, place, seen, km, sound, last_at) VALUES (?, ?, 0, ?, ?, '')
      ON CONFLICT(street, place) DO NOTHING`,
   );
 
@@ -4178,7 +4292,7 @@ export function loadStreetsFromMap(file = './data/streets.csv'): number {
     const [street, place, km] = line.split(',');
     if (!street || !place) continue;
     const before = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
-    put.run(street.trim(), place.trim(), Number(km) || 0);
+    put.run(street.trim(), place.trim(), Number(km) || 0, soundalike(street.trim()));
     const after = db.prepare(`SELECT COUNT(*) AS n FROM street_areas`).get() as { n: number };
     if (after.n > before.n) added += 1;
   }
