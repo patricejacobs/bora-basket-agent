@@ -655,11 +655,14 @@ export async function notifyPassengerDriverOutside(orderNo: string): Promise<boo
 
   const code = repo.safetyCodeFor(orderNo);
   const lang = languageFor(order.phone);
+  // Without a code there is no sentence about one. The dash that used to go
+  // in its place read "will say your safety code — before you get in", which
+  // sends a passenger to the kerb listening for something nobody can say.
   return sendText(
     order.phone,
     code
       ? t('taxi_driver_outside', lang, { code })
-      : t('taxi_driver_outside', lang, { code: '—' }),
+      : t('taxi_driver_outside_nocode', lang),
   );
 }
 

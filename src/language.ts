@@ -171,7 +171,9 @@ const STRINGS: Record<Language, Dictionary> = {
     // The safety code, which runs the opposite way to a delivery code: the
     // chauffeur says it, the passenger checks it. Written so the one line that
     // matters - do not get in if it does not match - is the one they read.
-    taxi_driver_outside: 'Your chauffeur is outside 🚕 They will say your safety code *{code}* before you get in.',
+    taxi_driver_outside:
+      '🚕 Your chauffeur is outside and will say your safety code *{code}* before you get in.',
+    taxi_driver_outside_nocode: '🚕 Your chauffeur is outside.',
     taxi_safety_code: '🔐 Your safety code is *{code}*. The chauffeur will say these four digits to you before you get in. If they say anything else, do not get into the car — message us.',
     // Reward points. Said in points, because that is what the shop promised,
     // with the money beside it so nobody has to work out what a point is.
@@ -429,7 +431,9 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_fare_from: 'Su tarifa es *{fare}*, a pagar al chófer — calculada desde *{place}*, la zona más cercana al punto que envió. La espera después de la recogida se cobra aparte.',
     taxi_dropped_off: 'Viaje {order} completado — ha llegado. 🚕',
     taxi_no_show: 'El viaje {order} se cerró — el chófer no pudo encontrarle en el punto de recogida. Escríbanos cuando esté listo y enviaremos otro coche.',
-    taxi_driver_outside: 'Su chófer está afuera 🚕 Le dirá su código de seguridad *{code}* antes de que suba.',
+    taxi_driver_outside:
+      '🚕 Su chófer está afuera y le dirá su código de seguridad *{code}* antes de que suba.',
+    taxi_driver_outside_nocode: '🚕 Su chófer está afuera.',
     taxi_safety_code: '🔐 Su código de seguridad es *{code}*. El chófer le dirá estas cuatro cifras antes de que suba. Si dice otras, no suba al coche — escríbanos.',
     points_earned: '⭐ *+{points} puntos* por esta entrega.',
     points_welcome: '🎁 *+{points} puntos* de bienvenida — gracias por su primer pedido.',
@@ -659,7 +663,9 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_fare_from: 'A sua tarifa é *{fare}*, a pagar ao chofer — calculada a partir de *{place}*, a zona mais próxima do ponto que enviou. A espera após a recolha é cobrada à parte.',
     taxi_dropped_off: 'Viagem {order} concluída — chegou ao destino. 🚕',
     taxi_no_show: 'A viagem {order} foi encerrada — o chofer não o encontrou no local de recolha. Escreva-nos quando estiver pronto e enviaremos outro carro.',
-    taxi_driver_outside: 'O seu chofer está lá fora 🚕 Vai dizer-lhe o seu código de segurança *{code}* antes de entrar.',
+    taxi_driver_outside:
+      '🚕 O seu chofer está lá fora e vai dizer-lhe o seu código de segurança *{code}* antes de entrar.',
+    taxi_driver_outside_nocode: '🚕 O seu chofer está lá fora.',
     taxi_safety_code: '🔐 O seu código de segurança é *{code}*. O chofer vai dizer-lhe estes quatro algarismos antes de entrar. Se disser outros, não entre no carro — escreva-nos.',
     points_earned: '⭐ *+{points} pontos* por esta entrega.',
     points_welcome: '🎁 *+{points} pontos* de boas-vindas — obrigado pelo seu primeiro pedido.',
@@ -887,7 +893,9 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_fare_from: '您的车费为 *{fare}*，请付给专车司机 — 按离您发送位置最近的地区 *{place}* 计算。上车后的等候另行收费。',
     taxi_dropped_off: '行程 {order} 已完成，您已到达。🚕',
     taxi_no_show: '行程 {order} 已结束，专车司机在接您的地点没有找到您。您准备好后请告诉我们，我们会再派一辆车。',
-    taxi_driver_outside: '专车司机已在外面等候 🚕 上车前他会先告知您安全码 *{code}*。',
+    taxi_driver_outside:
+      '🚕 专车司机已在外面等候，上车前会先告知您安全码 *{code}*。',
+    taxi_driver_outside_nocode: '🚕 专车司机已在外面等候。',
     taxi_safety_code: '🔐 您的安全码是 *{code}*。上车前专车司机会把这四位数字告诉您。如果数字不符，请不要上车，并立即联系我们。',
     points_earned: '⭐ 本次配送获得 *+{points} 积分*。',
     points_welcome: '🎁 欢迎您 *+{points} 积分*——感谢您的首次下单。',

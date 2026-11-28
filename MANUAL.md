@@ -4284,7 +4284,7 @@ Say the safety code to Marcia before they get in.
 The passenger gets:
 
 ```
-Your driver is outside 🚕 They will say your safety code *6938* before you get in.
+🚕 Your chauffeur is outside and will say your safety code *6938* before you get in.
 ```
 
 A car at a kerb that nobody has mentioned is a car the passenger does not know

@@ -14845,10 +14845,29 @@ section('Two names, and which one depends on the job');
   // which no prompt reaches.
   const taxiKeys = [
     'taxi_confirmed', 'taxi_fare_with_driver', 'taxi_fare_quoted', 'taxi_fare_from',
-    'taxi_no_show', 'taxi_driver_outside', 'taxi_safety_code', 'spot_ask_from',
+    'taxi_no_show', 'taxi_driver_outside', 'taxi_driver_outside_nocode',
+    'taxi_safety_code', 'spot_ask_from',
     'spot_ask_to', 'spot_saved', 'dest_ask', 'dest_changed', 'dest_kept',
     'dest_asked', 'dest_refused', 'pickup_unplaced', 'pick_fare_unknown',
   ] as const;
+
+  // The sentence a passenger reads at the kerb, in one breath rather than
+  // two. It is the minute the code is FOR, so it says who will say it and
+  // when — and when there is no code it says none of that, because the dash
+  // that used to fill the gap read "your safety code — before you get in"
+  // and sent somebody to a kerb listening for something nobody can say.
+  {
+    const kerb = say('taxi_driver_outside' as never, 'en', { code: '6938' } as never);
+    check('the kerb message names the code and who says it',
+      /6938/.test(kerb) && /before you get in/.test(kerb), kerb);
+    check('and it is one sentence', (kerb.match(/[.!?]/g) ?? []).length === 1, kerb);
+    check('with the car kept on it', /🚕/.test(kerb), kerb);
+
+    const noCode = say('taxi_driver_outside_nocode' as never, 'en', {} as never);
+    check('with no code there is no promise of one',
+      !/safety code/i.test(noCode) && !/—/.test(noCode), noCode);
+    check('but the car is still announced', /outside/.test(noCode) && /🚕/.test(noCode), noCode);
+  }
 
   for (const key of taxiKeys) {
     const said = say(key as never, 'en', {
