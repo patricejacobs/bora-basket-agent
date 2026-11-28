@@ -15977,6 +15977,106 @@ section('What the customer said is not thrown away');
   repo.clearTaxiPicks(rider10);
   repo.clearTaxiPicks(rider12);
 }
+section('Berbice carries passengers, not shopping');
+{
+  const { quoteTrip } = await import('./taxi-quote.ts');
+  const { quoteDeliveryPlace: deliveryTo } = await import('./delivery-place.ts');
+  const { findZone: zoneOf, carOnlyPlace, deliverablePlacesIn, placesIn } = await import('./zones.ts');
+  const { fareAt, namesFor } = await import('./berbice.ts');
+
+  const fareFor = (a: string, b: string): number => {
+    const q = quoteTrip(a, b);
+    return q.kind === 'priced' ? q.fee : -1;
+  };
+
+  // The road is priced to the Suriname ferry, at the tariff's own rate:
+  // Georgetown is $500 at 2 km and Mahaicony $5,000 at 47, which is $100 a
+  // kilometre, continued rather than restarted so the same road does not
+  // change rate halfway along it.
+  check('a car to New Amsterdam is priced', fareFor('Georgetown', 'New Amsterdam') === 9800,
+    String(fareFor('Georgetown', 'New Amsterdam')));
+  check('and one to Moleson Creek, which is the far end',
+    fareFor('Georgetown', 'Moleson Creek') === 16000,
+    String(fareFor('Georgetown', 'Moleson Creek')));
+  check('the rate is the one the tariff already used',
+    fareAt(47.2) === 5000 && fareAt(147.2) === 15000,
+    `${fareAt(47.2)} / ${fareAt(147.2)}`);
+
+  // A trip WITHIN Berbice is the difference between two points on one road,
+  // not the sum of two journeys out of Georgetown. Given corridors of its
+  // own, New Amsterdam to Corriverton priced at $24,800 — more than the
+  // whole 158 km run to Moleson Creek — because two places on different
+  // corridors are treated as opposite directions and added.
+  check('a trip inside Berbice is a difference, not a sum',
+    fareFor('New Amsterdam', 'Corriverton') === 6200,
+    String(fareFor('New Amsterdam', 'Corriverton')));
+  check('and costs less than the whole road',
+    fareFor('New Amsterdam', 'Corriverton') < fareFor('Georgetown', 'Moleson Creek'));
+  check('the East Coast runs into it without a step',
+    fareFor('Mahaicony', 'New Amsterdam') === 5300,
+    String(fareFor('Mahaicony', 'New Amsterdam')));
+  check('and it prices the same both ways',
+    fareFor('New Amsterdam', 'Georgetown') === fareFor('Georgetown', 'New Amsterdam'));
+
+  // Taxi fares ONLY. Moleson Creek is 190 km each way: a passenger can be
+  // carried there and a bag of rice cannot.
+  const shopper = '5926900501';
+  repo.saveCustomer(shopper, { name: 'Berbice Shopper', contactPhone: shopper });
+  repo.setService(shopper, 'grocery');
+  for (const place of ['New Amsterdam', 'Moleson Creek', 'Corriverton', 'Albion']) {
+    check(`no delivery charge for ${place}`, deliveryTo(shopper, place) === null,
+      JSON.stringify(deliveryTo(shopper, place)));
+    check(`and it says ${place} is for a car`, carOnlyPlace(place) === place,
+      String(carOnlyPlace(place)));
+  }
+  check('while the places that always delivered still do',
+    deliveryTo(shopper, 'Diamond')?.fee === 1800 &&
+      deliveryTo(shopper, 'Mahaicony')?.fee === 5000 &&
+      deliveryTo(shopper, 'Kitty')?.fee === 500,
+    JSON.stringify([deliveryTo(shopper, 'Diamond')?.fee, deliveryTo(shopper, 'Mahaicony')?.fee]));
+  repo.setService(shopper, null);
+
+  // The list a basket is shown must not offer them either, or the base has
+  // promised a delivery nobody is going to make.
+  const road = 'East Coast Demerara';
+  check('the delivery list leaves the car-only places out',
+    deliverablePlacesIn(road).every((z) => !z.taxiOnly) &&
+      deliverablePlacesIn(road).length < placesIn(road).length,
+    `${deliverablePlacesIn(road).length} of ${placesIn(road).length}`);
+  check('and a passenger is still offered the whole road',
+    placesIn(road).some((z) => z.place === 'Moleson Creek'));
+
+  // Adding 181 names to a matcher that forgives a letter per seven is not
+  // only adding names. Three were refused for changing an answer the tariff
+  // already gave, and these are the answers they would have changed.
+  for (const [address, expect] of [
+    ['Diamond, East Bank', 'Diamond'],
+    ['Agricola, East Bank Demerara', 'Agricola'],
+    ['Pouderoyen, West Bank Demerara', 'Pouderoyen'],
+    ['Lot 4 Diamond', 'Diamond'],
+    ['Lot 12 Mahaica', 'Mahaica'],
+  ] as const) {
+    const got = zoneOf(address);
+    check(`"${address}" still answers ${expect}`,
+      got.kind === 'found' && got.match.place === expect,
+      got.kind === 'found' ? got.match.place : got.kind);
+  }
+  check('and an address that is not a place stays that way',
+    zoneOf('by the big mango tree').kind === 'unknown',
+    zoneOf('by the big mango tree').kind);
+  check('East Canje was refused, so it is not in the tariff',
+    !placesIn(road).some((z) => z.place === 'East Canje'),
+    placesIn(road).filter((z) => /canje/i.test(z.place)).map((z) => z.place).join('|'));
+
+  // A bare number is never a place name. "No. 4" in the tariff made every
+  // address with a 4 in it a candidate for a Corentyne village.
+  check('a number alone is not a name', namesFor('No. 4').length === 0, JSON.stringify(namesFor('No. 4')));
+  check('but a number with a name gives both',
+    namesFor('No. 15 Susannah').join('|') === 'Susannah|No. 15 Susannah',
+    namesFor('No. 15 Susannah').join('|'));
+  check('and the map alternate is a name of its own',
+    namesFor('No. 5 or Albion').includes('Albion'), namesFor('No. 5 or Albion').join('|'));
+}
 section('A price asked before booking is a price given');
 {
   const { quoteTrip, quoteMessage } = await import('./taxi-quote.ts');

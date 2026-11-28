@@ -23,6 +23,20 @@ export type Zone = {
   zone: string;
   fee: number;
   /**
+   * Priced for a car, but not for a delivery.
+   *
+   * One table has always priced two different things: the fare on a trip and
+   * the charge on a delivery. That held while the tariff reached as far as a
+   * delivery associate could sensibly go and come back. Berbice does not:
+   * Moleson Creek is a 190 km drive each way, so a car can be sent and a bag
+   * of rice cannot.
+   *
+   * A fourth column on the row, so no existing row changes meaning. Fares
+   * read the whole tariff; the delivery charge and the delivery picker skip
+   * these.
+   */
+  taxiOnly: boolean;
+  /**
    * The road it is on, from the file's own section headings.
    *
    * Bands say how far; corridors say which way. Dispatch needs the second to
@@ -80,10 +94,14 @@ export function parseZones(text: string): Zone[] {
     if (cells[0]!.toLowerCase() === 'place') continue;
     const fee = Number(cells[2]!.replace(/[^0-9.]/g, ''));
     if (!cells[0] || !Number.isFinite(fee)) continue;
+    // A fourth cell, absent from every row written before this existed, so
+    // its absence has to mean "deliver there as always".
+    const fourth = (cells[3] ?? '').toLowerCase();
     out.push({
       place: cells[0]!,
       zone: cells[1] || cells[0]!,
       fee,
+      taxiOnly: fourth === 'taxi' || fourth === 'taxi_only' || fourth === '1' || fourth === 'yes',
       corridor: corridor || cells[1] || cells[0]!,
     });
   }
@@ -150,6 +168,36 @@ export function corridors(): string[] {
 /** Every place on one corridor, in the tariff's own order. */
 export function placesIn(corridor: string): Zone[] {
   return tariff().filter((z) => z.corridor === corridor);
+}
+
+/**
+ * The places a DELIVERY can be sent to, which is not all of them.
+ *
+ * Berbice is priced for a car only. Moleson Creek is a 190 km drive each
+ * way, so a passenger can be carried there and a bag of rice cannot, and a
+ * list offering it to somebody with a basket would be the base promising
+ * something nobody is going to do.
+ */
+export function deliverablePlacesIn(corridor: string): Zone[] {
+  return placesIn(corridor).filter((z) => !z.taxiOnly);
+}
+
+/** The corridors a delivery can be sent along. */
+export function deliverableCorridors(): string[] {
+  return corridors().filter((c) => deliverablePlacesIn(c).length > 0);
+}
+
+/**
+ * The place named, when it is priced for a car and not for a delivery.
+ *
+ * Returned as a name rather than a boolean so the message can say which
+ * place it is talking about: "we do not deliver to New Amsterdam" is an
+ * answer, and "we do not deliver there" is a shrug.
+ */
+export function carOnlyPlace(text: string): string | null {
+  const found = findZone(text);
+  if (found.kind !== 'found') return null;
+  return found.match.taxiOnly ? found.match.place : null;
 }
 
 /**

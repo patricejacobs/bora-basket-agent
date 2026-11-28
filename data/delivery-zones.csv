@@ -213,3 +213,201 @@ Naamryck,West Coast far,4500
 Greenwich Park,West Coast far,4800
 Hydronie,West Coast far,4800
 Parika,West Coast far,5000
+
+# ================================================================
+# TAXI FARES ONLY — the fourth column says so, and the delivery
+# charge skips every row that carries it. Moleson Creek is a 190 km
+# drive each way: a car can be sent, a bag of rice cannot.
+#
+# Priced at $100 the kilometre beyond Mahaicony, which is the
+# tariff's own rate — Mahaicony is $5000 at 47.2 km, and
+# Georgetown $500 at 2 km. Continuing that line rather than starting a
+# new one, so the same road does not change rate halfway along it.
+#
+# Places and distances from OpenStreetMap, not from memory: every
+# settlement within 2.5 km of the through road, Guyana only, ordered by
+# distance from Georgetown. See src/berbice.ts and npm run berbice.
+# ================================================================
+
+# ---------------------------------------------------------------- East Coast Demerara
+Zes Kinderen,West Coast Berbice near,5000,taxi
+Perth,West Coast Berbice near,5200,taxi
+Huntley,West Coast Berbice near,5300,taxi
+Airy Hall,West Coast Berbice near,5400,taxi
+Dundee,West Coast Berbice near,5500,taxi
+Novar,West Coast Berbice near,5500,taxi
+Good Faith,West Coast Berbice near,5600,taxi
+Recess,West Coast Berbice near,5600,taxi
+Calcutta,West Coast Berbice near,5700,taxi
+Catherine,West Coast Berbice near,5700,taxi
+Abary,West Coast Berbice near,5800,taxi
+Sans Souci,West Coast Berbice near,5800,taxi
+Eldorado,West Coast Berbice near,6400,taxi
+Belladrum,West Coast Berbice near,6400,taxi
+Golden Fleece,West Coast Berbice near,6500,taxi
+Weldaad,West Coast Berbice near,6600,taxi
+Washington,West Coast Berbice near,6700,taxi
+Rising Sun,West Coast Berbice near,6700,taxi
+Seafield,West Coast Berbice near,6800,taxi
+Lichfield,West Coast Berbice near,7000,taxi
+Cottage,West Coast Berbice near,7000,taxi
+Jacoba,West Coast Berbice near,7100,taxi
+Moorpark,West Coast Berbice near,7100,taxi
+Phoenix,West Coast Berbice near,7100,taxi
+Kingelly,West Coast Berbice near,7200,taxi
+Brahan,West Coast Berbice near,7200,taxi
+Ross,West Coast Berbice near,7200,taxi
+Yeovil,West Coast Berbice near,7300,taxi
+Chester,West Coast Berbice near,7300,taxi
+Britania,West Coast Berbice near,7400,taxi
+Tempie,West Coast Berbice near,7400,taxi
+Union,West Coast Berbice near,7500,taxi
+Trafalgar,West Coast Berbice near,7500,taxi
+Second Compound,West Coast Berbice near,7600,taxi
+Onverwagt,West Coast Berbice near,7600,taxi
+Lovely Lass,West Coast Berbice near,7700,taxi
+Armadale,West Coast Berbice near,7900,taxi
+St. John,West Coast Berbice near,7900,taxi
+Hopetown,West Coast Berbice near,8000,taxi
+Onderneeming,West Coast Berbice near,8000,taxi
+Fort Wellington,West Coast Berbice near,8100,taxi
+Naarstigheid,West Coast Berbice near,8100,taxi
+Experiment,West Coast Berbice,8300,taxi
+Waterloo Jib,West Coast Berbice,8300,taxi
+Woodley Park,West Coast Berbice,8400,taxi
+Woodlands,West Coast Berbice,8500,taxi
+Friends Retreat,West Coast Berbice,8600,taxi
+Expectation,West Coast Berbice,8600,taxi
+Inverness,West Coast Berbice,8600,taxi
+Willemstad,West Coast Berbice,8700,taxi
+Edderton,West Coast Berbice,8900,taxi
+Mon Choisi,West Coast Berbice,9000,taxi
+Zee Zeight,West Coast Berbice,9100,taxi
+Cotton Tree,West Coast Berbice,9200,taxi
+D'Edward,West Coast Berbice,9300,taxi
+Shieldstown,West Coast Berbice,9400,taxi
+Rosignol,West Coast Berbice,9400,taxi
+Voorburg,West Coast Berbice,9700,taxi
+Smythstown,West Coast Berbice,9800,taxi
+Sheet Anchor,West Coast Berbice,9800,taxi
+Vryman's Erven,West Coast Berbice,9800,taxi
+New Amsterdam,West Coast Berbice,9800,taxi
+Smythfield,West Coast Berbice,9800,taxi
+Treumeit,West Coast Berbice,9800,taxi
+Canje,West Coast Berbice,9800,taxi
+Stanleytown Savannah,West Coast Berbice,9800,taxi
+Mount Sinai,West Coast Berbice,9800,taxi
+Hermitage,West Coast Berbice,9900,taxi
+Cumberland,West Coast Berbice,9900,taxi
+Susannah,West Coast Berbice,9900,taxi
+No. 15 Susannah,West Coast Berbice,9900,taxi
+Overwinning,West Coast Berbice,9900,taxi
+Cane Field,West Coast Berbice,10000,taxi
+Bohemia,West Coast Berbice,10000,taxi
+No. 17 Bohemia,West Coast Berbice,10000,taxi
+Kendalls,West Coast Berbice,10000,taxi
+No. 19 Kendalls,West Coast Berbice,10000,taxi
+Warren,West Coast Berbice,10000,taxi
+No. 21 Warren,West Coast Berbice,10000,taxi
+Dunrobin,West Coast Berbice,10100,taxi
+No. 23 Dunrobin,West Coast Berbice,10100,taxi
+East Lothian,Corentyne near,10400,taxi
+No. 33 East Lothian,Corentyne near,10400,taxi
+Marysburg,Corentyne near,10400,taxi
+No. 35 Marysburg,Corentyne near,10400,taxi
+Gibraltar,Corentyne near,10600,taxi
+Courtland,Corentyne near,10700,taxi
+Fyrish,Corentyne near,10700,taxi
+KIlcoy Chesney,Corentyne near,10700,taxi
+Albion,Corentyne near,10800,taxi
+Chesney,Corentyne near,10800,taxi
+Belvedere,Corentyne near,10900,taxi
+Guava Bush,Corentyne near,10900,taxi
+Hampshire,Corentyne near,11000,taxi
+Topoo,Corentyne near,11000,taxi
+Williamsburg,Corentyne near,11000,taxi
+Rose Hall,Corentyne near,11100,taxi
+Portuguese Quarter,Corentyne near,11200,taxi
+Port Mourant,Corentyne near,11200,taxi
+Free Yard,Corentyne near,11200,taxi
+Bound Yard,Corentyne near,11200,taxi
+Ankersville,Corentyne near,11200,taxi
+Haswell,Corentyne near,11300,taxi
+Bangladesh,Corentyne near,11300,taxi
+Resource,Corentyne near,11300,taxi
+Miss Phoebe,Corentyne near,11300,taxi
+Tain,Corentyne near,11400,taxi
+Clifton,Corentyne near,11400,taxi
+John,Corentyne near,11500,taxi
+Bloomfield,Corentyne near,11500,taxi
+Letter Kenny,Corentyne near,11600,taxi
+Auchlyne,Corentyne near,11600,taxi
+Whim,Corentyne near,11700,taxi
+Liverpool,Corentyne near,11700,taxi
+Manchester,Corentyne near,11800,taxi
+Ulverston,Corentyne near,11800,taxi
+Alness,Corentyne near,11900,taxi
+Salton,Corentyne near,11900,taxi
+Hogstye,Corentyne near,12000,taxi
+Adventure,Corentyne near,12100,taxi
+Limlair,Corentyne near,12100,taxi
+Friendship,Corentyne near,12200,taxi
+Nurney,Corentyne near,12200,taxi
+Kildonan Ketting,Corentyne near,12200,taxi
+Bush Lot,Corentyne near,12300,taxi
+Bush Lot Farm,Corentyne near,12400,taxi
+Maida,Corentyne near,12500,taxi
+KIlmarnock,Corentyne near,12500,taxi
+Phiilippi,Corentyne near,12600,taxi
+Cromarty,Corentyne near,12600,taxi
+Wellington Park,Corentyne near,12700,taxi
+Tarlogie,Corentyne near,12800,taxi
+Macedonia,Corentyne,12900,taxi
+Neville,Corentyne,13000,taxi
+Brighton,Corentyne,13100,taxi
+Kiltairn,Corentyne,13100,taxi
+Eversham,Corentyne,13200,taxi
+Dingwall,Corentyne,13300,taxi
+Java,Corentyne,13400,taxi
+No. 41 Java,Corentyne,13400,taxi
+Bengal,Corentyne,13400,taxi
+No. 42 Bengal,Corentyne,13400,taxi
+Jappa,Corentyne,13400,taxi
+Village,Corentyne,13600,taxi
+Number 45 Village,Corentyne,13600,taxi
+Floyd Ward,Corentyne,13800,taxi
+Mary's Hope,Corentyne,13800,taxi
+Leeds,Corentyne,13900,taxi
+Number 55 Village,Corentyne,14300,taxi
+Dead Tree,Corentyne,14400,taxi
+Benab,Corentyne,14700,taxi
+Babylon,Corentyne,14800,taxi
+New Market,Corentyne far,14800,taxi
+Carnarvon,Corentyne far,15000,taxi
+Massiah,Corentyne far,15000,taxi
+Little Massiah,Corentyne far,15100,taxi
+Hong Kong,Corentyne far,15100,taxi
+La Printemps,Corentyne far,15200,taxi
+Stockholm,Corentyne far,15200,taxi
+Balaam,Corentyne far,15200,taxi
+Spring Garden,Corentyne far,15300,taxi
+Harriet,Corentyne far,15300,taxi
+Scottsburg,Corentyne far,15400,taxi
+New Scheme,Corentyne far,15400,taxi
+No. 77 New Scheme,Corentyne far,15400,taxi
+Dukestown,Corentyne far,15400,taxi
+Princetown,Corentyne far,15400,taxi
+Eliza and Mary,Corentyne far,15500,taxi
+Number 78 Eliza and Mary,Corentyne far,15500,taxi
+Corriverton,Corentyne far,15500,taxi
+Springlands,Corentyne far,15500,taxi
+Line Path,Corentyne far,15700,taxi
+Grant 1806,Corentyne far,15700,taxi
+Grant 1805,Corentyne far,15700,taxi
+Grant 1804,Corentyne far,15700,taxi
+Grant 1803,Corentyne far,15800,taxi
+Crabwood Creek,Corentyne far,15800,taxi
+Grant 1802,Corentyne far,15800,taxi
+Grant 1651,Corentyne far,15800,taxi
+Grant 1779,Corentyne far,15800,taxi
+Moleson Creek,Corentyne far,16000,taxi

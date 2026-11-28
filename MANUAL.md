@@ -458,6 +458,128 @@ If the street is already on file for somewhere else, both are kept and the
 shop goes on asking which one — a second ward is an ambiguity, not a
 correction.
 
+### Berbice carries passengers, not shopping
+
+The tariff reaches **Moleson Creek**, 158 km out. It did not before: the
+priced road stopped at Mahaicony and Berbice was not in it at all.
+
+| | km | Fare |
+|---|---|---|
+| Fort Wellington | 78 | $8,100 |
+| Rosignol | 91 | $9,400 |
+| **New Amsterdam** | 95 | $9,800 |
+| Albion | 105 | $10,800 |
+| Rose Hall | 108 | $11,100 |
+| Port Mourant | 109 | $11,200 |
+| Corriverton | 152 | $15,500 |
+| Crabwood Creek | 155 | $15,800 |
+| **Moleson Creek** | 158 | **$16,000** |
+
+**$100 a kilometre beyond Mahaicony, which is the tariff's own rate** —
+Georgetown is $500 at 2 km and Mahaicony $5,000 at 47. The new fares
+continue that line rather than starting a new one, so the same road does not
+change rate halfway along it. It is one number, `PER_KM` in `src/berbice.ts`;
+change it and run `npm run berbice` again. Worth saying what that rate is
+not: a three-and-a-half hour run to Corriverton usually costs less per
+kilometre than a twenty-minute one, so a flat continuation is the simple
+answer rather than the right one.
+
+**Taxi fares only.** One table has always priced two different things — the
+fare on a trip and the charge on a delivery — and that held while the tariff
+reached only as far as an associate could go and come back. Moleson Creek is
+a 190 km drive each way: a passenger can be carried there, a bag of rice
+cannot. So every Berbice row carries `taxi` in a fourth column, which no
+existing row has, and:
+
+- **fares** read the whole tariff;
+- **the delivery charge** refuses them — in `quoteDeliveryPlace`, the one
+  function that decides what a delivery costs, so no path that forgot to ask
+  can charge one;
+- **the delivery list** does not offer them, because a basket shown Moleson
+  Creek is the base promising something nobody is going to do. A passenger
+  is still offered the whole road.
+
+**A trip inside Berbice is a difference, not a sum.** Giving Berbice
+corridors of its own looked tidier and priced New Amsterdam to Corriverton —
+60 km — at **$24,800**, more than the whole run to Moleson Creek, because
+two places on different corridors are treated as opposite directions out of
+Georgetown and have their fares added. They are not opposite directions.
+They are the same road, one after the other, so the Berbice rows carry the
+East Coast's corridor and the fare between them is the difference: **$6,200**.
+
+### Where the villages came from
+
+Not from memory. The tariff says of itself *"WRITTEN FROM GENERAL KNOWLEDGE,
+NOT FROM A SURVEY. Expect missing villages"*; the Berbice rows are the only
+part of it with a source behind them.
+
+```powershell
+npm run coast
+```
+
+308 settlements within 2.5 km of the through road, Guyana only, ordered by
+distance from Georgetown — `data/coast-to-moleson-creek.csv`. Four things it
+had to be taught, each of which it got wrong first:
+
+- **Moleson Creek sits at latitude 5.788** and the first boxes stopped at
+  5.80. The named destination of the whole exercise was a tenth of a degree
+  outside the question being asked.
+- **The boxes reach across the Corentyne.** Nieuw Nickerie, Europolder and
+  eleven others came back as places a car could be sent. Excluding them by
+  the river was not enough — it let **South Drain** through, which is the
+  Suriname side of the same ferry — so the national boundary decides.
+- **The last kilometres to the ferry are tagged tertiary**, so Crabwood
+  Creek and Moleson Creek were dropped as "off the road". Tertiary counts
+  now, but only south of latitude 6.0: it reaches every corner of Georgetown
+  otherwise, which took the list from 300 to 468.
+- **Ordering by longitude broke at the end.** Every kilometre from
+  Georgetown to Springlands is a kilometre further east, then the road turns
+  south-west up the river — so Moleson Creek is *west* of Crabwood Creek
+  while being further along.
+
+### Adding a name is not only adding a name
+
+The matcher forgives a letter per seven and prefers a **longer** name, so 181
+new names can change answers that had nothing to do with them. The generator
+refuses any row that does: it records what the tariff answers for every place
+it already carries — bare, with its corridor after it, and with a lot number
+in front — and keeps a candidate only if all of it is unchanged.
+
+Three were refused on those grounds, and each would have been a mispriced
+order rather than a missing village:
+
+| Refused | Because |
+|---|---|
+| **East Canje** | *"Agricola, East Bank Demerara"* became East Canje |
+| **West Canje** | *"Pouderoyen, West Bank Demerara"* became West Canje |
+| **Nigg** | *"by the big mango tree"* started pricing |
+
+An earlier version of that guard asserted what each probe *ought* to return
+and refused everything, because `Kingston, Georgetown` answers Georgetown and
+always has. Whether that is right is a separate question; what this file must
+not do is make it different.
+
+**And a bare number is never a place name.** The Corentyne's villages are
+numbered and the map holds the second name in the same string — `No. 5 or
+Albion`. Written in whole it matches nothing anybody types; reduced to the
+number it loses Albion, which is how everyone says it. So the name is the row
+and the full form is a second one, and **`No. 4` on its own is neither**: with
+it in the tariff, *"Lot 4 Diamond"* came back as a choice between No. 4 and
+No. 44, two hundred kilometres apart and nine thousand dollars different —
+the same reason numbered *streets* get no slack. 27 villages named by a
+number alone are therefore not priced, and a customer there names a
+neighbouring village instead:
+
+```
+No. 41, No. 40, No. 10, No. 9, No. 8, No. 6, No. 5, No. 4, No. 3, No. 7,
+No. 2, No. 1, No. 46, No. 51, No. 52, No. 53, No. 0, No. 56, No. 57,
+No. 58, No. 59, No. 60, No. 61, No. 62, No. 66, No. 67, No. 80
+```
+
+**Still to decide:** nobody is based past Mahaicony, so a Berbice booking
+goes out to every associate in Georgetown. A stand out there is what makes
+the band mean anything — see **`stand`** above.
+
 ### A price asked before booking is a price given
 
 Somebody asking what a car costs was being asked to book one to find out.

@@ -31,7 +31,14 @@
 import { config, money } from './config.ts';
 import { t, type Language } from './language.ts';
 import * as repo from './db/repo.ts';
-import { corridors, placesIn, fareBetween, findZone } from './zones.ts';
+import {
+  corridors,
+  deliverableCorridors,
+  placesIn,
+  deliverablePlacesIn,
+  fareBetween,
+  findZone,
+} from './zones.ts';
 import { settleDeliveryPlace } from './delivery-place.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
@@ -255,7 +262,11 @@ export function endPicker(phone: string, side: PickSide, lang: Language = 'en'):
   // The corridors fill whatever is left, with two rows kept back for the way
   // out. In practice there is always room: the most that can be above them is
   // a location row, a saved address and two recents.
-  for (const corridor of corridors()) {
+  // A basket is offered the corridors a delivery can go down; a passenger
+  // is offered all of them. Berbice is on the list for a car and not for a
+  // bag, and showing it to somebody shopping would promise a delivery that
+  // is not going to happen.
+  for (const corridor of side === 'drop' ? deliverableCorridors() : corridors()) {
     if (rows.length >= MAX_ROWS - 2) break;
     rows.push(corridorRow(side, corridor));
   }
@@ -303,7 +314,7 @@ export function corridorPicker(
 ): OutboundMessage | null {
   const from = side === 'to' ? repo.taxiPicks(phone).from : '';
 
-  const priced = placesIn(corridor)
+  const priced = (side === 'drop' ? deliverablePlacesIn(corridor) : placesIn(corridor))
     .map((z) => {
       // For a DESTINATION this is the real fare, from the pickup already
       // chosen, and it goes on the row.

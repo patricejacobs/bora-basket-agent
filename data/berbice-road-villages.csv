@@ -1,0 +1,315 @@
+name,kind,km_from_stabroek,km_off_road,already_priced
+Section D,hamlet,4.8,2.1,no
+Pattensen,neighbourhood,5,0.3,yes
+Cummings Park,neighbourhood,5.1,2.4,no
+Turkeyen,neighbourhood,5.5,0.2,yes
+South West Cumming's Lodge,neighbourhood,5.3,1.4,no
+Cummings Lodge,neighbourhood,5.7,0.3,yes
+Nando Gardens,neighbourhood,6,0.2,no
+Industry,neighbourhood,6.2,0.1,yes
+Guysuco Estate Compound,neighbourhood,6.6,0.7,no
+Goedverwagting,hamlet,7.3,0.1,yes
+Sparendaam,hamlet,7.7,0.1,yes
+Plaisance,town,7.9,0.1,yes
+Better Hope,town,8.1,0.2,yes
+Better Hope North,hamlet,8.3,0.2,no
+Atlantic Garden,neighbourhood,8.5,0.2,no
+Vryheid's Lust,hamlet,8.7,0.3,yes
+Brothers,hamlet,8.8,0.2,no
+Montrose,neighbourhood,9.2,0.3,yes
+Felicity,hamlet,9.3,0.1,yes
+Le Ressouvenir,hamlet,9.7,0.1,yes
+Success,hamlet,10.1,0.3,yes
+Chateau Margot,hamlet,10.6,0.2,yes
+Ujama,neighbourhood,10.8,0.4,no
+La Bonne Intention,hamlet,11,0.1,yes
+Beterverwagting,hamlet,11.1,0.8,yes
+Triumph,town,11.7,0.1,yes
+Mon Repos,hamlet,12.1,0.1,yes
+De Endragt,hamlet,12.5,0.1,no
+Good Hope,hamlet,12.9,0.5,yes
+Lusignan,town,13.8,0.1,yes
+Annandale,hamlet,14.3,0.1,yes
+Courabane Park,neighbourhood,14.4,0.2,no
+La Reconnaisance,hamlet,14.8,0.1,no
+Buxton,town,15.1,0.4,yes
+Friendship,hamlet,15.4,0.2,no
+Vigilence,hamlet,15.8,0.1,no
+Bladen Hall,hamlet,16.1,0.2,yes
+Strathspey,hamlet,16.3,0,yes
+Coldingen,hamlet,16.6,0.1,no
+Nonpariel,hamlet,17,0.3,no
+Melanie Damisha,neighbourhood,17.1,0.3,no
+Enterprise,hamlet,17.5,0.1,yes
+Elizabeth Hall,hamlet,17.8,0.2,no
+Bachelors Adventure,hamlet,18.2,0.1,no
+Paradise,city,18.6,0.1,yes
+Foulis,hamlet,19.1,0.1,yes
+Enmore,town,19.7,0.5,yes
+Logwood,neighbourhood,19.5,0.1,no
+Haslington,hamlet,20.3,0.1,yes
+Golden Grove,hamlet,20.8,0.1,no
+Nabaclis,town,21.2,0.2,yes
+Cove & John,hamlet,21.8,0.1,no
+Victoria,hamlet,22.6,0.2,yes
+Craig Milne,neighbourhood,22.5,0.1,no
+Belfield,hamlet,22.8,0.2,yes
+Nooten Zuil,hamlet,23.3,0.1,no
+Lowlands,hamlet,23.7,0.2,no
+Hope,hamlet,24.1,0.1,yes
+Dochfour,hamlet,24.7,0.8,yes
+Two Friends,neighbourhood,24.5,0.2,yes
+Annsgrove,hamlet,25,0.2,no
+Clonbrook,hamlet,25.3,0.2,yes
+Bee Hive,hamlet,25.8,0.1,yes
+Greenfield,hamlet,26.1,0.1,yes
+Orange Nassau,hamlet,26.6,0,no
+Grove,hamlet,27,0,yes
+Unity,hamlet,27.5,0.2,yes
+Lancaster,hamlet,27.9,0.5,yes
+Mary's Hope,hamlet,28.3,0.4,no
+Mosquito Hall,hamlet,28.4,0.8,no
+Mahaica,town,29.9,0.4,yes
+Hand-En-Veldt,hamlet,29.9,0.8,no
+Tranquility Hall,hamlet,29.8,1.2,no
+Good Intent,hamlet,30.3,1.3,no
+Cambridge,hamlet,30.2,1.4,no
+De Kinderen,hamlet,34.7,2.4,yes
+Klyzenaar,hamlet,34.6,2.1,no
+La Jeanette,hamlet,34.5,1.8,no
+De Vriend,hamlet,34.4,1.4,no
+De Hoop,hamlet,34.2,1,no
+Belvidere,hamlet,34,0.1,no
+Manilla,hamlet,34.5,0.1,no
+Strangroen,hamlet,34.8,0.1,no
+Mes Delices,hamlet,35.1,0,no
+Content,hamlet,35.6,0.1,no
+Dantzig,hamlet,35.9,0,no
+Columbia,hamlet,36.4,0,no
+Glaziers Lust,hamlet,36.8,0.1,no
+Prospect,hamlet,37.2,0.1,yes
+Harmony Hall,hamlet,37.5,0.1,no
+Rebecca's Rust,hamlet,37.7,0.1,no
+Highdam,hamlet,37.9,0,no
+Carlton Hall,hamlet,38.1,0.1,no
+Carlton Hall Primary,hamlet,38.2,0,no
+Broomhall,hamlet,38.6,0,no
+Fairfiled,hamlet,39.1,0.1,no
+Bath,hamlet,39.4,0.2,no
+Quakers Hall,hamlet,39.8,0.1,no
+Zealand,hamlet,40.6,0.1,no
+Planters Hall,hamlet,41.1,0.1,no
+Belmont,hamlet,42,0.1,no
+Perservance,hamlet,42.4,0.1,no
+Now or Never,hamlet,43.2,0.1,no
+Sarah,hamlet,43.9,0.1,no
+Blenheim,hamlet,46.6,0.9,no
+La Raisonable,hamlet,46.2,0.6,no
+Mahaicony,town,47.2,0.5,yes
+Zes Kinderen,hamlet,47.6,0.5,no
+Mary,hamlet,47.2,0.2,no
+Perth,town,48.8,1.5,no
+Huntley,hamlet,50.6,0.2,no
+Airy Hall,hamlet,51,0.1,no
+Dundee,town,51.7,0.1,no
+Novar,hamlet,52.4,0.1,no
+Good Faith,hamlet,53,0.1,no
+Recess,hamlet,53.4,0.1,no
+Calcutta,hamlet,53.7,0.2,no
+Catherine,hamlet,54.3,0.3,no
+Abary,hamlet,54.8,0.1,no
+Sans Souci,hamlet,55.2,0.2,no
+Adventure,hamlet,56.2,0.2,no
+Eldorado,hamlet,60.7,0.1,no
+Belladrum,town,61.2,0.1,no
+Golden Fleece,hamlet,62.3,0.1,no
+Weldaad,hamlet,62.9,0.1,no
+Washington,hamlet,64.2,0.2,no
+Rising Sun,hamlet,64.6,0.1,no
+Seafield,hamlet,65.1,0.1,no
+No. 41,hamlet,65.6,0.1,no
+No. 40,hamlet,66.1,0.1,no
+Belle Vue,hamlet,66.6,0.2,yes
+Lichfield,town,67.1,0.1,no
+Cottage,hamlet,67.5,0.1,no
+Jacoba,hamlet,67.8,0.1,no
+Moorpark,hamlet,68.1,0.1,no
+Phoenix,hamlet,68.4,0.1,no
+Kingelly,hamlet,68.8,0.1,no
+Brahan,hamlet,69.1,0.1,no
+Ross,hamlet,69.5,0.1,no
+Yeovil,hamlet,70,0.1,no
+Chester,hamlet,70.3,0.1,no
+Britania,hamlet,70.7,0.1,no
+Tempie,hamlet,71.2,0.1,no
+Union,hamlet,71.9,0.2,no
+Trafalgar,hamlet,72.6,0.4,no
+Second Compound,hamlet,73.3,0.7,no
+Onverwagt,hamlet,73.6,0.3,no
+Lovely Lass,hamlet,74.1,0.1,no
+Bush Lot,town,75.1,0.1,no
+Armadale,hamlet,75.8,0.3,no
+Bel Air,hamlet,75.9,0.1,yes
+St. John,hamlet,76.4,0.1,no
+Hopetown,hamlet,76.8,0.1,no
+Onderneeming,hamlet,77.2,0.1,no
+Fort Wellington,city,77.8,0.1,no
+Naarstigheid,hamlet,78.4,0.1,no
+Experiment,hamlet,80.3,0.3,no
+Woodley Park,town,80.8,0.3,no
+Waterloo Jib,hamlet,80.5,0.3,no
+Woodlands,hamlet,82.2,0.1,no
+Expectation,hamlet,83,0.4,no
+No. 10,hamlet,82.7,0.1,no
+Inverness,hamlet,83.6,0.4,no
+Friends Retreat,hamlet,83,0.1,no
+No. 9,hamlet,83.3,0.1,no
+Willemstad,hamlet,84.1,0.5,no
+No. 8,town,84.1,0.1,no
+No. 6,hamlet,85.2,0,no
+Zeelugt,hamlet,85.9,0.1,yes
+No. 5,hamlet,86,0.1,no
+Edderton,hamlet,86.4,0.3,no
+No. 4,hamlet,86.7,0.1,no
+No. 3,hamlet,87.3,0.1,no
+Mon Choisi,hamlet,87.5,0.2,no
+Zee Zeight,hamlet,88,0.1,no
+Cotton Tree,hamlet,89.1,0.1,no
+Shieldstown,hamlet,90.7,0.4,no
+D'Edward,hamlet,90.3,0.1,no
+Rosignol,town,90.9,0.2,no
+Stanleytown,hamlet,95.3,2.2,yes
+Smythstown,hamlet,94.7,1,no
+Stanleytown Savannah,hamlet,95.6,2,no
+New Amsterdam,city,95,0.9,no
+Vryman's Erven,hamlet,94.9,0.6,no
+Queenstown,hamlet,94.5,0.2,yes
+Mount Sinai,hamlet,95.6,1.4,no
+Smythfield,hamlet,95,0.7,no
+West Canje,neighbourhood,94.8,0.5,no
+Overwinning,hamlet,96.4,2.3,no
+Voorburg,hamlet,94.4,0.1,no
+Sheet Anchor,hamlet,94.8,0.2,no
+East Canje,hamlet,94.9,0.2,no
+Canje,hamlet,95.4,0.6,no
+No. 2,hamlet,95,0.3,no
+Cumberland,town,96.1,1.2,no
+Cane Field,town,96.9,1.9,no
+No. 7,hamlet,94.6,0.2,no
+No. 11 or Treumeit,hamlet,95.3,0.1,no
+No. 13 or Hermitage,hamlet,95.7,0.1,no
+No. 15 Susannah,hamlet,96.1,0.1,no
+No. 17 Bohemia,town,97,0.1,no
+No. 19 Kendalls,hamlet,97.2,0.2,no
+No. 21 Warren,hamlet,97.4,0.1,no
+No. 23 Dunrobin,hamlet,97.9,0.3,no
+No. 33 East Lothian,hamlet,100.7,0,no
+No. 35 Marysburg,hamlet,101.6,0.2,no
+No. 39 or Gibraltar,hamlet,102.8,1,no
+No. 2 or Courtland,hamlet,103.8,1,no
+No. 1,hamlet,103.2,0.1,no
+Chesney,hamlet,105.3,2,no
+No. 3 or Fyrish,hamlet,104,0.3,no
+No. 4 or KIlcoy Chesney,hamlet,104.6,0.3,no
+No. 5 or Albion,town,105.2,0.2,no
+Guava Bush,hamlet,106.4,1.1,no
+No. 6 or Nigg,hamlet,105.8,0.1,no
+Topoo,hamlet,107.2,1.2,no
+Belvedere,hamlet,106.4,0.1,no
+Hampshire,hamlet,107.2,0.1,no
+Williamsburg,hamlet,107.5,0.1,no
+Rose Hall,town,108.3,0.1,no
+Portuguese Quarter,hamlet,108.7,0.1,no
+Port Mourant,town,108.9,0,no
+Bound Yard,hamlet,109.2,0.4,no
+Free Yard,neighbourhood,109,0.1,no
+Ankersville,hamlet,109.3,0.1,no
+Bangladesh,neighbourhood,109.7,0.2,no
+Haswell,hamlet,109.7,0.1,no
+Miss Phoebe,hamlet,110.3,0.2,no
+Resource,hamlet,110.2,0.2,no
+Tain,hamlet,110.8,0.1,no
+Clifton,hamlet,111.3,0.2,no
+John,hamlet,111.8,0.1,no
+Bloomfield,town,112.6,0.1,no
+Letter Kenny,hamlet,112.8,0.1,no
+Auchlyne,hamlet,113.3,0,no
+Whim,hamlet,113.7,0.1,no
+Liverpool,hamlet,114.5,0,no
+Manchester,hamlet,115,0.1,no
+Ulverston,hamlet,115.4,0.1,no
+Alness,town,116,0.1,no
+Salton,hamlet,116.5,0.1,no
+Hogstye,hamlet,117.5,0.1,no
+Limlair,hamlet,118.4,0.1,no
+Nurney,hamlet,119.1,0.1,no
+Kildonan Ketting,town,119.5,0.1,no
+Bush Lot Farm,hamlet,121.6,0.1,no
+Maida,hamlet,121.9,0,no
+KIlmarnock,hamlet,122.2,0.1,no
+No. 31 or Phiilippi,hamlet,123,0,no
+No. 32 or Cromarty,hamlet,123.6,0.1,no
+No. 33 or Wellington Park,hamlet,124.4,0.1,no
+No. 34 or Tarlogie,town,124.8,0.2,no
+No. 35 or Macedonia,hamlet,125.8,0.1,no
+No. 36 or Neville,hamlet,126.9,0.1,no
+No. 37 or Brighton,hamlet,127.8,0.1,no
+No. 38 or Kiltairn,hamlet,128.3,0.1,no
+No. 39 or Eversham,town,129,0.1,no
+No. 40 or Dingwall,hamlet,130.1,0.1,no
+No. 41 Java,hamlet,130.9,0.1,no
+No. 42 Bengal,hamlet,131.3,0.1,no
+No. 43 or Jappa,hamlet,131.6,0.1,no
+No. 44 or Good Hope,hamlet,132.6,0.1,no
+Number 45 Village,hamlet,133.2,0.1,no
+No. 46,hamlet,133.7,0.2,no
+No. 47 or Rising Sun,town,134.4,0.1,no
+No. 48 or Floyd Ward,hamlet,134.8,0.1,no
+No. 49 or Mary's Hope,hamlet,135.4,0.2,no
+No. 50 or Leeds,hamlet,136.2,0.1,no
+No. 51,hamlet,137.5,0.1,no
+No. 52,hamlet,138,0,no
+No. 53,hamlet,138.6,0.1,no
+No. 54 or Union,town,139.1,0.1,no
+No. 0,hamlet,139.3,0.1,no
+Number 55 Village,hamlet,139.8,0.2,no
+No. 56,hamlet,140.2,0.1,no
+No. 57,hamlet,140.8,0.2,no
+Dead Tree or Farm,hamlet,141.3,0.1,no
+No. 58,hamlet,141.7,0.1,no
+No. 59,hamlet,142,0.2,no
+Grant 1779,hamlet,155.3,0.1,no
+Grant 1651,hamlet,155.2,0.1,no
+No. 60,hamlet,142.8,0.1,no
+No. 61,hamlet,143.4,0.1,no
+Crabwood Creek,town,154.8,0.1,no
+Grant 1802,hamlet,154.9,0,no
+No. 62,hamlet,143.8,0.1,no
+Grant 1803,hamlet,154.8,0.1,no
+Grant 1804,hamlet,154.6,0.1,no
+No. 71 or Little Massiah,hamlet,147.8,0.1,no
+Grant 1805,hamlet,154.5,0.1,no
+Grant 1806,hamlet,154.3,0.1,no
+No. 64 or Babylon,hamlet,145,0.1,no
+No. 70 or Massiah,hamlet,147.7,0.1,no
+No. 65 or New Market,hamlet,145.4,0.2,no
+No. 66,hamlet,145.9,0.2,no
+No. 76 or Harriet,hamlet,150.2,0.5,no
+No. 67,hamlet,146.3,0.1,no
+No. 63 or Benab,hamlet,144.7,0.2,no
+No. 69 or Friendship,hamlet,147.3,0.2,no
+No. 72 or Hong Kong,hamlet,148.6,0.1,no
+No. 75 or Spring Garden,hamlet,149.8,0.1,no
+No. 68 or Carnarvon,hamlet,146.9,0.1,no
+No. 73 or Clonbrook or La Printemps,hamlet,149,0.2,no
+No. 74 or Stockholm or Balaam,hamlet,149.3,0.2,no
+Line Path,hamlet,153.8,0.1,no
+No. 77 New Scheme,hamlet,150.9,0.6,no
+No. 80,hamlet,152.8,0.3,no
+No. 79 or Kingston,hamlet,152.5,0.3,no
+Scottsburg,hamlet,150.9,0.2,no
+Princetown,hamlet,151.4,0.2,no
+Dukestown,hamlet,151.2,0.2,no
+Number 78 Eliza and Mary,hamlet,151.8,0.2,no
+Corriverton,town,152,0.2,no
+Springlands,hamlet,152.4,0.1,no

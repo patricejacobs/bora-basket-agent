@@ -63,6 +63,13 @@ export function quoteDeliveryPlace(phone: string, place: string): SettledPlace |
   const known = findZone(place);
   if (known.kind !== 'found') return null;
 
+  // Priced for a car, not for a bag. Berbice went into the tariff as taxi
+  // fares only — Moleson Creek is 190 km each way — and this is the one
+  // function that decides what a delivery costs, so this is where it stops.
+  // Refusing here rather than at each caller means a row cannot be charged
+  // by a path that forgot to ask.
+  if (known.match.taxiOnly) return null;
+
   const forParcel = repo.getService(phone) === 'parcel';
   const sender = forParcel ? repo.getParcelDraft(phone).sender.address : '';
   const bothEnds = forParcel && sender ? fareBetween(sender, known.match.place) : null;

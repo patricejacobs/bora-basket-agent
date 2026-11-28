@@ -1,0 +1,377 @@
+name,kind,km_from_stabroek,lon,lat,already_priced,strip
+Section D,hamlet,4.8,-58.1196551,6.8002241,no,east-coast-demerara
+Pattensen,neighbourhood,5,-58.1189008,6.8195518,yes,east-coast-demerara
+Cummings Park,neighbourhood,5.1,-58.1169074,6.7993572,no,east-coast-demerara
+Atlantic Ville,neighbourhood,5.8,-58.1164373,6.7813444,no,east-coast-demerara
+Turkeyen,neighbourhood,5.5,-58.1142757,6.8195262,yes,east-coast-demerara
+South West Cumming's Lodge,neighbourhood,5.3,-58.1142244,6.8076858,no,east-coast-demerara
+Cummings Lodge,neighbourhood,5.7,-58.1114208,6.8178702,yes,east-coast-demerara
+Nando Gardens,neighbourhood,6,-58.1097444,6.8225709,no,east-coast-demerara
+Industry,neighbourhood,6.2,-58.1077973,6.8198963,yes,east-coast-demerara
+Guysuco Estate Compound,neighbourhood,6.6,-58.1023618,6.8115004,no,east-coast-demerara
+Goedverwagting,hamlet,7.3,-58.097018,6.8203407,yes,east-coast-demerara
+Sparendaam,hamlet,7.7,-58.0937754,6.8189895,yes,east-coast-demerara
+Plaisance,town,7.9,-58.0916435,6.8203906,yes,east-coast-demerara
+Better Hope,town,8.1,-58.0894013,6.8169124,yes,east-coast-demerara
+Better Hope North,hamlet,8.3,-58.0884879,6.8202008,no,east-coast-demerara
+Atlantic Garden,neighbourhood,8.5,-58.0855317,6.8159318,no,east-coast-demerara
+Vryheid's Lust,hamlet,8.7,-58.084856,6.8201993,yes,east-coast-demerara
+Brothers,hamlet,8.8,-58.0825157,6.8154238,no,east-coast-demerara
+Montrose,neighbourhood,9.2,-58.0787711,6.813818,yes,east-coast-demerara
+Felicity,hamlet,9.3,-58.0781667,6.8171586,yes,east-coast-demerara
+Le Ressouvenir,hamlet,9.7,-58.0750002,6.8153864,yes,east-coast-demerara
+Success,hamlet,10.1,-58.0710621,6.8123431,yes,east-coast-demerara
+Chateau Margot,hamlet,10.6,-58.0666053,6.8151032,yes,east-coast-demerara
+Ujama,neighbourhood,10.8,-58.0647689,6.8042953,no,east-coast-demerara
+La Bonne Intention,hamlet,11,-58.0625458,6.8132093,yes,east-coast-demerara
+Beterverwagting,hamlet,11.1,-58.0616651,6.7995076,yes,east-coast-demerara
+Triumph,town,11.7,-58.0558418,6.8094293,yes,east-coast-demerara
+Mon Repos,hamlet,12.1,-58.0528815,6.8076779,yes,east-coast-demerara
+De Endragt,hamlet,12.5,-58.0491956,6.8041089,no,east-coast-demerara
+Good Hope,hamlet,12.9,-58.0463242,6.7955707,yes,east-coast-demerara
+Lusignan,town,13.8,-58.0373869,6.7991481,yes,east-coast-demerara
+Annandale,hamlet,14.3,-58.0330871,6.7936113,yes,east-coast-demerara
+Courabane Park,neighbourhood,14.4,-58.031977,6.7965841,no,east-coast-demerara
+La Reconnaisance,hamlet,14.8,-58.0293234,6.7938332,no,east-coast-demerara
+Buxton,town,15.1,-58.0256574,6.7949868,yes,east-coast-demerara
+Friendship,hamlet,15.4,-58.0240126,6.7898695,no,east-coast-demerara
+Vigilence,hamlet,15.8,-58.0200748,6.7887736,no,east-coast-demerara
+Bladen Hall,hamlet,16.1,-58.0184124,6.7863135,yes,east-coast-demerara
+Strathspey,hamlet,16.3,-58.0160401,6.7861071,yes,east-coast-demerara
+Coldingen,hamlet,16.6,-58.013347,6.7855644,no,east-coast-demerara
+Nonpariel,hamlet,17,-58.0106366,6.7791074,no,east-coast-demerara
+Melanie Damisha,neighbourhood,17.1,-58.0086563,6.7845907,no,east-coast-demerara
+Enterprise,hamlet,17.5,-58.0063546,6.7793965,yes,east-coast-demerara
+Elizabeth Hall,hamlet,17.8,-58.0040968,6.7758521,no,east-coast-demerara
+Bachelors Adventure,hamlet,18.2,-58.0008662,6.7741248,no,east-coast-demerara
+Paradise,city,18.6,-57.9980108,6.770098,yes,east-coast-demerara
+Foulis,hamlet,19.1,-57.9940411,6.7680685,yes,east-coast-demerara
+Enmore,town,19.7,-57.9914717,6.7558921,yes,east-coast-demerara
+Logwood,neighbourhood,19.5,-57.9901841,6.7663014,no,east-coast-demerara
+Haslington,hamlet,20.3,-57.9845907,6.7595245,yes,east-coast-demerara
+Golden Grove,hamlet,20.8,-57.9800372,6.7589783,no,east-coast-demerara
+Nabaclis,town,21.2,-57.9778663,6.7548707,yes,east-coast-demerara
+Cove & John,hamlet,21.8,-57.9724022,6.7527404,no,east-coast-demerara
+Victoria,hamlet,22.6,-57.9685176,6.7431456,yes,east-coast-demerara
+Craig Milne,neighbourhood,22.5,-57.9667162,6.7500898,no,east-coast-demerara
+Belfield,hamlet,22.8,-57.9640364,6.7496444,yes,east-coast-demerara
+Nooten Zuil,hamlet,23.3,-57.960397,6.7461049,no,east-coast-demerara
+Lowlands,hamlet,23.7,-57.9577871,6.7422539,no,east-coast-demerara
+Hope,hamlet,24.1,-57.9555007,6.7372346,yes,east-coast-demerara
+Dochfour,hamlet,24.7,-57.9545362,6.7260595,yes,east-coast-demerara
+Two Friends,neighbourhood,24.5,-57.952015,6.7359644,yes,east-coast-demerara
+Annsgrove,hamlet,25,-57.9482502,6.7345794,no,east-coast-demerara
+Clonbrook,hamlet,25.3,-57.9456309,6.7323335,yes,east-coast-demerara
+Bee Hive,hamlet,25.8,-57.9432076,6.7262463,yes,east-coast-demerara
+Greenfield,hamlet,26.1,-57.9396053,6.7281777,yes,east-coast-demerara
+Orange Nassau,hamlet,26.6,-57.9370034,6.7229266,no,east-coast-demerara
+Grove,hamlet,27,-57.934264,6.719236,yes,east-coast-demerara
+Unity,hamlet,27.5,-57.9318367,6.713982,yes,east-coast-demerara
+Lancaster,hamlet,27.9,-57.9291269,6.7104761,yes,east-coast-demerara
+Mary's Hope,hamlet,28.3,-57.9281889,6.7047674,no,east-coast-demerara
+Mosquito Hall,hamlet,28.4,-57.9248603,6.7092228,no,east-coast-demerara
+Mahaica,town,29.9,-57.9230215,6.6824906,yes,east-coast-demerara
+Hand-En-Veldt,hamlet,29.9,-57.9212154,6.6859909,no,east-coast-demerara
+Bagatelle,hamlet,32.4,-57.9186559,6.6450601,no,west-coast-berbice
+Tranquility Hall,hamlet,29.8,-57.9182394,6.6927854,no,east-coast-demerara
+Good Intent,hamlet,30.3,-57.9162008,6.6876393,no,east-coast-demerara
+Cambridge,hamlet,30.2,-57.915844,6.6892371,no,east-coast-demerara
+Virginia,hamlet,33.9,-57.9152713,6.6260275,no,west-coast-berbice
+Broek en Waterland,hamlet,34.8,-57.8999219,6.6346294,no,west-coast-berbice
+De Kinderen,hamlet,34.7,-57.8992353,6.6365689,yes,west-coast-berbice
+Huntly or Lot No. 5,hamlet,37.1,-57.8989797,6.6010701,no,west-coast-berbice
+Klyzenaar,hamlet,34.6,-57.898613,6.6392331,no,west-coast-berbice
+La Jeanette,hamlet,34.5,-57.897862,6.642217,no,west-coast-berbice
+De Vriend,hamlet,34.4,-57.896832,6.6460321,no,west-coast-berbice
+De Hoop,hamlet,34.2,-57.8960595,6.6496129,no,west-coast-berbice
+Belvidere,hamlet,34,-57.8932586,6.6592867,no,west-coast-berbice
+Manilla,hamlet,34.5,-57.8895552,6.6565286,no,west-coast-berbice
+Strangroen,hamlet,34.8,-57.8868411,6.6548719,no,west-coast-berbice
+Mes Delices,hamlet,35.1,-57.8847845,6.653446,no,west-coast-berbice
+Content,hamlet,35.6,-57.8813902,6.6506753,no,west-coast-berbice
+Dantzig,hamlet,35.9,-57.8792242,6.6481521,no,west-coast-berbice
+Little Biabu,town,43.3,-57.8767749,6.5401495,no,west-coast-berbice
+Columbia,hamlet,36.4,-57.8756885,6.6452429,no,west-coast-berbice
+Glaziers Lust,hamlet,36.8,-57.8722245,6.6438076,no,west-coast-berbice
+Prospect,hamlet,37.2,-57.8693312,6.6420854,yes,west-coast-berbice
+Harmony Hall,hamlet,37.5,-57.8675414,6.640604,no,west-coast-berbice
+Rebecca's Rust,hamlet,37.7,-57.8655968,6.6391923,no,west-coast-berbice
+Highdam,hamlet,37.9,-57.8644855,6.6379203,no,west-coast-berbice
+Carlton Hall,hamlet,38.1,-57.8632949,6.6368772,no,west-coast-berbice
+Carlton Hall Primary,hamlet,38.2,-57.8621957,6.6359475,no,west-coast-berbice
+Broomhall,hamlet,38.6,-57.8600881,6.6331309,no,west-coast-berbice
+Fairfiled,hamlet,39.1,-57.8561554,6.6312288,no,west-coast-berbice
+Bath,hamlet,39.4,-57.8540584,6.6287209,no,west-coast-berbice
+Quakers Hall,hamlet,39.8,-57.8511995,6.6265648,no,west-coast-berbice
+Zealand,hamlet,40.6,-57.8453988,6.6215504,no,west-coast-berbice
+Planters Hall,hamlet,41.1,-57.842549,6.6191366,no,west-coast-berbice
+Belmont,hamlet,42,-57.8360769,6.6133867,no,west-coast-berbice
+Perservance,hamlet,42.4,-57.8334182,6.6111436,no,west-coast-berbice
+Now or Never,hamlet,43.2,-57.8279056,6.6062055,no,west-coast-berbice
+Sarah,hamlet,43.9,-57.8231261,6.6013804,no,west-coast-berbice
+Blenheim,hamlet,46.6,-57.8123375,6.5742172,no,west-coast-berbice
+La Raisonable,hamlet,46.2,-57.8095525,6.5840401,no,west-coast-berbice
+Wash Clothes,village,52,-57.8078525,6.4992076,no,west-coast-berbice
+First Savannah,hamlet,63.6,-57.8066509,6.3575393,no,west-coast-berbice
+Mahaicony,town,47.2,-57.806357,6.572739,yes,west-coast-berbice
+Mortice,village,51.1,-57.8061573,6.5137689,no,west-coast-berbice
+Zes Kinderen,hamlet,47.6,-57.8036648,6.5704422,no,west-coast-berbice
+Mary,hamlet,47.2,-57.8031032,6.5770168,no,west-coast-berbice
+Macouba,hamlet,62.8,-57.8009861,6.3714435,no,west-coast-berbice
+Perth,town,48.8,-57.8006642,6.5546147,no,west-coast-berbice
+Chance,hamlet,50.9,-57.7997415,6.5249399,no,west-coast-berbice
+Strath Campbell,hamlet,50.3,-57.7995055,6.5345759,no,west-coast-berbice
+Gordon Table,hamlet,62.4,-57.7942483,6.3821699,no,west-coast-berbice
+Mora Point,hamlet,59.1,-57.7894418,6.4268005,no,west-coast-berbice
+Pine Ground,hamlet,61.5,-57.7873819,6.3981845,no,west-coast-berbice
+Champagne,hamlet,52.1,-57.7801336,6.5328535,no,west-coast-berbice
+Huntley,hamlet,50.6,-57.7795015,6.5582418,no,west-coast-berbice
+Airy Hall,hamlet,51,-57.7742444,6.5582631,no,west-coast-berbice
+Dundee,town,51.7,-57.7690598,6.5549611,no,west-coast-berbice
+Novar,hamlet,52.4,-57.7644216,6.550089,no,west-coast-berbice
+Burma,hamlet,58.2,-57.7593616,6.4706951,no,west-coast-berbice
+Good Faith,hamlet,53,-57.7593203,6.5478973,no,west-coast-berbice
+Recess,hamlet,53.4,-57.756699,6.5461811,no,west-coast-berbice
+Calcutta,hamlet,53.7,-57.75395,6.5447664,no,west-coast-berbice
+Catherine,hamlet,54.3,-57.7499006,6.542147,no,west-coast-berbice
+Abary,hamlet,54.8,-57.7480231,6.5370413,no,west-coast-berbice
+Sans Souci,hamlet,55.2,-57.7444182,6.5348562,no,west-coast-berbice
+Adventure,hamlet,56.2,-57.7389465,6.5267339,no,west-coast-berbice
+Eldorado,hamlet,60.7,-57.7035586,6.5076543,no,west-coast-berbice
+Belladrum,town,61.2,-57.7000288,6.5048615,no,west-coast-berbice
+Golden Fleece,hamlet,62.3,-57.6925101,6.4976779,no,west-coast-berbice
+Weldaad,hamlet,62.9,-57.6879027,6.4941165,no,west-coast-berbice
+Washington,hamlet,64.2,-57.6797615,6.4864136,no,west-coast-berbice
+Rising Sun,hamlet,64.6,-57.6767794,6.4829658,no,west-coast-berbice
+Seafield,hamlet,65.1,-57.6750305,6.4789042,no,west-coast-berbice
+No. 41,hamlet,65.6,-57.6719515,6.4749493,no,west-coast-berbice
+No. 40,hamlet,66.1,-57.6685182,6.471346,no,west-coast-berbice
+Belle Vue,hamlet,66.6,-57.6656429,6.4674443,yes,west-coast-berbice
+Lichfield,town,67.1,-57.6615422,6.4655185,no,west-coast-berbice
+Cottage,hamlet,67.5,-57.6593622,6.4626098,no,west-coast-berbice
+Jacoba,hamlet,67.8,-57.6578538,6.4606215,no,west-coast-berbice
+Moorpark,hamlet,68.1,-57.6561371,6.458468,no,west-coast-berbice
+Phoenix,hamlet,68.4,-57.6543991,6.4562719,no,west-coast-berbice
+Kingelly,hamlet,68.8,-57.6521246,6.4532655,no,west-coast-berbice
+Brahan,hamlet,69.1,-57.6509659,6.4496835,no,west-coast-berbice
+Ross,hamlet,69.5,-57.6478545,6.4475513,no,west-coast-berbice
+Yeovil,hamlet,70,-57.6454365,6.4432922,no,west-coast-berbice
+Chester,hamlet,70.3,-57.6435244,6.4408937,no,west-coast-berbice
+Britania,hamlet,70.7,-57.6412954,6.4389618,no,west-coast-berbice
+Tempie,hamlet,71.2,-57.6374475,6.4361652,no,west-coast-berbice
+Union,hamlet,71.9,-57.6341216,6.4298751,no,west-coast-berbice
+Trafalgar,hamlet,72.6,-57.6309909,6.4234682,no,west-coast-berbice
+Second Compound,hamlet,73.3,-57.6277482,6.4169623,no,west-coast-berbice
+Kitty,village,94.7,-57.6259667,6.1435664,yes,west-coast-berbice
+Light Town,village,93.4,-57.6250655,6.1594817,no,west-coast-berbice
+Onverwagt,hamlet,73.6,-57.623601,6.4180025,no,west-coast-berbice
+Lovely Lass,hamlet,74.1,-57.6185627,6.4167282,no,west-coast-berbice
+Bush Lot,town,75.1,-57.6140868,6.4086426,no,west-coast-berbice
+Armadale,hamlet,75.8,-57.6110197,6.4017918,no,west-coast-berbice
+Bel Air,hamlet,75.9,-57.6081366,6.4043198,yes,west-coast-berbice
+St. John,hamlet,76.4,-57.6043073,6.4014132,no,west-coast-berbice
+Hopetown,hamlet,76.8,-57.6024318,6.3977544,no,west-coast-berbice
+Onderneeming,hamlet,77.2,-57.6000209,6.3951008,no,west-coast-berbice
+Fort Wellington,city,77.8,-57.5957649,6.3921778,no,west-coast-berbice
+Naarstigheid,hamlet,78.4,-57.5931217,6.3866008,no,west-coast-berbice
+Experiment,hamlet,80.3,-57.5867991,6.3662912,no,west-coast-berbice
+Woodley Park,town,80.8,-57.5852055,6.3611612,no,west-coast-berbice
+Waterloo Jib,hamlet,80.5,-57.5825303,6.3686873,no,west-coast-berbice
+Woodlands,hamlet,82.2,-57.577946,6.3494686,no,west-coast-berbice
+Expectation,hamlet,83,-57.5770955,6.3392907,no,west-coast-berbice
+No. 10,hamlet,82.7,-57.5757102,6.3452559,no,west-coast-berbice
+Inverness,hamlet,83.6,-57.574773,6.3340495,no,west-coast-berbice
+Friends Retreat,hamlet,83,-57.5744602,6.342339,no,west-coast-berbice
+No. 9,hamlet,83.3,-57.5733337,6.3397717,no,west-coast-berbice
+Willemstad,hamlet,84.1,-57.572959,6.328768,no,west-coast-berbice
+No. 8,town,84.1,-57.5693203,6.3327347,no,west-coast-berbice
+Kortberaad,hamlet,96.4,-57.5672555,6.1739735,no,west-coast-berbice
+No. 6,hamlet,85.2,-57.5647032,6.3238281,no,west-coast-berbice
+Enfield,hamlet,96.7,-57.5621412,6.1748597,no,west-coast-berbice
+Zeelugt,hamlet,85.9,-57.5613483,6.3168817,yes,west-coast-berbice
+No. 5,hamlet,86,-57.5603206,6.3169507,no,west-coast-berbice
+Edderton,hamlet,86.4,-57.5600608,6.3123761,no,west-coast-berbice
+Friends,hamlet,96.9,-57.5575516,6.1767445,no,west-coast-berbice
+No. 4,hamlet,86.7,-57.5560845,6.3123266,no,west-coast-berbice
+No. 3,hamlet,87.3,-57.5531562,6.3079318,no,west-coast-berbice
+Mon Choisi,hamlet,87.5,-57.5525311,6.3047515,no,west-coast-berbice
+Sisters,town,97.3,-57.5511466,6.1770815,yes,west-coast-berbice
+Zee Zeight,hamlet,88,-57.5508634,6.3005131,no,west-coast-berbice
+Cotton Tree,hamlet,89.1,-57.5457332,6.2914105,no,west-coast-berbice
+Shieldstown,hamlet,90.7,-57.5440953,6.2703163,no,west-coast-berbice
+Zoorg en Hoop,hamlet,93.6,-57.5430525,6.2333485,no,west-coast-berbice
+Ithaca,town,94.1,-57.5425327,6.2276322,no,west-coast-berbice
+Lonsdale,hamlet,97.9,-57.5417924,6.1787231,no,west-coast-berbice
+No. 9 Balthyock,hamlet,93.3,-57.5416264,6.2384191,no,west-coast-berbice
+D'Edward,hamlet,90.3,-57.5398183,6.2811623,no,west-coast-berbice
+Rosignol,town,90.9,-57.5387925,6.2745779,no,west-coast-berbice
+Augsburg,hamlet,95.9,-57.5382013,6.2086834,no,west-coast-berbice
+Cruysburg,hamlet,96.4,-57.5372143,6.2032651,no,west-coast-berbice
+Rotterdam,hamlet,98.2,-57.5360393,6.1802798,no,west-coast-berbice
+Glasgow,hamlet,97.9,-57.5238218,6.1965644,no,west-coast-berbice
+Stanleytown,hamlet,95.3,-57.5230272,6.2317052,yes,west-coast-berbice
+Waterloo,hamlet,89.5,-57.5226092,6.3139627,no,west-coast-berbice
+Edingburg,hamlet,98.4,-57.5223023,6.1915852,no,west-coast-berbice
+Smythstown,hamlet,94.7,-57.5211879,6.2425358,no,west-coast-berbice
+Glasgow Housing Scheme,hamlet,98.3,-57.5194207,6.1968753,no,west-coast-berbice
+Stanleytown Savannah,hamlet,95.6,-57.5186037,6.2333051,no,west-coast-berbice
+New Doe Park,hamlet,98.8,-57.5176713,6.1916289,no,west-coast-berbice
+New Amsterdam,city,95,-57.5168359,6.2426407,no,west-coast-berbice
+Vryman's Erven,hamlet,94.9,-57.5150736,6.2463093,no,west-coast-berbice
+Queenstown,hamlet,94.5,-57.514871,6.2527747,yes,west-coast-berbice
+Mount Sinai,hamlet,95.6,-57.511765,6.2404487,no,west-coast-berbice
+Smythfield,hamlet,95,-57.5115293,6.249218,no,west-coast-berbice
+West Canje,neighbourhood,94.8,-57.510839,6.2526593,no,west-coast-berbice
+Overwinning,hamlet,96.4,-57.509843,6.2322966,no,west-coast-berbice
+Voorburg,hamlet,94.4,-57.5089795,6.2608928,no,west-coast-berbice
+Sheet Anchor,hamlet,94.8,-57.5051525,6.2592123,no,west-coast-berbice
+East Canje,hamlet,94.9,-57.5024591,6.2609136,no,west-coast-berbice
+Canje,hamlet,95.4,-57.4999225,6.2574122,no,west-coast-berbice
+No. 2,hamlet,95,-57.4985539,6.2650119,no,west-coast-berbice
+Cumberland,town,96.1,-57.4942103,6.2538316,no,west-coast-berbice
+Cane Field,town,96.9,-57.4901209,6.2482013,no,west-coast-berbice
+No. 5 or Rosehall,hamlet,97.6,-57.4865728,6.2425125,no,west-coast-berbice
+No. 7,hamlet,94.6,-57.4849829,6.2876001,no,west-coast-berbice
+No. 6 or Reliance,hamlet,98.7,-57.4800454,6.2338565,no,west-coast-berbice
+No. 7 or Adelphi,hamlet,99.1,-57.478373,6.2311663,no,west-coast-berbice
+No. 8 or Good Banana Land,hamlet,99.7,-57.4773081,6.2244617,no,west-coast-berbice
+No. 11 or Treumeit,hamlet,95.3,-57.4763118,6.2879866,no,west-coast-berbice
+No. 9 or Little Bleyendaal,hamlet,100.2,-57.4742751,6.2204964,no,west-coast-berbice
+No. 13 or Hermitage,hamlet,95.7,-57.4717612,6.2884103,no,west-coast-berbice
+Gangaram,hamlet,101.4,-57.4696003,6.2094138,no,west-coast-berbice
+No. 15 Susannah,hamlet,96.1,-57.4659309,6.2892162,no,west-coast-berbice
+Magdalena Maria,village,134.5,-57.463103,5.8177343,no,corentyne
+Baracara,village,131.3,-57.4598546,5.8555535,no,corentyne
+Charlottenburg,village,133.7,-57.4594552,5.8284291,no,corentyne
+Good Hoop,village,134.1,-57.4592621,5.8246294,no,corentyne
+No. 17 Bohemia,town,97,-57.456468,6.289117,no,west-coast-berbice
+No. 19 Kendalls,hamlet,97.2,-57.4535778,6.289617,no,west-coast-berbice
+No. 21 Warren,hamlet,97.4,-57.4502694,6.2907064,no,west-coast-berbice
+No. 23 Dunrobin,hamlet,97.9,-57.4450714,6.2908593,no,west-coast-berbice
+Arenstyn,village,131.7,-57.434221,5.8703952,no,corentyne
+No. 33 East Lothian,hamlet,100.7,-57.4119013,6.2926772,no,corentyne
+Mullenburg,village,132.1,-57.409373,5.8849097,no,corentyne
+No. 35 Marysburg,hamlet,101.6,-57.4035902,6.2916168,no,corentyne
+No. 39 or Gibraltar,hamlet,102.8,-57.4014778,6.274641,no,corentyne
+No. 2 or Courtland,hamlet,103.8,-57.3944979,6.2694008,no,corentyne
+No. 1,hamlet,103.2,-57.3937101,6.2802932,no,corentyne
+Chesney,hamlet,105.3,-57.3876666,6.2558676,no,corentyne
+No. 3 or Fyrish,hamlet,104,-57.386017,6.2788723,no,corentyne
+No. 4 or KIlcoy Chesney,hamlet,104.6,-57.3811906,6.2762178,no,corentyne
+No. 5 or Albion,town,105.2,-57.3770658,6.272617,no,corentyne
+Guava Bush,hamlet,106.4,-57.3750495,6.2565288,no,corentyne
+No. 6 or Nigg,hamlet,105.8,-57.3725281,6.2686333,no,corentyne
+Topoo,hamlet,107.2,-57.3693999,6.2512508,no,corentyne
+Belvedere,hamlet,106.4,-57.3691136,6.2640988,no,corentyne
+Hampshire,hamlet,107.2,-57.3629366,6.2603788,no,corentyne
+Williamsburg,hamlet,107.5,-57.3607052,6.2595117,no,corentyne
+Rose Hall,town,108.3,-57.3559731,6.25409,no,corentyne
+Portuguese Quarter,hamlet,108.7,-57.3520866,6.2528433,no,corentyne
+Port Mourant,town,108.9,-57.3512076,6.2514404,no,corentyne
+Bound Yard,hamlet,109.2,-57.3511006,6.2462309,no,corentyne
+Free Yard,neighbourhood,109,-57.3507359,6.2492812,no,corentyne
+Ankersville,hamlet,109.3,-57.3476705,6.2490544,no,corentyne
+Bangladesh,neighbourhood,109.7,-57.3467504,6.2449816,no,corentyne
+Haswell,hamlet,109.7,-57.3450608,6.2478592,no,corentyne
+Miss Phoebe,hamlet,110.3,-57.3420767,6.2414601,no,corentyne
+Resource,hamlet,110.2,-57.3412614,6.2452807,no,corentyne
+Tain,hamlet,110.8,-57.3371294,6.2413601,no,corentyne
+Clifton,hamlet,111.3,-57.3331311,6.2388854,no,corentyne
+John,hamlet,111.8,-57.3290261,6.2364146,no,corentyne
+Bloomfield,town,112.6,-57.3235739,6.2328239,no,corentyne
+Letter Kenny,hamlet,112.8,-57.3213939,6.2316801,no,corentyne
+Auchlyne,hamlet,113.3,-57.3177032,6.2299067,no,corentyne
+Whim,hamlet,113.7,-57.313439,6.2293829,no,corentyne
+Lesbeholden,hamlet,119.8,-57.3077768,6.1447988,no,corentyne
+Liverpool,hamlet,114.5,-57.3060622,6.2265857,no,corentyne
+Manchester,hamlet,115,-57.3014389,6.2255046,no,corentyne
+Ulverston,hamlet,115.4,-57.2978063,6.2244815,no,corentyne
+Alness,town,116,-57.2933378,6.2215515,no,corentyne
+Mibikuri,town,123.7,-57.29119,6.1090626,no,corentyne
+Salton,hamlet,116.5,-57.2896685,6.2185438,no,corentyne
+Hogstye,hamlet,117.5,-57.282661,6.2133416,no,corentyne
+Limlair,hamlet,118.4,-57.275811,6.2096067,no,corentyne
+Joanna,hamlet,127.6,-57.2717539,6.0769003,no,corentyne
+Nurney,hamlet,119.1,-57.2711104,6.2049037,no,corentyne
+Kildonan Ketting,town,119.5,-57.2686575,6.202785,no,corentyne
+Yakusari,hamlet,131.5,-57.2558063,6.0406556,no,corentyne
+Bush Lot Farm,hamlet,121.6,-57.2532148,6.1910469,no,corentyne
+Maida,hamlet,121.9,-57.2509675,6.1889881,no,corentyne
+KIlmarnock,hamlet,122.2,-57.2489969,6.1874755,no,corentyne
+No. 31 or Phiilippi,hamlet,123,-57.2437646,6.182979,no,corentyne
+No. 32 or Cromarty,hamlet,123.6,-57.2394156,6.1794378,no,corentyne
+No. 33 or Wellington Park,hamlet,124.4,-57.2340113,6.1743827,no,corentyne
+No. 34 or Tarlogie,town,124.8,-57.2325379,6.1705089,no,corentyne
+No. 35 or Macedonia,hamlet,125.8,-57.2269332,6.1624685,no,corentyne
+No. 36 or Neville,hamlet,126.9,-57.2214852,6.1535031,no,corentyne
+No. 37 or Brighton,hamlet,127.8,-57.2187804,6.1424821,no,corentyne
+No. 38 or Kiltairn,hamlet,128.3,-57.2160428,6.1384484,no,corentyne
+No. 39 or Eversham,town,129,-57.2120486,6.1327961,no,corentyne
+No. 40 or Dingwall,hamlet,130.1,-57.2061203,6.1249235,no,corentyne
+No. 41 Java,hamlet,130.9,-57.2023652,6.1175201,no,corentyne
+No. 42 Bengal,hamlet,131.3,-57.2005413,6.1144479,no,corentyne
+No. 43 or Jappa,hamlet,131.6,-57.1990401,6.1108773,no,corentyne
+No. 44 or Good Hope,hamlet,132.6,-57.194664,6.1015253,no,corentyne
+Number 45 Village,hamlet,133.2,-57.1926956,6.0951147,no,corentyne
+No. 46,hamlet,133.7,-57.1925848,6.0883477,no,corentyne
+No. 47 or Rising Sun,town,134.4,-57.1910406,6.0806436,no,corentyne
+No. 48 or Floyd Ward,hamlet,134.8,-57.1890944,6.0758986,no,corentyne
+No. 49 or Mary's Hope,hamlet,135.4,-57.1864436,6.0704733,no,corentyne
+No. 50 or Leeds,hamlet,136.2,-57.1831737,6.0632566,no,corentyne
+No. 51,hamlet,137.5,-57.1789687,6.0497858,no,corentyne
+No. 52,hamlet,138,-57.1774409,6.0441139,no,corentyne
+No. 53,hamlet,138.6,-57.1761408,6.0369834,no,corentyne
+No. 54 or Union,town,139.1,-57.1744371,6.0320341,no,corentyne
+No. 0,hamlet,139.3,-57.1734058,6.0300258,no,corentyne
+Number 55 Village,hamlet,139.8,-57.171108,6.0265126,no,corentyne
+No. 56,hamlet,140.2,-57.1700863,6.0210869,no,corentyne
+No. 57,hamlet,140.8,-57.1682617,6.0156393,no,corentyne
+Dead Tree or Farm,hamlet,141.3,-57.1658558,6.0113381,no,corentyne
+No. 58,hamlet,141.7,-57.1640632,6.008316,no,corentyne
+No. 59,hamlet,142,-57.1624874,6.0056298,no,corentyne
+Grant 1779,hamlet,155.3,-57.161504,5.827028,no,corentyne
+Grant 1651,hamlet,155.2,-57.1595066,5.83111,no,corentyne
+No. 60,hamlet,142.8,-57.1575239,5.9999344,no,corentyne
+No. 61,hamlet,143.4,-57.1552097,5.9943245,no,corentyne
+Crabwood Creek,town,154.8,-57.154546,5.8410742,no,corentyne
+Grant 1802,hamlet,154.9,-57.1545081,5.8389183,no,corentyne
+No. 62,hamlet,143.8,-57.1531675,5.9903581,no,corentyne
+Grant 1803,hamlet,154.8,-57.1530773,5.8427077,no,corentyne
+Grant 1804,hamlet,154.6,-57.1521574,5.8454925,no,corentyne
+No. 71 or Little Massiah,hamlet,147.8,-57.1517808,5.9361553,no,corentyne
+Grant 1805,hamlet,154.5,-57.1514889,5.847878,no,corentyne
+Grant 1806,hamlet,154.3,-57.1510368,5.8508649,no,corentyne
+No. 64 or Babylon,hamlet,145,-57.1499053,5.9779936,no,corentyne
+No. 70 or Massiah,hamlet,147.7,-57.1495666,5.9413451,no,corentyne
+No. 65 or New Market,hamlet,145.4,-57.1495634,5.9732726,no,corentyne
+No. 66,hamlet,145.9,-57.1493195,5.9655908,no,corentyne
+No. 76 or Harriet,hamlet,150.2,-57.1489498,5.9077726,no,corentyne
+No. 67,hamlet,146.3,-57.1488063,5.9608001,no,corentyne
+No. 63 or Benab,hamlet,144.7,-57.1486935,5.9837776,no,corentyne
+No. 69 or Friendship,hamlet,147.3,-57.1484945,5.9475717,no,corentyne
+No. 72 or Hong Kong,hamlet,148.6,-57.1481294,5.9298878,no,corentyne
+No. 75 or Spring Garden,hamlet,149.8,-57.1479564,5.9143535,no,corentyne
+No. 68 or Carnarvon,hamlet,146.9,-57.1476372,5.9547148,no,corentyne
+No. 73 or Clonbrook or La Printemps,hamlet,149,-57.1473546,5.9261249,no,corentyne
+No. 74 or Stockholm or Balaam,hamlet,149.3,-57.146668,5.9215299,no,corentyne
+Line Path,hamlet,153.8,-57.1462014,5.86227,no,corentyne
+No. 77 New Scheme,hamlet,150.9,-57.145069,5.9019883,no,corentyne
+No. 80,hamlet,152.8,-57.1436102,5.8787649,no,corentyne
+No. 79 or Kingston,hamlet,152.5,-57.1414117,5.8847211,no,corentyne
+Scottsburg,hamlet,150.9,-57.14054,5.9077171,no,corentyne
+Princetown,hamlet,151.4,-57.1393923,5.9015702,no,corentyne
+Dukestown,hamlet,151.2,-57.1387889,5.9047731,no,corentyne
+Number 78 Eliza and Mary,hamlet,151.8,-57.1384027,5.8981005,no,corentyne
+Corriverton,town,152,-57.1383443,5.8947429,no,corentyne
+Springlands,hamlet,152.4,-57.1363095,5.8921425,no,corentyne
+Clarapolder,hamlet,156.9,-57.0567068,5.9216183,no,corentyne
+Westelijke Polders,village,158.3,-57.0516854,5.9080829,no,corentyne
+Corantijnpolder,hamlet,156.7,-57.0417195,5.9437725,no,corentyne
+Van Drimmelenpolder,hamlet,159,-57.0163562,5.9423741,no,corentyne
+Waldeck,hamlet,158.8,-57.010102,5.9541779,no,corentyne
+Sidoredjo,neighbourhood,161.4,-57.0027038,5.9253295,no,corentyne
+Van Pettenpolder,neighbourhood,162.4,-56.9894001,5.9273144,no,corentyne
+Nieuw Nickerie,town,161.4,-56.9893521,5.9420605,no,corentyne
+Europolder,hamlet,165.4,-56.988199,5.884718,no,corentyne
+Nationaal Projekt,neighbourhood,162.3,-56.981262,5.9401541,no,corentyne
+Longmay,hamlet,167.1,-56.9386617,5.9242292,no,corentyne
