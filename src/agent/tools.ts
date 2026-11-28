@@ -4,6 +4,7 @@ import * as repo from '../db/repo.ts';
 import { recordTurnedAway } from '../waiting-list.ts';
 import { proposeDestinationToDriver } from '../dispatch.ts';
 import { pickupLooksWrong, askWhichArea } from '../taxi-pickup.ts';
+import { quoteTrip, quoteMessage } from '../taxi-quote.ts';
 import type { OutboundMessage } from '../channels/types.ts';
 import {
   announceNewOrder,
@@ -491,6 +492,23 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
             'True only when the customer has been told the place by name and has agreed it is right. Never true on the same turn you first looked it up.',
         },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'taxi_fare',
+    description:
+      "What a trip costs, for somebody asking BEFORE they book. Call it the moment a passenger asks the price of a trip, or whether they can afford one — always, and never put them off until they have booked. The figure comes from the tariff and the base says it in its own words, so you do not repeat it, work it out, or guess at it: both ends are read back as the tariff spells them, which is how a customer who meant the other Golden Grove can see it was not the one priced. Give both ends. If you have only one, ask for the other rather than filling it in from where they usually get deliveries — that is where their shopping goes, not where this trip starts. Nothing is booked by this and no car is sent: it is a question being answered.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: {
+          type: 'string',
+          description: 'Where the car would collect them, as they said it. A village or area name.',
+        },
+        to: { type: 'string', description: 'Where they are going, as they said it.' },
+      },
+      required: ['from', 'to'],
       additionalProperties: false,
     },
   },
@@ -2403,6 +2421,71 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * No fare is quoted here or anywhere. The base does not meter rides, and a
      * figure nobody agreed to is an argument on a kerb.
      */
+    /**
+     * What a trip costs, asked before anybody books it.
+     *
+     * The base says the figure itself, as it does when a booking is priced:
+     * a number with no judgement in it is a fixed string from the base, not
+     * the model's paraphrase of something it was shown. The model's job is
+     * to notice the question and ask for the missing end.
+     *
+     * No service check. A price question is a price question, and somebody
+     * halfway through their shopping who asks what a car to Parika costs
+     * should be told rather than moved to another counter first.
+     */
+    case 'taxi_fare': {
+      const quote = quoteTrip(String(input.from ?? ''), String(input.to ?? ''));
+      const lang = languageFor(ctx.phone);
+
+      ctx.outbound.push({ kind: 'text', text: quoteMessage(quote, lang) });
+
+      // Said, and said properly, so there is nothing for the model to add.
+      // It must not repeat the figure in its own words: a number read back
+      // is a number that can come back wrong.
+      const sent =
+        'The base has told them, in its own words. Say nothing further about the figure' +
+        ' — do not repeat it, round it or explain it.';
+
+      switch (quote.kind) {
+        case 'priced':
+          return ok({
+            quoted: true,
+            from: quote.from,
+            to: quote.to,
+            fare: quote.fee,
+            booked: false,
+            next: `${sent} Nothing is booked. If they want the car, take it from here as any booking.`,
+          });
+        case 'unpriced':
+          return ok({
+            quoted: false,
+            from: quote.from,
+            to: quote.to,
+            reason: 'no fare set for that pair',
+            next: `${sent} The chauffeur agrees this one, so do not invent a figure for it.`,
+          });
+        case 'which':
+          return ok({
+            quoted: false,
+            ambiguous: quote.said,
+            candidates: quote.candidates.map((c) => c.place),
+            next: `${sent} Wait for them to say which one, then call this again with it.`,
+          });
+        case 'unknown':
+          return ok({
+            quoted: false,
+            not_in_tariff: quote.missing,
+            next: `${sent} The chauffeur agrees a trip the tariff does not carry, so do not invent a figure for it.`,
+          });
+        case 'need_end':
+          return ok({
+            quoted: false,
+            missing_end: quote.end,
+            next: `${sent} Wait for the answer, then call this again with both ends.`,
+          });
+      }
+    }
+
     case 'book_taxi': {
       const wrong = requireService(ctx.phone, 'taxi');
       if (wrong) return fail(wrong);

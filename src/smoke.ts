@@ -5552,8 +5552,15 @@ section('Picking a place instead of typing one');
     const taxiLine = serviceContextLine('taxi');
     check('the taxi brief does not forbid the fare it now quotes',
       !/Never quote a fare/i.test(taxiLine));
-    check('it says book_taxi owns the figure', /book_taxi is the only thing that may say it/.test(taxiLine));
-    check('and that the shop asks for the ends', /the shop asks for both ends itself/i.test(taxiLine));
+    check('it says the tariff owns the figure',
+      /only book_taxi and taxi_fare may say it/.test(taxiLine), taxiLine.slice(0, 80));
+    check('and that a price question is always answered',
+      /ALWAYS answer a price question/.test(taxiLine) &&
+        /Never make somebody book a car to find out what it costs/.test(taxiLine),
+      taxiLine.slice(0, 80));
+    check('and the person driving is a chauffeur',
+      !/\bdriver\b/i.test(taxiLine), taxiLine.slice(0, 80));
+    check('and that the base asks for the ends', /the base asks for both ends itself/i.test(taxiLine));
 
     repo.setService(told, null);
     repo.clearTaxiPicks(told);
@@ -15969,6 +15976,117 @@ section('What the customer said is not thrown away');
   repo.clearTaxiPicks(rider9);
   repo.clearTaxiPicks(rider10);
   repo.clearTaxiPicks(rider12);
+}
+section('A price asked before booking is a price given');
+{
+  const { quoteTrip, quoteMessage } = await import('./taxi-quote.ts');
+  const { executeTool: askFare } = await import('./agent/tools.ts');
+  const { fareBetween: between } = await import('./zones.ts');
+
+  // Somebody asking what a car costs was being asked to book one to find
+  // out. The agent was told — rightly — never to say a figure of its own:
+  // the number decides money, names repeat across the country, and the
+  // model does not hold the tariff. Sound reasoning, wrong conclusion. The
+  // answer was never the model's to invent, but it was always the base's to
+  // give.
+  const priced = quoteTrip('Georgetown', 'Diamond');
+  check('a trip the tariff carries is priced',
+    priced.kind === 'priced' && priced.fee === (between('Georgetown', 'Diamond')?.fee ?? -1),
+    JSON.stringify(priced));
+  check('and the figure is the same one a booking would charge',
+    priced.kind === 'priced' && priced.fee === 1800, JSON.stringify(priced));
+  check('said in the base own words, with the ends named back',
+    /Georgetown/.test(quoteMessage(priced, 'en')) &&
+      /Diamond/.test(quoteMessage(priced, 'en')) &&
+      /\$1,800/.test(quoteMessage(priced, 'en')),
+    quoteMessage(priced, 'en'));
+  check('and the waiting charge is not a surprise later',
+    /[Ww]aiting/.test(quoteMessage(priced, 'en')), quoteMessage(priced, 'en'));
+
+  // Spelling inside a word is no obstacle — the tariff has matched on sound
+  // since the first week, and a price question is typed on a telephone.
+  const sloppy = quoteTrip('Georgtown', 'Diamand');
+  check('a misspelled end is still priced',
+    sloppy.kind === 'priced' && sloppy.fee === 1800, JSON.stringify(sloppy));
+
+  // A space pushed into the middle of a name is NOT matched — "george town"
+  // is two words to the tariff and neither is a village. Left alone on
+  // purpose: the fix belongs in the matcher the whole shop shares, and a
+  // quote that accepted names a booking would refuse is worse than this,
+  // because it prices a trip that cannot then be sold.
+  check('but a name split in two is honestly refused',
+    quoteTrip('george town', 'Diamond').kind === 'unknown',
+    JSON.stringify(quoteTrip('george town', 'Diamond')));
+
+  // A name that means two places is a real question, and the two answers
+  // are different money, so the customer picks between FIGURES.
+  const two = quoteTrip('Golden Grove', 'Georgetown');
+  check('a name meaning two places asks which',
+    two.kind === 'which' && two.candidates.length >= 2, JSON.stringify(two).slice(0, 120));
+  check('and prices each one, so they choose between figures',
+    two.kind === 'which' && two.candidates.every((c) => c.fee !== null),
+    JSON.stringify(two).slice(0, 140));
+  check('the question names what they wrote',
+    /Golden Grove/.test(quoteMessage(two, 'en')), quoteMessage(two, 'en').slice(0, 70));
+
+  // An end the tariff does not carry is said as such, naming WHICH end.
+  const nowhere = quoteTrip('Georgetown', 'Atlantis');
+  check('an end the tariff does not carry is named',
+    nowhere.kind === 'unknown' && nowhere.missing.join() === 'Atlantis',
+    JSON.stringify(nowhere));
+  check('and no figure is invented for it',
+    !/\$/.test(quoteMessage(nowhere, 'en')), quoteMessage(nowhere, 'en'));
+  check('the chauffeur agrees that one instead',
+    /chauffeur/.test(quoteMessage(nowhere, 'en')), quoteMessage(nowhere, 'en'));
+
+  // Both ends are required. The associate fare command fills a missing
+  // pickup from where they are standing; a customer's saved village is
+  // where their SHOPPING goes, and quoting from there would price one
+  // journey and sell another.
+  check('one end alone is not guessed at',
+    quoteTrip('', 'Diamond').kind === 'need_end', JSON.stringify(quoteTrip('', 'Diamond')));
+  check('and the missing end is the one asked for',
+    quoteTrip('Georgetown', '').kind === 'need_end' &&
+      (quoteTrip('Georgetown', '') as { end: string }).end === 'to',
+    JSON.stringify(quoteTrip('Georgetown', '')));
+
+  // Through the tool, which is what the agent actually reaches for.
+  const asker = '5926103301';
+  repo.saveCustomer(asker, { name: 'Price Asker', contactPhone: asker });
+  repo.chooseLanguage(asker, 'en');
+  const ctxF = { phone: asker, outbound: [] as { kind: string; text?: string }[] };
+  const out = JSON.parse(
+    askFare('taxi_fare', { from: 'Georgetown', to: 'Parika' }, ctxF as never),
+  ) as Record<string, unknown>;
+  check('the tool prices it', out.quoted === true && out.fare === 5000, JSON.stringify(out));
+  check('and books nothing', out.booked === false && repo.recentOrders(asker, 5).length === 0,
+    String(repo.recentOrders(asker, 5).length));
+  check('the base sends the figure itself',
+    /\$5,000/.test(ctxF.outbound[0]?.text ?? ''), ctxF.outbound[0]?.text ?? '');
+  check('and the model is told to add nothing to it',
+    /do not repeat it/.test(String(out.next)), String(out.next).slice(0, 90));
+
+  // No service check on purpose: somebody halfway through their shopping
+  // who asks what a car costs should be told, not moved to another counter.
+  repo.setService(asker, 'grocery');
+  const mid = { phone: asker, outbound: [] as { kind: string; text?: string }[] };
+  const shopping = JSON.parse(
+    askFare('taxi_fare', { from: 'Georgetown', to: 'Diamond' }, mid as never),
+  ) as Record<string, unknown>;
+  check('a shopper can ask what a car costs', shopping.quoted === true, JSON.stringify(shopping));
+  repo.setService(asker, null);
+
+  // And the words exist wherever the customer is reading.
+  const { t: tF } = await import('./language.ts');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const line = quoteMessage({ kind: 'priced', from: 'Georgetown', to: 'Diamond', fee: 1800 }, lang);
+    check(`the quote has words in ${lang}`,
+      /1,800/.test(line) && !/fare_quote/.test(line), line.slice(0, 70));
+    // Built through quoteMessage rather than t(), so a placeholder the
+    // builder forgets to fill is caught here. {nl} went out raw once.
+    check(`and no placeholder is left raw in ${lang}`,
+      !/\{\w+\}/.test(line), line.slice(0, 90));
+  }
 }
 section('The base dispatches, the shop sells');
 {

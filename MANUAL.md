@@ -458,6 +458,67 @@ If the street is already on file for somewhere else, both are kept and the
 shop goes on asking which one — a second ward is an ambiguity, not a
 correction.
 
+### A price asked before booking is a price given
+
+Somebody asking what a car costs was being asked to book one to find out.
+The agent is told — rightly — never to say a fare of its own: the figure
+decides money, village names repeat across the country, and the model does
+not hold the tariff. Sound reasoning, wrong conclusion. **The answer was
+never the model's to invent, but it was always the base's to give**, and
+asking somebody to commit to a car before they can see the price is asking
+them to trust a figure they have not been shown.
+
+So `taxi_fare` prices a question with the same tariff that prices a booking,
+and the base says it in its own words:
+
+```
+Passenger ▸ how much for a car from Georgetown to Parika?
+
+◂ 🚕 *Georgetown* to *Parika* is *$5,000*, payable to the chauffeur.
+  Waiting after pickup is charged separately.
+```
+
+Nothing is booked by it and no car is sent. The waiting charge is named
+there rather than discovered later.
+
+**Both ends are read back as the tariff spells them**, which is how somebody
+who meant the other Golden Grove can see it was not the one priced. And when
+a name means two places, the two answers are different money, so the question
+offers **figures** rather than names:
+
+```
+◂ 🚕 *Golden Grove* is more than one place. Which one?
+  • Golden Grove East Coast — *$2,800*
+  • Golden Grove East Bank — *$2,000*
+```
+
+**Both ends are required.** An associate's `fare` command fills a missing
+pickup from where they are standing, which is right for somebody holding a
+telephone at a kerb. A customer's saved village is where their *shopping*
+goes, and quoting a trip from there would price one journey and sell
+another — so the agent asks instead.
+
+**Nothing is invented for a trip the tariff does not carry.** The end that is
+missing is named, and the fare goes back to where it always went:
+
+```
+◂ 🚕 We have no set fare for *Atlantis*, so you agree that one with the
+  chauffeur before you set off.
+```
+
+A price question is answered whatever the customer is in the middle of —
+there is no service check on it, because somebody halfway through their
+shopping who asks what a car to Parika costs should be told, not moved to
+another counter first.
+
+**One known gap.** Spelling inside a word is matched on sound, as everywhere
+else in the tariff — `Georgtown`, `Diamand` and `Geogetown` all price. A
+space pushed into the middle of a name is not: `george town` is two words to
+the tariff and neither is a village, so it is honestly refused. The fix
+belongs in the matcher the whole base shares, and a quote that accepted
+names a *booking* would refuse is worse than the gap, because it prices a
+trip that cannot then be sold.
+
 ### The area is what prices the trip
 
 The same booking read **"The fare is agreed with the chauffeur"**, and it

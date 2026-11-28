@@ -157,6 +157,15 @@ const STRINGS: Record<Language, Dictionary> = {
     // written to say what is happening without naming money the shop does
     // not know. "Total $0" was the alternative, and it was a lie.
     taxi_confirmed: 'Thanks {name} — your chauffeur is on the way to collect you. Trip {order}. 🚕',
+    fare_quote:
+      '🚕 *{from}* to *{to}* is *{fare}*, payable to the chauffeur.{nl}Waiting after pickup is charged separately.',
+    fare_quote_unpriced:
+      '🚕 We have no set fare for *{from}* to *{to}*, so you agree it with the chauffeur before you set off.',
+    fare_quote_which: '🚕 *{said}* is more than one place. Which one?{nl}{options}',
+    fare_quote_unknown:
+      '🚕 We have no set fare for {missing}, so you agree that one with the chauffeur before you set off.',
+    fare_quote_need_from: '🚕 Where would the car collect you from?',
+    fare_quote_need_to: '🚕 And where are you going?',
     taxi_booked: '✅ Booked — trip *{order}*.{nl}{from} to {to}{nl}*Fare {fare}*, payable to the chauffeur. Waiting after pickup is charged separately.{nl}{nl}I am looking for a car now and will tell you the moment one is on the way.',
     taxi_booked_unpriced: '✅ Booked — trip *{order}*.{nl}{from} to {to}{nl}The fare is agreed with the chauffeur.{nl}{nl}I am looking for a car now and will tell you the moment one is on the way.',
     taxi_on_the_way: '{name}, you are on your way 🚕',
@@ -423,6 +432,15 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: 'El paquete {order} vuelve a usted — el código que dio {name} no coincidió, así que el asociado de entrega no lo entregó. Confirme con {name} que tenía el código que usted le pasó. La tarifa cubre el viaje, que sí se hizo, por lo que no se reembolsa.',
     parcel_on_the_way: 'El paquete {order} ha sido recogido y va camino a {name}.',
     taxi_confirmed: 'Gracias {name} — su chófer va en camino a recogerle. Viaje {order}. 🚕',
+    fare_quote:
+      '🚕 De *{from}* a *{to}* son *{fare}*, que se pagan al chófer.{nl}La espera después de la recogida se cobra aparte.',
+    fare_quote_unpriced:
+      '🚕 No tenemos tarifa fija de *{from}* a *{to}*, así que la acuerda con el chófer antes de salir.',
+    fare_quote_which: '🚕 *{said}* es más de un lugar. ¿Cuál?{nl}{options}',
+    fare_quote_unknown:
+      '🚕 No tenemos tarifa fija para {missing}, así que la acuerda con el chófer antes de salir.',
+    fare_quote_need_from: '🚕 ¿De dónde le recogería el coche?',
+    fare_quote_need_to: '🚕 ¿Y a dónde va?',
     taxi_booked: '✅ Reservado — viaje *{order}*.{nl}De {from} a {to}{nl}*Tarifa {fare}*, a pagar al chófer. La espera después de la recogida se cobra aparte.{nl}{nl}Estoy buscando un coche y le aviso en cuanto haya uno en camino.',
     taxi_booked_unpriced: '✅ Reservado — viaje *{order}*.{nl}De {from} a {to}{nl}La tarifa se acuerda con el chófer.{nl}{nl}Estoy buscando un coche y le aviso en cuanto haya uno en camino.',
     taxi_on_the_way: '{name}, ya va en camino 🚕',
@@ -655,6 +673,15 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: 'A encomenda {order} está a voltar para si — o código que {name} deu não coincidiu, por isso o associado de entrega não a entregou. Confirme com {name} que tinha o código que lhe passou. A taxa cobre a viagem, que foi feita, por isso não é reembolsada.',
     parcel_on_the_way: 'A encomenda {order} foi recolhida e está a caminho de {name}.',
     taxi_confirmed: 'Obrigado {name} — o seu chofer está a caminho para o recolher. Viagem {order}. 🚕',
+    fare_quote:
+      '🚕 De *{from}* para *{to}* são *{fare}*, a pagar ao chofer.{nl}A espera depois da recolha é cobrada à parte.',
+    fare_quote_unpriced:
+      '🚕 Não temos tarifa fixa de *{from}* para *{to}*, por isso acerta com o chofer antes de partir.',
+    fare_quote_which: '🚕 *{said}* é mais do que um lugar. Qual deles?{nl}{options}',
+    fare_quote_unknown:
+      '🚕 Não temos tarifa fixa para {missing}, por isso acerta essa com o chofer antes de partir.',
+    fare_quote_need_from: '🚕 De onde é que o carro o apanharia?',
+    fare_quote_need_to: '🚕 E para onde vai?',
     taxi_booked: '✅ Reservado — viagem *{order}*.{nl}De {from} para {to}{nl}*Tarifa {fare}*, a pagar ao chofer. A espera após a recolha é cobrada à parte.{nl}{nl}Estou a procurar um carro e aviso assim que houver um a caminho.',
     taxi_booked_unpriced: '✅ Reservado — viagem *{order}*.{nl}De {from} para {to}{nl}A tarifa é combinada com o chofer.{nl}{nl}Estou a procurar um carro e aviso assim que houver um a caminho.',
     taxi_on_the_way: '{name}, está a caminho 🚕',
@@ -885,6 +912,14 @@ const STRINGS: Record<Language, Dictionary> = {
     returned_wrong_code: '包裹 {order} 正在退回给您 — {name} 提供的收货码不正确，配送专员因此没有交付。请与 {name} 核对您转告的收货码。费用已用于本次行程，故不予退还。',
     parcel_on_the_way: '包裹 {order} 已提取，正在送往 {name}。',
     taxi_confirmed: '谢谢{name}，您的专车司机正在前往接您。行程 {order}。🚕',
+    fare_quote:
+      '🚕 *{from}* 到 *{to}* 的车费是 *{fare}*，上车后付给专车司机。{nl}接到您之后的等待时间另行计费。',
+    fare_quote_unpriced:
+      '🚕 *{from}* 到 *{to}* 没有固定车费，出发前请与专车司机商定。',
+    fare_quote_which: '🚕 *{said}* 有不止一个地方，请问是哪一个？{nl}{options}',
+    fare_quote_unknown: '🚕 {missing} 没有固定车费，出发前请与专车司机商定。',
+    fare_quote_need_from: '🚕 请问车要到哪里接您？',
+    fare_quote_need_to: '🚕 您要去哪里呢？',
     taxi_booked: '✅ 已预订 — 行程 *{order}*。{nl}{from} 到 {to}{nl}*车费 {fare}*，请付给专车司机。上车后的等候另行收费。{nl}{nl}我正在为您找车，一有车出发我就立刻通知您。',
     taxi_booked_unpriced: '✅ 已预订 — 行程 *{order}*。{nl}{from} 到 {to}{nl}车费请与专车司机商定。{nl}{nl}我正在为您找车，一有车出发我就立刻通知您。',
     taxi_on_the_way: '{name}，您已出发 🚕',
