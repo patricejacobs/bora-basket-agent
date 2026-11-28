@@ -15508,6 +15508,48 @@ section('A street spelled wrong is still that street');
 
   fs.rmSync(fuzzy, { force: true });
 }
+section('One street is one set of rows, whoever spelled it');
+{
+  const nl11 = String.fromCharCode(10);
+  const spelled = './data/streets-spelled-smoke.csv';
+  fs.writeFileSync(
+    spelled,
+    [
+      'street,place,km_from_marker',
+      'harrowbank street,Newtown,0.09',
+      'harrowbank street,Lamaha Gardens,0.28',
+    ].join(nl11) + nl11,
+    'utf8',
+  );
+  repo.loadStreetsFromMap(spelled);
+
+  // This is how the real map spells it — with two t's, the way a surveyor
+  // wrote it rather than the way a customer writes it. Found by sound,
+  // which is the whole point of matching that way.
+  check('the map spelling answers the customer spelling',
+    repo.areasForStreet('Lot 20 Harowbank Street').length === 2,
+    JSON.stringify(repo.areasForStreet('Lot 20 Harowbank Street')));
+  check('and the index says which spelling it holds',
+    repo.streetAsFiled('harowbank st') === 'harrowbank street',
+    String(repo.streetAsFiled('harowbank st')));
+
+  // And a delivery to it must join those rows rather than start a rival
+  // set. Filed under the customer's spelling, the new row matched exactly,
+  // so it shadowed the wards the map held under the other spelling — a
+  // street the shop half knew became one it was confidently wrong about.
+  repo.rememberStreetArea('Lot 20 Harowbank Street', 'Kitty');
+  const joined = repo.areasForStreet('Harowbank Street');
+  check('a delivery joins the rows the map already had',
+    joined.length === 3, JSON.stringify(joined));
+  check('with the proved ward first',
+    joined[0]?.place === 'Kitty' && joined[0]?.seen === 1, JSON.stringify(joined));
+  check('and the other spelling was not duplicated',
+    (db.prepare(
+      `SELECT COUNT(DISTINCT street) AS n FROM street_areas WHERE street LIKE 'har%bank street'`,
+    ).get() as { n: number }).n === 1, '');
+
+  fs.rmSync(spelled, { force: true });
+}
 section('The streets nobody can place are the worklist');
 {
   const { executeTool: ask7 } = await import('./agent/tools.ts');

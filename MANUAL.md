@@ -242,10 +242,13 @@ so proving Bourda does **not** hide the other two — a customer who means
 Lacytown should see it rather than tap past a confident guess.
 
 **What it will not do.** Coverage is uneven: Georgetown's main streets are
-well mapped, lanes and newer schemes are not — Garnet Street is not in OSM
-at all, which is exactly why the memory exists beside it. Street names
-repeat, so 222 of them carry more than one ward and the shop asks rather
-than guessing. And it is a snapshot: re-run it to refresh, while deliveries
+well mapped, lanes and newer schemes are thinner, which is why the memory
+exists beside it. It is also spelled the way a surveyor spelled it rather
+than the way a customer writes it — the map holds Garnet Street as
+**`garnett street`**, with two t's, and until names were matched by sound
+the shop could not see the four wards it had been holding all along. Street
+names repeat, so 222 of them carry more than one ward and the shop asks
+rather than guessing. And it is a snapshot: re-run it to refresh, while deliveries
 keep correcting it every day.
 
 The raw Overpass answers are cached under `data/overpass-cache/` so a second
@@ -329,6 +332,28 @@ the *wrong* street sends a chauffeur to the wrong road:
   number, and another street. So `Sevens Street` is never answered with
   Seventh Street's ward, and a numbered street answers only to its own
   spelling and its own sound.
+
+**One street is one set of rows, whoever spelled it.** This was found by
+driving the real thing: the map holds Garnet Street as `garnett street`, and
+teaching the shop `street Garnet Street = Kitty` filed a *second* street
+under the customer's spelling. That new row then matched exactly, so it
+shadowed the four wards the map had been holding — a street the shop half
+knew became one it was confidently wrong about. A street learned from a
+delivery or from an associate now joins the rows the index already has,
+when it nearly has them, and asking about one answers under the spelling
+the index holds:
+
+```
+Rider One ▸ street garnet st
+
+◂ 🛣 *Garnett Street*
+
+  • Kitty — delivered 1 time
+  • Newtown — from the map
+  • East La Penitence — from the map
+  • Lamaha Gardens — from the map
+  • Campbellville — from the map
+```
 
 ### The streets nobody can place are the worklist
 

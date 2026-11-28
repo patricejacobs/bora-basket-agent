@@ -3,8 +3,9 @@
  *
  * The shop learns streets from finished deliveries and from the map, and
  * both are slow: a delivery has to happen, and the map has what the map
- * has — Garnet Street is not in it at all. Meanwhile an associate who has
- * driven Georgetown for years knows exactly where it is.
+ * has, spelled the way a surveyor spelled it. Meanwhile an associate who
+ * has driven Georgetown for years knows exactly where a street is, and one
+ * message is the whole cost of asking them.
  *
  *     street Garnet Street = Kitty     teaches it, at once
  *     street Garnet Street             what the shop has
@@ -20,6 +21,10 @@ import { findZone } from './zones.ts';
 import { streetKey } from './street-memory.ts';
 
 const nl = String.fromCharCode(10);
+
+/** "garnett street" as "Garnett Street". */
+const asAName = (key: string): string =>
+  key.replace(/(^|\s)(\S)/g, (_m, gap: string, first: string) => gap + first.toUpperCase());
 
 export type StreetCommand =
   | { kind: 'teach'; street: string; place: string }
@@ -76,8 +81,12 @@ export function answerStreetCommand(cmd: StreetCommand): string {
         `Teach it with \`street ${cmd.street} = <the area>\`.`,
       ].join(nl);
     }
+    // Under the name the index holds, not the one that was typed. The map
+    // calls Garnet Street "Garnett Street", and the asker may as well
+    // learn that here rather than wonder why it reads differently later.
+    const filed = repo.streetAsFiled(cmd.street);
     return [
-      `🛣 *${cmd.street}*`,
+      `🛣 *${filed ? asAName(filed) : cmd.street}*`,
       '',
       ...places.map(
         (p) =>

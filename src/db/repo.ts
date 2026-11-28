@@ -4123,9 +4123,17 @@ export function streetsNobodyCanPlace(limit = 20): {
 }
 
 export function rememberStreetArea(written: string, place: string, now = new Date()): void {
-  const key = streetKey(written, place);
+  const typed = streetKey(written, place);
   const village = place.trim();
-  if (!key || !village) return;
+  if (!typed || !village) return;
+
+  // File it under the spelling the index already uses, when it nearly has
+  // one. The map calls Garnet Street "Garnett Street", and filing the
+  // customer's spelling made a second street: the new row matched exactly,
+  // so it shadowed the four wards the map held under the other spelling,
+  // and a street the shop half knew became a street it was confidently
+  // wrong about. One street is one set of rows, whoever spelled it.
+  const key = nearestKnownStreet(typed) ?? typed;
 
   db.prepare(
     `INSERT INTO street_areas (street, place, seen, sound, last_at) VALUES (?, ?, 1, ?, ?)
@@ -4133,8 +4141,8 @@ export function rememberStreetArea(written: string, place: string, now = new Dat
        last_at = excluded.last_at`,
   ).run(key, village, soundalike(key), now.toISOString());
 
-  // It is no longer missing.
-  db.prepare(`DELETE FROM street_misses WHERE street = ?`).run(key);
+  // It is no longer missing, under either spelling.
+  db.prepare(`DELETE FROM street_misses WHERE street = ? OR street = ?`).run(key, typed);
 }
 
 /**
@@ -4209,6 +4217,19 @@ function nearestKnownStreet(key: string): string | null {
     if (!best || off < best.off) best = { street: row.street, off };
   }
   return best?.street ?? null;
+}
+
+/**
+ * The spelling the index holds, for a name that was typed some other way.
+ *
+ * Worth saying out loud when it differs: somebody who asks about "garnet
+ * st" and is answered about "Garnett Street" has learned what the map
+ * calls it, which is the spelling the rest of the shop will show them.
+ */
+export function streetAsFiled(written: string): string | null {
+  const typed = streetKey(written);
+  if (!typed) return null;
+  return nearestKnownStreet(typed);
 }
 
 /**
