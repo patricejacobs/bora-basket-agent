@@ -887,7 +887,7 @@ Just say *use my points*.
 
 ### The name is the registration
 
-**50 points to a new customer, for giving their name.**
+**200 points to a new customer, for giving their name.**
 
 There is no sign-up screen, because there was never anything to sign up to.
 The base has had their number since their first message — WhatsApp brought
@@ -896,16 +896,17 @@ at checkout. The gift is paid for that, on the question that asks it:
 
 ```
 ◂ And what name is the delivery in? First order with us, so we will put
-  *50 points* on your account once this delivery arrives — *1000 points*
+  *200 points* on your account once this delivery arrives — *1000 points*
   is *$500* off an order.
 ```
 
-**What that line may not say is what 50 points is worth in money.** Points
-convert in whole rewards only, 1,000 of them for $500 off, so fifty of them
-buy **nothing at all** on their own — `valueOf(50)` is zero. An earlier
-draft of this offered *"$25 off"*, which is the arithmetic of a twentieth of
-a reward and a promise the scheme cannot pay. The rate is the honest thing
-to say instead: this many points now, and this many buys that much off.
+**What that line may not say is what the points are worth in money.** Points
+convert in whole rewards only, 1,000 of them for $500 off, so two hundred of
+them buy **nothing at all** on their own — `valueOf(200)` is zero. An
+earlier draft of this offered a figure in dollars, which is the arithmetic
+of a fraction of a reward and a promise the scheme cannot pay. The rate is
+the honest thing to say instead: this many points now, and this many buys
+that much off.
 
 **Credited when the first delivery arrives, never when the name is typed.**
 Every other point in this scheme already waits for the door, and a gift that
@@ -916,8 +917,8 @@ earned, on its own line, because they are two different things:
 
 ```
 ⭐ *+50 points* on this delivery.
-🎁 *+50 points* to welcome you — thank you for your first order.
-You have *100 points* — *900 to go* for $500 off.
+🎁 *+200 points* to welcome you — thank you for your first order.
+You have *250 points* — *750 to go* for $500 off.
 ```
 
 **Once per number, for ever.** Enforced by the points ledger's own unique
@@ -929,8 +930,9 @@ because there is nothing to pay for.
 A **taxi passenger is never offered it in words** — the fare question belongs
 to the agent, not to a fixed string — but the gift still lands, on the
 receipt, the first time they arrive somewhere. Set `WELCOME_POINTS` to change
-the figure, or to `0` to switch it off. **200** would be four deliveries'
-worth of head start, if fifty reads as a token.
+the figure, or to `0` to switch it off. **200 is a fifth of the way to a
+reward** — what four $500 Georgetown deliveries earn — which is a head start
+rather than a token.
 
 **Short of a reward, the distance is counted in points, never in money still
 to spend.** The base is the delivery charge, so "spend $8,200 more" would
@@ -4573,7 +4575,7 @@ from the business number the agent sends from. The agent cannot message itself.
 | `DELIVERY_FEE` | 0 | Flat fee on shopping orders |
 | `FREE_DELIVERY_OVER` | 0 | Waives it above this subtotal, **groceries only** |
 | `MIN_ORDER_TOTAL` | 0 | Smallest order accepted |
-| `WELCOME_POINTS` | 50 | Given once to a new customer who gave their name, on their first arrival. `0` switches it off |
+| `WELCOME_POINTS` | 200 | Given once to a new customer who gave their name, on their first arrival. `0` switches it off |
 | `PARCEL_FEE_BASE` | **0** | Flat part of a parcel fee. **At 0 every parcel books unpriced** — see below |
 | `PARCEL_FEE_PER_KM` | **0** | Per-kilometre part |
 | `PARCEL_MAX_KM` | 0 | Beyond this a parcel is refused. 0 = no limit |

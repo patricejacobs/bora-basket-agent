@@ -543,11 +543,15 @@ export const config = {
      * Points given once, to a new customer who gave their name.
      *
      * The name IS the registration — the base already had the number from
-     * WhatsApp — so this is paid for the one thing it could not know. 50 is
-     * worth $25 off, and the same as one $500 Georgetown delivery earns. 0
-     * switches it off.
+     * WhatsApp — so this is paid for the one thing it could not know.
+     *
+     * 200 is a fifth of the way to a reward, and what four $500 Georgetown
+     * deliveries earn: a head start rather than a token. It is NOT $100 of
+     * anything. Points convert in whole rewards only, so 200 of them buy
+     * nothing at all on their own, and nothing the customer reads may put a
+     * figure of money on them. 0 switches it off.
      */
-    welcomePoints: Math.max(0, Math.round(num('WELCOME_POINTS', 50))),
+    welcomePoints: Math.max(0, Math.round(num('WELCOME_POINTS', 200))),
     minOrderTotal: Math.round(num('MIN_ORDER_TOTAL', 0) * minorPerUnit),
   },
 
