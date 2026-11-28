@@ -310,6 +310,23 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'where_is_street',
+    description:
+      "Look up which village or ward a street is in. Use it WHENEVER a street's location comes up — when a customer asks where a street is, when they give one as a pickup or a delivery address, or when you are about to say where one is for any reason. You do not know Guyana's streets and must never say where one is from your own knowledge: street names repeat across the country, the answer decides what a trip costs and where a car is sent, and a confident wrong answer is worse than no answer. This returns what the shop actually knows — streets it has delivered to, and streets from the map — with where each answer came from. Say only what it gives you. When it finds nothing, say plainly that you are not sure and ask which area they mean.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        street: {
+          type: 'string',
+          description:
+            'The street as they wrote it. A lot number is fine; it is stripped. "Lot 20 Garnet Street", "Regent Street", "garnet st".',
+        },
+      },
+      required: ['street'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'request_location',
     description:
       "Send the customer a 'Send location' button so they can share the delivery pin from WhatsApp. Every order needs a pin, so call this as soon as you know they intend to order and none is on file. Keep the body to the request for the pin alone — one short line — and say everything else about their order in your normal reply, which is sent with it. A sentence is appended for you telling them they can move the pin to the destination rather than sending where they are standing, so do not say that yourself and do not paraphrase it. Their pin arrives on its own and is saved automatically; you never record coordinates yourself.",
@@ -1615,6 +1632,43 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             : id.name
               ? 'Read the name and the saved place back, get a yes, then call confirm_identity.'
               : 'Ask who the delivery is for, then call confirm_identity.',
+      });
+    }
+
+    case 'where_is_street': {
+      const street = asString(input.street).trim();
+      if (!street) return fail('Pass the street as they wrote it.');
+
+      const places = repo.areasForStreet(street);
+
+      // Nothing invented, and the shop says so rather than reaching for a
+      // guess. A street nobody has driven to and no map carries is a
+      // street the shop does not know, and the customer is the one who
+      // does.
+      if (places.length === 0) {
+        return ok({
+          street,
+          known: false,
+          next: 'The shop does not know where that street is. Say plainly that you are not sure which area it is in and ask them — a village or ward name. Never guess from your own knowledge of Guyana: street names repeat, and the answer decides what a trip costs and where a car is sent.',
+        });
+      }
+
+      // Where each answer came from, because they are not equally strong:
+      // a delivery is proof somebody drove there, a map line is a reading.
+      const found = places.map((p) => ({
+        place: p.place,
+        source: p.seen > 0 ? 'delivered there' : 'from the map',
+        ...(p.seen > 0 ? { deliveries: p.seen } : {}),
+      }));
+
+      return ok({
+        street,
+        known: true,
+        places: found,
+        next:
+          found.length === 1
+            ? `Say it is in ${found[0]!.place}, and ask them to confirm rather than asserting it — the shop can be wrong about a street. Use no other place name.`
+            : `That street name means ${found.length} different places: ${found.map((f) => f.place).join(', ')}. Ask which one they mean. Do not pick one for them and do not name any place that is not in this list.`,
       });
     }
 

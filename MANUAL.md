@@ -123,6 +123,38 @@ Blunt, deliberately — the cost of dropping a pleasant sentence is nothing,
 and the cost of keeping a redundant one is a shop that sounds like it is
 padding.
 
+### Where a street is, the shop looks up
+
+**The agent does not know Guyana's streets and is forbidden from saying it
+does.** Not which ward, not which village, not "that's in Georgetown". The
+names repeat — twenty-three First Streets and twenty-four East Bank Roads
+in the shop's own index — and the answer decides what a trip costs and
+where a car is sent. A confident wrong answer is worse than none, because
+nobody checks it until a chauffeur is standing in the wrong ward.
+
+A rule forbidding a guess is useless without a way to look it up, so the
+tool is the point and the rule is the manners. `where_is_street` is called
+whenever a street's location matters — somebody asking, somebody giving one
+as a pickup, or the agent about to say where one is for any reason — and it
+answers only from the shop's own index:
+
+| It finds | The agent says |
+|---|---|
+| One place | That place, and **asks them to confirm** — the shop can be wrong about a street |
+| Several | Names them and asks which. **Never chooses** |
+| Nothing | *"I'm not sure which area that one is in — which village is it?"* |
+
+**It never names a place the tool did not.** Not a nearby one, not the one
+it "must" be.
+
+And it carries **where each answer came from**, because the two sources are
+not equally strong. A street the shop has *delivered to* is proof — somebody
+drove there. A street *from the map* is a reading, and gets a lighter word:
+*"I have that as Kitty — is that right?"* rather than *"that's in Kitty"*.
+
+Same rule as prices, stock and times: the agent does not invent facts about
+the world, it reads them from the shop.
+
 ### The streets the shop has never been to
 
 The memory below only knows streets the shop has delivered to, which on the

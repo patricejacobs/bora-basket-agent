@@ -15383,6 +15383,70 @@ section('A name that means too many places means nothing');
 
   fs.rmSync(wide, { force: true });
 }
+section('Where a street is, the shop looks up');
+{
+  const { executeTool: ask6 } = await import('./agent/tools.ts');
+  const { SYSTEM_PROMPT: prompt6 } = await import('./agent/system-prompt.ts');
+
+  // The agent does not know Guyana's streets and must never say where one
+  // is from its own knowledge: names repeat — 23 First Streets in this
+  // index — and the answer decides what a trip costs and where a car goes.
+  // A rule forbidding a guess is useless without a way to look it up, so
+  // the tool is the point and the rule is the manners.
+  const look = (street: string): Record<string, unknown> =>
+    JSON.parse(ask6('where_is_street', { street }, { phone: '5926100001', outbound: [] } as never)) as Record<string, unknown>;
+
+  const where = './data/streets-where-smoke.csv';
+  fs.writeFileSync(
+    where,
+    ['street,place,km_from_marker', 'quiet street,Kitty,0.20', 'loud street,Bourda,0.30', 'loud street,Lacytown,0.40'].join(
+      String.fromCharCode(10),
+    ) + String.fromCharCode(10),
+    'utf8',
+  );
+  repo.loadStreetsFromMap(where);
+
+  const one = look('Lot 5 Quiet Street');
+  check('one place is answered with that place',
+    one.known === true && (one.places as { place: string }[])[0]?.place === 'Kitty',
+    JSON.stringify(one).slice(0, 90));
+  check('and the agent is told to confirm rather than assert',
+    /ask them to confirm/.test(String(one.next)), String(one.next).slice(0, 80));
+
+  const two = look('Loud Street');
+  check('two places are both named', (two.places as unknown[]).length === 2,
+    JSON.stringify(two.places));
+  check('and the agent is told not to choose',
+    /Do not pick one for them/.test(String(two.next)), String(two.next).slice(0, 90));
+
+  const none = look('Street That Does Not Exist');
+  check('a street the shop does not know is not guessed at',
+    none.known === false && !('places' in none), JSON.stringify(none).slice(0, 80));
+  check('and the agent is told to ask instead of inventing',
+    /Never guess from your own knowledge/.test(String(none.next)), String(none.next).slice(0, 90));
+
+  // Provenance, because the two sources are not equally strong.
+  repo.rememberStreetArea('Lot 9 Quiet Street', 'Kitty');
+  const proved6 = look('Quiet Street');
+  check('a street delivered to says so',
+    (proved6.places as { source: string }[])[0]?.source === 'delivered there',
+    JSON.stringify(proved6.places));
+  const mapped = look('Loud Street');
+  check('and one only on the map says that',
+    (mapped.places as { source: string }[])[0]?.source === 'from the map',
+    JSON.stringify(mapped.places));
+
+  check('nothing is answered without a street', typeof look('').error === 'string');
+
+  // And the rule itself is in the prompt, since the tool cannot force it.
+  check('the agent is told it does not know the streets',
+    /never say where one is\s*from your own knowledge/i.test(prompt6.replace(/\n/g, ' ')),
+    '');
+  check('and told which tool answers it',
+    /where_is_street/.test(prompt6), '');
+
+  fs.rmSync(where, { force: true });
+}
 section('No button is a dead button');
 {
   const { idIsRead, readButtonId } = await import('./button-ids.ts');
