@@ -27,6 +27,7 @@ import {
 import {
   parseServiceChoice,
   serviceMenuReply,
+  namesOneService,
   serviceOpening,
   wantsServiceMenu,
 } from './services.ts';
@@ -258,7 +259,13 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   // and a one-word reply must not reset somebody who has been writing
   // Portuguese all along. Done before anything replies, so even the welcome
   // comes back in their language.
-  const spoken = detectLanguage(msg.text);
+  // And never once they have said which. A guess must not overrule a
+  // statement: somebody who tapped *Português* and then writes "hello?" has
+  // not changed their mind, and used to be flipped to English for it. The
+  // way out of a wrong choice is asking for the screen again by name, which
+  // is further down. This also guards the replay below — a parked message
+  // would otherwise undo the very choice that released it.
+  const spoken = repo.languageChosen(msg.phone) ? null : detectLanguage(msg.text);
   if (spoken && repo.customerLanguage(msg.phone) !== spoken) {
     repo.getCustomer(msg.phone);
     repo.setCustomerLanguage(msg.phone, spoken);
@@ -308,8 +315,17 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     const tapped = readLanguageId(text);
     if (tapped) {
       repo.chooseLanguage(msg.phone, tapped);
-      // Straight on to the menu, in what they just picked. The tap is an
-      // answer, not a conversation, so nothing goes to the model.
+      const parked = repo.takeParkedMessage(msg.phone);
+      // What they said before the screen went up, now that an answer can be
+      // written in their own language. Replayed through the whole pipeline
+      // rather than handled here, so it reaches whatever would have answered
+      // it had the screen never been in the way.
+      //
+      // Taken as it is read, so this happens exactly once: a message that
+      // could re-park itself would answer itself for ever.
+      if (parked) return await processMessage({ ...msg, text: parked });
+      // Nothing to replay, so the menu, in what they just picked. The tap is
+      // an answer, not a conversation, so nothing goes to the model.
       return shopAnswered(msg, serviceMenuReply(msg.phone), text);
     }
 
@@ -326,6 +342,8 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     const written = asked ? readTypedLanguage(text) : null;
     if (written) {
       repo.chooseLanguage(msg.phone, written);
+      const parked = repo.takeParkedMessage(msg.phone);
+      if (parked) return await processMessage({ ...msg, text: parked });
       return shopAnswered(msg, serviceMenuReply(msg.phone), text);
     }
 
@@ -335,6 +353,12 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
       // Written down the first time, which is what lets it be asked again
       // without the question ever starting for a customer of long standing.
       repo.markLanguageAsked(msg.phone);
+      // And what they came to say is kept, if they said anything. A first
+      // message is the one most likely to carry the whole request, and it
+      // used to be dropped on the floor while they answered a question about
+      // Spanish. Not when they asked for the screen itself, which is not a
+      // request for anything.
+      if (!wantsLanguageScreen(text)) repo.parkMessage(msg.phone, text);
       return shopAnswered(msg, [languageScreen(config.store.name)], text);
     }
   }
@@ -725,7 +749,20 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
   }
 
   if (!chosen) {
-    const picked = parseServiceChoice(text);
+    // Two different things, deliberately kept apart. An ANSWER is a bare "1"
+    // or the single word "taxi": nothing was said beyond the choice, so the
+    // service opens the way it always has — the place picker for a taxi, the
+    // aisles for groceries.
+    const answered = parseServiceChoice(text);
+
+    // A REQUEST names its service in passing while saying something else.
+    // "I need a car from Regent Street to Timehri" is 42 characters, so it
+    // was never an answer to a menu — but it is not a puzzle either, and
+    // sending the menu back to it threw away both ends of a trip the
+    // customer had already given, making them say it twice to a shop that
+    // had just proved it was not listening.
+    const picked = answered ?? namesOneService(text);
+
     if (!picked) {
       // Includes the case where their very first message is a photo, a voice
       // note or a pin. Those are not a service choice, and guessing one from a
@@ -746,34 +783,44 @@ async function processMessage(msg: IncomingMessage): Promise<OutboundMessage[]> 
     // should be the service opening, with none of the menu in its history.
     repo.resetConversation(msg.phone);
 
-    const lang = languageFor(msg.phone);
-
-    // A taxi opens with the place picker rather than a question in words.
-    // The shorter opening goes with it: the long one asks for both ends and
-    // the time at once, which reads as a demand when the next message is a
-    // list answering the first half of it.
-    //
-    // Only when there is a tariff to pick from. A shop running on the flat
-    // fee has no places to list, and an empty picker is worse than the
-    // question it replaced.
-    const reply: OutboundMessage[] =
-      picked === 'taxi' && pickerAvailable()
-        ? [
-            { kind: 'text', text: t('opening_taxi_picked', lang) },
-            endPicker(msg.phone, 'from', lang),
-          ]
-        : picked === 'grocery'
-          ? // A shop's answer to "what do you sell?" is its aisles. The
-            // sentence that used to open this - "tell me what you need" -
-            // is an invitation to somebody who already knows and a blank
-            // wall to somebody who does not, so the shelves come first and
-            // the invitation is one line inside them.
-            [aislesMessage(msg.phone, lang)]
-          : [{ kind: 'text', text: serviceOpening(picked, lang) }];
-
     // Last trip's ends must never start this one.
     if (picked === 'taxi') repo.clearTaxiPicks(msg.phone);
-    return shopAnswered(msg, reply, text);
+
+    if (answered) {
+      const lang = languageFor(msg.phone);
+
+      // A taxi opens with the place picker rather than a question in words.
+      // The shorter opening goes with it: the long one asks for both ends and
+      // the time at once, which reads as a demand when the next message is a
+      // list answering the first half of it.
+      //
+      // Only when there is a tariff to pick from. A base running on the flat
+      // fee has no places to list, and an empty picker is worse than the
+      // question it replaced.
+      const reply: OutboundMessage[] =
+        picked === 'taxi' && pickerAvailable()
+          ? [
+              { kind: 'text', text: t('opening_taxi_picked', lang) },
+              endPicker(msg.phone, 'from', lang),
+            ]
+          : picked === 'grocery'
+            ? // A shop's answer to "what do you sell?" is its aisles. The
+              // sentence that used to open this - "tell me what you need" -
+              // is an invitation to somebody who already knows and a blank
+              // wall to somebody who does not, so the shelves come first and
+              // the invitation is one line inside them.
+              [aislesMessage(msg.phone, lang)]
+            : [{ kind: 'text', text: serviceOpening(picked, lang) }];
+
+      return shopAnswered(msg, reply, text);
+    }
+
+    // A request carries on to the agent with every word of it intact, which
+    // is the whole point of reading it. The opening above would ask for what
+    // they have already told us — both ends of a trip, in the case that
+    // started this — so it is skipped, and the picker with it. Nothing here
+    // returns: the message falls through to whatever would have answered it
+    // had the menu never been in the way.
   }
 
   /* ------------------------------ a destination the driver has raised */

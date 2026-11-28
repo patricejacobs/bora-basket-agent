@@ -440,6 +440,15 @@ addColumnIfMissing('customers', 'identity_confirmed_at', "TEXT");
 // The number the delivery associate should call. Usually the WhatsApp number, but not
 // always: people order from a work phone, or want the household number rung.
 addColumnIfMissing('customers', 'contact_phone', "TEXT");
+// What they said while the language screen was in front of them.
+//
+// The screen has to come first — a customer who cannot read the question
+// cannot answer it — but their first message is the one most likely to say
+// what they actually want, and it used to be dropped on the floor while
+// they answered a question about Spanish. Parked here, it is replayed the
+// moment the language is known.
+addColumnIfMissing('customers', 'parked_text', "TEXT NOT NULL DEFAULT ''");
+
 // The delivery zone the customer has AGREED to, by name.
 //
 // The name and not the fee, so a price changed in the tariff reprices the

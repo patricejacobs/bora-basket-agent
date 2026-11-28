@@ -1057,6 +1057,41 @@ export function chooseLanguage(phone: string, language: string): void {
 }
 
 /**
+ * Keeps what a customer said while the language screen was in front of them.
+ *
+ * An upsert for the same reason as the choice itself: this happens on a
+ * stranger's first message, before there is a row for them.
+ */
+export function parkMessage(phone: string, text: string): void {
+  const said = String(text ?? '').trim().slice(0, 1000);
+  if (!said) return;
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO customers (phone, name, address, parked_text, created_at, updated_at)
+     VALUES (?, '', '', ?, ?, ?)
+     ON CONFLICT(phone) DO UPDATE SET parked_text = excluded.parked_text,
+       updated_at = excluded.updated_at`,
+  ).run(phone, said, now, now);
+}
+
+/**
+ * Hands it back, once.
+ *
+ * Cleared as it is read, so a parked message can be replayed exactly one
+ * time. Anything else risks a message that answers itself for ever.
+ */
+export function takeParkedMessage(phone: string): string {
+  const row = db
+    .prepare(`SELECT parked_text FROM customers WHERE phone = ?`)
+    .get(phone) as { parked_text?: string } | undefined;
+  const said = (row?.parked_text ?? '').trim();
+  if (said) {
+    db.prepare(`UPDATE customers SET parked_text = '' WHERE phone = ?`).run(phone);
+  }
+  return said;
+}
+
+/**
  * Writes down that the screen has been put to them.
  *
  * The screen keeps coming back until it is answered, and this is what makes

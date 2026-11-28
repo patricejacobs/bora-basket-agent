@@ -15659,6 +15659,111 @@ section('An associate can tell the shop where a street is');
   check('and tells them how to clear a line',
     /street Garnet Street = Kitty/.test(worklist), worklist.slice(-60));
 }
+section('What the customer said is not thrown away');
+{
+  const { handleIncoming: arrives } = await import('./conversation.ts');
+  const { namesOneService } = await import('./services.ts');
+
+  const isMenu = (out: { text?: string; kind?: string }[]): boolean =>
+    /What can we help you with|Please select your language/.test(String(out[0]?.text ?? ''));
+
+  // Reported from the live base: a customer wrote the whole thing in one
+  // message and got a numbered menu back. Both ends of the trip were in
+  // that sentence; the menu threw them away and made them say it again to a
+  // base that had just proved it was not listening.
+  //
+  // The sentence is 42 characters, and a menu ANSWER is only ever read from
+  // a short message — a paragraph mentioning lunch is not somebody choosing
+  // option three. That guard was right; dropping the message was not.
+  check('a sentence that names one service is read',
+    namesOneService('i need a car from Regent Street to Timehri') === 'taxi',
+    String(namesOneService('i need a car from Regent Street to Timehri')));
+  check('and it is longer than a menu answer may be',
+    'i need a car from Regent Street to Timehri'.length > 40, '');
+  check('two services named is a question, not a request',
+    namesOneService('can i get lunch and a car after') === null,
+    String(namesOneService('can i get lunch and a car after')));
+  check('and nothing named is nothing named',
+    namesOneService('hello there') === null, String(namesOneService('hello there')));
+
+  // Through the whole pipeline, for somebody already past the language
+  // screen: the service is set from their words and the message goes on to
+  // be answered, with no menu in between.
+  const rider9 = '5926102201';
+  await arrives({ phone: rider9, text: 'lang:en', channel: 'smoke' } as never);
+  const asked9 = await arrives({
+    phone: rider9, text: 'i need a car from Regent Street to Timehri', channel: 'smoke',
+  } as never);
+  check('the service is taken from what they said',
+    repo.getService(rider9) === 'taxi', String(repo.getService(rider9)));
+  check('and no menu comes back', !isMenu(asked9 as never),
+    String((asked9[0] as { text?: string })?.text ?? '').slice(0, 60));
+
+  // A bare answer still opens the way it always has, because an answer said
+  // nothing else and the opening is not asking for anything twice.
+  const rider10 = '5926102202';
+  await arrives({ phone: rider10, text: 'lang:en', channel: 'smoke' } as never);
+  const one10 = await arrives({ phone: rider10, text: '1', channel: 'smoke' } as never);
+  check('a menu answer still gets the service opening',
+    repo.getService(rider10) === 'taxi' && !isMenu(one10 as never),
+    String((one10[0] as { text?: string })?.text ?? '').slice(0, 60));
+
+  // And the menu is still right when the message does not say which.
+  const rider11 = '5926102203';
+  await arrives({ phone: rider11, text: 'lang:en', channel: 'smoke' } as never);
+  const lost11 = await arrives({ phone: rider11, text: 'hello there', channel: 'smoke' } as never);
+  check('a message naming nothing still gets the menu',
+    isMenu(lost11 as never) && repo.getService(rider11) === null,
+    String(repo.getService(rider11)));
+
+  // The first message of all, which is the one most likely to carry the
+  // whole request — and which used to be dropped on the floor while they
+  // answered a question about Spanish.
+  const rider12 = '5926102204';
+  const screen12 = await arrives({
+    phone: rider12, text: 'i need a car from Regent Street to Timehri', channel: 'smoke',
+  } as never);
+  check('a stranger still meets the language screen first',
+    screen12[0]?.kind === 'buttons', String(screen12[0]?.kind));
+  check('and nothing is started behind their back',
+    repo.getService(rider12) === null, String(repo.getService(rider12)));
+
+  const after12 = await arrives({ phone: rider12, text: 'lang:en', channel: 'smoke' } as never);
+  check('what they came to say is answered once the screen is done',
+    repo.getService(rider12) === 'taxi', String(repo.getService(rider12)));
+  check('and the menu does not stand in front of it',
+    !isMenu(after12 as never),
+    String((after12[0] as { text?: string })?.text ?? '').slice(0, 60));
+  check('it is replayed once and only once',
+    repo.takeParkedMessage(rider12) === '', repo.takeParkedMessage(rider12));
+
+  // Asking for the screen by name is not a request for anything, so there
+  // is nothing to park.
+  const rider13 = '5926102205';
+  await arrives({ phone: rider13, text: 'lang:en', channel: 'smoke' } as never);
+  await arrives({ phone: rider13, text: 'language', channel: 'smoke' } as never);
+  check('asking for the screen parks nothing',
+    repo.takeParkedMessage(rider13) === '', repo.takeParkedMessage(rider13));
+
+  // A guess must not overrule a statement. This one was waiting to be
+  // found: somebody who tapped Português and then wrote "hello?" was
+  // flipped to English, because the language is noticed from every message
+  // and the choice was not consulted.
+  const rider14 = '5926102206';
+  await arrives({ phone: rider14, text: 'lang:pt', channel: 'smoke' } as never);
+  check('a tapped language is stored', repo.customerLanguage(rider14) === 'pt',
+    repo.customerLanguage(rider14));
+  await arrives({ phone: rider14, text: 'hello?', channel: 'smoke' } as never);
+  check('and a later English word does not flip it',
+    repo.customerLanguage(rider14) === 'pt', repo.customerLanguage(rider14));
+
+  repo.setService(rider9, null);
+  repo.setService(rider10, null);
+  repo.setService(rider12, null);
+  repo.clearTaxiPicks(rider9);
+  repo.clearTaxiPicks(rider10);
+  repo.clearTaxiPicks(rider12);
+}
 section('The base dispatches, the shop sells');
 {
   const { SYSTEM_PROMPT: prompt8 } = await import('./agent/system-prompt.ts');

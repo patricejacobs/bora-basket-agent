@@ -606,6 +606,67 @@ mid-turn gets nothing. Nothing in the code can fix that one — it is the
 price of deploying while people are talking, and it argues for batching
 pushes rather than shipping twenty times in an afternoon.
 
+### What the customer said is not thrown away
+
+Worse than silence, because it looks like an answer. A customer wrote the
+whole thing in one message and got a numbered menu back:
+
+```
+Customer ▸ i need a car from Regent Street to Timehri
+
+◂ Welcome to Next Minute Delivery! 👋
+  What can we help you with today?
+  1. Taxi  2. Grocery shopping  3. Restaurant ordering  4. Parcel delivery
+```
+
+Both ends of the trip were in that sentence. The menu threw them away and
+made the customer say it again, to a base that had just proved it was not
+listening.
+
+**Two different things were tangled together.** A menu *answer* is a bare
+`1`, or the single word `taxi` — and it is only ever read from a short
+message, because a paragraph mentioning lunch is not somebody choosing
+option three. That guard was right. What was wrong was the next step:
+anything that failed it was **discarded**, rather than merely not treated as
+a menu tap.
+
+So a *request* is now read as well. When a sentence plainly names one
+service it opens that service and **carries on to the agent with every word
+intact** — no menu, and no canned opening either, since the opening would
+ask for what they have already said. Only an answer gets the opening,
+because an answer said nothing else.
+
+Still only when exactly one service is named. *"Can I get lunch and a car
+after"* names two, which is a question rather than a request, and starting
+the wrong job is worse than asking which. A photograph, a pin or a voice
+note with no words still gets the menu.
+
+**The first message of all was lost twice over.** A stranger meets the
+language screen first — somebody who cannot read the question cannot answer
+it — and their opening message was dropped on the floor while they answered
+a question about Spanish. It is now **parked and replayed** the moment the
+language is known, through the whole pipeline, so it reaches whatever would
+have answered it had the screen never been in the way. Taken as it is read,
+so it happens exactly once: a message that could re-park itself would answer
+itself for ever.
+
+```
+Customer ▸ i need a car from Regent Street to Timehri
+
+◂ [ English ]  [ Español ]  [ Português ]      ← the screen still comes first
+
+Customer ▸ [ English ]
+
+◂ Right — Regent Street to Timehri. How many are travelling?
+```
+
+**And a guess no longer overrules a statement.** Finding this turned up
+something that had been waiting: the language is noticed from every message
+a customer writes, and that never consulted whether they had *chosen* one.
+Somebody who tapped **Português** and then wrote "hello?" was flipped to
+English for it. The way out of a wrong choice is asking for the screen again
+by name, which already existed.
+
 ### The receipt carries the year
 
 It used to read `🧾 *Receipt* — 24 Nov, 14:12`. Nobody decided to leave the

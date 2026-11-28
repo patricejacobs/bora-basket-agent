@@ -251,6 +251,30 @@ export function parseServiceChoice(text: string): Service | null {
   return matches.length === 1 ? (matches[0]!.key as Service) : null;
 }
 
+/**
+ * The one service a sentence plainly names, or null when it names none or
+ * two.
+ *
+ * Different from `parseServiceChoice`, which reads a menu ANSWER: a bare
+ * "1", or the single word "taxi", and nothing longer, because a paragraph
+ * mentioning lunch is not somebody choosing option three.
+ *
+ * This reads a REQUEST. "I need a car from Regent Street to Timehri" is 42
+ * characters, so it was never a menu answer — but it is not ambiguous
+ * either, and sending a numbered menu back to it threw away every word the
+ * customer took the trouble to write. They then had to say it again, to a
+ * shop that had just proved it was not listening.
+ *
+ * Still only when exactly one service matches. Two is a question rather
+ * than a request, and starting the wrong job is worse than asking which.
+ */
+export function namesOneService(text: string): Service | null {
+  const said = String(text ?? '').trim();
+  if (!said) return null;
+  const matches = ORDERED.filter((s) => s.spoken.test(said));
+  return matches.length === 1 ? (matches[0]!.key as Service) : null;
+}
+
 /** True when the customer is asking to go back to the service menu. */
 export function wantsServiceMenu(text: string): boolean {
   return /^(menu|services?|back|start|change\s*service|options?)$/i.test(text.trim());
