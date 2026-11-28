@@ -13,7 +13,7 @@
  * quiet on a Friday night — which reads, from a saddle, exactly like a shop
  * with no work.
  *
- * So the shop asks, a quarter of an hour before the clock runs out, and a tap
+ * So the base asks, a quarter of an hour before the clock runs out, and a tap
  * carries them straight into a fresh stretch. The driver who went home gets
  * the same question, ignores it, and lapses as before: the protection is
  * untouched, because the question is the thing that was missing.

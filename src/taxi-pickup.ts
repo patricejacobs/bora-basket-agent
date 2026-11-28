@@ -1,10 +1,10 @@
 /**
  * The pin a passenger drops, against the place they say they are.
  *
- * Reported from the live shop: somebody said they were at **Timehri** and
+ * Reported from the live base: somebody said they were at **Timehri** and
  * pinned **Beterverwagting**, and nothing was said to anybody. The two are
  * 38 km apart. Worse than the silence, the fare is priced from the pickup —
- * so the shop quoted Beterverwagting's $1,200 for a trip that costs $3,800
+ * so the base quoted Beterverwagting's $1,200 for a trip that costs $3,800
  * out of Timehri, and a driver would have gone to the wrong end of the coast
  * on a figure already promised.
  *
@@ -36,7 +36,7 @@ export const PICKUP_HERE = 'pickup:here';
 /** "Send it again" — the place they named wins, and the pin was a slip. */
 export const PICKUP_AGAIN = 'pickup:again';
 
-/** "Garnet Street — the one in Kitty" — an area the shop has seen before. */
+/** "Garnet Street — the one in Kitty" — an area the base has seen before. */
 const PICKUP_AREA = 'pickup:area:';
 
 export function pickupAreaId(place: string): string {

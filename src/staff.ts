@@ -68,7 +68,7 @@ export const isStaff = (phone: string): boolean => config.staffNumbers.includes(
 /**
  * The directory, not DRIVER_NUMBERS.
  *
- * Someone added to the shop's own list of associates now reaches the
+ * Someone added to the base's own list of associates now reaches the
  * associate commands, and someone set `active = 0` stops reaching them. These
  * used to be two unrelated lists, so a person could be in the directory,
  * clocked on, and still be answered by the shopping agent - or, if their
@@ -81,7 +81,7 @@ export const isDriver = (phone: string): boolean => repo.isActiveAssociate(phone
  *
  * One path for all three actors, because the consequences of a status belong to
  * the status and not to whoever tapped it. "Food ready" has to send a delivery associate
- * whether a cook, a dispatcher or the shop owner pressed it — and if that lived
+ * whether a cook, a dispatcher or the base owner pressed it — and if that lived
  * in each handler, one of them would eventually forget.
  */
 /**
@@ -111,7 +111,7 @@ function terminalMessage(order: repo.OrderRecord, who: 'staff' | 'outlet' | 'dri
     // between an instruction and a dead end - there is nobody on the
     // administrative end to ring for a decision.
     const back =
-      order.outlet?.name ?? (order.kind === 'parcel' ? order.customerName : 'the shop');
+      order.outlet?.name ?? (order.kind === 'parcel' ? order.customerName : 'the base');
     return [
       `🛑 ${order.orderNo} was cancelled${reason}.`,
       '',
@@ -161,10 +161,10 @@ async function applyStatus(
   // a door with the food in their hand; whatever has gone wrong there, voiding
   // the order is not the answer, and a cancellation is the one move with no
   // way back. If a code will not verify they deliver it unverified; if nobody
-  // is home that is a conversation for the shop, not a button on a bike.
+  // is home that is a conversation for the base, not a button on a bike.
   if (reportedBy === 'driver' && status === 'cancelled') {
     return {
-      body: `${order.orderNo} cannot be cancelled from here. Deliver it, or ring the shop.`,
+      body: `${order.orderNo} cannot be cancelled from here. Deliver it, or ring the base.`,
       status: order.status,
     };
   }
@@ -256,7 +256,7 @@ async function applyStatus(
 
   const notes: string[] = [];
   // What a cook can actually do something about. Everything else a status
-  // change produces - the customer was told, the shop was told - is the
+  // change produces - the customer was told, the base was told - is the
   // shop's bookkeeping, and a kitchen that reads it after every tap soon
   // reads nothing. Whether an associate is coming is the exception: that one
   // decides whether the food waits on a counter or on nobody.
@@ -283,19 +283,19 @@ async function applyStatus(
             : '⚠️ No delivery associate was told — DRIVER_NUMBERS is empty.',
       );
       // A queue is not a fault and must not read like one. Sending a kitchen
-      // to ring the shop because every associate happens to be out points them
+      // to ring the base because every associate happens to be out points them
       // at somebody who can do nothing about it.
       if (how === 'all_busy') {
         kitchenNotes.push(
           '⏳ Every delivery associate is out. This will be collected as soon as one is free.',
         );
       } else if (how !== 'sent') {
-        kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the shop.');
+        kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the base.');
       }
     } catch (err) {
       console.error('[staff] failed to dispatch a delivery associate:', err);
       notes.push('⚠️ Status saved, but dispatching a delivery associate failed.');
-      kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the shop.');
+      kitchenNotes.push('⚠️ Nobody has been sent to uplift this yet — ring the base.');
     }
   }
 
@@ -304,7 +304,7 @@ async function applyStatus(
   // and a message about it only invites "so where is it?". Reported as a
   // decision rather than as a failed send, or the operator chases a bug.
   // A cancellation has to reach whoever else was working on it. A kitchen that
-  // keeps cooking an order the shop cancelled is wasted food and wasted money.
+  // keeps cooking an order the base cancelled is wasted food and wasted money.
   if (status === 'cancelled' && order.outlet) {
     const told = await tellKitchenCancelled(order.orderNo, order.status !== 'pending');
     if (told) notes.push(told);
@@ -366,7 +366,7 @@ async function applyStatus(
     }
   }
 
-  // A collection reported by the kitchen is news to the shop. Staff did not
+  // A collection reported by the kitchen is news to the base. Staff did not
   // do it and the associate has not said anything yet, so without this the
   // only people who know the food has left are the cook and the customer.
   //
@@ -391,8 +391,8 @@ async function applyStatus(
 
   // A kitchen is not a dispatcher. After a tap it wants the fact and nothing
   // else: which order, and where it now stands. That the customer was told,
-  // that an associate was sent, that the shop was told - all useful to the
-  // people running the shop, all bookkeeping to a cook. A cook who reads
+  // that an associate was sent, that the base was told - all useful to the
+  // people running the base, all bookkeeping to a cook. A cook who reads
   // three lines after every tap soon reads none of them.
   //
   // Warnings survive the cut, and that is the point of the cut rather than an
@@ -417,10 +417,10 @@ async function applyStatus(
 }
 
 /**
- * A photograph of a product, sent in from the shop floor.
+ * A photograph of a product, sent in from the base floor.
  *
  * The SKU is checked against the catalogue before anything is written. A
- * typo would otherwise leave a file nothing ever reads, and the shopkeeper
+ * typo would otherwise leave a file nothing ever reads, and the basekeeper
  * would be standing in the aisle believing the job was done.
  */
 function saveProductPhoto(sku: string, image: IncomingImage): string {
@@ -468,7 +468,7 @@ function saveProductPhoto(sku: string, image: IncomingImage): string {
  *
  * The DIRECTORY, not `config.driverNumbers`. This used to search the
  * environment variable, which is the seed and not the list — so an associate
- * the shop had added itself could be clocked on, carrying an order and
+ * the base had added itself could be clocked on, carrying an order and
  * visible in every other report, and still answer "no delivery associate
  * matching that" to the one person trying to find out where they were.
  */
@@ -553,12 +553,12 @@ const HELP = [
   '',
   '`wanted` — what customers asked for and we did not have',
   '`streets` — streets customers asked about that we cannot place',
-  '`street Garnet Street = Kitty` — tell the shop where a street is',
+  '`street Garnet Street = Kitty` — tell the base where a street is',
   '',
   '`where` — where the delivery associates are',
   '`where <name>` — ask one of them for a fresh pin',
   '`zones` — where the work is, against where the people are',
-  '`base <name> <place>` — the place an associate works from',
+  '`stand <name> <place>` — the place an associate works from',
   '`change number <name> <new number>` — they have a new SIM',
   '',
   '`ratings` — what customers thought of it',
@@ -725,7 +725,7 @@ export async function handleStaffMessage(
   const reply = (t: string): OutboundMessage[] => [{ kind: 'text', text: t }];
   const trimmed = text.trim();
 
-  // The same question, for whoever is running the shop: they are the one on
+  // The same question, for whoever is running the base: they are the one on
   // the telephone to a passenger asking what a trip costs.
   {
     const answered = fareAnswerFor(phone, trimmed);
@@ -742,7 +742,7 @@ export async function handleStaffMessage(
   //
   // The caption is the whole disambiguation, and it has to be, because the two
   // are indistinguishable otherwise: a picture of a laminated menu and a
-  // picture of a bag of rice are both just a photo from the shop's own number.
+  // picture of a bag of rice are both just a photo from the base's own number.
   // "photo VEG-001" is six characters and removes the guess entirely.
   if (image) {
     const forProduct = /^(?:photo|pic|picture|image)\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s*$/i.exec(trimmed);
@@ -799,9 +799,9 @@ export async function handleStaffMessage(
           `${result.deliveries} deliver${result.deliveries === 1 ? 'y' : 'ies'}` +
           `${result.takings > 0 ? `, ${money(result.takings)} in today's takings` : ''}.`,
         '',
-        // The records are only half of it: which numbers reach the shop at all
+        // The records are only half of it: which numbers reach the base at all
         // is a setting on the host, and this cannot change that.
-        `⚠️ Add +${result.to} to ASSOCIATES on Render and remove +${result.from}, or they still cannot message the shop.`,
+        `⚠️ Add +${result.to} to ASSOCIATES on Render and remove +${result.from}, or they still cannot message the base.`,
       ].join(chr10),
     );
   }
@@ -880,21 +880,27 @@ export async function handleStaffMessage(
 
   // Where one associate works from, which is what the report above counts.
   //
-  // The place is checked against the tariff before it is saved. A base the
+  // Called a STAND, the way a taxi stand is where a car waits its turn,
+  // because "the base" is now the whole operation — the thing that
+  // dispatches. One word for two things is the sort of ambiguity that bites
+  // a year later. `base` still works and always will: nobody should be told
+  // "I don't understand" for a word that worked yesterday.
+  //
+  // The place is checked against the tariff before it is saved. A stand the
   // tariff does not recognise would simply never appear in the report, and
-  // the shop would be left believing a coast was covered.
-  const basing = trimmed.match(/^base\s+(.+)$/i);
+  // the base would be left believing a coast was covered.
+  const basing = trimmed.match(/^(?:stand|base)\s+(.+)$/i);
   if (basing) {
     const { findZone } = await import('./zones.ts');
     const rest = (basing[1] ?? '').trim();
 
-    // "base Wayne Diamond" has to be read without being told where the name
+    // "stand Wayne Diamond" has to be read without being told where the name
     // ends and the place begins, and both halves can be two words: Mon Repos,
     // Land of Canaan, Mark Anthony. So every split is tried, longest place
     // first, and the one taken is the one where BOTH halves are real - a
     // person in the directory and a place in the tariff.
     //
-    // "base Wayne at Mon Repos" is read first, because somebody who writes it
+    // "stand Wayne at Mon Repos" is read first, because somebody who writes it
     // that way has said where the join is and should not be second-guessed.
     const splits: [string, string][] = [];
     const spoken = rest.match(/^(.+?)\s+(?:at|in|from)\s+(.+)$/i);
@@ -927,7 +933,7 @@ export async function handleStaffMessage(
     if (/^(none|nowhere|clear|off)$/i.test(place)) {
       repo.setAssociateBase(match, '');
       const who = repo.getAssociate(match);
-      return reply(`${who?.name || `+${match}`} works out of town again — no base.`);
+      return reply(`${who?.name || `+${match}`} works out of town again — no stand.`);
     }
 
     const found = findZone(place);
@@ -964,7 +970,7 @@ export async function handleStaffMessage(
     // somebody riding a bike to type an address.
     const sent = await sendLocationRequest(
       match,
-      'The shop is asking where you are. Tap below to send your location.',
+      'The base is asking where you are. Tap below to send your location.',
     );
     return reply(
       sent
@@ -1050,7 +1056,7 @@ ${ONBOARDING_HELP}`);
     return reply(`${order.orderNo} is already ${STATUS_LABEL[status]}.`);
   }
 
-  // Accepting an order is the shop's own act to perform, and only for its own
+  // Accepting an order is the base's own act to perform, and only for its own
   // shops. A kitchen is somebody else's business: the desk saying "confirmed"
   // on their behalf tells the customer a restaurant has taken an order it may
   // not have seen, and the customer believes it because it came from us.
@@ -1103,7 +1109,7 @@ const OUTLET_HELP = [
 ].join('\n');
 
 /**
- * A restaurant texting the shop number about its own orders.
+ * A restaurant texting the base number about its own orders.
  *
  * Everything here is scoped to that outlet. An outlet must not be able to see,
  * move or cancel another kitchen's order, and it never gets the customer's
@@ -1171,7 +1177,7 @@ export async function handleOutletMessage(
   // The kitchen handing the food over. A clock, not a status - the order is
   // only on its way when the associate says so, because only they know they
   // have it. So this writes a time and tells nobody: not the customer, who
-  // would be promised a delivery that has not started, and not the shop,
+  // would be promised a delivery that has not started, and not the base,
   // which learns it from the associate a moment later anyway.
   //
   // Matched before the status words, because "uplifted" means on its way when
@@ -1341,7 +1347,7 @@ const DRIVER_HELP = [
   '`details` on its own does the same, when you are carrying only one',
   '',
   '`fare Georgetown to Mahaica` — what a trip pays, before you agree it',
-  '`street Garnet Street = Kitty` — tell the shop where a street is',
+  '`street Garnet Street = Kitty` — tell the base where a street is',
   '`streets` — streets it has been asked about and cannot place',
   '`fare Mahaica` — from where you last pinned',
   '',
@@ -1359,7 +1365,7 @@ const DRIVER_HELP = [
 /**
  * The day's cash, by whoever is holding it.
  *
- * Counted from midnight on the store's own clock. The shop trades around the
+ * Counted from midnight on the store's own clock. The base trades around the
  * clock so there is no natural gap to count from, but money is reconciled
  * against the day on the till, not UTC's.
  */
@@ -1393,7 +1399,7 @@ function cashReport(): string {
     // Delivered cash with no associate on it: closed by a dispatcher rather
     // than by whoever carried it. Shown rather than dropped, because a total
     // that does not reconcile to the till is worse than an awkward row.
-    ...(loose.orders > 0 ? [line('Closed by the shop, nobody named', loose)] : []),
+    ...(loose.orders > 0 ? [line('Closed by the base, nobody named', loose)] : []),
     '',
     `*${count} ${count === 1 ? 'order' : 'orders'}, ${money(total)} in all*`,
     '',
@@ -1408,7 +1414,7 @@ function cashReport(): string {
  *
  * Named, because an unverified delivery is only worth recording if it can be
  * attributed. One of these is a flat phone battery; a dozen from the same
- * person is something else, and the shop can only see the difference if the
+ * person is something else, and the base can only see the difference if the
  * name is on each one.
  */
 function unverifiedWarning(order: repo.OrderRecord, phone: string, why: string): string {
@@ -1425,10 +1431,10 @@ function unverifiedWarning(order: repo.OrderRecord, phone: string, why: string):
 }
 
 /**
- * A delivery associate texting the shop number.
+ * A delivery associate texting the base number.
  *
  * Collect and deliver, nothing else. A delivery associate cannot confirm an order, cancel
- * one, or see the queue — those are decisions for the shop and the kitchen, and
+ * one, or see the queue — those are decisions for the base and the kitchen, and
  * a mis-tap on a bike should not be able to void somebody's dinner.
  */
 export async function handleDriverMessage(
@@ -1524,7 +1530,7 @@ export async function handleDriverMessage(
           // What actually happens now, which is a question rather than a
           // silence. Telling somebody they will be clocked off and then
           // asking them instead is a small lie that costs trust in every
-          // other message the shop sends.
+          // other message the base sends.
           config.dutyCheckInMinutes > 0
             ? `After ${dutyLimits().lapseHours} hours I will ask whether you are still out — one tap and the jobs keep coming.`
             : `You will be clocked off automatically after ${dutyLimits().lapseHours} hours, so send *on* again tomorrow.`,
@@ -1582,7 +1588,7 @@ export async function handleDriverMessage(
     if (answered) return reply(answered);
   }
 
-  // Teaching the shop a street. An associate who has driven Georgetown for
+  // Teaching the base a street. An associate who has driven Georgetown for
   // years knows where Garnet Street is; the map does not carry it and no
   // delivery has proved it yet.
   {
@@ -2014,7 +2020,7 @@ export async function handleDriverMessage(
           '',
           ...(why.length > 0 ? why : ['There is nobody else on the list.']),
           '',
-          'Finish it yourself, or ring the shop.',
+          'Finish it yourself, or ring the base.',
         ].join(chr10),
       );
     }
@@ -2032,7 +2038,7 @@ export async function handleDriverMessage(
     ];
   }
 
-  // A place the shop asked this driver to name, for a trip the passenger
+  // A place the base asked this driver to name, for a trip the passenger
   // wants redirected. Read BEFORE the order-number parse below, or "Buxton"
   // is scanned for digits and refused.
   // The customer's new address, answered by the person carrying it. Read
@@ -2181,7 +2187,7 @@ export async function handleDriverMessage(
       if (!target) return reply(`No order ${far[2]}. Send \`jobs\` to see what's waiting.`);
       if ((far[1] ?? '').toLowerCase() === 'leave') {
         return reply(
-          `Left ${target.orderNo} where it is. Somebody at the shop will have to sort that one out.`,
+          `Left ${target.orderNo} where it is. Somebody at the base will have to sort that one out.`,
         );
       }
       repo.recordEvent(target.orderNo, 'far accepted', phone, 'told how far out it is');
@@ -2223,7 +2229,7 @@ export async function handleDriverMessage(
         [
           `You already have ${holding2.map((o) => o.orderNo).join(', ')}.`,
           '',
-          `This shop runs ${limit} at a time. Finish that one and ${order.orderNo} will come round again.`,
+          `This base runs ${limit} at a time. Finish that one and ${order.orderNo} will come round again.`,
         ].join(chr10),
       );
     }
@@ -2395,7 +2401,7 @@ export async function handleDriverMessage(
   if (order.kind === 'taxi' && /\bpassenger\s*cancell?ed\b/i.test(trimmed)) {
     if (order.status === 'on_the_way') {
       return reply(
-        `${order.orderNo} is under way with the passenger in the car. Finish the trip, or ring the shop.`,
+        `${order.orderNo} is under way with the passenger in the car. Finish the trip, or ring the base.`,
       );
     }
     if (order.status !== 'pending' && order.status !== 'confirmed') {
@@ -2465,8 +2471,8 @@ export async function handleDriverMessage(
   if (status !== 'on_the_way' && status !== 'delivered' && !mayAccept && !mayReturn) {
     return reply(
       selfAccepted
-        ? `A delivery associate can accept ${order.kind === 'taxi' ? 'a job' : 'a parcel'}, mark it uplifted, delivered, or returned. Anything else is for the shop.`
-        : 'A delivery associate can mark an order uplifted, delivered, or returned. Anything else is for the shop.',
+        ? `A delivery associate can accept ${order.kind === 'taxi' ? 'a job' : 'a parcel'}, mark it uplifted, delivered, or returned. Anything else is for the base.`
+        : 'A delivery associate can mark an order uplifted, delivered, or returned. Anything else is for the base.',
     );
   }
 
@@ -2526,14 +2532,14 @@ export async function handleDriverMessage(
       ].join(chr10),
     );
   }
-  // A job whose door is in no village the shop prices.
+  // A job whose door is in no village the base prices.
   //
-  // The tariff decides where the shop delivers, and it has nothing to say
+  // The tariff decides where the base delivers, and it has nothing to say
   // about this one — so the radius is all there is, and the person being
   // asked to ride there should say so out loud rather than discover it at
   // the far end of the trip. Asked once, and only for the rare job that
   // earns it: a priced village beyond the circle is not out of area, it is
-  // somewhere the shop chose to serve.
+  // somewhere the base chose to serve.
   if ((mayAccept || status === 'on_the_way') && phone && order.location) {
     const { servedSpot, checkPin: pinAgrees } = await import('./pin-check.ts');
     const spot = servedSpot(order.location);
@@ -2546,7 +2552,7 @@ export async function handleDriverMessage(
     // to it, and the second is the one that actually happens.
     //
     // OUTSIDE THE AREA, which needs a radius to be configured at all. Most
-    // shops never set one, and this shop has not: then the tariff is the
+    // shops never set one, and this base has not: then the tariff is the
     // whole answer to where it delivers, and this branch is silent.
     //
     // NOT WHERE THE ORDER SAYS. The pin disagrees with the village the
@@ -2564,7 +2570,7 @@ export async function handleDriverMessage(
         ? pinAgrees(order.location, order.deliveryZone)
         : { state: 'ok' as const };
       const head = outside
-        ? `⚠️ *${order.orderNo}* is ${formatDistance(range.distanceKm)} from the shop,` +
+        ? `⚠️ *${order.orderNo}* is ${formatDistance(range.distanceKm)} from the base,` +
           ` past the ${range.radiusKm} km area${spot.place ? `, and in no village we price (nearest is ${spot.place}, ${spot.km} km off)` : ''}.`
         : `⚠️ *${order.orderNo}* is priced for *${order.deliveryZone}*, but the pin is` +
           `${verdict.state === 'elsewhere' && verdict.km !== null ? ` ${verdict.km} km away` : ' somewhere else'}` +
@@ -2576,8 +2582,8 @@ export async function handleDriverMessage(
             head,
             '',
             outside
-              ? 'Nobody has to take this one. Say so and the shop will sort it out.'
-              : 'Ring them before you set off, or leave it and the shop will sort it out.',
+              ? 'Nobody has to take this one. Say so and the base will sort it out.'
+              : 'Ring them before you set off, or leave it and the base will sort it out.',
           ].join(chr10),
           buttons: [
             { id: `faraccept_${repo.orderDigits(order.orderNo)}`, title: 'Take it anyway' },

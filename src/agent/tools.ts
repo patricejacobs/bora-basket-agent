@@ -312,7 +312,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'where_is_street',
     description:
-      "Look up which village or ward a street is in. Use it WHENEVER a street's location comes up — when a customer asks where a street is, when they give one as a pickup or a delivery address, or when you are about to say where one is for any reason. You do not know Guyana's streets and must never say where one is from your own knowledge: street names repeat across the country, the answer decides what a trip costs and where a car is sent, and a confident wrong answer is worse than no answer. This returns what the shop actually knows — streets it has delivered to, and streets from the map — with where each answer came from. Say only what it gives you. When it finds nothing, say plainly that you are not sure and ask which area they mean.",
+      "Look up which village or ward a street is in. Use it WHENEVER a street's location comes up — when a customer asks where a street is, when they give one as a pickup or a delivery address, or when you are about to say where one is for any reason. You do not know Guyana's streets and must never say where one is from your own knowledge: street names repeat across the country, the answer decides what a trip costs and where a car is sent, and a confident wrong answer is worse than no answer. This returns what the base actually knows — streets it has delivered to, and streets from the map — with where each answer came from. Say only what it gives you. When it finds nothing, say plainly that you are not sure and ask which area they mean.",
     input_schema: {
       type: 'object',
       properties: {
@@ -427,7 +427,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         },
         payment_method: {
           type: 'string',
-          // Only what the shop can actually take, so an unsupported method
+          // Only what the base can actually take, so an unsupported method
           // cannot be selected in the first place.
           enum: config.paymentMethods.map((m) => `${m}_on_delivery`),
           description: 'How the customer will pay the delivery associate.',
@@ -435,7 +435,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         deliver_at: {
           type: 'string',
           description:
-            "When the customer asked for it, as a full ISO timestamp in the shop's timezone, e.g. \"2026-11-18T17:00:00-04:00\". Work it out from what they said and the local time you were given. Leave it out when they want it as soon as possible — never guess at a time they did not ask for.",
+            "When the customer asked for it, as a full ISO timestamp in the base's timezone, e.g. \"2026-11-18T17:00:00-04:00\". Work it out from what they said and the local time you were given. Leave it out when they want it as soon as possible — never guess at a time they did not ask for.",
         },
         deliver_note: {
           type: 'string',
@@ -455,7 +455,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
         kitchen_note: {
           type: 'string',
           description:
-            'What the customer asked of the people MAKING it: "no onion", "well done", "allergic to peanuts", "pick the green plantains". Under 80 characters. This goes on the kitchen or picking ticket, which carries no address and no telephone number — so anything about the door belongs in delivery_note instead, and put here it would never reach the person standing at that door. Where the menu offers the choice properly, set the item\'s options and not this. Pass it in the customer\'s own words: the shop puts it into English for the kitchen itself.',
+            'What the customer asked of the people MAKING it: "no onion", "well done", "allergic to peanuts", "pick the green plantains". Under 80 characters. This goes on the kitchen or picking ticket, which carries no address and no telephone number — so anything about the door belongs in delivery_note instead, and put here it would never reach the person standing at that door. Where the menu offers the choice properly, set the item\'s options and not this. Pass it in the customer\'s own words: the base puts it into English for the kitchen itself.',
         },
       },
       required: ['payment_method'],
@@ -465,25 +465,25 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: 'start_delivery',
     description:
-      "Hand the order over to the shop's own checkout, and stop. For a PARCEL, call it once both halves are agreed with parcel_party and you know what is being sent — the shop asks where it is going, for a pin, for anything about the door, and puts the fee to them. For a basket, call it the moment the customer has finished choosing and the basket is right — instead of asking for an address, a pin, a name or a total yourself. The shop then asks for all of it in a fixed order and places the order when they tap, so you say NOTHING further about where it is going, what it costs, or whether to confirm: your turn is over. Only for a restaurant or grocery order with something in the basket. If they come back wanting to change what they are buying, the basket is untouched and you carry on as normal.",
+      "Hand the order over to the base's own checkout, and stop. For a PARCEL, call it once both halves are agreed with parcel_party and you know what is being sent — the base asks where it is going, for a pin, for anything about the door, and puts the fee to them. For a basket, call it the moment the customer has finished choosing and the basket is right — instead of asking for an address, a pin, a name or a total yourself. The base then asks for all of it in a fixed order and places the order when they tap, so you say NOTHING further about where it is going, what it costs, or whether to confirm: your turn is over. Only for a restaurant or grocery order with something in the basket. If they come back wanting to change what they are buying, the basket is untouched and you carry on as normal.",
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'delivery_zone',
     description:
-      "What the delivery costs, by where it is going. Call it as soon as you have an area or an address, BEFORE quoting any delivery charge or total. Two steps, on purpose: call it with `text` to find out which place the shop thinks they mean, read that place back to them in your own words, and only once they have agreed call it again with `place` and `confirmed` true. Never quote a delivery figure you have not confirmed this way — a price the customer did not agree to is one the delivery associate has to argue about at their gate.",
+      "What the delivery costs, by where it is going. Call it as soon as you have an area or an address, BEFORE quoting any delivery charge or total. Two steps, on purpose: call it with `text` to find out which place the base thinks they mean, read that place back to them in your own words, and only once they have agreed call it again with `place` and `confirmed` true. Never quote a delivery figure you have not confirmed this way — a price the customer did not agree to is one the delivery associate has to argue about at their gate.",
     input_schema: {
       type: 'object',
       properties: {
         text: {
           type: 'string',
           description:
-            'What the customer said about where they are — an area, a village, a whole address. Spelling does not matter; the shop matches on how a name sounds.',
+            'What the customer said about where they are — an area, a village, a whole address. Spelling does not matter; the base matches on how a name sounds.',
         },
         place: {
           type: 'string',
           description:
-            'The place name EXACTLY as the shop gave it back to you, when confirming. Not the customer\'s spelling.',
+            'The place name EXACTLY as the base gave it back to you, when confirming. Not the customer\'s spelling.',
         },
         confirmed: {
           type: 'boolean',
@@ -857,7 +857,7 @@ function resolveOptions(
   return { normalized: applied.normalized, summary: applied.summary };
 }
 
-/** An outlet's minimum order, or the shop's where it sets none. */
+/** An outlet's minimum order, or the base's where it sets none. */
 function minimumFor(outlet: repo.Outlet | null): number {
   if (outlet && outlet.minOrder > 0) return outlet.minOrder;
   return config.store.minOrderTotal;
@@ -901,7 +901,7 @@ function cartView(phone: string) {
     subtotal: money(cart.subtotal),
     delivery_fee: cart.deliveryFee === 0 ? 'free' : money(cart.deliveryFee),
     total: money(cart.total),
-    // An outlet may set a higher floor than the shop's own, because sending a
+    // An outlet may set a higher floor than the base's own, because sending a
     // delivery associate across town for one soft drink costs more than it earns.
     ...(minimumFor(cart.outlet) > 0 && cart.subtotal < minimumFor(cart.outlet)
       ? {
@@ -933,7 +933,7 @@ function locationView(pin: repo.SavedPin | null) {
     ...(range.state === 'unchecked' ? {} : { distance_from_shop: formatDistance(range.distanceKm) }),
     ...(range.state === 'outside'
       ? {
-          outside_delivery_area: `This pin is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area, so an order cannot be placed to it. Say plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery or invent a surcharge.`,
+          outside_delivery_area: `This pin is ${formatDistance(range.distanceKm)} from the base, beyond the ${range.radiusKm} km delivery area, so an order cannot be placed to it. Say plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery or invent a surcharge.`,
         }
       : {}),
   };
@@ -986,7 +986,7 @@ const asInt = (v: unknown): number | null => {
  *
  * Their own cart's figure where they have one, because an outlet may set a
  * fee of its own and the house rate would be a different number from the one
- * they will be billed. The shop's flat rate otherwise — a parcel has no cart.
+ * they will be billed. The base's flat rate otherwise — a parcel has no cart.
  */
 function unmatchedFee(phone: string): number {
   const cart = repo.getCart(phone);
@@ -999,13 +999,13 @@ function unmatchedFee(phone: string): number {
  * The old wording ended "invite them to message again", and the model did
  * exactly that: "Message me when you are ready and I will check again." The
  * passenger had already given his pickup, his destination, how many of them
- * there were and that they had no luggage. He was ready. The shop was not,
+ * there were and that they had no luggage. He was ready. The base was not,
  * and the sentence handed him the next move anyway.
  */
 /**
  * A held basket in one line, for reading back to somebody twenty minutes
  * later. Counted in things rather than in rows: "1 item" for two bags of
- * rice is the shop telling them they have less than they have.
+ * rice is the base telling them they have less than they have.
  */
 export function basketSummary(phone: string): string {
   const cart = repo.getCart(phone);
@@ -1020,7 +1020,7 @@ export function basketSummary(phone: string): string {
 }
 
 const SAY_IT_THIS_WAY =
-  'The wait is the shop\'s, not theirs: they have already told you everything and they ARE ready, so never ask them to say when they are ready and never put the next move on them. Say plainly that there is nobody out yet, say nothing about when, and tell them you will come straight back to them the moment somebody is on the road — which the shop will do by itself.';
+  'The wait is the base\'s, not theirs: they have already told you everything and they ARE ready, so never ask them to say when they are ready and never put the next move on them. Say plainly that there is nobody out yet, say nothing about when, and tell them you will come straight back to them the moment somebody is on the road — which the base will do by itself.';
 
 export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): string {
   const input = (rawInput ?? {}) as Record<string, unknown>;
@@ -1031,11 +1031,11 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (scope === null) return fail(NO_SHOP_SELECTED);
       const cats = repo.listCategories(scope);
       if (cats.length === 0) {
-        return fail('This shop has nothing in it. No products have been imported for it yet.');
+        return fail('This base has nothing in it. No products have been imported for it yet.');
       }
 
-      // Numbered by the shop, and written down, so the number the customer
-      // answers with is the number the shop will resolve. A list renumbered
+      // Numbered by the base, and written down, so the number the customer
+      // answers with is the number the base will resolve. A list renumbered
       // in the retelling sends somebody to the wrong aisle.
       repo.rememberNumberedList(
         ctx.phone,
@@ -1045,7 +1045,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       return ok({
         // Written out for the same reason as a shelf: the order and the
-        // numbering are the shop's, and they are what the customer is about
+        // numbering are the base's, and they are what the customer is about
         // to answer with.
         lines: cats.map((c, i) => `${i + 1}. ${c.category}`),
         categories: cats.map((c, i) => ({ number: i + 1, name: c.category, items: c.count })),
@@ -1099,14 +1099,14 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       return ok({
         category: name,
         // Numbered here rather than left to the model, so the numbers it
-        // sends are the numbers the shop will resolve. A list renumbered in
+        // sends are the numbers the base will resolve. A list renumbered in
         // the retelling is a customer ordering the wrong thing.
         // The lines, written out, not the parts to build them from.
         //
-        // The shop used to hand back a letter, a name, a price and a unit,
+        // The base used to hand back a letter, a name, a price and a unit,
         // with a sentence asking for "(a) Name — price (unit)". That is a
         // request, and the brackets came and went with it. Formatting a list
-        // is the shop's job: a letter that is sometimes in brackets and
+        // is the base's job: a letter that is sometimes in brackets and
         // sometimes not is a list that looks different every time it is
         // opened, and the labels are what the customer is about to type back.
         lines: items.map((p, i) => {
@@ -1115,12 +1115,12 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // A camera against the ones there is a picture of, so a customer
           // knows what they can ask to see. Offering a photo of everything
           // and then not having one for most of it is worse than not
-          // offering: the shop looks like it is losing things.
+          // offering: the base looks like it is losing things.
           const camera = productImageUrl(p.sku, p.imageUrl) ? ' 📷' : '';
           return `(${label}) ${p.name} — ${money(p.price)} (${p.unit})${note}${camera}`;
         }).concat(
           // How to answer, where the letters actually are. It used to be on
-          // the front page of the shop, three screens before anybody saw a
+          // the front page of the base, three screens before anybody saw a
           // letter - which is the wrong place to explain lettering, and made
           // a page somebody reads once into a page somebody scrolls past.
           ['', t('aisle_items_how', languageFor(ctx.phone))],
@@ -1158,7 +1158,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     /**
      * What they picked, by position.
      *
-     * Resolved against the list the shop sent rather than against anything
+     * Resolved against the list the base sent rather than against anything
      * the model remembers, because the two can disagree: a model that
      * renumbers a list while retelling it would add the wrong item with
      * complete confidence, and the customer would not find out until a bag
@@ -1463,7 +1463,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Put them back in the right service and menu, or the restored cart would
       // sit in a conversation that cannot add to it.
       //
-      // Decided by the shop's kind, not by whether there is a shop at all.
+      // Decided by the base's kind, not by whether there is a shop at all.
       // "Has an outlet" used to mean "is a restaurant order"; a grocery cart
       // has one now, and reading it the old way dropped a customer restoring
       // their shopping into the restaurant service.
@@ -1491,7 +1491,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           outlets: [],
           note:
             kind === 'grocery'
-              ? 'No grocery shop is set up yet. Say the shop is not open for grocery orders — do not invent one.'
+              ? 'No grocery shop is set up yet. Say the base is not open for grocery orders — do not invent one.'
               : 'No restaurants are set up yet. Offer grocery shopping instead — do not invent outlets.',
         });
       }
@@ -1641,9 +1641,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       const places = repo.areasForStreet(street);
 
-      // Nothing invented, and the shop says so rather than reaching for a
+      // Nothing invented, and the base says so rather than reaching for a
       // guess. A street nobody has driven to and no map carries is a
-      // street the shop does not know, and the customer is the one who
+      // street the base does not know, and the customer is the one who
       // does.
       if (places.length === 0) {
         // The misses are the worklist: these are the streets customers
@@ -1652,7 +1652,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         return ok({
           street,
           known: false,
-          next: 'The shop does not know where that street is. Say plainly that you are not sure which area it is in and ask them — a village or ward name. Never guess from your own knowledge of Guyana: street names repeat, and the answer decides what a trip costs and where a car is sent.',
+          next: 'The base does not know where that street is. Say plainly that you are not sure which area it is in and ask them — a village or ward name. Never guess from your own knowledge of Guyana: street names repeat, and the answer decides what a trip costs and where a car is sent.',
         });
       }
 
@@ -1670,7 +1670,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         places: found,
         next:
           found.length === 1
-            ? `Say it is in ${found[0]!.place}, and ask them to confirm rather than asserting it — the shop can be wrong about a street. Use no other place name.`
+            ? `Say it is in ${found[0]!.place}, and ask them to confirm rather than asserting it — the base can be wrong about a street. Use no other place name.`
             : `That street name means ${found.length} different places: ${found.map((f) => f.place).join(', ')}. Ask which one they mean. Do not pick one for them and do not name any place that is not in this list.`,
       });
     }
@@ -1689,13 +1689,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // while they are still reading a menu, and the figure that depends on
       // where they live arrives afterwards as a surprise.
       //
-      // The shop asks for the pin itself, at checkout, directly after the
+      // The base asks for the pin itself, at checkout, directly after the
       // area is agreed. So this refuses rather than advises: a prompt is a
       // request, and the order of two questions is not a thing to request.
       const basket = repo.getService(ctx.phone);
       if (basket === 'grocery' || basket === 'restaurant') {
         return fail(
-          'Not this service, and not at this moment. The shop asks for the pin itself at checkout, straight after the delivery area is agreed — area first, because that fixes the charge; the exact spot after, when they already know what it costs. Call start_delivery when the basket is right and the whole sequence runs itself.',
+          'Not this service, and not at this moment. The base asks for the pin itself at checkout, straight after the delivery area is agreed — area first, because that fixes the charge; the exact spot after, when they already know what it costs. Call start_delivery when the basket is right and the whole sequence runs itself.',
         );
       }
 
@@ -1721,7 +1721,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
     case 'read_location_link': {
       const text = typeof input.text === 'string' ? input.text : '';
-      // The shop's own centre, used only to recover a short plus code — one
+      // The base's own centre, used only to recover a short plus code — one
       // that says where somebody is relative to here. Without it those are
       // refused rather than resolved to a place in another region.
       const parsed = readLocationSync(text, { near: config.store.serviceArea ?? null });
@@ -1751,7 +1751,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // to tell somebody before they are asked to pin it exactly.
           ...(range.state === 'outside'
             ? {
-                outside_delivery_area: `That area is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area. Say that first — asking them to pin it exactly, then refusing the order, wastes their time. Say plainly that it looks outside the area and that a staff member will confirm on this chat. Do not promise delivery or invent a surcharge.`,
+                outside_delivery_area: `That area is ${formatDistance(range.distanceKm)} from the base, beyond the ${range.radiusKm} km delivery area. Say that first — asking them to pin it exactly, then refusing the order, wastes their time. Say plainly that it looks outside the area and that a staff member will confirm on this chat. Do not promise delivery or invent a surcharge.`,
               }
             : {}),
           saved: false,
@@ -1782,7 +1782,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         ...(range.state === 'unchecked' ? {} : { distance_from_shop: formatDistance(range.distanceKm) }),
         ...(range.state === 'outside'
           ? {
-              outside_delivery_area: `That point is ${formatDistance(range.distanceKm)} from the shop, beyond the ${range.radiusKm} km delivery area. Say plainly that it looks outside the area and that a staff member will confirm on this chat. Do not promise delivery or invent a surcharge.`,
+              outside_delivery_area: `That point is ${formatDistance(range.distanceKm)} from the base, beyond the ${range.radiusKm} km delivery area. Say plainly that it looks outside the area and that a staff member will confirm on this chat. Do not promise delivery or invent a surcharge.`,
             }
           : {}),
         saved: false,
@@ -1866,7 +1866,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const allowed = config.paymentMethods.map((m) => `${m}_on_delivery`);
       if (!allowed.includes(paymentMethod)) {
         return fail(
-          `This shop only takes ${config.paymentMethods.join(' or ')} on delivery, so payment_method must be one of: ${allowed.join(', ')}.`,
+          `This base only takes ${config.paymentMethods.join(' or ')} on delivery, so payment_method must be one of: ${allowed.join(', ')}.`,
         );
       }
 
@@ -1876,10 +1876,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // refusal that costs nothing to get right and a great deal to get
       // wrong: an order taken with no associate on duty is food packed for a
       // counter, sitting at `ready` while the customer waits and nobody can
-      // tell them why. The shop being open is a different fact - it can be
+      // tell them why. The base being open is a different fact - it can be
       // wide open with nobody out.
       if (!repo.anyoneOnDuty()) {
-        // Written down before the refusal is spoken, so the shop can go back
+        // Written down before the refusal is spoken, so the base can go back
         // to them when somebody clocks on. Being turned away used to be the
         // end of it: nothing was recorded and nobody was ever told.
         const basket = repo.getCart(ctx.phone);
@@ -1940,20 +1940,20 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       //
       // The zone comes from the customer RECORD. `customer` above is the
       // identity — name, address, pin, confirmed — and carries no zone at
-      // all, so reading one off it gave undefined, which read as "this shop
+      // all, so reading one off it gave undefined, which read as "this base
       // does not price by zone" and let every stale pin straight through.
       const goingTo = repo.getCustomer(ctx.phone).deliveryZone || '';
       const doorPin =
         !goingTo || savedPinIsIn(ctx.phone, goingTo) ? customer.location : null;
 
       // A place in the tariff is a place somebody decided to serve, at a
-      // figure they worked out. That outranks a circle drawn round the shop:
+      // figure they worked out. That outranks a circle drawn round the base:
       // 45 of the 185 priced villages sit beyond the radius, so the two
-      // rules refused customers the shop had deliberately priced — quoted
+      // rules refused customers the base had deliberately priced — quoted
       // $2,800 for Hope, then refused at the last tap for being 17 km out.
       //
       // The radius keeps the job it is good at: a pin in a place NOBODY
-      // priced, where the shop does not know whether anyone can get there.
+      // priced, where the base does not know whether anyone can get there.
       const served = doorPin ? servedSpot(doorPin) : { served: false, place: '', km: null };
       const range =
         doorPin && !served.served
@@ -1961,7 +1961,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           : { state: 'unchecked' as const, distanceKm: null, radiusKm: 0 };
       if (range.state === 'outside') {
         return fail(
-          `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the shop, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
+          `Cannot place the order — the pin is ${formatDistance(range.distanceKm)} from the base, outside the ${range.radiusKm} km delivery area. Tell the customer plainly that it looks outside the area and that a staff member will confirm on this chat whether a delivery associate can reach them. Do not promise delivery, and do not offer a surcharge. If they say the pin is wrong, call request_location for a new one.`,
         );
       }
 
@@ -2045,7 +2045,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         );
       }
       // The saved pin, but only when the saved door is in the place this
-      // order is going to. Where the shop prices by zone and the two
+      // order is going to. Where the base prices by zone and the two
       // disagree, the pin is somebody else's village and is dropped.
       // Capped rather than trusted. A note is a line read at a gate; left open
       // it collected whole briefings, including a second address that
@@ -2063,7 +2063,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // When they asked for it, checked rather than trusted.
       //
       // A time in the past is the commonest way this goes wrong: a customer
-      // says "five o'clock" at six, and the shop would file an order wanted
+      // says "five o'clock" at six, and the base would file an order wanted
       // an hour ago and sort it to the front of the queue for ever.
       const wantedRaw = asString(input.deliver_at).trim();
       const wantedNote = asString(input.deliver_note).trim().slice(0, 60);
@@ -2084,7 +2084,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         }
         if (at.getTime() > Date.now() + 7 * 24 * 3600_000) {
           return fail(
-            'That is more than a week out, which this shop does not take. Say so plainly and offer the nearest day it will take.',
+            'That is more than a week out, which this base does not take. Say so plainly and offer the nearest day it will take.',
           );
         }
         deliverAt = at.toISOString();
@@ -2123,7 +2123,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           recipientPinShared: input.recipient_pin_shared === true,
           useReward: input.use_reward === true,
         });
-        // Fire-and-forget: the shop needs to know immediately, but the customer
+        // Fire-and-forget: the base needs to know immediately, but the customer
         // should not wait on a Graph API round trip to see their confirmation.
         void announceNewOrder(order.orderNo).catch((err) =>
           console.error('[tools] order announcement failed:', err),
@@ -2143,7 +2143,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // nothing and puts their address on the screen of a shared phone.
         //
         // No money either, and no payment method. Nothing is owed on an order
-        // nobody has accepted yet — the shop may refuse it, the kitchen may be
+        // nobody has accepted yet — the base may refuse it, the kitchen may be
         // shut — and a sum quoted beside a payment method reads as a bill. It
         // belongs in the message that says the order is going ahead.
         //
@@ -2157,12 +2157,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // know: that a kitchen had the order, that it would take twenty
         // minutes, what was owed and where to pay it. None of that is true at
         // the moment an order is placed, and a customer reading it believes
-        // the shop, not the model.
+        // the base, not the model.
         //
         // The shop that confirms is named only when the customer chose it by
         // name. With a single grocery they are never shown which shop they are
         // in, so naming it here would introduce one in the same breath as
-        // telling them to wait for it.
+        // telling them to wait for it. It is the outlet confirming, not the
+        // base: a grocery customer is waiting on the shop that holds the rice.
         const whoConfirms =
           cart.outlet && cart.outlet.kind === 'restaurant' ? cart.outlet.name : 'the shop';
 
@@ -2176,7 +2177,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             'If the customer has been writing in another language, send it in theirs — that is the only thing you may change.',
             'Add nothing to it. Not the total, not the delivery fee, not how or where they pay: nothing is owed on an order nobody has confirmed, and a sum beside a payment method reads as a bill. That comes with the confirmation.',
             'Not their name, address, map pin or telephone number either — they gave you those a moment ago.',
-            'And no preparation time and no delivery time. What they are waiting for is the shop confirming the order, not the cooking.',
+            'And no preparation time and no delivery time. What they are waiting for is the base confirming the order, not the cooking.',
           ].join(' '),
         });
       } catch (err) {
@@ -2192,7 +2193,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * stored. Only a second call carrying `confirmed` sets the zone, and only
      * then is there a figure to say out loud.
      *
-     * The reason is not politeness. Spelling is matched on sound, so the shop
+     * The reason is not politeness. Spelling is matched on sound, so the base
      * will cheerfully read "Metin Meer Zorg" as Meten-Meer-Zorg and charge
      * $4,000 — and two villages called Golden Grove sit $800 apart on
      * different corridors. A quote nobody agreed to is a quote the delivery
@@ -2212,7 +2213,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         ].filter(Boolean);
         if (missing.length > 0) {
           return fail(
-            `Still needed before the shop can take over: ${missing.join(', ')}. Use parcel_party for a name and a number, and ask what is being sent.`,
+            `Still needed before the base can take over: ${missing.join(', ')}. Use parcel_party for a name and a number, and ask what is being sent.`,
           );
         }
       } else {
@@ -2238,7 +2239,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       ctx.outbound.push(askPlace(ctx.phone, languageFor(ctx.phone)));
       return ok({
         handed_over: true,
-        next: "The shop has taken it from here and has already asked them where it is going. Say nothing more — not about the address, not about the pin, not about the total, and not about confirming. Your turn ends now.",
+        next: "The base has taken it from here and has already asked them where it is going. Say nothing more — not about the address, not about the pin, not about the total, and not about confirming. Your turn ends now.",
       });
     }
 
@@ -2246,7 +2247,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (zoneCount() === 0) {
         return ok({
           priced: false,
-          note: `This shop has no zone tariff, so delivery is the flat ${money(config.store.deliveryFee)}. Nothing to confirm — carry on.`,
+          note: `This base has no zone tariff, so delivery is the flat ${money(config.store.deliveryFee)}. Nothing to confirm — carry on.`,
         });
       }
 
@@ -2257,11 +2258,11 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         // Confirming with no place is the customer agreeing the FLAT fee.
         //
         // The tariff knows 185 places and Guyana has more. Somebody whose
-        // village is not in it still pays something — the shop's flat rate —
+        // village is not in it still pays something — the base's flat rate —
         // and that figure has to be agreeable, or the quote guard refuses
         // their order for ever and the only way out is to edit a CSV.
         if (!place) {
-          // What THIS order will be charged, not the shop's headline rate.
+          // What THIS order will be charged, not the base's headline rate.
           // A kitchen may set its own delivery fee, and quoting the house
           // figure to somebody whose basket carries the outlet's would be
           // the same broken promise this guard exists to prevent.
@@ -2278,7 +2279,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         const known = findZone(place);
         if (known.kind !== 'found') {
           return fail(
-            `"${place}" is not a place in the tariff. Look it up with \`text\` first and use the name the shop gives back.`,
+            `"${place}" is not a place in the tariff. Look it up with \`text\` first and use the name the base gives back.`,
           );
         }
         // Settled in one place for both routes into it - this, and the
@@ -2313,10 +2314,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // The two ways this fails, and the one answer to both: show them the
       // places. Asking again in words is what used to happen, and it is the
       // worst moment in the conversation - somebody who has already typed
-      // their village twice is asked to type it a third time, and the shop
+      // their village twice is asked to type it a third time, and the base
       // has no better idea what to do with the third attempt than the first.
       //
-      // The list is sent by the SHOP, from here, so it cannot be skipped by
+      // The list is sent by the BASE, from here, so it cannot be skipped by
       // a turn that decides to ask in words instead. Tapping a row settles
       // the place and the charge together: the figure is printed on the row
       // they chose, which is a clearer agreement than any read-back.
@@ -2399,7 +2400,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
      * drop one on where they are going until they get there, so an address in
      * words has to be enough for the far end.
      *
-     * No fare is quoted here or anywhere. The shop does not meter rides, and a
+     * No fare is quoted here or anywhere. The base does not meter rides, and a
      * figure nobody agreed to is an argument on a kerb.
      */
     case 'book_taxi': {
@@ -2468,9 +2469,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // end. It is wrong for the pickup when the words name nothing the
       // tariff knows.
       //
-      // Reported from the live shop: "pick up from King St and take me to
+      // Reported from the live base: "pick up from King St and take me to
       // Timehri" booked, with no pin asked for. King Street is a Georgetown
-      // street and not one of the 185 places the tariff prices, so the shop
+      // street and not one of the 185 places the tariff prices, so the base
       // lost three things at once — no fare, and the driver haggles at the
       // kerb; no pin, and he has no idea where on King Street; no corridor,
       // so the job was offered to every associate rather than the nearest.
@@ -2480,13 +2481,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       if (!draft.pickup && pickupAddress && tariff().length > 0 && !repo.pickupAsked(ctx.phone)) {
         const placed = findZone(pickupAddress);
         if (placed.kind !== 'found') {
-          // Before asking, look at what the shop has already delivered.
+          // Before asking, look at what the base has already delivered.
           //
           // "Garnet Street" is not in the tariff and never will be, but the
           // shop has driven to it: every finished delivery is a street and
           // a village that were right. Asking a regular which ward their
           // own street is in, when an associate went there last Tuesday,
-          // is the shop forgetting in front of them.
+          // is the base forgetting in front of them.
           const known = repo.areasForStreet(pickupAddress);
           if (known.length === 0) repo.noteStreetMiss(pickupAddress);
           if (known.length > 0) {
@@ -2499,7 +2500,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
               booked: false,
               pickup: pickupAddress,
               known_areas: known.map((k) => k.place),
-              next: 'They have ALREADY been asked which area that street is in, with what the shop has seen before offered as taps — say nothing more about it and book nothing. Their answer settles it.',
+              next: 'They have ALREADY been asked which area that street is in, with what the base has seen before offered as taps — say nothing more about it and book nothing. Their answer settles it.',
             });
           }
 
@@ -2507,16 +2508,16 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           // landmark — "opposite the market, two lots north of the Regent
           // Street corner" — has given the driver something to find them
           // by, and it is a better answer than a village name they may not
-          // use. Asking again would be the shop arguing with a man standing
+          // use. Asking again would be the base arguing with a man standing
           // on a road, and the second ask is the one that loses the fare.
           repo.notePickupAsked(ctx.phone);
           const lang4 = languageFor(ctx.phone);
           // What they typed is deliberately NOT quoted back at them.
           //
-          // "I cannot find *King St* on the map" is the shop telling a
+          // "I cannot find *King St* on the map" is the base telling a
           // customer their own address is wrong, in a country where most
           // addresses are landmarks and the tariff is 185 village names. The
-          // shop's inability to place a street is the shop's business. Ask
+          // shop's inability to place a street is the base's business. Ask
           // for what is needed and leave it at that.
           ctx.outbound.push({
             kind: 'location_request',
@@ -2534,9 +2535,9 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Two statements of where they are standing, compared before anything
       // is priced.
       //
-      // Reported from the live shop: a passenger said Timehri and pinned
+      // Reported from the live base: a passenger said Timehri and pinned
       // Beterverwagting, 38 km away, and nothing was said to anybody. The
-      // fare is priced FROM the pickup, so the shop was about to quote
+      // fare is priced FROM the pickup, so the base was about to quote
       // $1,200 for a $3,800 ride and send a driver to the wrong end of the
       // coast on a figure it had already promised.
       //
@@ -2566,7 +2567,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
             said: pickupAddress,
             pinned: standoff.looksLike,
             apart: standoff.km === null ? 'unknown' : `${standoff.km} km`,
-            next: 'They have ALREADY been asked which of the two they are at, with both fares on it — say nothing more about it and book nothing. Their tap settles it and the shop handles both answers.',
+            next: 'They have ALREADY been asked which of the two they are at, with both fares on it — say nothing more about it and book nothing. Their tap settles it and the base handles both answers.',
           });
         }
       }
@@ -2620,7 +2621,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       );
       const quoted = taxiFare(fromEnd.place, toEnd.place);
 
-      // Whether this passenger has SEEN this fare, which is the shop's own
+      // Whether this passenger has SEEN this fare, which is the base's own
       // record and not the model's recollection.
       //
       // `fare_confirmed` is a field the model fills in, and after a long
@@ -2704,10 +2705,10 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // forbid the model from mentioning one — true when a taxi had no
       // tariff, wrong since it got one, and the reason a priced trip could
       // reach the road without a figure ever being said out loud. A fare the
-      // shop quoted and the passenger agreed to is the shop's to repeat.
-      // The shop says it, not the model.
+      // shop quoted and the passenger agreed to is the base's to repeat.
+      // The base says it, not the model.
       //
-      // Reported from the live shop: a passenger booked two cars and was
+      // Reported from the live base: a passenger booked two cars and was
       // never told either was booked. What they got was the model's own
       // reassurance — "I'll let you know as soon as a car's on it",
       // "Nothing more needed from you", "Right you are" — and no job
@@ -2735,7 +2736,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         ...(quoted
           ? { fare: money(quoted.fee), priced_by: quoted.say }
           : { fare: 'to be agreed with the chauffeur' }),
-        next: 'The confirmation has ALREADY gone to them — the job number, both ends and the fare, in writing, from the shop itself. Do not repeat any of it and do not describe what is arriving; they can see it. Say only what is NEW, or nothing at all. Never promise a car or a time: neither is yours to give.',
+        next: 'The confirmation has ALREADY gone to them — the job number, both ends and the fare, in writing, from the base itself. Do not repeat any of it and do not describe what is arriving; they can see it. Say only what is NEW, or nothing at all. Never promise a car or a time: neither is yours to give.',
       });
     }
 
@@ -2829,7 +2830,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
           pin_asked: true,
           job_number: live.orderNo,
           place: quoted.match.place,
-          next: 'They have ALREADY been asked for the exact spot — say nothing more about it. Nothing has changed and nothing has been put to their associate yet; that happens once they send the pin or tap Skip, and the shop handles both. Do not describe the address as changed.',
+          next: 'They have ALREADY been asked for the exact spot — say nothing more about it. Nothing has changed and nothing has been put to their associate yet; that happens once they send the pin or tap Skip, and the base handles both. Do not describe the address as changed.',
         });
       }
 
@@ -2843,7 +2844,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // not theirs to change, and the request went into the help queue for a
       // person to ring back — which, at a shop with no staff number set, is
       // a queue with nobody reading it. Meanwhile the driver sitting beside
-      // them could change it in two taps. The passenger asking the shop
+      // them could change it in two taps. The passenger asking the base
       // directly is the same event as the driver asking on their behalf, and
       // it goes through the same gate: priced, agreed, then the driver told.
       const order = theirs.find(
@@ -2870,7 +2871,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const from = fromEnd2.place;
       const quoted = taxiFare(from, named);
 
-      // The same gate booking has: the shop will not act on a figure it has
+      // The same gate booking has: the base will not act on a figure it has
       // not put in front of them. `confirmed` is a field the model fills in,
       // and after an exchange about where they would rather go it will fill
       // it in believing the fare came up somewhere.
@@ -2897,7 +2898,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
 
       if (!order.driverPhone) {
         // Nobody is carrying it yet, so there is nobody to agree: the trip
-        // is still the shop's to change.
+        // is still the base's to change.
         repo.changeTaxiDestination(order.orderNo, named, quoted?.fee ?? 0);
         repo.clearDestProposal(order.orderNo);
         return ok({
@@ -2934,7 +2935,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
         job_number: order.orderNo,
         destination: named,
         fare: quoted ? money(quoted.fee) : 'to be agreed with the chauffeur',
-        next: 'They have ALREADY been told it is with their driver — say nothing more about it, and do not describe the destination as changed. Nothing moves until the driver answers, and the shop tells them either way.',
+        next: 'They have ALREADY been told it is with their driver — say nothing more about it, and do not describe the destination as changed. Nothing moves until the driver answers, and the base tells them either way.',
       });
     }
 
@@ -2982,7 +2983,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       return ok({
         side,
         have: saved,
-        // Read back as the shop will print it, so what the customer agrees to
+        // Read back as the base will print it, so what the customer agrees to
         // is what the delivery associate ends up holding.
         read_back: [
           side === 'sender' ? '*From:*' : '*To:*',
@@ -3167,7 +3168,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       // Priced from BOTH ends where the tariff knows them both.
       //
       // The zone alone prices one journey - out of Georgetown - which is the
-      // right answer for a delivery, because the shop is always at one end.
+      // right answer for a delivery, because the base is always at one end.
       // A parcel is a two-ended job: priced by its destination alone, one
       // collected in Parika and dropped in Diamond cost what a Diamond
       // delivery costs, and nobody was paid for the seventy kilometres
@@ -3321,13 +3322,13 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
       const id = repo.recordHelpRequest(ctx.phone, summary, urgent);
 
       // Whether there is anybody to tell is known without sending anything,
-      // and it is the case that actually happens: a shop that has not set
+      // and it is the case that actually happens: a base that has not set
       // STAFF_NUMBERS.
       //
       // This tool used to report `passed_on: true` whatever became of the
       // notification - it was fired off without waiting - so such a shop told
       // the customer their number had gone to the manager while the log said
-      // nobody had been told. The shop saying something untrue is worse than
+      // nobody had been told. The base saying something untrue is worse than
       // the setting being missing.
       const somebodyToTell = config.staffNumbers.length > 0;
 
@@ -3358,7 +3359,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     /**
      * Last week's shopping, back in the basket.
      *
-     * Groceries are the same rice and the same milk every week, and the shop
+     * Groceries are the same rice and the same milk every week, and the base
      * already knew it: the prompt has told the agent for months to "greet a
      * regular by name and offer their usual order rather than starting from
      * scratch" - with no tool that could do it. The agent could read a past
@@ -3372,7 +3373,7 @@ export function executeTool(name: string, rawInput: unknown, ctx: ToolContext): 
     /**
      * The balance, with the words to say it in.
      *
-     * The shop writes the sentences and the model repeats them, as it does
+     * The base writes the sentences and the model repeats them, as it does
      * for the aisles and the kitchens. Points are money: a model that is
      * handed "340" and left to describe it will one day call it a discount,
      * and the customer will arrive at the door expecting one.

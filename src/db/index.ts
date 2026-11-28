@@ -662,7 +662,11 @@ addColumnIfMissing('associates', 'on_duty_at', "TEXT NOT NULL DEFAULT ''");
 // "Mon Repos". Empty for somebody who works out of town, which is everybody
 // until a shop says otherwise.
 //
-// Deliberately a declared base and not the live pin in `associate_locations`.
+// Where this associate works from — their STAND, set by `stand rohan Diamond`.
+// Not "the base", which is the whole operation; the column keeps its old
+// name because renaming a column buys nothing a comment cannot.
+//
+// Deliberately a declared stand and not the live pin in `associate_locations`.
 // A pin says where somebody was forty minutes ago, which is the right fact for
 // "who is nearest this pickup right now" and the wrong one for "which parts of
 // the coast do we cover at all". The two answer different questions and the

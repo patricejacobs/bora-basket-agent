@@ -53,7 +53,7 @@ export function settleDeliveryPlace(phone: string, place: string): SettledPlace 
 /**
  * What it WOULD cost, written down nowhere.
  *
- * The shop has to be able to say "that village is $1,800" in the middle of
+ * The base has to be able to say "that village is $1,800" in the middle of
  * a question, before anybody has agreed to anything — and a figure quoted
  * by one rule and charged by another is the fault this whole file exists to
  * prevent. So the settlement above is this function plus three writes, and
@@ -122,14 +122,14 @@ function mentions(line: string, place: string): boolean {
 }
 
 /**
- * Is the door the shop already holds in the place this order is going to?
+ * Is the door the base already holds in the place this order is going to?
  *
  * A customer's saved address and pin are *home*. They answer "where does
  * this go?" only when this order is going home — and the moment it is not,
  * they are worse than nothing, because they are specific, confident and
  * wrong.
  *
- * Shawn chose Mocha and tapped Skip. The shop decided it already had his
+ * Shawn chose Mocha and tapped Skip. The base decided it already had his
  * door, from a street saved in Georgetown and a pin saved in Uitvlugt, and
  * put all three on one card: a Georgetown address, a Uitvlugt map link, a
  * Mocha price. Skip had quietly come to mean "use whatever you have, from

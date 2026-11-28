@@ -1,9 +1,9 @@
 /**
- * Watching whether WhatsApp is actually carrying the shop's messages.
+ * Watching whether WhatsApp is actually carrying the base's messages.
  *
- * The shop sent 165 messages, Meta accepted all 165, and delivered 20 of
+ * The base sent 165 messages, Meta accepted all 165, and delivered 20 of
  * them nowhere: `(131042) Message failed to send because your WhatsApp
- * Business account has unsettled payments`. From the shop's side everything
+ * Business account has unsettled payments`. From the base's side everything
  * looked sent. From the customer's side it had gone quiet. That ran for
  * nineteen hours and the first anybody knew was somebody noticing.
  *
@@ -33,7 +33,7 @@ import { sendText } from './channels/whatsapp-send.ts';
 const nl = String.fromCharCode(10);
 
 /**
- * Meta's codes for "the shop itself is the problem".
+ * Meta's codes for "the base itself is the problem".
  *
  * Matched on the number rather than the words, because the words change —
  * the same block read "unsettled payments" at nine o'clock and "one or more
@@ -109,7 +109,7 @@ export async function noteDeliveryFailure(
     if (state.alertNow) {
       await raise(
         [
-          '🛑 *WhatsApp is not delivering the shop’s messages.*',
+          '🛑 *WhatsApp is not delivering the base’s messages.*',
           '',
           `Meta refused delivery to +${phone}:`,
           reason || `error ${code}`,
@@ -140,7 +140,7 @@ export async function noteDeliveryFailure(
   }
 }
 
-/** A message that arrived. Which is also how the shop learns it is well again. */
+/** A message that arrived. Which is also how the base learns it is well again. */
 export async function noteDeliverySuccess(now = new Date()): Promise<void> {
   const healed = repo.noteSendSuccess(now);
   if (!healed) return;

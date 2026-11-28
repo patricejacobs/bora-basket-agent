@@ -1,26 +1,26 @@
 /**
- * Going back to the people the shop had to turn away.
+ * Going back to the people the base had to turn away.
  *
  * A customer who asks for a car when nobody is on the road is told no. That
  * much is honest and unavoidable. What was not honest was what came next:
  *
  *   "Message me when you are ready and I will check again straight away."
  *
- * He WAS ready. He had given the shop his pickup, his destination, how many
- * of them there were and that they had no luggage, and the shop had written
- * every word of it down. The only party not ready was the shop — and the
+ * He WAS ready. He had given the base his pickup, his destination, how many
+ * of them there were and that they had no luggage, and the base had written
+ * every word of it down. The only party not ready was the base — and the
  * sentence put the next move on him, so the booking it was holding would sit
  * there until he thought to ask again. Most people do not ask twice.
  *
  * So the waiting is recorded where it belongs. When an associate comes on
- * duty, the shop goes back to whoever it turned away, with what they asked
+ * duty, the base goes back to whoever it turned away, with what they asked
  * for read back to them and one tap to go ahead.
  *
  * Two rules decide who hears about it, and they differ by service because
  * the jobs differ:
  *
  *   a delivery or a parcel QUEUES. One associate on the road can take Ann's
- *   order and three more behind it, which is how the shop has always worked,
+ *   order and three more behind it, which is how the base has always worked,
  *   so everybody waiting for one is told.
  *
  *   a ride does NOT queue. Four people standing at Kitty need a car now, and
@@ -64,7 +64,7 @@ export function recordTurnedAway(
   repo.noteWaiting(phone, service, summary, payload);
 }
 
-/** What the shop says when there is nobody out. Held basket included. */
+/** What the base says when there is nobody out. Held basket included. */
 export function nobodyOutMessage(lang: Language, held: string): OutboundMessage {
   return {
     kind: 'text',
@@ -72,7 +72,7 @@ export function nobodyOutMessage(lang: Language, held: string): OutboundMessage 
       t('nobody_out', lang),
       ...(held ? [t('nobody_out_held', lang, { what: held })] : []),
       '',
-      // Only promised when the shop can keep it. With the list switched off
+      // Only promised when the base can keep it. With the list switched off
       // there is nothing coming, and saying otherwise is the original fault
       // wearing better clothes.
       config.waitingListMinutes > 0 ? t('nobody_out_back', lang) : t('wait_dropped', lang),

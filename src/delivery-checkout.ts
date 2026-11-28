@@ -1,5 +1,5 @@
 /**
- * Checkout as a fixed sequence, run by the shop.
+ * Checkout as a fixed sequence, run by the base.
  *
  * A restaurant order used to end in a conversation: the agent asked for an
  * address, then a pin, then a name, in whatever order it thought best, and
@@ -14,7 +14,7 @@
  *   pin    → send the exact spot, or skip
  *   street → only when they skipped: the lot number and road
  *   note   → anything for the person at the door
- *   name   → only when the shop does not know it
+ *   name   → only when the base does not know it
  *   gate   → the whole price, with Book it / Change destination / Cancel
  *
  * The gate is the taxi's gate, word for word in shape: the figure is put in
@@ -115,7 +115,7 @@ export function pinLooksWrong(
   // One answer, and it is a better pin.
   //
   // There used to be a second button saying the spot was right. It was the
-  // wrong thing to offer: the shop is not asking for a preference, it is
+  // wrong thing to offer: the base is not asking for a preference, it is
   // saying the map does not agree with the village, and the tap that waves
   // that away costs somebody else a ride across the country. A customer who
   // really does live past the village line has a way through that is not a
@@ -142,7 +142,7 @@ export function pinLooksWrong(
  * A question with two real answers, because either one of them can be the
  * mistake. They may have tapped the wrong row off a list of 185 places and
  * typed their own address correctly; or they chose their village correctly
- * and typed an address with somebody else's village in it. The shop cannot
+ * and typed an address with somebody else's village in it. The base cannot
  * tell, and guessing either way sends an associate to the wrong coast.
  *
  * So both are offered, and the figure is on the message: changing the
@@ -231,12 +231,12 @@ export function priceGate(phone: string, lang: Language): OutboundMessage {
   // going have to be ON this message: `place_order` refuses an order whose
   // identity has not been put to the customer, and it is right to - an
   // order placed against a name nobody checked is a parcel at the wrong
-  // door with the shop's word for it.
+  // door with the base's word for it.
   // Only a pin that belongs to THIS order's place is worth printing. The
   // label on a stale one is worse than silence: Shawn read
   // "(VMGW+PR7, Estate Rd, Uitvlugt, Guyana)" under a Mocha price, which is
   // a plus-code for a village he had not mentioned, and no way to tell
-  // whether the shop had understood him.
+  // whether the base had understood him.
   const pinIsHere = savedPinIsIn(phone, place);
   // And the same question of the STREET, which was never asked here.
   //
@@ -355,7 +355,7 @@ export function nextAfter(
   const hasPin = parcel ? draft?.destination !== null : savedPinIsIn(phone, going);
 
   // Nothing stands between the address and the price that is not strictly
-  // needed to place the order. A name is asked only when the shop has none;
+  // needed to place the order. A name is asked only when the base has none;
   // a street only when there is neither a pin nor an address on file. Both
   // are exceptions, not steps: walking it showed that four questions
   // between choosing a village and seeing the figure is three too many.
@@ -378,7 +378,7 @@ export function nextAfter(
       return hasPin || hasStreet ? toThePrice() : askStreet(phone, going, lang);
     case 'skip':
       // A pin they sent EARLIER is still a door. Asking for a lot number
-      // from somebody whose exact spot the shop already holds is asking
+      // from somebody whose exact spot the base already holds is asking
       // them to say it twice, and skipping a second time - after changing
       // the address, say - is not a reason to start demanding streets.
       return hasPin || hasStreet ? toThePrice() : askStreet(phone, going, lang);
@@ -419,7 +419,7 @@ export async function placeTheOrder(phone: string, lang: Language): Promise<Outb
   // place_order refuses it either way, but its reason is written for a model
   // and this path has no model in it: the refusal came back as
   // `checkout_failed` — "Something went wrong placing that" — to somebody
-  // who had just tapped Book it. The shop knew exactly what was wrong and
+  // who had just tapped Book it. The base knew exactly what was wrong and
   // said none of it, and the order was forgotten as well.
   if (!repo.anyoneOnDuty()) {
     const { recordTurnedAway, nobodyOutMessage } = await import('./waiting-list.ts');
@@ -434,7 +434,7 @@ export async function placeTheOrder(phone: string, lang: Language): Promise<Outb
 
     recordTurnedAway(phone, parcelNow ? 'parcel' : repo.getService(phone) || 'grocery', held);
     // Out of the sequence, basket untouched. The way back in is the message
-    // the shop sends when somebody clocks on, not a gate left hanging.
+    // the base sends when somebody clocks on, not a gate left hanging.
     endCheckout(phone);
     return [nobodyOutMessage(lang, held)];
   }

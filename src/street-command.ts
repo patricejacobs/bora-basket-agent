@@ -1,14 +1,14 @@
 /**
- * Teaching the shop a street, and reading back what it does not know.
+ * Teaching the base a street, and reading back what it does not know.
  *
- * The shop learns streets from finished deliveries and from the map, and
+ * The base learns streets from finished deliveries and from the map, and
  * both are slow: a delivery has to happen, and the map has what the map
  * has, spelled the way a surveyor spelled it. Meanwhile an associate who
  * has driven Georgetown for years knows exactly where a street is, and one
  * message is the whole cost of asking them.
  *
  *     street Garnet Street = Kitty     teaches it, at once
- *     street Garnet Street             what the shop has
+ *     street Garnet Street             what the base has
  *     streets                          what it has been asked and cannot place
  *
  * The last one is the point of the other two. A street nobody could place
@@ -62,7 +62,7 @@ export function answerStreetCommand(cmd: StreetCommand): string {
       return '🛣 Nothing outstanding — every street anybody has asked about is placed.';
     }
     return [
-      `🛣 *${missing.length} street(s) the shop cannot place*`,
+      `🛣 *${missing.length} street(s) the base cannot place*`,
       '',
       ...missing.map(
         (m) => `• ${m.wrote || m.street} — asked ${m.asked} time${m.asked === 1 ? '' : 's'}`,
@@ -76,7 +76,7 @@ export function answerStreetCommand(cmd: StreetCommand): string {
     const places = repo.areasForStreet(cmd.street);
     if (places.length === 0) {
       return [
-        `🛣 The shop cannot place *${cmd.street}*.`,
+        `🛣 The base cannot place *${cmd.street}*.`,
         '',
         `Teach it with \`street ${cmd.street} = <the area>\`.`,
       ].join(nl);
@@ -95,7 +95,7 @@ export function answerStreetCommand(cmd: StreetCommand): string {
     ].join(nl);
   }
 
-  // Teaching it. The place has to be one the tariff carries, or the shop
+  // Teaching it. The place has to be one the tariff carries, or the base
   // has learned something it cannot price from — which is the only reason
   // it wanted to know.
   const known = findZone(cmd.place);
@@ -110,7 +110,7 @@ export function answerStreetCommand(cmd: StreetCommand): string {
   const key = streetKey(cmd.street);
   if (!key) {
     return [
-      `🛣 *${cmd.street}* is not a street name the shop can file.`,
+      `🛣 *${cmd.street}* is not a street name the base can file.`,
       '',
       'It needs the kind of road in it — street, road, dam, scheme, avenue.',
     ].join(nl);
@@ -122,8 +122,8 @@ export function answerStreetCommand(cmd: StreetCommand): string {
   return [
     `🛣 Noted — *${cmd.street}* is in *${known.match.place}*.`,
     ...(now.length > 1
-      ? ['', `It is also on file for ${now.filter((p) => p.place !== known.match.place).map((p) => p.place).join(', ')}, so the shop will still ask which one.`]
-      : ['', 'The shop will use it from now on.']),
+      ? ['', `It is also on file for ${now.filter((p) => p.place !== known.match.place).map((p) => p.place).join(', ')}, so the base will still ask which one.`]
+      : ['', 'The base will use it from now on.']),
   ].join(nl);
 }
 

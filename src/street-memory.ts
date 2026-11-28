@@ -1,5 +1,5 @@
 /**
- * The shop learning its customers' streets.
+ * The base learning its customers' streets.
  *
  * The tariff is 185 village names. "Lot 20 Garnet Street" is not one of
  * them, so a trip from it could not be priced and went out as "the fare is
@@ -9,7 +9,7 @@
  * customer has already answered.
  *
  * Nobody is going to type a street index for Guyana, and no tariff will
- * ever carry one. But the shop finishes deliveries all day, and every
+ * ever carry one. But the base finishes deliveries all day, and every
  * finished one is a street and a village that were right: somebody drove
  * there and handed over a bag. So it remembers the pairs it has already
  * proved, and after a few weeks it knows the streets its own customers
@@ -57,7 +57,7 @@ export function streetKey(written: string, place = ''): string {
   //
   // "The yellow house by the mosque" is a perfectly good address and a
   // useless key: it will never be written the same way twice, and
-  // remembering it teaches the shop nothing. A street says so — street,
+  // remembering it teaches the base nothing. A street says so — street,
   // road, dam, scheme, avenue — and those are the ones worth keeping.
   if (said.length < 4) return '';
   if (!/\b(street|road|avenue|lane|dam|scheme|highway|drive|place|way|circle|crescent|boulevard|alley|walk)\b/.test(said)) {
@@ -69,5 +69,5 @@ export function streetKey(written: string, place = ''): string {
   return said;
 }
 
-/** Everything the shop would need to say about a remembered street. */
+/** Everything the base would need to say about a remembered street. */
 export type StreetGuess = { place: string; seen: number };

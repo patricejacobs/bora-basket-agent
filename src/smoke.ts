@@ -2446,7 +2446,7 @@ section('Location pins');
     String(placed.say),
   );
   check('which name no shop the customer never saw', /the shop confirms it/.test(String(placed.say)), String(placed.say));
-  check('and speak as the shop, not as one person', /we'll let you know/.test(String(placed.say)), String(placed.say));
+  check('and speak as the base, not as one person', /we'll let you know/.test(String(placed.say)), String(placed.say));
   check('with no money in them', !/\$/.test(String(placed.say)), String(placed.say));
   // No money on an order nobody has accepted. The shop may refuse it and the
   // kitchen may be shut, so a sum beside a payment method reads as a bill for
@@ -2585,7 +2585,7 @@ section('Delivery area');
   quoted(farPhone);
   const refused = farCall('place_order', { payment_method: 'cash_on_delivery' });
   check('checkout refuses an out-of-area pin', typeof refused.error === 'string', JSON.stringify(refused).slice(0, 120));
-  check('the refusal says how far out it is', String(refused.error).includes('km from the shop'), refused.error);
+  check('the refusal says how far out it is', String(refused.error).includes('km from the base'), refused.error);
   check('and routes it to staff rather than refusing the customer', String(refused.error).includes('staff member will confirm'));
   check('and forbids inventing a surcharge', String(refused.error).includes('do not offer a surcharge'));
   check('nothing was placed', repo.recentOrders(farPhone, 5).length === 0);
@@ -3631,7 +3631,7 @@ section('Kitchen and delivery associate commands');
   }
 
   const notRiders = (await handleDriverMessage(`${ref} cancel`))[0]?.text ?? '';
-  check('a delivery associate cannot cancel', notRiders.includes('for the shop'), notRiders);
+  check('a delivery associate cannot cancel', notRiders.includes('for the base'), notRiders);
 
   // End to end: tapping the kitchen's button has to drive the order to ready,
   // because the title IS the command — a title that does not parse is a button
@@ -7255,7 +7255,7 @@ section('Shopping by number');
   check('the prompt opens with the aisles', /Reply with a number/.test(SYSTEM_PROMPT));
   check('aisles numbered, items lettered', /Aisles are numbered; items are lettered/.test(SYSTEM_PROMPT));
   check('and never a numbered product list', /Never number a list of products/.test(SYSTEM_PROMPT));
-  check('tells it never to resolve numbers itself', /only the shop can resolve/.test(SYSTEM_PROMPT));
+  check('tells it never to resolve numbers itself', /only the base can resolve/.test(SYSTEM_PROMPT));
   // Numbers are the easy path, not the only one.
   check('and that typing what you want still works', /not trapped in it/i.test(SYSTEM_PROMPT));
 
@@ -9497,7 +9497,7 @@ section('Delivering to somebody other than the buyer');
   // guard inside applyStatus is a second line of defence for a future caller
   // and is deliberately unreachable from here - which is why this asserts the
   // handler's own words rather than that one's.
-  check('and told it is not theirs to decide', /Anything else is for the shop/i.test(refused), refused);
+  check('and told it is not theirs to decide', /Anything else is for the base/i.test(refused), refused);
 
   // A wrong code must never move the order, and never touch another one.
   const wrong = repo.deliveryCodeFor(safe.orderNo) === '1111' ? '2222' : '1111';
@@ -13347,7 +13347,7 @@ section('A priced village is a place the shop serves');
   const warnText = (warned[0] as { text?: string })?.text ?? '';
   check('taking a job nobody priced asks first',
     warned[0]?.kind === 'buttons' && /no village we price/.test(warnText), warnText.slice(0, 120));
-  check('with the distance on it', /km from the shop/.test(warnText), warnText.slice(0, 120));
+  check('with the distance on it', /km from the base/.test(warnText), warnText.slice(0, 120));
   check('and it is NOT theirs yet',
     repo.findOrder(stray.orderNo)?.status === 'ready',
     repo.findOrder(stray.orderNo)?.status);
@@ -15658,6 +15658,48 @@ section('An associate can tell the shop where a street is');
   check('the worklist reads as work', /cannot place/.test(worklist), worklist.slice(0, 70));
   check('and tells them how to clear a line',
     /street Garnet Street = Kitty/.test(worklist), worklist.slice(-60));
+}
+section('The base dispatches, the shop sells');
+{
+  const { SYSTEM_PROMPT: prompt8 } = await import('./agent/system-prompt.ts');
+  const { handleStaffMessage: staffSay8, handleDriverMessage: driverSay8 } =
+    await import('./staff.ts');
+  const flat8 = prompt8.split(String.fromCharCode(10)).join(' ');
+
+  // One business does four things and one word could not carry all of them:
+  // somebody booking a car is not talking to a shop. The agent is told
+  // which word goes with which hat, because it is the one that says it.
+  check('the agent is told what to call the place it works',
+    /The base dispatches; the shop sells/.test(flat8), '');
+  check('and that "we" is usually better than either',
+    /is shorter and warmer/.test(flat8), '');
+  check('and never to reach for company, platform or app',
+    /Never call it a company, a platform, a service, an app or a system/.test(flat8), '');
+
+  // The grocery side keeps its own word, in the two places a customer sees
+  // it at all — the catalogue header and the checkout label.
+  const { t: t8 } = await import('./language.ts');
+  check('the catalogue still calls itself the shop',
+    /The shop/.test(t8('aisles_head', 'en', { n: '12' })), t8('aisles_head', 'en', { n: '12' }));
+  check('and so does the checkout label', t8('checkout_the_shop', 'en') === 'The shop');
+
+  // A stand is where one associate waits their turn; the base is the whole
+  // operation. The old word still works, because nobody should be told "I
+  // don't understand" for a word that worked yesterday.
+  const byStand = (await staffSay8('stand Rider One Diamond', '5926497570'))[0]?.text ?? '';
+  check('an associate can be given a stand', /works from \*Diamond\*/.test(byStand),
+    byStand.slice(0, 70));
+  const byBase = (await staffSay8('base Rider One Kitty', '5926497570'))[0]?.text ?? '';
+  check('and the old word still works', /works from \*Kitty\*/.test(byBase),
+    byBase.slice(0, 70));
+  check('the help teaches the new one',
+    ((await staffSay8('help', '5926497570'))[0]?.text ?? '').includes('`stand <name> <place>`'));
+  check('while the associate help does not, because it is not their call',
+    !((await driverSay8('help'))[0]?.text ?? '').includes('`stand <name> <place>`'));
+
+  check('clearing it says stand, not base',
+    /no stand/.test((await staffSay8('stand Rider One none', '5926497570'))[0]?.text ?? ''),
+    (await staffSay8('stand Rider One none', '5926497570'))[0]?.text ?? '');
 }
 section('No button is a dead button');
 {

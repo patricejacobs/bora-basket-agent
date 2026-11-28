@@ -7,7 +7,7 @@
  * twenty-five by road, and `location.ts` says so in as many words. A zone
  * knows the bridge is there.
  *
- * Read from a CSV so the shop can edit its own prices without a deploy, and
+ * Read from a CSV so the base can edit its own prices without a deploy, and
  * re-read on every boot. The place name is what gets stored against a
  * customer, never the figure - a price changed in the file must reprice the
  * next order rather than leaving a number nobody charges any more.
@@ -17,7 +17,7 @@ import path from 'node:path';
 import { config, money } from './config.ts';
 
 export type Zone = {
-  /** The name as the shop wrote it, which is what gets read back to a customer. */
+  /** The name as the base wrote it, which is what gets read back to a customer. */
   place: string;
   /** The band it belongs to, for the receipt and the associate's card. */
   zone: string;
@@ -41,7 +41,7 @@ export type ZoneMatch = Zone & {
 };
 
 export type ZoneLookup =
-  /** One place, and the shop is sure of it. Still read it back before quoting. */
+  /** One place, and the base is sure of it. Still read it back before quoting. */
   | { kind: 'found'; match: ZoneMatch }
   /**
    * Several places fit and they are not the same price, so nothing can be
@@ -104,7 +104,7 @@ let tried = false;
  *
  * Loads the file on first use rather than waiting to be asked. The server
  * loads it at boot anyway; this is so the test suite, the walkthroughs and the
- * card gallery price a delivery the same way the shop does, instead of
+ * card gallery price a delivery the same way the base does, instead of
  * quietly falling back to the flat fee and proving nothing.
  */
 export function zones(): Zone[] {
@@ -123,7 +123,7 @@ export function zoneCount(): number {
  * The tariff in the order the file lists it, which runs outward from town.
  *
  * `zones()` sorts by name length, because that is the order matching has to
- * read it in. A list put in front of a customer needs the shop's own order
+ * read it in. A list put in front of a customer needs the base's own order
  * instead: "Georgetown, Kingston, Cummingsburg" is a road, and the same places
  * sorted by how long their names are is nothing at all.
  */
@@ -154,7 +154,7 @@ export function placesIn(corridor: string): Zone[] {
 
 /**
  * Loads the tariff from disk. Called once at boot; silent when there is no
- * file, because a shop that has not written one simply charges its flat fee.
+ * file, because a base that has not written one simply charges its flat fee.
  */
 export function loadZonesFromDisk(): number {
   const where = config.store.zonesPath;
@@ -348,7 +348,7 @@ export function allowance(name: string): number {
  * is priced as Bagotville and always was — but what got written down, read
  * back and put in front of the passenger was the typing. So a passenger was
  * asked to agree to `Bagotvile`: a place that does not exist, at a price
- * they cannot check against anything, with no way to tell whether the shop
+ * they cannot check against anything, with no way to tell whether the base
  * had understood them or guessed.
  *
  * Only a SPELLING match is rewritten, which is what `exact: false` means
@@ -438,7 +438,7 @@ function lookupZone(said: string): ZoneLookup {
      
      Without this, "Diamond" was answered with Little Diamond - which is a
      real village containing the whole of what the customer said, so the
-     next rule claimed it, and the shop read back the wrong name. The price
+     next rule claimed it, and the base read back the wrong name. The price
      happened to be the same, which is worse: nothing would have caught it. */
   const named = table.find((z) => plain(z.place) === said);
   if (named) return { kind: 'found', match: { ...named, exact: true, distance: 0 } };
@@ -555,7 +555,7 @@ export function describeZone(z: { zone: string; fee: number }): string {
 /**
  * The cheapest fee in the tariff: a delivery that goes nowhere.
  *
- * Read from the file rather than written down, so a shop that reprices its
+ * Read from the file rather than written down, so a base that reprices its
  * own tariff reprices this with it. Every fare below is this plus the road.
  */
 function baseFee(): number {
@@ -605,7 +605,7 @@ export type Fare = {
  * What it costs to carry something from one place to another.
  *
  * The tariff prices ONE journey — out of Georgetown — which is the right
- * answer for a delivery, because the shop is always at one end of it. A
+ * answer for a delivery, because the base is always at one end of it. A
  * parcel is a two-ended job the same table can only half-describe: priced by
  * its destination alone, a parcel from Parika to Diamond costs what a
  * Diamond delivery costs, and nobody is paid for the seventy kilometres in
@@ -616,7 +616,7 @@ export type Fare = {
  * you come into town and go back out. The bridge is charged once.
  *
  * It reduces to the tariff exactly whenever one end is Georgetown, which is
- * every delivery the shop makes — so this is a generalisation of the existing
+ * every delivery the base makes — so this is a generalisation of the existing
  * prices, not a second set of them.
  *
  * Null when either end is not in the tariff: better no figure than one made

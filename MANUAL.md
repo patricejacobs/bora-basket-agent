@@ -1,6 +1,7 @@
+
 # Next Minute Delivery — Manual
 
-How to run the service, written for the people who use it: the shop, the
+How to run the service, written for the people who use it: the base, the
 delivery associates, the kitchens.
 
 This is the **manual**. [README.md](README.md) is the engineering record — why
@@ -15,7 +16,7 @@ commit as the change it describes, so if it is behind the agent, that is a bug.
 ## Contents
 
 1. [What the service does](#1-what-the-service-does)
-2. [For the shop](#2-for-the-shop)
+2. [For the base](#2-for-the-shop)
 3. [For delivery associates](#3-for-delivery-associates)
 4. [For restaurants](#4-for-restaurants)
 5. [What a customer sees](#5-what-a-customer-sees)
@@ -31,6 +32,27 @@ commit as the change it describes, so if it is behind the agent, that is a bug.
 
 ## 1. What the service does
 
+### What to call things
+
+**The base dispatches; the shop sells.** One business does four things, and
+one word could not carry all of them: a passenger booking a car is not
+talking to a shop, and somebody choosing rice is not talking to a dispatcher.
+So the thing that knows your streets, clocks associates on, prices a trip and
+sends a car is **the base** — what taxi people here have always called it.
+The thing with twelve aisles and a basket is **the shop**.
+
+| | |
+|---|---|
+| **The base** | Dispatch, duty, zones, streets, pins, jobs, fares |
+| **The shop** | The catalogue, the aisles, the basket, the checkout |
+| **A stand** | Where one associate works from — `stand rohan Diamond` |
+| **Chauffeur** | An associate while they are carrying a passenger |
+| **Delivery associate** | The same person carrying groceries, food or a parcel |
+
+Customers see almost none of this: the only places the word appears in front
+of a customer are the catalogue header and the checkout label, both of which
+say *the shop*, because that is what a grocery customer is talking to.
+
 Customers message one WhatsApp number. An agent answers, takes the order and
 runs it through to the door. There are four services:
 
@@ -45,7 +67,7 @@ runs it through to the door. There are four services:
 Three kinds of people work the other side of it, and each is recognised purely
 by the number they message from:
 
-- **Staff** — the shop. Sees everything, can move any order.
+- **Staff** — the base. Sees everything, can move any order.
 - **Delivery associates** — collect and deliver. Nothing else is theirs to decide.
 - **Kitchens** — accept, cook, hand over. Never see a customer's address.
 
@@ -64,8 +86,8 @@ no float, and a $10,000 note against a $3,450 order is a doorstep
 conversation neither of them can win.
 
 **A bare hour is half a time.** "Five" is five in the evening to most people
-and five in the morning to a shop that takes it literally. Four words settle
-it — *"5 in the evening?"* — and the shop never assumes the one that suits
+and five in the morning to a base that takes it literally. Four words settle
+it — *"5 in the evening?"* — and the base never assumes the one that suits
 it.
 
 **Dates day-first, clock in twelve hours.** `Fri 27 Nov`, `4:30 PM`. Never
@@ -81,28 +103,28 @@ row is a machine, and people hear it.
 
 **Never substitute.** Not a similar brand, not a bigger tin, not "the
 closest thing we have". Somebody who asked for Karibee rice and is handed
-another brand at their door has been overruled by a shop that was guessing.
+another brand at their door has been overruled by a base that was guessing.
 Say what is not there, say what is, and let them choose. (The rule used to
 be "not without asking". It is now absolute.)
 
 **Nothing illegal, dangerous or that looks stolen.** The tools refuse
 weapons already, but the judgement is wider than a list: a parcel nobody
 will describe, a price that makes no sense, an address they will not give.
-Nobody is accused — the shop says it will confirm this one, and asks for a
+Nobody is accused — the base says it will confirm this one, and asks for a
 person.
 
 **Somebody being abusive gets one calm reply**, with no lecture about how to
-speak to the shop and no matching their tone. If it carries on it goes to a
+speak to the base and no matching their tone. If it carries on it goes to a
 person. The chat is never ended mid-sentence.
 
-**What the shop remembers is to save them typing, not to be recited.** "The
-usual address in Diamond?" is a shop that knows them; reading back their
-address, their last four orders and their number is a shop that has been
+**What the base remembers is to save them typing, not to be recited.** "The
+usual address in Diamond?" is a base that knows them; reading back their
+address, their last four orders and their number is a base that has been
 watching them.
 
-### The shop says it once
+### The base says it once
 
-Reported from the live shop:
+Reported from the live base:
 
 ```
 ✅ Booked — trip *TXI-00033*.
@@ -113,22 +135,22 @@ That's with the chauffeurs now — I'll come back to you here as soon as
 someone's on the road.
 ```
 
-Two messages, one fact. The second is the shop talking to itself.
+Two messages, one fact. The second is the base talking to itself.
 
 The guard that was meant to stop this compares the **words**, so it catches a
-repeat and misses a **paraphrase**. Now, once the shop has said something of
+repeat and misses a **paraphrase**. Now, once the base has said something of
 its own, the model's line has to earn its place: it stays if it carries a
-figure, a number or a time the shop's words do not, and goes otherwise.
+figure, a number or a time the base's words do not, and goes otherwise.
 Blunt, deliberately — the cost of dropping a pleasant sentence is nothing,
-and the cost of keeping a redundant one is a shop that sounds like it is
+and the cost of keeping a redundant one is a base that sounds like it is
 padding.
 
-### Where a street is, the shop looks up
+### Where a street is, the base looks up
 
 **The agent does not know Guyana's streets and is forbidden from saying it
 does.** Not which ward, not which village, not "that's in Georgetown". The
 names repeat — twenty-three First Streets and twenty-four East Bank Roads
-in the shop's own index — and the answer decides what a trip costs and
+in the base's own index — and the answer decides what a trip costs and
 where a car is sent. A confident wrong answer is worse than none, because
 nobody checks it until a chauffeur is standing in the wrong ward.
 
@@ -136,11 +158,11 @@ A rule forbidding a guess is useless without a way to look it up, so the
 tool is the point and the rule is the manners. `where_is_street` is called
 whenever a street's location matters — somebody asking, somebody giving one
 as a pickup, or the agent about to say where one is for any reason — and it
-answers only from the shop's own index:
+answers only from the base's own index:
 
 | It finds | The agent says |
 |---|---|
-| One place | That place, and **asks them to confirm** — the shop can be wrong about a street |
+| One place | That place, and **asks them to confirm** — the base can be wrong about a street |
 | Several | Names them and asks which. **Never chooses** |
 | Nothing | *"I'm not sure which area that one is in — which village is it?"* |
 
@@ -148,23 +170,23 @@ answers only from the shop's own index:
 it "must" be.
 
 And it carries **where each answer came from**, because the two sources are
-not equally strong. A street the shop has *delivered to* is proof — somebody
+not equally strong. A street the base has *delivered to* is proof — somebody
 drove there. A street *from the map* is a reading, and gets a lighter word:
 *"I have that as Kitty — is that right?"* rather than *"that's in Kitty"*.
 
 Same rule as prices, stock and times: the agent does not invent facts about
-the world, it reads them from the shop.
+the world, it reads them from the base.
 
-### The streets the shop has never been to
+### The streets the base has never been to
 
-The memory below only knows streets the shop has delivered to, which on the
+The memory below only knows streets the base has delivered to, which on the
 first day is none of them. OpenStreetMap knows them already.
 
 ```powershell
 npm run streets
 ```
 
-Asks Overpass for every named street in the strip the shop serves and every
+Asks Overpass for every named street in the strip the base serves and every
 ward and village marked on it, pairs each street with the **nearest marker
 the tariff carries**, and writes `data/streets.csv`. No key, no account,
 nothing applied — a CSV for a person to read, the way `npm run roads`
@@ -173,7 +195,7 @@ writes its own. The run that produced the committed file:
 ```
 4400 named ways on the map, 266 markers the tariff carries.
 1275 street-and-place pairs written to data/streets.csv
-210 street name(s) occur in more than one place — the shop will ask.
+210 street name(s) occur in more than one place — the base will ask.
 ```
 
 **How near is near enough depends on the place, not the tile.** Georgetown's
@@ -191,7 +213,7 @@ depends on which rectangle a street happened to be fetched in is not a rule
 about anything. It belongs to the marker, and now no Georgetown street sits
 more than **0.59 km** from its ward.
 
-The shop reads it at boot. **Map rows go in at a count of zero**, which is
+The base reads it at boot. **Map rows go in at a count of zero**, which is
 the whole point: a street somebody actually delivered to has a count, and a
 count outranks a line from a map. Among the map's own guesses, the nearest
 marker comes first.
@@ -216,10 +238,10 @@ tail of 19 does not:
 | `second street` · `first street` | 24 · 23 |
 | `west bank road` · `west demerara highway` | 18 · 12 |
 
-One road through twenty-eight villages tells the shop nothing — saying you
+One road through twenty-eight villages tells the base nothing — saying you
 are on the East Bank Road is close to saying you are on the coast — and
 offering three of them is a guess dressed as a question. **Above six places
-the shop offers nothing and asks plainly instead.** Below six it offers what
+the base offers nothing and asks plainly instead.** Below six it offers what
 it has, nearest marker first.
 
 The rows are kept rather than deleted, because **a delivery outranks the
@@ -246,8 +268,8 @@ well mapped, lanes and newer schemes are thinner, which is why the memory
 exists beside it. It is also spelled the way a surveyor spelled it rather
 than the way a customer writes it — the map holds Garnet Street as
 **`garnett street`**, with two t's, and until names were matched by sound
-the shop could not see the four wards it had been holding all along. Street
-names repeat, so 222 of them carry more than one ward and the shop asks
+the base could not see the four wards it had been holding all along. Street
+names repeat, so 222 of them carry more than one ward and the base asks
 rather than guessing. And it is a snapshot: re-run it to refresh, while deliveries
 keep correcting it every day.
 
@@ -255,15 +277,15 @@ The raw Overpass answers are cached under `data/overpass-cache/` so a second
 run does not ask a donated server the same large questions again. That
 folder is working material and is not committed; the CSV is.
 
-### The shop learns its customers' streets
+### The base learns its customers' streets
 
 Asking which ward a street is in works, and asking a regular the same
-question every week is the shop forgetting in front of them. So it
+question every week is the base forgetting in front of them. So it
 remembers.
 
 **Every finished delivery is a street and a village that were right** —
 somebody drove there and handed over a bag. That pair is kept, and after a
-few weeks the shop knows the streets its own customers live on:
+few weeks the base knows the streets its own customers live on:
 
 ```
 Shawn ▸ pick me up from Lot 20 Garnet Street, take me to Parika
@@ -305,7 +327,7 @@ serves rather than nothing.
 
 Village names have been matched by sound since the first week — doubled
 letters collapse, `c` and `k` are one letter, `ph` is `f`. The street index
-was the last place in the shop still demanding an exact spelling, so a
+was the last place in the base still demanding an exact spelling, so a
 customer who typed `Sherriff` was asked an open question about a street the
 shop knew perfectly well.
 
@@ -335,9 +357,9 @@ the *wrong* street sends a chauffeur to the wrong road:
 
 **One street is one set of rows, whoever spelled it.** This was found by
 driving the real thing: the map holds Garnet Street as `garnett street`, and
-teaching the shop `street Garnet Street = Kitty` filed a *second* street
+teaching the base `street Garnet Street = Kitty` filed a *second* street
 under the customer's spelling. That new row then matched exactly, so it
-shadowed the four wards the map had been holding — a street the shop half
+shadowed the four wards the map had been holding — a street the base half
 knew became one it was confidently wrong about. A street learned from a
 delivery or from an associate now joins the rows the index already has,
 when it nearly has them, and asking about one answers under the spelling
@@ -357,7 +379,7 @@ Rider One ▸ street garnet st
 
 ### The streets nobody can place are the worklist
 
-A street the shop could not place used to become a question and vanish.
+A street the base could not place used to become a question and vanish.
 Kept, the misses are a list of **exactly the streets customers ask for**,
 which beats any guess at where the index is thin — Garnet Street would have
 been top of it from the first week.
@@ -365,7 +387,7 @@ been top of it from the first week.
 ```
 Rider One ▸ streets
 
-◂ 🛣 *2 street(s) the shop cannot place*
+◂ 🛣 *2 street(s) the base cannot place*
 
   • Lot 3 Zebediah Street — asked 3 times
   • Hesperus Street — asked 1 time
@@ -374,12 +396,12 @@ Rider One ▸ streets
 ```
 
 Counted under the stripped name, so `Lot 3 Zebediah Street` and
-`zebediah st` are one line asked twice. A street the shop *can* place never
+`zebediah st` are one line asked twice. A street the base *can* place never
 reaches the list, however it was spelled. And learning one — from a
 delivery, from the map, or from the command below — takes it off, so the
 list stays a list of work rather than a log.
 
-### An associate can tell the shop where a street is
+### An associate can tell the base where a street is
 
 The two sources above are both slow: a delivery has to happen, and the map
 has what the map has. An associate who has driven Georgetown for years
@@ -391,13 +413,13 @@ Rider One ▸ street Garnet Street = Kitty
 
 ◂ 🛣 Noted — *Garnet Street* is in *Kitty*.
 
-  The shop will use it from now on.
+  The base will use it from now on.
 ```
 
 | | |
 |---|---|
 | `street Garnet Street = Kitty` | Teaches it. `is` and `in` work too |
-| `street Garnet Street` | What the shop has, and where it came from |
+| `street Garnet Street` | What the base has, and where it came from |
 | `streets` | The worklist above |
 
 Staff and associates both have it, and both help lists carry it.
@@ -406,7 +428,7 @@ Two things are refused, because a bad row in this index is worse than a
 missing one:
 
 - **A place the tariff does not carry.** A street in Atlantis could not be
-  priced, which is the only reason the shop wanted the ward at all.
+  priced, which is the only reason the base wanted the ward at all.
 - **A name with no kind of road in it.** `street Garnet = Kitty` is
   refused: Garnet could be a village, a person or a shop, and the key would
   never be written the same way twice.
@@ -438,7 +460,7 @@ It now asks for both, in one line, and says why:
 
 ### The gate reads back the door for this order
 
-Reported from the live shop, on the price gate itself:
+Reported from the live base, on the price gate itself:
 
 ```
 Delivery to Beterverwagting — $1,200
@@ -486,7 +508,7 @@ this one is going home, and the moment it is not, it is worse than nothing:
 specific, confident and wrong.
 
 The **pin** has had that test since the Uitvlugt pin turned up under a Mocha
-price. The written **address** never got it. The shop's own checkout guards
+price. The written **address** never got it. The base's own checkout guards
 it — that is what the street question is for — but the agent's `place_order`
 fell straight back to `customer.address` with no check at all, so an order
 placed through conversation rather than through checkout carried the home
@@ -506,7 +528,7 @@ thing.
 
 ### When WhatsApp stops carrying the messages
 
-The shop sent 165 messages. Meta accepted all 165 and delivered 20 of them
+The base sent 165 messages. Meta accepted all 165 and delivered 20 of them
 nowhere:
 
 ```
@@ -514,7 +536,7 @@ nowhere:
 has unsettled payments.
 ```
 
-From the shop's side everything read as sent — `outbound: attempted 165,
+From the base's side everything read as sent — `outbound: attempted 165,
 sent 165, failed 0` — because Meta accepts the call and fails the delivery
 afterwards, on a status webhook. That ran for nineteen hours. It was all
 visible the whole time, in a counter on `/health` and a line in the log,
@@ -536,7 +558,7 @@ Zapier all accept. With neither set, it says so in the log rather than
 failing quietly.
 
 ```
-🛑 *WhatsApp is not delivering the shop's messages.*
+🛑 *WhatsApp is not delivering the base's messages.*
 
 Meta refused delivery to +5926497570:
 (131042) ... unsettled payments.
@@ -554,11 +576,11 @@ fault, not a number to compare against one you did not write down.
 
 ### Why a conversation goes cold
 
-Silence is the worst answer the shop can give. It reads as a business that
+Silence is the worst answer the base can give. It reads as a business that
 has stopped listening, and the customer's next move is to stop writing. Four
 things could produce it, and three are now closed.
 
-**A message the shop wrote and threw away.** `assembleReply` forwarded
+**A message the base wrote and threw away.** `assembleReply` forwarded
 images, buttons, lists and pin requests from a tool's queue and dropped
 plain text — so the one tool that queued a sentence had it discarded while
 the model was told it had already gone out. Fixed; queued text is sent
@@ -592,13 +614,13 @@ doorstep, not the order — and never about the shape of it.
 
 It costs nothing on the day. It is the whole of the record in January, when
 somebody produces that message about a cash delivery and there is no card
-trail behind it. **This shop takes no cards; the receipt is the trail.**
+trail behind it. **This base takes no cards; the receipt is the trail.**
 
 ```
 🧾 *Receipt* — 24 Nov 2026, 2:12 pm
 ```
 
-The clock changed with it. The shop writes `2:12 pm` everywhere else now, so
+The clock changed with it. The base writes `2:12 pm` everywhere else now, so
 a receipt saying `14:12` disagreed with the message directly above it.
 
 ### Pleasantries are not small talk
@@ -621,7 +643,7 @@ Thanks, blessings and goodbyes are answered too — *"Any time"*, not silence
 and not straight back to the order. The warmth is **mirrored, never
 outrun**: somebody brisk gets brisk back.
 
-**And the guard had to be taught the difference.** The shop strips a
+**And the guard had to be taught the difference.** The base strips a
 greeting from its own reply once a conversation is under way — *"good
 evening"* is not a thing you say to somebody you have been talking to for
 five minutes. But it was blind to **who spoke first**, so a customer who
@@ -660,7 +682,7 @@ mockery from a business.
 **The road is a real thing.** Rain and flooding, the Demerara Harbour
 Bridge, East Bank traffic and power cuts all delay deliveries. When a
 customer raises one the agent takes it seriously rather than brightly, and
-it is one more reason the shop never promises a time.
+it is one more reason the base never promises a time.
 
 **Holidays** — Mashramani, Phagwah, Easter, Arrival Day, Independence,
 CARICOM Day, Emancipation, Eid, Youman Nabi, Diwali, Christmas, Old Year's
@@ -671,12 +693,12 @@ anybody's.
 gets **911 police, 912 fire, 913 ambulance** first, before anything about an
 order.
 
-**A landmark is an address.** The shop has always *accepted* one — "the
+**A landmark is an address.** The base has always *accepted* one — "the
 yellow house by the mosque" is taken as an address on purpose — but the
 question never said so, and somebody with no lot number thought they were
 stuck. It now asks for "lot number and road, or a landmark".
 
-### What the shop calls people
+### What the base calls people
 
 **Two names, and which one depends on the job — never on the person.** The
 same associate may carry a bag at noon and a passenger at four.
@@ -699,13 +721,13 @@ which always reads back as "delivery man" or plain "driver":
 A parcel is carried by a delivery associate **even though it goes in the
 same car**. Only a passenger makes a chauffeur.
 
-The agent is told this, and the shop's own fixed messages already obey it —
+The agent is told this, and the base's own fixed messages already obey it —
 but a prompt is a request, not a guard, so the suite reads every taxi string
 in all four languages and fails if any of them says "driver".
 
-## 2. For the shop
+## 2. For the base
 
-Send `help` to the shop number for this list at any time.
+Send `help` to the base number for this list at any time.
 
 ### The order queue
 
@@ -727,7 +749,7 @@ Send `help` to the shop number for this list at any time.
 | | |
 |---|---|
 | `ORD-00041` | A restaurant order |
-| `GRO-00042` | Groceries off the shop's own shelves |
+| `GRO-00042` | Groceries off the base's own shelves |
 | `PCL-00043` | A parcel |
 | `TXI-00044` | A taxi |
 
@@ -755,15 +777,15 @@ errand and collection services, so nobody picks letters that clash later.
 | `where` | Where the associates are, and when each was last seen |
 | `where rohan` | Ask one of them to share a fresh pin |
 | `zones` | Where the work is, against where the people are |
-| `base rohan Diamond` | The place an associate works from |
+| `stand rohan Diamond` | The place an associate works from — `base` still works |
 | `ratings` | What customers thought of it, by associate and by outlet |
 | `cash` | What each associate has collected today |
 | `change number <name> <new number>` | An associate has a new SIM — see §11 |
 | `7 history` | Everything that happened to order 7 |
 | `backup` | The trading record, sent to you here |
 | `wanted` | What customers asked for and you did not have |
-| `streets` | Streets customers asked about that the shop cannot place |
-| `street Garnet Street = Kitty` | Tell the shop where a street is |
+| `streets` | Streets customers asked about that the base cannot place |
+| `street Garnet Street = Kitty` | Tell the base where a street is |
 
 ### Reward points
 
@@ -980,7 +1002,7 @@ _Wayne has no base set, so they are counted in none of these bands._
 ```
 
 **A delivery is counted by where it went; a parcel or a taxi by where it
-started.** The shop is always one end of a delivery, so the other end is the
+started.** The base is always one end of a delivery, so the other end is the
 interesting one — but a parcel begins wherever the sender is, and that is
 where an associate has to be standing.
 
@@ -988,17 +1010,23 @@ where an associate has to be standing.
 Georgetown and seven up the East Bank are the same number and nothing like
 the same argument: one is a city round somebody is already doing, the other
 is seven trips up a highway. Jobs × the band's fee is the closest thing to
-"how much driving" the shop can know.
+"how much driving" the base can know.
 
-**Nobody is assumed to be anywhere.** An associate with no base is counted in
-no band, and the report says who they are — otherwise every line reads as a
-gap that may not be one.
+**Nobody is assumed to be anywhere.** An associate with no stand is counted
+in no band, and the report says who they are — otherwise every line reads as
+a gap that may not be one.
 
-`base <name> <place>` sets where somebody works from: `base Shanta Diamond`,
-or `base Shanta at Mon Repos` when either half is two words. The place is
-checked against the delivery tariff before it is saved, because a base the
-tariff does not recognise would simply never appear in the report and the
-shop would be left believing a coast was covered.
+`stand <name> <place>` sets where somebody works from: `stand Shanta
+Diamond`, or `stand Shanta at Mon Repos` when either half is two words. The
+place is checked against the delivery tariff before it is saved, because a
+stand the tariff does not recognise would simply never appear in the report
+and the base would be left believing a coast was covered.
+
+It is called a **stand** the way a taxi stand is where a car waits its turn,
+because **the base** is now the whole operation — the thing that dispatches.
+One word for two things is the sort of ambiguity that bites a year later.
+`base` still works and always will: nobody should be told *"I don't
+understand"* for a word that worked yesterday.
 
 **Nothing here changes a price or a dispatch.** It exists so the decision
 about where the next associate belongs is made from figures rather than from
@@ -1044,7 +1072,7 @@ record of hours worked.
 
 ### Who counts as one
 
-**The shop's own list of associates decides who gets offered work.** A number
+**The base's own list of associates decides who gets offered work.** A number
 in that list, marked active, is offered jobs and gets the associate commands.
 A number that is not in it is a customer, and is answered by the shopping
 agent.
@@ -1055,7 +1083,7 @@ their history and their cash on file. That is how somebody comes off the road.
 `DRIVER_NUMBERS` is a **seed, not the list**. Every number in it is written
 into the directory on the first boot that sees it, and then it is finished:
 later edits go to the directory. It is never applied twice, so a name or an
-`active = 0` set through the shop survives the next restart.
+`active = 0` set through the base survives the next restart.
 
 Before this there were two lists that never met. Dispatch offered every job to
 `DRIVER_NUMBERS` and nothing else, so a shop could import its associates, see
@@ -1072,10 +1100,10 @@ shop.** Meta only allows a free-form message within 24 hours of that number's
 last message *in*, so an associate who has never opened the chat cannot be
 sent anything at all. One message from them — `on` is enough — opens it.
 
-The shop now says so at boot rather than leaving it to be discovered:
+The base now says so at boot rather than leaving it to be discovered:
 
 ```
-[associates] +8673464384 (Wayne Jacobs) has never messaged the shop —
+[associates] +8673464384 (Wayne Jacobs) has never messaged the base —
              nothing can be sent to them until they do
 ```
 
@@ -1098,7 +1126,7 @@ window. `delivery.failed` is Meta taking it and finding nobody to give it to.
 The two have different fixes, so they are counted separately, and every
 undelivered message is logged with the number it was addressed to.
 
-Send `help` to the shop number for this list.
+Send `help` to the base number for this list.
 
 | Command | What it does |
 |---|---|
@@ -1117,7 +1145,7 @@ Send `help` to the shop number for this list.
 
 ### Booked, in writing
 
-Reported from the live shop: a passenger booked **two cars** and was never
+Reported from the live base: a passenger booked **two cars** and was never
 told either was booked. What reached them was the model's own reassurance —
 *"I'll let you know as soon as a car's on it"*, *"Nothing more needed from
 you"*, *"Right you are"* — with no job number, no fare, nothing they could
@@ -1126,7 +1154,7 @@ hold anybody to.
 A grocery order has had its own fixed confirmation since the beginning. A
 taxi had none: `book_taxi` handed the model the words and trusted it to
 pass them on, which is the one thing a message with a right answer and no
-judgement in it must never depend on. **The shop sends it now:**
+judgement in it must never depend on. **The base sends it now:**
 
 ```
 ✅ Booked — trip *TXI-00031*.
@@ -1142,7 +1170,7 @@ buttons, lists and pin requests from a tool's queue — and silently dropped
 plain text. So the one tool that queued a sentence, *"Asked your chauffeur
 about Zeelugt — nothing changes until they say so"*, had it thrown away
 every time, while the model was told it had already gone out and to say
-nothing more about it. The passenger got neither. The shop went quiet at
+nothing more about it. The passenger got neither. The base went quiet at
 exactly the moment it had something to say.
 
 Queued text is now sent, first, and the model's prose is dropped when it
@@ -1168,7 +1196,7 @@ which is the point — a driver told $3,500 at the kerb and a passenger shown
 $3,500 in the chat are not about to have an argument.
 
 Typed the way a tired person types one-handed, and read the same way every
-other place name in the shop is read:
+other place name in the base is read:
 
 | | |
 |---|---|
@@ -1196,18 +1224,18 @@ shrugged at — *"The tariff does not carry *Narnia*. Agree that one with the
 passenger."* A driver who asks a fair question and gets "I don't know" does
 not ask twice, and the next passenger gets a figure somebody invented.
 
-Whoever is running the shop can ask it the same way, since they are the one
+Whoever is running the base can ask it the same way, since they are the one
 on the telephone to a passenger asking what a trip costs.
 
 ### The rules
 
-**As many as you accept.** This shop runs with
+**As many as you accept.** This base runs with
 `MAX_JOBS_PER_ASSOCIATE=0` — no cap. Nothing is ever held back for being
 busy: a taxi booked while you are mid-delivery still reaches you, and two
 orders from one kitchen are one trip rather than a refusal.
 
 Set it to `1` for the strict rule — nothing new may be uplifted while an order
-is still undelivered, so the shop knows each associate is holding exactly one
+is still undelivered, so the base knows each associate is holding exactly one
 thing. The refusal repeats the whole job card, because the original is buried
 up the chat by then. Any number above 1 is that many at once.
 
@@ -1217,10 +1245,10 @@ waits and is offered again when they finish or somebody clocks on.
 `/health` reports `maxJobsPerAssociate` — the figure actually running, which
 settles it when the blueprint and the Render dashboard disagree. They did:
 `render.yaml` declared the key twice, as `0` and again as `1`, and until that
-field existed nothing said which of them the shop was obeying.
+field existed nothing said which of them the base was obeying.
 
 **Work as long as you choose.** The rolling cap is **off**
-(`ASSOCIATE_MAX_HOURS_PER_DAY=0`): the shop refuses nobody for hours. It used
+(`ASSOCIATE_MAX_HOURS_PER_DAY=0`): the base refuses nobody for hours. It used
 to answer `on` with
 
 ```
@@ -1229,7 +1257,7 @@ to answer `on` with
 The limit is 12. You can clock on again from 8:00 am.
 ```
 
-and that is now gone. Fatigue is the associate's call and the shop's to watch,
+and that is now gone. Fatigue is the associate's call and the base's to watch,
 not a figure in a config file. The cap still exists and can be put back with a
 number in Render; nothing about it was removed.
 
@@ -1240,7 +1268,7 @@ chat and is lost for the shifts that matter. For an associate still out
 working, though, the lapse was *silent* — the jobs simply stopped arriving,
 which from a saddle reads exactly like a shop with no work.
 
-A quarter of an hour before it runs out, the shop asks:
+A quarter of an hour before it runs out, the base asks:
 
 ```
 🛵 Still out, Shawn?
@@ -1294,7 +1322,7 @@ there is one.
 
 One thing to know before lifting it. The twelve-hour lapse is also what closes
 a shift somebody forgot to end. At 24 there is no automatic clock-off for a
-day, so an associate who forgets `off` stays on duty — and since the shop only
+day, so an associate who forgets `off` stays on duty — and since the base only
 takes orders while somebody is on duty, it will keep taking them. The *still
 out?* question moves with the override, so it arrives at the 24-hour mark
 instead of the 12-hour one: the one check on a forgotten shift arrives a day
@@ -1302,7 +1330,7 @@ late. Worth a word with whoever is working those days.
 
 ### Nobody on the road
 
-The shop refuses to take work it cannot carry: with no associate on duty,
+The base refuses to take work it cannot carry: with no associate on duty,
 an order, a parcel and a taxi are all turned down. That part is old and
 right — an order taken with nobody out is food packed for a counter.
 
@@ -1311,19 +1339,19 @@ given his pickup, his destination, four passengers and no luggage was told:
 
 > Message me when you are ready and I will check again straight away.
 
-He *was* ready. The shop was not, and the sentence handed him the next move
+He *was* ready. The base was not, and the sentence handed him the next move
 anyway — then forgot him completely. Nothing was recorded, nobody was told,
 and the booking it was holding sat there until he thought to ask again.
 Most people do not ask twice.
 
 So two things changed.
 
-**The wait belongs to the shop.** Every refusal — the agent's three tools,
-and the shop's own checkout gate — now says there is nobody out, says
+**The wait belongs to the base.** Every refusal — the agent's three tools,
+and the base's own checkout gate — now says there is nobody out, says
 nothing about when, and never asks the customer to say when *they* are
 ready. The checkout gate used to be worse than the agent: tapping *Book it*
 with nobody out returned `checkout_failed`, *"Something went wrong placing
-that"*, to somebody whose only problem was that the shop had no driver.
+that"*, to somebody whose only problem was that the base had no driver.
 
 ```
 Ann ▸ [ Book it ]
@@ -1337,9 +1365,9 @@ Ann ▸ [ Book it ]
   somebody is on the road.
 ```
 
-**And the shop keeps that promise.** Whoever is turned away goes on a
-waiting list, with what they asked for in the shop's own words. When an
-associate comes on duty the shop goes back to them:
+**And the base keeps that promise.** Whoever is turned away goes on a
+waiting list, with what they asked for in the base's own words. When an
+associate comes on duty the base goes back to them:
 
 ```
 ◂ 🚕 There is a car on the road now.
@@ -1354,7 +1382,7 @@ figure twenty minutes old is agreed again. *Not now* clears them, and for a
 taxi the car passes to the next one waiting rather than being wasted.
 
 **Who is told, and why they differ.** A delivery or a parcel **queues**: one
-associate can take Ann's order and three behind it, which is how the shop
+associate can take Ann's order and three behind it, which is how the base
 has always worked, so everybody waiting for one is told. A ride does **not**
 queue: four people standing at Kitty need a car now, and telling two
 passengers there is a car when there is one is the same lie told twice. So
@@ -1368,7 +1396,7 @@ location was never handed the job already cooked and waiting.
 **The window is two hours** (`WAITING_LIST_MINUTES`, 0 switches the list
 off). A car wanted at noon is no use at three, and *"somebody is on the road
 now"* three hours later reaches a person whose plans have changed and reads
-as the shop wasting their time twice. It is also what keeps the promise
+as the base wasting their time twice. It is also what keeps the promise
 inside WhatsApp's 24-hour service window. Asking again replaces the row
 rather than adding one, and nobody is told twice for the same ask.
 
@@ -1382,14 +1410,14 @@ error:
 They keep their place, because they have just said they still want it.
 
 `/health` reports `waitingForACar`. A number that stays high while
-`associatesOnDuty` is 0 is the shop losing work it already had in its hands.
+`associatesOnDuty` is 0 is the base losing work it already had in its hands.
 
 **Only yours to close.** You cannot deliver, return or close an order that is
 not with you. If somebody hands you their job, they send `<order> transfer` and
 choose you.
 
 **You cannot cancel.** Whatever has gone wrong at a door, voiding the order is
-not the answer. Deliver it, or ring the shop.
+not the answer. Deliver it, or ring the base.
 
 ### Handing a job over
 
@@ -1547,9 +1575,9 @@ in words; the job goes out to the associates the moment it is booked.
 the fare with the passenger, and a price nobody agreed to is an argument on a
 kerb.
 
-**"Car" is matched as a whole word.** This shop sells carrots, and without
+**"Car" is matched as a whole word.** This base sells carrots, and without
 that a shopping list would be answered with a taxi. "Pick up" and "drop off"
-stay with parcels, where a customer saying *"pick up something from the shop"*
+stay with parcels, where a customer saying *"pick up something from the base"*
 means one every time.
 
 **This needs an associate on duty.** With nobody on the road the booking is
@@ -1560,7 +1588,7 @@ coming.
 
 **The agent never sees a status update.** Everything after an order is placed
 — confirmed, on the way, the receipt, the points, the rating — is sent to the
-customer by the shop and does not pass through the conversation. The last
+customer by the base and does not pass through the conversation. The last
 thing the agent knows about a job is its own sentence saying it was booked.
 
 Left alone, that caused a real fault: asked for a second car, it said the
@@ -1593,11 +1621,11 @@ order, works out where it is going and sees it placed. Groceries, restaurant
 food and parcels — one chat, three services.
 
 **It has no name and never invents one.** Asked what to call it, it says it is
-the customer associate at the shop and asks what they need. It never borrows a
+the customer associate at the base and asks what they need. It never borrows a
 staff member's name and never signs off with one.
 
 The manner is the whole of the personality: somebody competent behind a
-counter who knows the shop and is pleased to help without making a performance
+counter who knows the base and is pleased to help without making a performance
 of it. No persona, no catchphrase, no emoji habit.
 
 It says **your** customer associate, never *the* customer associate. The first
@@ -1628,7 +1656,7 @@ be in that offer, in whatever words suit the customer and their language:
 
 And two things that must **not** be in it.
 
-**No promise of when, and none of how.** The shop does not know either.
+**No promise of when, and none of how.** The base does not know either.
 "Within the hour" that takes two is a second complaint — and a customer told
 the manager will reply on this chat, who is then rung on the telephone, was
 watching the wrong place. *"I've passed it on"* is the whole of it.
@@ -1939,7 +1967,7 @@ hidden or forced into an order nobody gave it.
 
 ### When the customer wants it
 
-**On a grocery order the shop asks**, once the basket is settled and before it
+**On a grocery order the base asks**, once the basket is settled and before it
 is placed:
 
 > When would you like it? I can send it as soon as it's packed, or hold it for
@@ -1968,7 +1996,7 @@ later today or tomorrow"* — anything more than a week out, and anything that
 is not a readable time. That last one is not a refusal of the customer: "after
 lunch" belongs in the note, where it is read rather than parsed.
 
-**Nothing is promised.** The shop aims for the time; it does not know what the
+**Nothing is promised.** The base aims for the time; it does not know what the
 road will do, and *"I'll make sure it's there at five"* is a promise nobody
 authorised. It is said back once in the confirmation and then left alone — a
 shop that keeps mentioning the time sounds like one that might miss it.
@@ -1988,7 +2016,7 @@ anyone, or returned because nobody was at the door. A delivered order's stock
 stays sold.
 
 It only ever went down before. Nothing anywhere added it back, so every
-cancellation quietly removed stock the shop still had, compounding until an
+cancellation quietly removed stock the base still had, compounding until an
 item read as sold out while sitting on the shelf.
 
 Done once per order, through a flag on the order rather than its status: an
@@ -2002,7 +2030,7 @@ to put it back on.
 
 ### Nobody on the road
 
-**With no delivery associate on duty, no order is taken.** The shop can be
+**With no delivery associate on duty, no order is taken.** The base can be
 wide open and still have no way to get anything to anybody, and an order taken
 then is food packed for a counter: it sits at *ready* while the customer waits
 and nobody can tell them why.
@@ -2063,7 +2091,7 @@ the kitchen had not heard of it either, and the customer was answering the
 same question twice at the last step.
 
 It also disagreed with the card that gets driven from, where a written address
-**beats** a pin and the pin is not printed beside it. The shop cannot hold
+**beats** a pin and the pin is not printed beside it. The base cannot hold
 both positions.
 
 A pin is still asked for, and still worth having: it is the only thing the
@@ -2073,7 +2101,7 @@ nobody can tell whether it is inside the delivery area until an associate is
 reading the card.
 
 **If they paste a Google Maps link instead**, it is read. So is a plus code
-(`865RXM2G+MC`, or a short `XM2G+MC` near the shop) and bare coordinates. This
+(`865RXM2G+MC`, or a short `XM2G+MC` near the base) and bare coordinates. This
 matters most for parcels and for ordering on somebody else's behalf — a person
 booking a delivery to a door they are not standing at cannot drop a pin on it,
 but they can send a link to it.
@@ -2174,7 +2202,7 @@ three is missing and refuses.
 
 ### Nobody is charged a fee they were not told
 
-**The shop never charges a delivery fee higher than the one the customer
+**The base never charges a delivery fee higher than the one the customer
 agreed.** Enforced in `place_order` and `create_parcel_job`, not asked of the
 model — a prompt is a request.
 
@@ -2185,7 +2213,7 @@ model — a prompt is a request.
 | Charged **less** | Allowed — the promise is a ceiling, not a price list |
 | Charged nothing | No agreement needed |
 
-The figure becomes agreed at the **two-step read-back**: the shop matches the
+The figure becomes agreed at the **two-step read-back**: the base matches the
 place, the agent reads it back, the customer says yes. That is also where a
 free-delivery basket or a reward is allowed to come in under the quote without
 anybody re-confirming.
@@ -2197,7 +2225,7 @@ pin is still worth asking for, because it is the only thing the delivery
 radius can be measured against and the only thing that becomes a map link on
 the associate's card, but it is not what sets the price.
 
-**A village the tariff has never heard of still gets a figure.** The shop has
+**A village the tariff has never heard of still gets a figure.** The base has
 185 places and the country has more. When nothing matches, the agent tells
 them the standard charge their basket carries and confirms that instead —
 `delivery_zone` with `confirmed` true and no place. No zone is written to
@@ -2211,7 +2239,7 @@ says:
 > Delivery from Parika to Diamond is $6,300.
 
 **A taxi has no fare to quote, so it says so before anything is booked.** The
-line is fixed text from the shop, sent the moment the customer chooses Taxi —
+line is fixed text from the base, sent the moment the customer chooses Taxi —
 not left to the model:
 
 ```
@@ -2223,7 +2251,7 @@ The fare is agreed between you and the driver — we do not set it.
 
 ### What a delivery costs
 
-Delivery is priced by the village or area it goes to, from a tariff the shop
+Delivery is priced by the village or area it goes to, from a tariff the base
 keeps in `data/delivery-zones.csv` — place, zone, fee, one row each. Edit it
 and restart; nothing else to set. No tariff, and every delivery stays at the
 flat `DELIVERY_FEE`.
@@ -2245,7 +2273,7 @@ straight line lies most, for a person to price.
 
 It needs `GOOGLE_MAPS_KEY` in the environment, with the **Routes API** and
 **Geocoding API** enabled on that key. Without one it says so and stops. It
-is run by hand and never by the shop: a delivery that cannot be priced
+is run by hand and never by the base: a delivery that cannot be priced
 because somebody else's API is slow is worse than a price that is a little
 rough, and a road in Guyana does not move between Tuesday and Wednesday.
 
@@ -2254,12 +2282,12 @@ per API, so it costs nothing — but set a daily quota cap in the Cloud
 console anyway, because a key that can only spend a dollar is a key you can
 stop thinking about.
 
-**Zones, not kilometres.** Vreed-en-Hoop is 2.8 km from the shop across the
+**Zones, not kilometres.** Vreed-en-Hoop is 2.8 km from the base across the
 water and **16.4 km by road**. Straight-line distance under-prices exactly
 the trips that cost most, and the west side is priced from the bridge.
 
 **The West Bank was repriced from the road on 22 November 2026.** Measured,
-it is the shop's *dearest* corridor per kilometre — $178 against the East
+it is the base's *dearest* corridor per kilometre — $178 against the East
 Coast's $89 — which is the bridge, and is right. What was wrong was inside
 the corridor: Vreed-en-Hoop was further by road than Schoonord, La Grange,
 Goed Fortuin and Bagotville, and charged less than all four, because it is
@@ -2284,7 +2312,7 @@ inversions at all**, because it reads the road distances where they exist.
 the customer wrote, reads the matched name back — *"that's Diamond on the East
 Bank, is that right?"* — and only then is the figure quotable. The tool will
 not hand over a fee until that has happened, and will not accept a place name
-the shop never offered.
+the base never offered.
 
 ### Checkout is the shop's, not the agent's
 
@@ -2361,7 +2389,7 @@ involved.
 
 ### The associate can ask where exactly
 
-`7 pin` — and the shop asks the customer for that job's door. `7 location`
+`7 pin` — and the base asks the customer for that job's door. `7 location`
 does the same, and so does a bare `pin` when they are carrying only one job.
 
 ```
@@ -2385,7 +2413,7 @@ The answer lands on **that job** and nowhere else, and the associate is sent
 the whole card again with the link on it. It goes to whoever is at the door,
 which on a parcel or a gift is not the person who ordered it.
 
-**It says when it cannot help.** Outside WhatsApp's 24-hour window the shop
+**It says when it cannot help.** Outside WhatsApp's 24-hour window the base
 cannot write to them at all, so instead of sending nothing it hands back the
 number and says to ring. A delivered or cancelled job refuses: there is
 nothing left to find.
@@ -2461,7 +2489,7 @@ say the two disagree — Buxton is 15.5 km from Mocha and $200 more a trip.
 
 Either one of them can be the mistake: a wrong row tapped off a list of 185
 places, or a right village with somebody else's village typed into the
-address. The shop cannot tell, so it asks, with the figure on the message:
+address. The base cannot tell, so it asks, with the figure on the message:
 
 ```
   ▸ Lot 12 Buxton Public Road
@@ -2499,7 +2527,7 @@ them to tap past it:
 | `Lot 4 Little Diamond` at Diamond — a longer name containing it | |
 
 An address the tariff cannot place at all is never a conflict: most Guyanese
-addresses are landmarks, and the shop has no business arguing with those.
+addresses are landmarks, and the base has no business arguing with those.
 
 **A pin owed outranks the service menu.** The block that catches it used to
 sit below the menu, so a customer whose service had been cleared — they
@@ -2507,7 +2535,7 @@ tapped *Leave groceries*, asked for the menu, or came back after the
 conversation went cold — sent the exact spot they had just been asked for and
 was answered with *"Pick a number first and then send that again."* A request
 for a map, put to somebody holding a map, and their answer thrown away while
-an associate stood in the road. `7 pin` made it easy to reach: the shop now
+an associate stood in the road. `7 pin` made it easy to reach: the base now
 raises that question whenever an associate cannot find a door, which is not
 necessarily while the customer is in the middle of anything at all.
 
@@ -2588,7 +2616,7 @@ same reason a taxi is quoted its fare and not its mileage.
 **The tap is the read-back answered.** The name and the address are on that
 message, which is what `place_order` demands before it will accept an order,
 and it is right to: an order placed against a name nobody checked is a bag
-at the wrong door with only the shop's word for it.
+at the wrong door with only the base's word for it.
 
 **Change destination reopens the list and nothing else.** The basket is not
 touched — somebody who balks at a total usually wants a different address,
@@ -2628,10 +2656,10 @@ A button from a message further back — `Nothing to add`, tapped while the
 street was being asked for — used to become somebody's address, and the
 associate was sent to a button id.
 
-**When the shop cannot place what they typed, it shows them the list.** This
+**When the base cannot place what they typed, it shows them the list.** This
 is the taxi's place picker, asked by another service: the same rows, the same
 corridors, the same ways out — and priced from the delivery tariff, which is
-the figure those rows have always carried. It is sent by the shop itself, not
+the figure those rows have always carried. It is sent by the base itself, not
 by the agent, so it cannot be replaced by a third round of *"which area is
 that?"*
 
@@ -2740,9 +2768,9 @@ Delivery Diamond $1,800
 
 **Free delivery is for groceries only, over $100,000.**
 
-`FREE_DELIVERY_OVER` waives the charge on a basket off the shop's own
+`FREE_DELIVERY_OVER` waives the charge on a basket off the base's own
 shelves, and on nothing else. A restaurant order is somebody else's food —
-the kitchen keeps the margin and the delivery is the only thing the shop
+the kitchen keeps the margin and the delivery is the only thing the base
 earns on it, so giving that away on the biggest trips of the day is working
 for nothing. A parcel and a taxi have no goods at all: their fee *is* the
 job.
@@ -2841,11 +2869,11 @@ counter is indistinguishable from food still cooking.
 
 ### Who thanks whom
 
-**The shop thanks the customer, never the kitchen.** A restaurant order used
+**The base thanks the customer, never the kitchen.** A restaurant order used
 to close with *"Thank you for ordering from A Taste of Guyana Roti Shop &
-Bakery!"* — the shop thanking somebody on a kitchen's behalf, for a
+Bakery!"* — the base thanking somebody on a kitchen's behalf, for a
 transaction the kitchen was not party to. The food is the kitchen's; the
-order, the delivery and the whole conversation are the shop's.
+order, the delivery and the whole conversation are the base's.
 
 | Kind | Thanks | Wish |
 |---|---|---|
@@ -2864,7 +2892,7 @@ Every order gets four digits. The customer receives them with the "on its way"
 message and reads them out at the door.
 
 **No operator message ever contains the code** — not the job card, not `jobs`,
-not the shop's alert, not the export. A code the associate can read off their
+not the base's alert, not the export. A code the associate can read off their
 own screen proves nothing.
 
 A **taxi's safety code is a different thing in a different column**, and the
@@ -2879,7 +2907,7 @@ Typing the four digits **is** the delivery.
 | Correct code | Delivered, and the customer is told "Delivery code: confirmed" |
 | Wrong code | Refused, with the tries remaining |
 | Five wrong | The code is spent — a food order delivers unverified; a parcel goes back |
-| `No code` | Food delivers unverified, and the shop is told who and why |
+| `No code` | Food delivers unverified, and the base is told who and why |
 
 **A code attempt tells you nothing about somebody else's order.** Type a code
 against an order that is not yours and the only answer is *"That code is not
@@ -2904,7 +2932,7 @@ settled, and a wrong code on a finished order reads the same way: the order is
 over, so which digits you typed no longer decides anything.
 
 **When the delivery is for somebody else**, the buyer is told to pass the code
-on. WhatsApp will not let the shop message a number that has never written in,
+on. WhatsApp will not let the base message a number that has never written in,
 so the buyer is the only route to the recipient.
 
 Turn codes off with `DELIVERY_CODE=false`.
@@ -2931,7 +2959,7 @@ shop re-prices the trip from the same pickup and reads both figures back:
 > Going to Zeelugt instead makes the fare $5,500 rather than $700.
 
 Nothing changes until they agree the new figure, and the gate is the same
-one booking has: the shop checks the fare against what it actually sent, not
+one booking has: the base checks the fare against what it actually sent, not
 against the agent's belief that it came up. Once agreed, the record changes,
 the old destination and the old fare go into the trail rather than being
 overwritten quietly, and **the driver is sent the card again** — they are on
@@ -2941,7 +2969,7 @@ is a car that still goes to the wrong place.
 | | |
 |---|---|
 | Before pickup | Changed here |
-| **Onboard** | Changed here too, through the same gate. It used to be refused and sent to the help queue for somebody to ring back — which at a shop with no staff number set is a queue nobody reads, while the driver sitting beside them could do it in two taps. A passenger asking the shop is the same event as the driver asking on their behalf |
+| **Onboard** | Changed here too, through the same gate. It used to be refused and sent to the help queue for somebody to ring back — which at a shop with no staff number set is a queue nobody reads, while the driver sitting beside them could do it in two taps. A passenger asking the base is the same event as the driver asking on their behalf |
 | The **pickup** | Not changed here either. Moving where a car collects from may mean a different driver, which is a different job |
 
 A change the passenger makes themselves also spends any question the driver
@@ -2950,17 +2978,17 @@ two buttons, for a trip that has already changed.
 
 ### A destination on top of the pickup
 
-Reported from the live shop: an associate's card reading **"50 m across
+Reported from the live base: an associate's card reading **"50 m across
 town"**. Two faults in four words.
 
 **WhatsApp sends where you are standing unless you move the map.** That is
 exactly right for *"where are you?"* and exactly wrong for *"where are you
 going?"* — so a passenger at the kerb tapped `📍 Send location` at the
-destination question and the shop filed the kerb as the destination. The
+destination question and the base filed the kerb as the destination. The
 driver got a drop-off link pointing at the spot he was collecting from, and
 a trip nobody was taking described to the man deciding whether to take it.
 
-The shop has owned the sentence that prevents this for months — *"Not where
+The base has owned the sentence that prevents this for months — *"Not where
 you are now? Drag the map, or search for the place, before you send it"* —
 and used it in the agent's own `request_location` and nowhere else. **The
 destination ask carries it now**, and the pickup ask deliberately does not.
@@ -2990,11 +3018,11 @@ ruler.
 
 ### Where they say they are, against where they pinned
 
-Reported from the live shop: a passenger said they were at **Timehri** and
+Reported from the live base: a passenger said they were at **Timehri** and
 pinned **Beterverwagting**. Nothing was said to anybody.
 
 They are 38.1 km apart, and it is not only a wrong address — **the fare is
-priced from the pickup.** The shop was about to quote Beterverwagting's
+priced from the pickup.** The base was about to quote Beterverwagting's
 $1,200 for a ride that costs $3,800 out of Timehri, send a driver to the
 wrong end of the coast, and have already promised the figure.
 
@@ -3029,7 +3057,7 @@ ever asked for.
 right for the destination — nobody can pin where they are going until they
 get there, so words have to be enough for the far end. It is wrong for the
 **pickup** when the words name nothing the tariff knows. King Street is a
-Georgetown street, not one of the 185 places the tariff prices, so the shop
+Georgetown street, not one of the 185 places the tariff prices, so the base
 lost three things at once:
 
 | | |
@@ -3048,10 +3076,10 @@ So a pickup the tariff cannot place now asks before it books:
 ```
 
 **What they typed is never quoted back at them.** The first wording was
-*"I cannot find *King St* on the map"* — the shop telling a customer their
+*"I cannot find *King St* on the map"* — the base telling a customer their
 own address is wrong, in a country where most addresses are landmarks and
-the tariff is 185 village names. The shop's inability to place a street is
-the shop's business. It asks for what it needs and leaves it at that.
+the tariff is 185 village names. The base's inability to place a street is
+the base's business. It asks for what it needs and leaves it at that.
 
 **And the other way out is a landmark, not a village.** *"Opposite the
 market, two lots north of the Regent Street corner"* is how people here say
@@ -3059,7 +3087,7 @@ where they are, and it is a better answer for a driver than the name of a
 village somebody standing on a street may not use. So it is **asked once**:
 answer with a pin and the trip is pinned; answer in words, any words, and
 the trip books with that description on the driver's card. A second ask is
-the shop arguing with a man standing on a road, and the second ask is the
+the base arguing with a man standing on a road, and the second ask is the
 one that loses the fare.
 
 **And the pin prices the trip.** The tariff is 185 village names, so a trip
@@ -3067,7 +3095,7 @@ that starts on King Street could not be priced at all: the card read *Fare
 not set — agree it with the passenger*, and a figure got haggled at a kerb
 by two people with no figure in front of either of them.
 
-But by then the shop holds a pin, because an unplaceable pickup is asked for
+But by then the base holds a pin, because an unplaceable pickup is asked for
 one. **A pin is a place; it just carries no name**, so the nearest village in
 the tariff lends it one and the trip is priced from there:
 
@@ -3102,7 +3130,7 @@ prompt is a request, not a guard.
 which end a taxi pin belongs to read *"the pickup once the pickup has been
 NAMED, otherwise the destination"* — so a pin arriving before anything was
 named, which is the opening move of most bookings and the one the prompt
-asks for, was filed as the **far end**. The shop asked where they were,
+asks for, was filed as the **far end**. The base asked where they were,
 was told, and wrote it down as where they were going. A Beterverwagting pin
 and the word *Timehri* could sit in one booking without ever being
 compared, because they were never the same end of it. The first pin is now
@@ -3127,16 +3155,16 @@ sit there answering the next question — and asks for the map again.
 
 Two faults turned up building it, both found by walking it rather than by
 the suite. The two ends arrived as tool arguments and existed only for that
-call, so the first tap had nowhere to carry the booking to and the shop said
+call, so the first tap had nowhere to carry the booking to and the base said
 nothing at all back; they are now kept where `book_taxi` looks for them. And
 `nearestPlace` carried a comment promising the tariff's spelling while
 returning the lower-case map key — harmless while its only readers compared
 names, and *"the pickup is now beterverwagting"* the moment one was shown to
 somebody.
 
-### When the passenger asks the shop
+### When the passenger asks the base
 
-They can also tell the shop directly, and they do — a passenger in a moving
+They can also tell the base directly, and they do — a passenger in a moving
 car with the chat already open does not always lean forward. **It goes
 through the same gate from the other side: priced, agreed by the passenger,
 then put to the driver.**
@@ -3176,7 +3204,7 @@ and tells the passenger why:
 > Your driver cannot take you there, so you are going to *Zeelugt* as
 > booked, *$5,500*. Message us if that does not work.
 
-**Before anybody is carrying it**, there is nobody to ask, so the shop
+**Before anybody is carrying it**, there is nobody to ask, so the base
 changes it outright — the same rule the delivery path follows.
 
 ### When the driver is the one who hears it
@@ -3205,7 +3233,7 @@ through drives somewhere else.
 
 **Why not let the driver simply change it?** Because a driver who can change
 the destination can change the fare, and the figure the passenger agreed is
-the whole of what the shop can show if one is ever disputed. It is a cash
+the whole of what the base can show if one is ever disputed. It is a cash
 business with no card trail; that record is the dispute resolution. It would
 also create an incentive that does not exist today — a destination the
 driver can edit is a fare the driver can inflate, and points are earned on
@@ -3285,7 +3313,7 @@ whole flow.
 **Priced from both ends, once the destination has been agreed.**
 
 The tariff prices one journey — out of Georgetown — which is the right answer
-for a delivery, because the shop is always at one end of it. A parcel is a
+for a delivery, because the base is always at one end of it. A parcel is a
 two-ended job the same table can only half-describe. Priced by its
 destination alone, a parcel collected in Parika and dropped in Diamond cost
 what a Diamond delivery costs, and nobody was paid for the seventy kilometres
@@ -3316,7 +3344,7 @@ to them — "Golden Grove" is two villages $800 apart. The pickup end is added
 on top of that agreed destination, never instead of it. Where the tariff does
 not recognise the pickup, the destination's own fee stands, exactly as before.
 
-**Deliveries and taxis are untouched.** A delivery has the shop at one end, so
+**Deliveries and taxis are untouched.** A delivery has the base at one end, so
 one number describes it. A taxi is quoted no fare at all: the driver agrees it
 with the passenger.
 
@@ -3473,7 +3501,7 @@ scrolling — any spelling will do"*, because it is: the matcher forgives a
 misspelling and a swapped pair of letters, so *medow bank* and *zeelught*
 both land. Meadow Bank is four taps down the Georgetown list and one short
 message away. It was labelled "if your place is not on this list", which made
-it sound like a fallback for when the shop fails, so nobody used it.
+it sound like a fallback for when the base fails, so nobody used it.
 
 The last page has neither the More row nor the line, there being nothing left
 to explain.
@@ -3481,7 +3509,7 @@ to explain.
 
 
 
-**A list the shop queues is the message.** `assembleReply` had branches for
+**A list the base queues is the message.** `assembleReply` had branches for
 buttons, photos, location requests and prose — and none for a list. So when
 the agent handed checkout over with `start_delivery`, the *"Where are we
 delivering?"* screen it queued was dropped on the floor, every time, and the
@@ -3491,23 +3519,23 @@ customer was left with whatever courtesy line the model had added:
 
 and nothing to tap. Worse when the model obeyed its instruction to say
 nothing at all — the turn then had no content, and fell through to *"Sorry, I
-lost my train of thought there"*: the shop apologising for a screen it had
+lost my train of thought there"*: the base apologising for a screen it had
 just thrown away. Tapping **✅ Check out** in groceries never showed it,
-because that path goes straight through the shop and never through the agent.
+because that path goes straight through the base and never through the agent.
 
 
 
-### The tariff decides where the shop delivers
+### The tariff decides where the base delivers
 
 Two rules used to answer that question and they disagreed. The **tariff**
 prices 185 villages; the **delivery radius** refuses anything past its circle.
 **45 of those 185 sit beyond 15 km** — Foulis at 16.7 km for $2,000, Hope at
 17 km for $2,800, Mahaicony at 45 km for $5,000. So a customer in Hope was
 quoted a figure, filled a basket, and was refused at the last tap for living
-in a village the shop had deliberately priced.
+in a village the base had deliberately priced.
 
 **A place in the tariff is a place somebody decided to serve, at a figure
-they worked out. That outranks a circle drawn round the shop.** So:
+they worked out. That outranks a circle drawn round the base.** So:
 
 | The pin is | What decides |
 |---|---|
@@ -3519,7 +3547,7 @@ village's coordinate is a single point, not a boundary.
 
 **The warning follows the same rule.** `⚠️ OUTSIDE the 15 km delivery area`
 used to print on the associate's card, the staff alert and the open-orders
-queue for a third of the shop's own orders, which is how a warning stops
+queue for a third of the base's own orders, which is how a warning stops
 being read. It now appears only where the tariff has nothing to say, and says
 so: *"and in no village we price"*.
 
@@ -3527,7 +3555,7 @@ so: *"and in no village we price"*.
 things earn the question, and the second is the one that actually happens:
 
 *Outside the area*, which needs a radius to be configured at all. Most shops
-never set one and this shop has not, so that branch is silent here.
+never set one and this base has not, so that branch is silent here.
 
 *Not where the order says* — the pin disagrees with the village the delivery
 was priced for. That one needs no radius, and it is how a job 16 km from its
@@ -3537,7 +3565,7 @@ own village reaches somebody with Accept on it:
 ⚠️ *GRO-00042* is priced for *Mocha*, but the pin is 16.6 km away,
 nearer *Uitvlugt*.
 
-Ring them before you set off, or leave it and the shop will sort it out.
+Ring them before you set off, or leave it and the base will sort it out.
 
    [ Take it anyway ]  [ Leave it ]
 ```
@@ -3545,10 +3573,10 @@ Ring them before you set off, or leave it and the shop will sort it out.
 Taking a job whose door is in no priced village puts the other question:
 
 ```
-⚠️ *GRO-00042* is 94 km from the shop, past the 15 km area, and in no
+⚠️ *GRO-00042* is 94 km from the base, past the 15 km area, and in no
 village we price (nearest is Timehri, 31 km off).
 
-Nobody has to take this one. Say so and the shop will sort it out.
+Nobody has to take this one. Say so and the base will sort it out.
 
    [ Take it anyway ]  [ Leave it ]
 ```
@@ -3579,7 +3607,7 @@ answer — no geometry, no tolerance, no argument.
 **The distance**, where the chosen place has a confident coordinate.
 `data/zone-coordinates-review.csv` and `data/places-found.csv` between them
 place **151 of the 185** priced places; `/health` reports the figure as
-`placesLocated`. The other 34 are not checkable and the shop says nothing
+`placesLocated`. The other 34 are not checkable and the base says nothing
 about them, because a false accusation about somebody's own address is worse
 than no check.
 
@@ -3604,7 +3632,7 @@ and tell me the street instead.
 ```
 
 There used to be a second button saying the spot was right. It was the wrong
-thing to offer: the shop is not asking for a preference, it is saying the map
+thing to offer: the base is not asking for a preference, it is saying the map
 does not agree with the village — and the tap that waves that away costs
 somebody else a ride across the country. A customer who really does live past
 the village line still has a way through, and it is not a claim about a pin:
@@ -3670,7 +3698,7 @@ standing anywhere yet, so the cheapest moment to catch it is then.
 
 **And if they skip the question, the query travels with the pin.** Answering
 `skip` sends the proposal anyway, refused pin and all, so the person about to
-agree to carry a bag there sees what the shop already asked about — *before*
+agree to carry a bag there sees what the base already asked about — *before*
 they tap, not after:
 
 ```
@@ -3687,7 +3715,7 @@ Nothing has changed yet. Tap *Acknowledged* only if you can take it there.
    [ Acknowledged ]  [ No, as booked ]  [ 📞 Call customer ]
 ```
 
-**What they are told is what to DO about it.** That the shop already asked
+**What they are told is what to DO about it.** That the base already asked
 is of no use to somebody deciding whether to ride there — the customer's
 answer was `skip`, which settled nothing. A telephone call settles it.
 
@@ -3701,7 +3729,7 @@ destination*, the passenger's answer to it, and this one. WhatsApp sends back
 both the title and the id; the title is the right answer for most buttons,
 so an unrecognised id quietly falls through to three words with no order
 number in them. The chain that decides lives in `src/button-ids.ts`, and the
-suite sweeps **every id the shop can send** through it — 43 of them, gathered
+suite sweeps **every id the base can send** through it — 43 of them, gathered
 from the code that builds them rather than from a list somebody keeps up to
 date. A new button with no reader is a failing test.
 
@@ -3736,7 +3764,7 @@ pin against the **shop's** delivery radius.
 
 The exact spot used to be asked for with two reply buttons — `📍 Send
 location` and `Skip` — and tapping the first did not open anything. A reply
-button cannot: all it can do is send its id back. So the shop answered with
+button cannot: all it can do is send its id back. So the base answered with
 WhatsApp's **real** location request, and that button opened the map. Two
 taps for one answer, the second looking like the same question asked twice.
 
@@ -3790,7 +3818,7 @@ this go?"* only when the order is going home — and the moment it is not, they
 are worse than nothing, because they are specific, confident and wrong.
 
 Shawn had a street saved at `4 Water St, Georgetown` and a pin dropped months
-earlier in Uitvlugt. He ordered to **Mocha** and tapped Skip. The shop decided
+earlier in Uitvlugt. He ordered to **Mocha** and tapped Skip. The base decided
 it already had his door and put all three places on one card:
 
 ```
@@ -3840,7 +3868,7 @@ One extra question beats one delivery to the wrong village.
 
 ### The exact spot
 
-Once an end is settled **by name**, the shop asks for the pin — and only
+Once an end is settled **by name**, the base asks for the pin — and only
 then:
 
 ```
@@ -3861,7 +3889,7 @@ as that end whatever it says: *"Lot 5 Public Road, behind the market"* is a
 perfectly good pickup. A name the tariff does know is stored as the tariff
 spells it, so the trip prices; anything else is stored as written and the
 driver agrees the fare in the car. Either way the exact spot is offered
-next — which is the whole point of taking an address the shop cannot place.
+next — which is the whole point of taking an address the base cannot place.
 
 A destination list shown against an unpriceable pickup quotes nothing, since
 a column of "fare agreed with the driver" down every row says less than no
@@ -4003,7 +4031,7 @@ I can get a car to you"*, which is worse than the greeting was. The capital
 goes back on what is left. A reply that is nothing but a greeting survives
 untouched, since an empty message is worse than a stray hello.
 
-**The shop does not shout.** Reported from the live shop: a reply to a
+**The base does not shout.** Reported from the live base: a reply to a
 passenger written in capitals. On WhatsApp that is not emphasis, it is a
 raised voice, and it reads as being shouted at by a business.
 
@@ -4034,15 +4062,15 @@ lone `A` left standing in a flattened sentence is dealt with too.
 This is the third guard of its kind, beside the greeting and the plumbing,
 and for the same reason each time: **a prompt is a request, not a guard.**
 
-**The turns the shop answered are written into the agent's account.** A tap
+**The turns the base answered are written into the agent's account.** A tap
 is recorded as the words the passenger saw — `Zeelugt`, not
-`pick:to:place:Zeelugt` — with the shop's reply beside it, in the same shape
+`pick:to:place:Zeelugt` — with the base's reply beside it, in the same shape
 the agent's own turns are stored in. Without that, six taps into a booking
 with the destination already chosen, the agent said *"Good evening, Shawn"*
 and offered to settle the pickup: it was opening an empty conversation,
 because as far as its history went the conversation was empty.
 
-And every turn carries a line saying what the shop actually holds:
+And every turn carries a line saying what the base actually holds:
 
 > This taxi already has its pickup *Meadow Bank*, destination *Zeelugt*,
 > chosen off the place picker — treat that as said and do not ask for it
@@ -4052,7 +4080,7 @@ The same correction `openJobsLine` makes for finished orders, and for the
 same reason: an agent answering from a stale account is not being stubborn,
 it is answering from the only account it has.
 
-The standing taxi brief was corrected to match the shop it describes. It
+The standing taxi brief was corrected to match the base it describes. It
 said **"never quote a fare: the driver agrees it with the passenger"** —
 true when a taxi had no tariff, and flatly contradicting `book_taxi`, which
 had been quoting one beside it ever since.
@@ -4086,10 +4114,10 @@ turn that forgets to ask. What each button means travels in its **id**, never
 its title: the titles are words in whatever language the passenger writes, and
 matching on those would be matching on a translation.
 
-**The gate is the shop's record, not the model's word for it.** `book_taxi`
+**The gate is the base's record, not the model's word for it.** `book_taxi`
 takes a `fare_confirmed` flag, and a flag is a field the model fills in — after
 a long exchange about where somebody is going, it will set it believing the
-figure came up somewhere. So the shop writes down the fare it actually sent
+figure came up somewhere. So the base writes down the fare it actually sent
 (`customers.taxi_fare_shown`) and checks the claim against it:
 
 | Quoted now | Shown earlier | What happens |
@@ -4106,7 +4134,7 @@ the passenger**. Both halves are closed: the quote cannot be skipped, and the
 confirmation repeats the agreed fare.
 
 Where the tariff genuinely cannot price a trip there is still no figure, and
-the shop says so plainly rather than inventing one — the driver agrees it.
+the base says so plainly rather than inventing one — the driver agrees it.
 
 ### The journey
 
@@ -4160,7 +4188,7 @@ and tapping the arrival twice does not move the time it was recorded.
 
 **Not found and cancelled are different events and stay that way.** One is
 somebody who did not come; the other is somebody who changed their mind. Told
-apart, the shop can see which passengers waste trips; rolled together, it
+apart, the base can see which passengers waste trips; rolled together, it
 cannot.
 
 **A driver cannot cancel anything else, anywhere.** That rule is right — an
@@ -4169,7 +4197,7 @@ order. A taxi before pickup is the one case with nothing in anybody's hands,
 and once the passenger is in the car it is refused again:
 
 > TXI-00019 is under way with the passenger in the car. Finish the trip, or
-> ring the shop.
+> ring the base.
 
 **Once the passenger is aboard, the card drops the pin warning and the
 telephone number.** Both exist to find somebody who is not with you, and the
@@ -4196,7 +4224,7 @@ close an order whose food is still on the counter.
 
 ### The receipt
 
-A trip the shop priced ends with a receipt, like any other order — and the
+A trip the base priced ends with a receipt, like any other order — and the
 points for it are printed on the receipt rather than sent separately, because
 a passenger standing on a pavement should get one thing to read:
 
@@ -4238,7 +4266,7 @@ after a journey somebody has just paid for is worse than silence.
 
 A delivery code travels customer → associate and proves the person at the door
 is the one who ordered. A taxi's travels **driver → passenger** and proves the
-car at the kerb is the one the shop sent.
+car at the kerb is the one the base sent.
 
 | | |
 |---|---|
@@ -4287,7 +4315,7 @@ wrong at both ends of the scale: a two-minute stop cost the same $800 as a
 thirty-minute one, and the thirty-first minute doubled the bill.
 
 **Two taps, no numbers.** The driver taps *Waiting* when the car stops and
-*Moving* when it goes again; the shop times it. While a stop is open, *Moving*
+*Moving* when it goes again; the base times it. While a stop is open, *Moving*
 is the only button on the card — anything else would be a way to end the trip
 with the clock still running.
 
@@ -4314,7 +4342,7 @@ running: the drop is when the car stopped being theirs to wait in.
 **Rounded down**, each stop. The figure decides money, so a driver tapping a
 few seconds late should not cost the passenger a minute.
 
-**The passenger is told none of this.** The shop sets no fare, so it must not
+**The passenger is told none of this.** The base sets no fare, so it must not
 publish half of one — the driver states the waiting rate when the fare is
 agreed. Nothing is charged before pickup, and waiting is refused on a trip
 that has not started.
@@ -4352,9 +4380,9 @@ conversation:
 
 **A trip the tariff cannot place has no fare**, and falls back to the driver
 agreeing it with the passenger — which is what every taxi did before this.
-Better that than inventing a figure for a place the shop cannot name.
+Better that than inventing a figure for a place the base cannot name.
 
-**The fare is not counted as cash the shop is owed.** It lives in its own
+**The fare is not counted as cash the base is owed.** It lives in its own
 column, not in the order's total, because `cash` sums totals to tell an
 associate what to hand in — and whether any part of a taxi fare is handed in
 is a question nobody has answered yet. Waiting is extra and is settled the
@@ -4379,13 +4407,13 @@ Everything is cash on delivery unless `PAYMENT_METHODS` says otherwise.
 |---|---|---|
 | Grocery, restaurant | at the door, by whoever receives it | whoever **delivered** it |
 | Parcel | at the pickup, by the sender | whoever **uplifted** it |
-| Taxi | in the car, at a fare the driver agreed | **nothing** — the shop never priced it |
+| Taxi | in the car, at a fare the driver agreed | **nothing** — the base never priced it |
 
 That difference matters when a job is transferred: a parcel's fee stays with
 the associate who collected it, because that is who has the notes.
 
-`cash` from the shop shows the day's takings per associate, counted from
-midnight on the shop's own clock. An order closed by the shop rather than by an
+`cash` from the base shows the day's takings per associate, counted from
+midnight on the base's own clock. An order closed by the base rather than by an
 associate appears as its own row, named as such, so the figures reconcile to
 the till.
 
@@ -4414,8 +4442,8 @@ there. Render restarts the service when you save.
 
 | Variable | What breaks without it |
 |---|---|
-| `STAFF_NUMBERS` | **The shop hears nothing.** No new-order alerts, no `cash`, no `backup`, no warnings. Comma-separated digits, no `+` |
-| `ASSOCIATES` | No associate can be dispatched or reach the shop |
+| `STAFF_NUMBERS` | **The base hears nothing.** No new-order alerts, no `cash`, no `backup`, no warnings. Comma-separated digits, no `+` |
+| `ASSOCIATES` | No associate can be dispatched or reach the base |
 | `WHATSAPP_*`, `ANTHROPIC_API_KEY` | Nothing works at all |
 
 A staff or associate number must be a **personal** WhatsApp number, different
@@ -4629,10 +4657,10 @@ Received, and nothing more. These are the words, not a description of them:
 > Got it — ORD-00083 received, but not yet confirmed. The moment A Taste of
 > Guyana confirms it, we'll let you know.
 
-For a grocery order the shop is not named, because with a single grocery the
+For a grocery order the base is not named, because with a single grocery the
 customer is never shown which one they are in:
 
-> Got it — ORD-00083 received, but not yet confirmed. The moment the shop
+> Got it — ORD-00083 received, but not yet confirmed. The moment the base
 > confirms it, we'll let you know.
 
 The agent is handed that sentence and told to send it word for word. It may
@@ -4643,7 +4671,7 @@ owed and where to pay it.
 
 It used to say more than it knew. The agent was handed the customer's name,
 address, map pin and telephone number along with the order number, and did the
-natural thing with them: read them back. It also quoted the shop's own
+natural thing with them: read them back. It also quoted the base's own
 `prep_minutes` setting as though the kitchen had spoken — *"the kitchen says
 about 20 minutes"* — when the kitchen had said nothing and may not have seen
 the order at all.
@@ -4659,7 +4687,7 @@ else.
 | Preparation time | what they are waiting for is acceptance, not cooking |
 
 The money arrives with the acceptance, which is the first moment anything is
-actually owed — the shop may refuse the order and the kitchen may be shut. The
+actually owed — the base may refuse the order and the kitchen may be shut. The
 prices were in the question the customer answered to get here, one message
 earlier, so nothing is hidden by leaving them out.
 
@@ -4690,7 +4718,7 @@ to be written down as not delivered. The only options were *Delivered* and
 
 Where the goods end up differs by kind — a parcel to its sender, a grocery
 onto the shelf, a restaurant meal almost certainly written off — but that is
-the shop's business, not the order status's.
+the base's business, not the order status's.
 
 **What the customer is told** differs too. A parcel sender really is getting it
 back, so they are told so. Everybody else is the person who was not at the
@@ -4699,7 +4727,7 @@ door:
 > Order ORD-00083 has come back — there was nobody at the door to take it.
 > Message us when you are ready and we will arrange another delivery.
 
-**Stock is not put back.** Nothing in the shop restocks a returned or cancelled
+**Stock is not put back.** Nothing in the base restocks a returned or cancelled
 order today, so a tracked item stays counted as sold until somebody corrects
 it.
 
@@ -4939,7 +4967,7 @@ and parcel drafts; customers, saved addresses and pins; conversations; the
 message log; the unmet-demand record.
 
 **Kept:** the catalogue, the outlets and the delivery associates. Those are how
-the shop works, not what it has done — wiping them leaves a service that
+the base works, not what it has done — wiping them leaves a service that
 cannot trade.
 
 **It takes a snapshot before it deletes anything**, written to the backup
@@ -4964,7 +4992,7 @@ walkthrough or the card gallery can never wipe a shop.
 One caveat with clearing the message log: WhatsApp's 24-hour window is measured
 from each number's last message *in*, so wiping it shuts the window for
 everyone. Staff, kitchens and associates are all unreachable until each sends
-the shop a message. The boot warning about unreachable associates will say so
+the base a message. The boot warning about unreachable associates will say so
 by name.
 
 ### Who moved an order
@@ -5064,7 +5092,7 @@ Goods $3,200
 Delivery $500
 *Total $3,700* — paid in cash
 
-Thank you for choosing Next Minute Delivery!     ← the shop's thanks
+Thank you for choosing Next Minute Delivery!     ← the base's thanks
 Enjoy your meal, see you next time! 👋           ← one of seven wishes
 ```
 
@@ -5110,7 +5138,7 @@ settled where it actually was:
 *Delivery fee $1,500* — paid at pickup
 ```
 
-A parcel the associate priced at the counter prints no figure at all. The shop
+A parcel the associate priced at the counter prints no figure at all. The base
 never learned what was agreed, and a zero would be a claim about it.
 
 **The manners go last**, so the useful part is not something to scroll past
@@ -5128,14 +5156,14 @@ All of it exists in English, Spanish, Portuguese and Chinese.
 | Kind | Thanked for | Wishes |
 |---|---|---|
 | Grocery | shopping with us | 5, about the day |
-| Restaurant | choosing the shop | 7, about the meal |
+| Restaurant | choosing the base | 7, about the meal |
 | Parcel | choosing the service | 5, about the trust |
 
 A grocery and a parcel used to get no wish at all — the only pool was about
 eating, so it was skipped for anything that was not a meal, and both ended on
 "Thank you for choosing" and nothing else.
 
-The grocery thanks deliberately does **not** name the shop. With one grocery
+The grocery thanks deliberately does **not** name the base. With one grocery
 the customer is never shown which shop they are in, so naming it here would
 introduce a shop they have never heard of in the last message of the
 conversation. The restaurant line does name the kitchen, because they chose it
@@ -5187,10 +5215,10 @@ Render setting at all.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `MAX_JOBS_PER_ASSOCIATE` | 1 | How many jobs one associate may hold. 0 = no limit, which is what this shop runs |
+| `MAX_JOBS_PER_ASSOCIATE` | 1 | How many jobs one associate may hold. 0 = no limit, which is what this base runs |
 | `ASSOCIATE_DUTY_HOURS` | 12 | A shift lapses this long after clocking on |
-| `ASSOCIATE_MAX_HOURS_PER_DAY` | 0 | The rolling 24-hour cap. 0 = off, which is what this shop runs |
-| `DUTY_CHECK_IN_MINUTES` | 15 | How long before a clock-in lapses the shop asks "still out?". 0 = silent |
+| `ASSOCIATE_MAX_HOURS_PER_DAY` | 0 | The rolling 24-hour cap. 0 = off, which is what this base runs |
+| `DUTY_CHECK_IN_MINUTES` | 15 | How long before a clock-in lapses the base asks "still out?". 0 = silent |
 | `WAITING_LIST_MINUTES` | 120 | How long somebody turned away for want of a driver is worth going back to. 0 = off |
 | `ASSOCIATE_RADIUS_MILES` | 0 | Only offer jobs within this far of a shared pin. 0 = everybody |
 | `DISPATCH_BAND_MINUTES` | 5 | A drop-off this recent means they are in that band now |
@@ -5208,7 +5236,7 @@ Render setting at all.
 | `BACKUP_TO` | first staff number | Who receives it |
 | `BACKUP_KEEP` | 14 | Snapshots kept before the oldest is dropped |
 | `BACKUP_TOKEN` | — | Enables the download links. No token, no routes |
-| `STALL_ALERT_MINUTES` | 15 | How long an order may sit before the shop is warned |
+| `STALL_ALERT_MINUTES` | 15 | How long an order may sit before the base is warned |
 
 ---
 
@@ -5225,7 +5253,7 @@ one move that settles who is going: **Accept**, and nothing else.
 ```
 🛵 *GRO-00001*
 
-*Uplift from:* the shop
+*Uplift from:* the base
 2 x Rice
 
 *Deliver to:* Ann Persaud
@@ -5282,7 +5310,7 @@ nothing.
 Twenty-three scripts in the project root that drive the **real handlers** against a
 scratch database and print what each person receives. They are not tests —
 the suite is the test — they exist to be read, and to answer "what does this
-actually look like on a phone?" without touching the live shop.
+actually look like on a phone?" without touching the live base.
 
 ```powershell
 node walkthrough-grocery.ts
@@ -5340,7 +5368,7 @@ Two faults in one day came from exactly that, and both were live before a
 test caught them:
 
 - `customer.deliveryZone` on the identity record, which has no such field.
-  The `undefined` read as *"this shop does not price by zone"*, and every
+  The `undefined` read as *"this base does not price by zone"*, and every
   stale pin went straight through the check written to stop them.
 - `e.kind` and `e.by` on an order event, which carries `e.event` and
   `e.actor`. The "have they been told already?" test was always false, so the
@@ -5377,7 +5405,7 @@ Moved: 1 shift, 2 deliveries, $425,000 in today's takings.
 
 His hours, takings, position and deliveries follow him. **You must still update
 `ASSOCIATES`** — the command fixes the records, the variable controls which
-numbers reach the shop at all.
+numbers reach the base at all.
 
 ### Clearing out old orders
 

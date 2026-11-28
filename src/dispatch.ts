@@ -1,12 +1,12 @@
 /**
  * Who gets told what, once a restaurant order exists.
  *
- * A grocery order has one audience: the shop picks it and drives it. Cooked food
+ * A grocery order has one audience: the base picks it and drives it. Cooked food
  * has three, and they want different things at different moments:
  *
  *   the kitchen  — what to cook, and nothing about the customer's address
  *   the delivery associate    — where to collect, where to take it, who to ring, what to collect
- *   the shop     — all of it, because someone has to notice when a kitchen goes quiet
+ *   the base     — all of it, because someone has to notice when a kitchen goes quiet
  *
  * The delivery associate is deliberately told only when the food is actually ready. Sent at
  * order time they stand in a restaurant watching a fryer, which is how delivery
@@ -141,7 +141,7 @@ export async function tellKitchenCancelled(orderNo: string, hadAccepted = true):
 ${what}`);
     return `${who} told to stop.`;
   } catch (err) {
-    console.error('[dispatch] could not tell the shop about a cancellation:', err);
+    console.error('[dispatch] could not tell the base about a cancellation:', err);
     return `⚠️ Could not tell the ${who.toLowerCase()} — ring them.`;
   }
 }
@@ -165,7 +165,7 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
   const told = order.driverPhone ? [order.driverPhone] : repo.associateNumbers();
   if (told.length === 0) return 0;
 
-  const where = order.outlet?.name ?? 'the shop';
+  const where = order.outlet?.name ?? 'the base';
   const reason = order.cancelReason ? ` - ${order.cancelReason}` : '';
   const body = [
     `🚫 *${order.orderNo} cancelled*${reason}.`,
@@ -187,7 +187,7 @@ export async function tellAssociatesCancelled(orderNo: string): Promise<number> 
 /**
  * Everyone who needs to know a new order exists.
  *
- * The shop always, and the kitchen too when the food is someone else's to cook.
+ * The base always, and the kitchen too when the food is someone else's to cook.
  * One call so a future order path cannot tell one audience and forget the other
  * — which would read, from the customer's side, as a restaurant that never
  * started cooking.
@@ -310,7 +310,7 @@ export async function offerParcel(orderNo: string, only = ''): Promise<Dispatch>
 
   // The directory, not the environment variable. A shop that has taken
   // somebody off the road sets `active = 0` and they stop being offered work;
-  // a shop that has taken somebody on adds them, and they start.
+  // a base that has taken somebody on adds them, and they start.
   const associates = repo.associateNumbers();
   if (associates.length === 0) {
     console.warn(`[dispatch] ${orderNo} booked but there are no active delivery associates — nobody was offered it`);
@@ -371,9 +371,9 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
     order.quotedFare > 0
       ? `*Fare ${money(order.quotedFare)}* — quoted to the passenger, collect it from them`
       : '*Fare not set* — agree it with the passenger',
-    // What the shop DOES set, on the card where it is needed and in none of
+    // What the base DOES set, on the card where it is needed and in none of
     // the passenger's messages: publishing half a fare invites the question
-    // the shop cannot answer.
+    // the base cannot answer.
     ...(waitingLine() ? [waitingLine()] : []),
     ...(wantedBy(order) ? [wantedBy(order)] : []),
     '',
@@ -402,7 +402,7 @@ export function taxiOfferCard(order: repo.OrderRecord): string {
  *
  * The code is the reason this card has to exist. **The driver says it to the
  * passenger before they get in**, and the passenger checks it against the
- * message the shop sent them: that is how somebody standing on a road knows
+ * message the base sent them: that is how somebody standing on a road knows
  * this is the car and not a stranger who overheard a name. It is written here
  * as an instruction rather than a number, because four digits on a card with
  * no sentence around them get read out at the end of the trip or not at all.
@@ -551,7 +551,7 @@ export async function proposeAddressToAssociate(
         ]
       : []),
     // In its place: what the pin actually is, and the only thing that
-    // settles it. That the shop already asked is of no use to somebody
+    // settles it. That the base already asked is of no use to somebody
     // deciding whether to ride there — the customer's answer was `skip`,
     // which settled nothing. A telephone call settles it.
     ...(queried.state === 'elsewhere'
@@ -593,7 +593,7 @@ export async function proposeAddressToAssociate(
  * the driver was told afterwards, with the ordinary trip buttons under it.
  * There was no way to say "I cannot take them there", and nothing asked.
  *
- * That asymmetry was never argued for. The shop already treats a taxi
+ * That asymmetry was never argued for. The base already treats a taxi
  * destination as something two people agree: when the DRIVER raises one,
  * `proposeDestinationToPassenger` puts two figures and two buttons in front
  * of the passenger and nothing moves until they tap. This is the same gate
@@ -724,7 +724,7 @@ export async function proposeDestinationToPassenger(
     `Asked them about *${named}*${quoted ? ` — ${money(quoted.fee)}` : ''}.`,
     // Said out loud when it is not what they typed, so a wrong guess is
     // caught by the person who knows the answer rather than by the
-    // passenger, who has only the shop's word for where they are going.
+    // passenger, who has only the base's word for where they are going.
     ...(corrected ? [`(read from "${place}" — raise it again if that is wrong)`] : []),
     '',
     'Carry on to where you were going until they answer.',
@@ -735,7 +735,7 @@ export async function proposeDestinationToPassenger(
  * Tells the driver the passenger left it as booked.
  *
  * Said plainly, because the driver asked on the passenger's behalf and is
- * owed an answer either way — silence reads as the shop ignoring them, and
+ * owed an answer either way — silence reads as the base ignoring them, and
  * a driver who thinks a change went through drives somewhere else.
  */
 export async function tellDriverDestKept(orderNo: string): Promise<boolean> {
@@ -808,7 +808,7 @@ export async function announceNewOrder(orderNo: string): Promise<void> {
   // now, so a kitchen and a grocery are told the same way.
   const outcome = await notifyOutletOfOrder(orderNo);
   if (outcome === 'no_number') {
-    console.warn(`[dispatch] ${orderNo} needs preparing but the shop cannot be reached`);
+    console.warn(`[dispatch] ${orderNo} needs preparing but the base cannot be reached`);
   }
   if (outcome === 'nudged') {
     console.log(`[dispatch] ${orderNo}: shop nudged by template, ticket held until they reply`);
@@ -872,11 +872,11 @@ export type TicketOutcome = 'sent' | 'nudged' | 'unreachable' | 'no_number' | 'n
  * off a shelf, and all of it has to be read past to find the list.
  *
  * So: what to pick, what it comes to, when it was ordered. No address, no
- * customer number, no map. Not for the kitchen ticket's reason — the shop
+ * customer number, no map. Not for the kitchen ticket's reason — the base
  * already knows its own customers — but because a picking list with a
  * doorstep in it is a picking list somebody has to read twice.
  *
- * Restaurant orders are left alone: those are not the shop's to pack.
+ * Restaurant orders are left alone: those are not the base's to pack.
  */
 export function pickingTicket(order: repo.OrderRecord): string {
   const goods = order.items.reduce((sum, i) => sum + i.lineTotal, 0);
@@ -973,7 +973,7 @@ export async function notifyOutletOfOrder(orderNo: string): Promise<TicketOutcom
     nextActions(order.orderNo, order.status, 'outlet'),
   );
   // A send can still be refused for a reason the window check cannot see — a
-  // clock that disagrees with Meta's, or a number that has blocked the shop.
+  // clock that disagrees with Meta's, or a number that has blocked the base.
   // Falling back rather than trusting the check keeps one rule: a ticket is
   // only ever marked delivered when Meta actually took it.
   if (!ok) return nudgeOutlet(order, outlet.whatsapp);
@@ -1249,7 +1249,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
     ...(() => {
       if (!pinIsForThisDoor || !order.location) return [];
       // Only where the tariff has nothing to say. A priced village beyond
-      // the radius is a place the shop chose to serve, and warning about 30
+      // the radius is a place the base chose to serve, and warning about 30
       // per cent of its own orders is how a warning stops being read.
       if (servedSpot(order.location).served) return [];
       const range = checkRange(order.location, config.store.serviceArea);
@@ -1311,7 +1311,7 @@ export function dropLines(order: repo.OrderRecord): string[] {
  * the item prices, on the grounds that the question at a door is "what is the
  * delivery costing me". Somebody who types `details` has stopped and wants the
  * lot — what is in the bag included, which is the line that answers "is the
- * roti in there?" without ringing the shop.
+ * roti in there?" without ringing the base.
  */
 export function jobDetailsCard(order: repo.OrderRecord): string {
   const nl = String.fromCharCode(10);
@@ -1652,7 +1652,7 @@ export async function dispatchToDrivers(
           ...(isParcel ? [`📞 sender +${order.contactPhone || order.phone}`] : []),
           '',
         ]
-      : ['*Uplift from:* the shop', '']),
+      : ['*Uplift from:* the base', '']),
     ...itemLines(order),
     '',
     ...dropLines(order),
@@ -1671,7 +1671,7 @@ export async function dispatchToDrivers(
   const free = limit > 0 ? pool.filter((phone) => repo.activeJobsFor(phone).length < limit) : pool;
 
   // Everybody is out. Its own outcome rather than folded into 'no_drivers',
-  // because the two are nothing alike: an empty directory is a shop that
+  // because the two are nothing alike: an empty directory is a base that
   // cannot deliver at all and somebody must fix it, while everyone being busy
   // is an ordinary queue. Told they are the same thing, a kitchen rings a shop
   // that can do nothing about it, at the busiest moment of their day.
@@ -1777,7 +1777,7 @@ export async function askCustomerForPin(orderNo: string): Promise<string> {
     return [
       `${order.orderNo} — I cannot message them just now.`,
       '',
-      'WhatsApp only lets the shop write within 24 hours of their last message,',
+      'WhatsApp only lets the base write within 24 hours of their last message,',
       `and theirs is older than that. Ring ${dial(who)}.`,
     ].join(String.fromCharCode(10));
   }
