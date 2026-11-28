@@ -1,0 +1,37 @@
+order,name,kind,km_from_georgetown,km_off_road,already_priced
+1,Vive La Force,hamlet,15.8,1.3,no
+2,Potosi,hamlet,16.9,1.5,no
+3,Friendship,hamlet,17.1,0.3,yes
+4,Free and Easy,hamlet,17.8,1.8,yes
+5,Hermitage,hamlet,18.8,1.9,yes
+6,Garden of Eden,hamlet,19.4,0.2,yes
+7,Reynstein,hamlet,19.7,1.9,no
+8,Brickery,neighbourhood,20.2,0.1,no
+9,Supply,hamlet,20.5,0.1,yes
+10,Maria's Lodge,hamlet,20.7,1.9,no
+11,Support,hamlet,20.9,0.1,no
+12,Relief,hamlet,21.5,0.2,no
+13,Vreed en Stein,hamlet,21.5,1.4,no
+14,Catherina Sophia,hamlet,22.2,1.4,no
+15,Land of Canaan,hamlet,22.7,0.2,yes
+16,L'incertitude,hamlet,22.7,1.5,no
+17,Voorburg,hamlet,23.6,1.7,yes
+18,Sarah Johanna,hamlet,24.7,0.1,yes
+19,Pearl,hamlet,25.2,0.2,no
+20,Caledonia,hamlet,25.6,0.2,yes
+21,T'huist Te Coverden,hamlet,27.3,0.2,no
+22,Den Huevel,hamlet,29.5,0.3,no
+23,Kuru Kururu,hamlet,30.4,0.8,yes
+24,Soesdyke,town,30.5,0.1,yes
+25,Timehri,town,34.3,0.9,yes
+26,Hyde Park,hamlet,38.3,0.7,no
+27,Low Wood,hamlet,45.4,0.7,no
+28,St. Cuthbert's Mission,town,49.9,0.1,no
+29,Silver Hill,hamlet,74,0.2,no
+30,The Village of Dallawalla,village,87.2,1.5,no
+31,Amelia's Ward,hamlet,88.1,0.6,no
+32,Wismar,hamlet,90,0.2,no
+33,MacKenzie,neighbourhood,90.1,0.3,no
+34,Linden,city,90.2,0.6,no
+35,Noitgedacht,hamlet,91.8,0.1,no
+36,Northinghamshire,hamlet,93.4,0.1,no

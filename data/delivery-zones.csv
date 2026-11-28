@@ -411,3 +411,33 @@ Grant 1802,Corentyne far,15800,taxi
 Grant 1651,Corentyne far,15800,taxi
 Grant 1779,Corentyne far,15800,taxi
 Moleson Creek,Corentyne far,16000,taxi
+
+# ================================================================
+# TAXI FARES ONLY — the fourth column says so, and the delivery
+# charge skips every row that carries it. Moleson Creek is a 190 km
+# drive each way: a car can be sent, a bag of rice cannot.
+#
+# Priced at $100 the kilometre beyond the last place each road
+# already priced, continuing that road rather than starting a new line:
+#   berbice: beyond Mahaicony, $5000 at 47.2 km
+#   linden: beyond Moblissa, $5000 at 80.3 km
+#
+# The two roads do NOT work out at the same money per kilometre, because
+# their edges are not on the same line: Mahaicony is $100/km from
+# Georgetown and Moblissa is $56. The Linden highway has always been one
+# flat band rather than priced by distance. That is in this file as it
+# stands, not something the generator did.
+#
+# Places and distances from OpenStreetMap, not from memory: every
+# settlement within 2.5 km of the through road, Guyana only, ordered by
+# distance from Georgetown. See src/berbice.ts and npm run berbice.
+# ================================================================
+
+# ---------------------------------------------------------------- East Bank Demerara
+The Village of Dallawalla,Linden,5700,taxi
+Amelia's Ward,Linden,5800,taxi
+Wismar,Linden,6000,taxi
+MacKenzie,Linden,6000,taxi
+Linden,Linden,6000,taxi
+Noitgedacht,Linden,6200,taxi
+Northinghamshire,Linden,6300,taxi

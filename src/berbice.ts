@@ -31,54 +31,76 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseZones, loadZones, findZone, type Zone } from './zones.ts';
 
-/** Dollars per kilometre beyond Mahaicony. The tariff's own rate. */
+/** Dollars per kilometre beyond the last priced place. The tariff's own rate. */
 const PER_KM = 100;
-
-/** Where the priced road ends today, and what it costs to get there. */
-const FROM_PLACE = 'Mahaicony';
-const FROM_KM = 47.2;
-const FROM_FEE = 5000;
 
 /** Fares are round hundreds everywhere else in this file. */
 const ROUND_TO = 100;
 
-const VILLAGES = path.resolve('./data/coast-to-moleson-creek.csv');
 const TARIFF = path.resolve('./data/delivery-zones.csv');
 
 /**
- * The road all of this is on, and it is the one the East Coast is on.
+ * A road, where its pricing stops today, and the bands beyond that.
  *
- * Bands say how far; corridors say WHICH WAY. Giving Berbice corridors of
- * its own looked tidier and priced a 60 km trip from New Amsterdam to
- * Corriverton at $24,800 — more than the 158 km run to Moleson Creek —
- * because two places in different corridors are treated as opposite
- * directions out of Georgetown and have their fares added. They are not
- * opposite directions. They are the same road, one after the other, and
- * naming it so makes the fare between them the difference instead.
+ * `from` is the furthest place on that road the tariff already prices, and
+ * its distance is measured from the map rather than assumed. Each road
+ * continues from its OWN edge, which is what "the same way" means — and
+ * worth knowing, it does not give the two roads the same money per
+ * kilometre, because the two edges are not on the same line. Mahaicony is
+ * $5,000 at 47 km, which is $100 a kilometre from Georgetown. Moblissa is
+ * $5,000 at 80 km, which is $56. The Linden highway has always been priced
+ * as one flat band rather than by distance, so continuing it from its own
+ * edge prices Linden at $6,000 while New Amsterdam, five kilometres further
+ * out on the other road, is $9,800. That is in the tariff as it stands, not
+ * something added here, and it is one line in this file to change.
+ *
+ * `corridor` matters as much as the money: two places on different
+ * corridors are treated as opposite directions out of Georgetown and have
+ * their fares ADDED. Each leg carries the corridor of the road it continues,
+ * so a trip along it is the difference between two points on one road.
  */
-const ROAD = 'East Coast Demerara';
+type Leg = {
+  key: string;
+  villages: string;
+  from: { place: string; km: number; fee: number };
+  corridor: string;
+  bands: { upTo: number; zone: string }[];
+};
 
-/**
- * The bands, by distance. Named for the road rather than for the money,
- * because that is what dispatch reads them for — two places twenty minutes
- * apart on one road are nearer each other than two bands of equal price on
- * opposite sides of a river.
- */
-const BANDS: { upTo: number; zone: string; corridor: string }[] = [
-  { upTo: 80, zone: 'West Coast Berbice near', corridor: ROAD },
-  { upTo: 100, zone: 'West Coast Berbice', corridor: ROAD },
-  { upTo: 125, zone: 'Corentyne near', corridor: ROAD },
-  { upTo: 145, zone: 'Corentyne', corridor: ROAD },
-  { upTo: 999, zone: 'Corentyne far', corridor: ROAD },
+const LEGS: Leg[] = [
+  {
+    key: 'berbice',
+    villages: './data/coast-to-moleson-creek.csv',
+    from: { place: 'Mahaicony', km: 47.2, fee: 5000 },
+    corridor: 'East Coast Demerara',
+    bands: [
+      { upTo: 80, zone: 'West Coast Berbice near' },
+      { upTo: 100, zone: 'West Coast Berbice' },
+      { upTo: 125, zone: 'Corentyne near' },
+      { upTo: 145, zone: 'Corentyne' },
+      { upTo: 999, zone: 'Corentyne far' },
+    ],
+  },
+  {
+    key: 'linden',
+    villages: './data/highway-to-linden.csv',
+    // Moblissa is the last priced place on the highway. It is not a place
+    // node in the map, so its distance is taken from the things that are:
+    // the Moblissa health centre at 80.3 km and the Moblissa river at 81.3.
+    from: { place: 'Moblissa', km: 80.3, fee: 5000 },
+    corridor: 'East Bank Demerara',
+    bands: [{ upTo: 999, zone: 'Linden' }],
+  },
 ];
 
 type Village = { name: string; km: number; priced: boolean };
 
-function read(): Village[] {
-  if (!fs.existsSync(VILLAGES)) {
-    throw new Error(`${VILLAGES} is missing — the village list has to be built first`);
+function read(leg: Leg): Village[] {
+  const where = path.resolve(leg.villages);
+  if (!fs.existsSync(where)) {
+    throw new Error(`${where} is missing — run the survey for ${leg.key} first`);
   }
-  const lines = fs.readFileSync(VILLAGES, 'utf8').split(/\r?\n/).slice(1).filter(Boolean);
+  const lines = fs.readFileSync(where, 'utf8').split(/\r?\n/).slice(1).filter(Boolean);
   return lines.map((line) => {
     const cells = line.split(',');
     return {
@@ -90,15 +112,15 @@ function read(): Village[] {
 }
 
 /** What a car to this village costs, continuing the tariff's own line. */
-export function fareAt(km: number, perKm = PER_KM): number {
-  const beyond = Math.max(0, km - FROM_KM);
-  const raw = FROM_FEE + beyond * perKm;
+export function fareAt(km: number, leg: Leg = LEGS[0]!, perKm = PER_KM): number {
+  const beyond = Math.max(0, km - leg.from.km);
+  const raw = leg.from.fee + beyond * perKm;
   return Math.round(raw / ROUND_TO) * ROUND_TO;
 }
 
-function bandFor(km: number): { zone: string; corridor: string } {
-  for (const band of BANDS) if (km <= band.upTo) return band;
-  return BANDS[BANDS.length - 1]!;
+function bandFor(km: number, leg: Leg): string {
+  for (const band of leg.bands) if (km <= band.upTo) return band.zone;
+  return leg.bands[leg.bands.length - 1]!.zone;
 }
 
 /**
@@ -244,10 +266,6 @@ function asCsv(zones: Zone[]): string {
 }
 
 function main(): void {
-  const villages = read()
-    .filter((v) => v.km > FROM_KM && !v.priced && v.name)
-    .sort((a, b) => a.km - b.km);
-
   const already = new Set(
     fs
       .readFileSync(TARIFF, 'utf8')
@@ -257,54 +275,86 @@ function main(): void {
       .filter(Boolean),
   );
 
-  // The tariff as it stands, and every name in it, which is what must still
-  // work afterwards.
+  // The tariff as it stands, and what it answers today. Every candidate has
+  // to leave all of that exactly as it is.
   const base = parseZones(fs.readFileSync(TARIFF, 'utf8'));
   const probes = probesFor(base);
-  // What the tariff answers today. Every candidate has to leave all of it
-  // exactly as it is.
   loadZones(asCsv(base));
   const before = answersFor(probes);
 
-  const rows: { corridor: string; line: string; place: string; fee: number; km: number }[] = [];
-  const spoiled: string[] = [];
+  type Row = { corridor: string; line: string; place: string; fee: number; km: number };
+  const rows: Row[] = [];
   const kept: Zone[] = [];
+  const notes: string[] = [];
 
-  for (const v of villages) {
-    const band = bandFor(v.km);
-    const fee = fareAt(v.km);
-    for (const name of namesFor(v.name)) {
-      if (already.has(name.toLowerCase())) continue;
-      const candidate: Zone = {
-        place: name,
-        zone: band.zone,
-        fee,
-        taxiOnly: true,
-        corridor: band.corridor,
-      };
-      const breaks = wouldChangeAnything(candidate, [...base, ...kept], probes, before);
-      if (breaks) {
-        spoiled.push(`${name} (${breaks})`);
-        continue;
+  for (const leg of LEGS) {
+    const villages = read(leg)
+      .filter((v) => v.km > leg.from.km && !v.priced && v.name)
+      .sort((a, b) => a.km - b.km);
+
+    const spoiled: string[] = [];
+    let added = 0;
+
+    for (const v of villages) {
+      const zone = bandFor(v.km, leg);
+      const fee = fareAt(v.km, leg);
+      for (const name of namesFor(v.name)) {
+        if (already.has(name.toLowerCase())) continue;
+        const candidate: Zone = {
+          place: name,
+          zone,
+          fee,
+          taxiOnly: true,
+          corridor: leg.corridor,
+        };
+        const breaks = wouldChangeAnything(candidate, [...base, ...kept], probes, before);
+        if (breaks) {
+          spoiled.push(`${name} (${breaks})`);
+          continue;
+        }
+        already.add(name.toLowerCase());
+        kept.push(candidate);
+        added += 1;
+        rows.push({
+          corridor: leg.corridor,
+          place: name,
+          fee,
+          km: v.km,
+          line: `${name},${zone},${fee},taxi`,
+        });
       }
-      already.add(name.toLowerCase());
-      kept.push(candidate);
-      rows.push({
-        corridor: band.corridor,
-        place: name,
-        fee,
-        km: v.km,
-        line: `${name},${band.zone},${fee},taxi`,
-      });
+    }
+
+    const skipped = villages.filter((v) => namesFor(v.name).length === 0);
+    notes.push(
+      `${leg.key}: ${added} row(s) from ${villages.length - skipped.length} village(s) ` +
+        `beyond ${leg.from.place} ($${leg.from.fee} at ${leg.from.km} km), at $${PER_KM}/km`,
+    );
+    if (spoiled.length > 0) {
+      notes.push(`  ${spoiled.length} refused, for changing an answer already given:`);
+      for (const line of spoiled.slice(0, 20)) notes.push(`    ${line}`);
+      if (spoiled.length > 20) notes.push(`    ... and ${spoiled.length - 20} more`);
+    }
+    if (skipped.length > 0) {
+      notes.push(`  ${skipped.length} skipped, named by a number alone and nothing else:`);
+      notes.push(`    ${skipped.map((v) => v.name).join(', ')}`);
     }
   }
 
   // Put the real tariff back, so nothing downstream is left holding the
-  // trial copy this function has been loading and reloading.
+  // trial copy the guard has been loading and reloading.
   loadZones(fs.readFileSync(TARIFF, 'utf8'));
 
+  for (const note of notes) console.log(note);
+
+  if (rows.length === 0) {
+    console.log('');
+    console.log('nothing to add — every village on these roads is already priced');
+    return;
+  }
+
   // Grouped under the section headings the parser reads corridors from.
-  const byCorridor = new Map<string, typeof rows>();
+  const byCorridor = new Map<string, Row[]>();
   for (const row of rows) {
     const held = byCorridor.get(row.corridor) ?? [];
     held.push(row);
@@ -318,10 +368,17 @@ function main(): void {
     '# charge skips every row that carries it. Moleson Creek is a 190 km',
     '# drive each way: a car can be sent, a bag of rice cannot.',
     '#',
-    `# Priced at $${PER_KM} the kilometre beyond ${FROM_PLACE}, which is the`,
-    `# tariff's own rate — ${FROM_PLACE} is $${FROM_FEE} at ${FROM_KM} km, and`,
-    '# Georgetown $500 at 2 km. Continuing that line rather than starting a',
-    '# new one, so the same road does not change rate halfway along it.',
+    `# Priced at $${PER_KM} the kilometre beyond the last place each road`,
+    '# already priced, continuing that road rather than starting a new line:',
+    ...LEGS.map(
+      (leg) => `#   ${leg.key}: beyond ${leg.from.place}, $${leg.from.fee} at ${leg.from.km} km`,
+    ),
+    '#',
+    '# The two roads do NOT work out at the same money per kilometre, because',
+    '# their edges are not on the same line: Mahaicony is $100/km from',
+    '# Georgetown and Moblissa is $56. The Linden highway has always been one',
+    '# flat band rather than priced by distance. That is in this file as it',
+    '# stands, not something the generator did.',
     '#',
     '# Places and distances from OpenStreetMap, not from memory: every',
     '# settlement within 2.5 km of the through road, Guyana only, ordered by',
@@ -338,33 +395,24 @@ function main(): void {
   const body = fs.readFileSync(TARIFF, 'utf8').replace(/\s*$/, '');
   fs.writeFileSync(TARIFF, `${body}\n${out.join('\n')}\n`, 'utf8');
 
-  const skipped = villages.filter((v) => namesFor(v.name).length === 0);
+  console.log('');
   console.log(`${rows.length} taxi-only row(s) written to data/delivery-zones.csv`);
-  console.log(`  from ${villages.length - skipped.length} village(s) beyond ${FROM_PLACE}, at $${PER_KM}/km`);
-  if (spoiled.length > 0) {
-    console.log(`  ${spoiled.length} refused, because they changed an answer already given:`);
-    for (const line of spoiled.slice(0, 20)) console.log(`    ${line}`);
-    if (spoiled.length > 20) console.log(`    ... and ${spoiled.length - 20} more`);
-  }
-  if (skipped.length > 0) {
-    console.log(`  ${skipped.length} skipped, named by a number alone and nothing else:`);
-    console.log(`    ${skipped.map((v) => v.name).join(', ')}`);
-  }
   console.log('');
   for (const anchor of [
     'Fort Wellington',
-    'Rosignol',
     'New Amsterdam',
-    'Albion',
     'Rose Hall',
-    'Port Mourant',
     'Corriverton',
-    'Crabwood Creek',
     'Moleson Creek',
+    'Amelia\'s Ward',
+    'Wismar',
+    'MacKenzie',
+    'Linden',
   ]) {
     const row = rows.find((r) => r.place.toLowerCase() === anchor.toLowerCase());
-    if (row) console.log(`  ${anchor.padEnd(18)} ${String(row.km).padStart(6)} km   $${row.fee.toLocaleString()}`);
-    else console.log(`  ${anchor.padEnd(18)} (not in the list)`);
+    if (row) {
+      console.log(`  ${anchor.padEnd(18)} ${String(row.km).padStart(6)} km   $${row.fee.toLocaleString()}`);
+    }
   }
 }
 

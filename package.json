@@ -25,7 +25,8 @@
     "map:check": "node --env-file-if-exists=.env src/map-check.ts",
     "roads": "node --env-file-if-exists=.env src/roads.ts",
     "streets": "node --env-file-if-exists=.env src/streets.ts",
-    "coast": "node scripts/coast-villages.mjs",
+    "coast": "node scripts/coast-villages.mjs coast",
+    "linden": "node scripts/coast-villages.mjs linden",
     "berbice": "node --env-file-if-exists=.env src/berbice.ts"
   },
   "dependencies": {

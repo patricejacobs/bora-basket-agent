@@ -7831,7 +7831,11 @@ section('What a delivery costs, by where it goes');
     golden.kind === 'ambiguous' && golden.candidates.length === 2,
     JSON.stringify(golden),
   );
-  check('somewhere not in the tariff is unknown', fee('Linden') === 'unknown', fee('Linden'));
+  // Linden used to be the example here, and is now priced — $6,000, 90 km
+  // up the Soesdyke highway. Somewhere genuinely outside the tariff stands
+  // in for it: the point is that the matcher gives up rather than reaching.
+  check('somewhere not in the tariff is unknown', fee('Lethem') === 'unknown', fee('Lethem'));
+  check('and Linden is in it now', fee('Linden') === 'Linden=6000', fee('Linden'));
   check('and so is nonsense', fee('asdfgh') === 'unknown', fee('asdfgh'));
 
   /* --- the tool will not price what was not agreed -------------------- */
@@ -15976,6 +15980,63 @@ section('What the customer said is not thrown away');
   repo.clearTaxiPicks(rider9);
   repo.clearTaxiPicks(rider10);
   repo.clearTaxiPicks(rider12);
+}
+section('Linden is up the highway, and priced from it');
+{
+  const { quoteTrip } = await import('./taxi-quote.ts');
+  const { quoteDeliveryPlace: deliveryTo } = await import('./delivery-place.ts');
+  const { carOnlyPlace } = await import('./zones.ts');
+
+  const fareFor = (a: string, b: string): number => {
+    const q = quoteTrip(a, b);
+    return q.kind === 'priced' ? q.fee : -1;
+  };
+
+  // The highway was priced to Moblissa and stopped five kilometres short of
+  // the town it goes to.
+  check('a car to Linden is priced', fareFor('Georgetown', 'Linden') === 6000,
+    String(fareFor('Georgetown', 'Linden')));
+  check('and so are its wards',
+    fareFor('Georgetown', 'Wismar') === 6000 &&
+      fareFor('Georgetown', 'MacKenzie') === 6000 &&
+      fareFor('Georgetown', "Amelia's Ward") === 5800,
+    [fareFor('Georgetown', 'Wismar'), fareFor('Georgetown', 'MacKenzie'),
+      fareFor('Georgetown', "Amelia's Ward")].join('|'));
+
+  // Same road, so a trip along it is a difference. Giving the highway a
+  // corridor of its own would have added the two fares instead.
+  check('a trip up the highway is a difference, not a sum',
+    fareFor('Soesdyke', 'Linden') === 3300, String(fareFor('Soesdyke', 'Linden')));
+  check('and it prices the same both ways',
+    fareFor('Linden', 'Georgetown') === fareFor('Georgetown', 'Linden'));
+
+  // Taxi only, like Berbice.
+  const shopper2 = '5926900601';
+  repo.saveCustomer(shopper2, { name: 'Linden Shopper', contactPhone: shopper2 });
+  repo.setService(shopper2, 'grocery');
+  for (const place of ['Linden', 'Wismar', 'MacKenzie']) {
+    check(`no delivery charge for ${place}`, deliveryTo(shopper2, place) === null,
+      JSON.stringify(deliveryTo(shopper2, place)));
+    check(`and ${place} is named as car-only`, carOnlyPlace(place) === place,
+      String(carOnlyPlace(place)));
+  }
+  repo.setService(shopper2, null);
+
+  // Each road continues from ITS OWN edge, which is what "the same way"
+  // means — and it does not give the two roads the same money per
+  // kilometre, because the two edges are not on the same line. Mahaicony is
+  // $5,000 at 47 km, which is $100/km from Georgetown; Moblissa is $5,000 at
+  // 80 km, which is $56. The highway has always been one flat band rather
+  // than priced by distance, so Linden at 90 km is $6,000 while New
+  // Amsterdam at 95 km is $9,800. Written down because it is in the tariff
+  // rather than in the generator, and because somebody will ask.
+  check('Linden is cheaper than a shorter trip into Berbice',
+    fareFor('Georgetown', 'Linden') < fareFor('Georgetown', 'New Amsterdam'),
+    `${fareFor('Georgetown', 'Linden')} vs ${fareFor('Georgetown', 'New Amsterdam')}`);
+  check('which is the old highway band showing through, not a new rule',
+    fareFor('Georgetown', 'Moblissa') === 5000 &&
+      fareFor('Georgetown', 'Mahaicony') === 5000,
+    `${fareFor('Georgetown', 'Moblissa')} / ${fareFor('Georgetown', 'Mahaicony')}`);
 }
 section('Berbice carries passengers, not shopping');
 {

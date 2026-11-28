@@ -507,6 +507,47 @@ Georgetown and have their fares added. They are not opposite directions.
 They are the same road, one after the other, so the Berbice rows carry the
 East Coast's corridor and the fare between them is the difference: **$6,200**.
 
+### Linden is up the highway, and priced from it
+
+The Soesdyke–Linden highway was priced to **Moblissa** and stopped five
+kilometres short of the town it goes to.
+
+| | km | Fare |
+|---|---|---|
+| Amelia's Ward | 88 | $5,800 |
+| Wismar | 90 | $6,000 |
+| MacKenzie | 90 | $6,000 |
+| **Linden** | 90 | **$6,000** |
+
+Taxi only, same as Berbice. Same corridor as the East Bank road it
+continues, so a trip up it is a difference: **Soesdyke to Linden is $3,300**,
+not the two fares added.
+
+**Each road continues from its own edge — and that does not give the two
+roads the same money per kilometre.** Mahaicony is $5,000 at 47 km, which is
+$100 a kilometre from Georgetown. Moblissa is $5,000 at **80** km, which is
+$56. The highway has always been priced as one flat band rather than by
+distance, so continuing it from its own edge puts **Linden at 90 km on
+$6,000 while New Amsterdam at 95 km is $9,800**.
+
+That difference is in the tariff as it stands, not something the generator
+invented, and it is worth a decision rather than a shrug: either the highway
+band is low, or the Berbice fares are high. Priced from Georgetown on the
+same $100/km line as everything else, Linden would be about **$9,300**. One
+line in `src/berbice.ts` either way.
+
+**Moblissa is not a place node in the map**, so its 80 km is taken from the
+things that are: the Moblissa health centre at 80.3 km and the Moblissa
+river at 81.3. Nor are Dora, Madewini, Yarrowkabra, Loo Creek or Long Creek
+— the whole existing Highway band is priced for places OpenStreetMap does
+not carry as settlements.
+
+**Four places on that road are still unpriced**, because they sit *below*
+Moblissa and the rule only prices beyond it: Hyde Park (38 km), Low Wood
+(45), St. Cuthbert's Mission (50) and Silver Hill (74). Extending the line
+backwards does not work — it would put Hyde Park at $800 against Timehri's
+$3,800 four kilometres closer — so they want a figure of their own.
+
 ### Where the villages came from
 
 Not from memory. The tariff says of itself *"WRITTEN FROM GENERAL KNOWLEDGE,

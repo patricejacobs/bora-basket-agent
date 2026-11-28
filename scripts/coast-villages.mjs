@@ -62,7 +62,54 @@ async function ask(query, name) {
   throw new Error(`no Overpass mirror answered — ${lastError}`);
 }
 
-const BOX = '5.70,-58.20,6.95,-56.90';
+/**
+ * The roads this can survey, one at a time.
+ *
+ *   node scripts/coast-villages.mjs coast     Georgetown to Moleson Creek
+ *   node scripts/coast-villages.mjs linden    Soesdyke to Linden
+ *
+ * Each needs its own box, its own idea of which side of Georgetown the road
+ * runs, and its own rule about tertiary roads — they are the national route
+ * for the last few kilometres to the ferry and the whole street plan of
+ * Linden, and they are neither in between.
+ */
+const ROUTES = {
+  coast: {
+    box: '5.70,-58.20,6.95,-56.90',
+    out: './data/coast-to-moleson-creek.csv',
+    what: 'Georgetown to Moleson Creek',
+    // The route out of Georgetown runs EAST. The box is a rectangle, so it
+    // also holds the West Bank, the West Coast and the East Bank road south
+    // to Timehri — none of which is on the way to the Corentyne.
+    onRoute: (pt) => pt.lon >= -58.10,
+    // Tertiary reaches every corner of Georgetown, which took the list from
+    // 300 to 468. It is only needed for the last stretch to the ferry.
+    useTertiary: (pt) => pt.lat <= 6.0,
+  },
+  linden: {
+    box: '5.90,-58.50,6.70,-58.00',
+    out: './data/highway-to-linden.csv',
+    what: 'Soesdyke to Linden',
+    // This road runs SOUTH, not east, and it starts below Soesdyke. North
+    // of that is the East Bank, already priced to Timehri.
+    onRoute: (pt) => pt.lat <= 6.68,
+    // Linden is a town of several wards and its roads are tagged tertiary
+    // throughout. Without them the town itself is "off the road".
+    useTertiary: () => true,
+    // Suriname is 300 km from this road; the border query finds nothing in
+    // this box and the check no-ops by itself.
+  },
+};
+
+const WHICH = (process.argv[2] ?? 'coast').toLowerCase();
+const ROUTE = ROUTES[WHICH];
+if (!ROUTE) {
+  console.error(`no such route "${WHICH}" — try ${Object.keys(ROUTES).join(' or ')}`);
+  process.exit(1);
+}
+console.log(`surveying ${ROUTE.what}`);
+
+const BOX = ROUTE.box;
 const R = 6371;
 const km = (a, b) => {
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -80,14 +127,14 @@ const places = await ask(
   `[out:json][timeout:300];` +
     `node["place"~"^(city|town|village|hamlet|suburb|neighbourhood)$"](${BOX});` +
     `out body;`,
-  'coast-1-places',
+  `${WHICH}-1-places`,
 );
 
 const roadsAll = await ask(
   `[out:json][timeout:300];` +
     `way["highway"~"^(trunk|primary|secondary|tertiary)$"](${BOX});` +
     `out geom;`,
-  'coast-3-road',
+  `${WHICH}-3-road`,
 );
 
 /* ------------------------------------------------- the national border itself */
@@ -95,7 +142,7 @@ const border = await ask(
   `[out:json][timeout:300];` +
     `way["boundary"="administrative"]["admin_level"="2"](${BOX});` +
     `out geom;`,
-  'coast-4-border',
+  `${WHICH}-4-border`,
 );
 const edge = [];
 for (const w of border) for (const p of w.geometry ?? []) if (p) edge.push({ lat: p.lat, lon: p.lon });
@@ -122,7 +169,7 @@ for (const w of roadsAll) {
   const kind = w.tags?.highway ?? '';
   for (const p of w.geometry ?? []) {
     if (!p) continue;
-    if (kind === 'tertiary' && p.lat > 6.0) continue;
+    if (kind === 'tertiary' && !ROUTE.useTertiary(p)) continue;
     line.push({ lat: p.lat, lon: p.lon });
   }
 }
@@ -167,11 +214,9 @@ for (const el of places) {
     dropped.offRoad += 1;
     continue;
   }
-  // Only the corridor actually asked about. The box is a rectangle, so it
-  // also holds the West Bank, the West Coast and the East Bank road south
-  // to Timehri — none of which is on the way to Moleson Creek. The route
-  // out of Georgetown runs EAST, so east of the city is the route.
-  if (p.lon < -58.10) {
+  // Only the road actually asked about; the box is a rectangle and holds
+  // more than one road out of town.
+  if (!ROUTE.onRoute(p)) {
     dropped.offRoute = (dropped.offRoute ?? 0) + 1;
     continue;
   }
@@ -193,10 +238,10 @@ kept.forEach((p, i) => {
   out.push([i + 1, p.name, p.kind, p.km, p.offRoad, p.priced ? 'yes' : 'no'].join(','));
 });
 console.log(`dropped off this route (west side, East Bank): ${dropped.offRoute ?? 0}`);
-fs.writeFileSync('./data/coast-to-moleson-creek.csv', out.join('\n') + '\n', 'utf8');
+fs.writeFileSync(ROUTE.out, out.join('\n') + '\n', 'utf8');
 
 console.log('');
-console.log(`${kept.length} settlements on the road, Georgetown to Moleson Creek`);
+console.log(`${kept.length} settlements on the road, ${ROUTE.what}`);
 console.log(`  ${kept.filter((p) => p.priced).length} already priced, ${kept.filter((p) => !p.priced).length} new`);
 console.log(`dropped across the border: ${dropped.suriname.length} — ${dropped.suriname.slice(0, 8).join(', ')}`);
 console.log(`dropped off the road: ${dropped.offRoad}`);
