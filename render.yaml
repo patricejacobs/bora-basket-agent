@@ -284,6 +284,10 @@ services:
         value: "100000"
       - key: MIN_ORDER_TOTAL
         value: "1000"
+      # Given once to a new customer who gave their name, credited when their
+      # first delivery arrives. The name is the whole of registering here.
+      - key: WELCOME_POINTS
+        value: "50"
       - key: CURRENCY_CODE
         value: "GYD"
       - key: CURRENCY_SYMBOL

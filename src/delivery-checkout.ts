@@ -29,6 +29,7 @@ import { t, type Language } from './language.ts';
 import { endPicker } from './place-picker.ts';
 import { savedPinIsIn, savedStreetIsIn, quoteDeliveryPlace } from './delivery-place.ts';
 import { coordsFor, straightKm } from './place-coords.ts';
+import { welcomeOnOffer, REWARD_POINTS, REWARD_VALUE } from './rewards.ts';
 import type { OutboundMessage } from './channels/types.ts';
 
 /** Every step of it, in order. '' means they are not in checkout at all. */
@@ -201,7 +202,31 @@ export function askStreet(phone: string, place: string, lang: Language): Outboun
 
 export function askName(phone: string, lang: Language): OutboundMessage {
   repo.setCheckoutStep(phone, 'name');
-  return { kind: 'text', text: t('checkout_name_ask', lang) };
+
+  // A first-timer is told what their name is worth, on the question that
+  // asks for it. This IS the registration — the base has had their number
+  // since the first message, and the name is the one thing it could not
+  // know — so a sign-up step of its own would be a second question for
+  // something already being asked.
+  //
+  // What it is NOT allowed to say is what the gift is worth in money. Points
+  // only convert in whole rewards — 1,000 of them for $500 off — so 50
+  // points can buy nothing at all on its own, and `valueOf(50)` is zero. An
+  // earlier draft of this line offered "$25 off" and would have promised a
+  // customer something the scheme cannot pay. The rate is the honest thing
+  // to say: this many points now, and this many buys that much off.
+  const gift = welcomeOnOffer(phone);
+  return {
+    kind: 'text',
+    text:
+      gift > 0
+        ? t('checkout_name_ask_welcome', lang, {
+            points: String(gift),
+            reward: String(REWARD_POINTS),
+            value: money(REWARD_VALUE),
+          })
+        : t('checkout_name_ask', lang),
+  };
 }
 
 /**

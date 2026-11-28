@@ -539,6 +539,15 @@ export const config = {
     /** All money below is in minor units (see CURRENCY_DECIMALS). */
     deliveryFee: Math.round(num('DELIVERY_FEE', 0) * minorPerUnit),
     freeDeliveryOver: Math.round(num('FREE_DELIVERY_OVER', 0) * minorPerUnit),
+    /**
+     * Points given once, to a new customer who gave their name.
+     *
+     * The name IS the registration — the base already had the number from
+     * WhatsApp — so this is paid for the one thing it could not know. 50 is
+     * worth $25 off, and the same as one $500 Georgetown delivery earns. 0
+     * switches it off.
+     */
+    welcomePoints: Math.max(0, Math.round(num('WELCOME_POINTS', 50))),
     minOrderTotal: Math.round(num('MIN_ORDER_TOTAL', 0) * minorPerUnit),
   },
 

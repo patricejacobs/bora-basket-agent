@@ -448,6 +448,18 @@ addColumnIfMissing('customers', 'contact_phone', "TEXT");
 // they answered a question about Spanish. Parked here, it is replayed the
 // moment the language is known.
 addColumnIfMissing('customers', 'parked_text', "TEXT NOT NULL DEFAULT ''");
+// The delivery a welcome gift arrived on.
+//
+// The gift's own `order_no` is a sentinel carrying the phone, because that
+// is what makes the ledger's unique index enforce once-per-number without a
+// flag anybody has to remember to set. So the delivery that triggered it is
+// written here instead, which is what lets the message that goes out name
+// the gift beside what the delivery itself earned.
+//
+// No index on it, deliberately: an index belongs in the schema above, which
+// runs before this column exists, and the table holds one row per order —
+// one scan per delivery costs less than the ordering problem would.
+addColumnIfMissing('points_ledger', 'on_order', "TEXT NOT NULL DEFAULT ''");
 
 // The delivery zone the customer has AGREED to, by name.
 //

@@ -176,6 +176,7 @@ const STRINGS: Record<Language, Dictionary> = {
     // Reward points. Said in points, because that is what the shop promised,
     // with the money beside it so nobody has to work out what a point is.
     points_earned: '⭐ *+{points} points* on this delivery.',
+    points_welcome: '🎁 *+{points} points* to welcome you — thank you for your first order.',
     // Counted in points to go, never in money still to spend. The base is
     // the delivery charge, so "spend more" would read as "pay us more in
     // fees" - and a customer cannot go and acquire points anyway. What they
@@ -257,6 +258,8 @@ const STRINGS: Record<Language, Dictionary> = {
     pick_which_place: 'There is more than one *{said}*, and they are not the same price. Which one?',
     checkout_street_ask: 'What is the street address at {place}? Lot number and road — or a landmark, like opposite the school or the third gate after the church. Whatever gets them to the right door.',
     checkout_name_ask: 'And what name is the delivery in?',
+    checkout_name_ask_welcome:
+      'And what name is the delivery in? First order with us, so we will put *{points} points* on your account once this delivery arrives — *{reward} points* is *{value}* off an order.',
     checkout_gate_parcel: '📦 {contents}{nl}To *{to}* at {where}{nl}*Delivery {fee}*, collected from you when it is picked up.{nl}{nl}Shall I book it?',
     checkout_gate: '{items}{nl}Delivery to {place} — {fee}{nl}*Total {total}*, cash to the associate at your door.{nl}{nl}For *{name}*, at {where}.{spot}{nl}{nl}Shall I place it?',
     // Printed in place of a pin, because silence here reads as "they have
@@ -429,6 +432,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_driver_outside: 'Su chófer está afuera 🚕 Le dirá su código de seguridad *{code}* antes de que suba.',
     taxi_safety_code: '🔐 Su código de seguridad es *{code}*. El chófer le dirá estas cuatro cifras antes de que suba. Si dice otras, no suba al coche — escríbanos.',
     points_earned: '⭐ *+{points} puntos* por esta entrega.',
+    points_welcome: '🎁 *+{points} puntos* de bienvenida — gracias por su primer pedido.',
     points_to_go: 'Tiene *{points} puntos* — *faltan {togo}* para {value} de descuento.',
     points_ready: 'Tiene *{points} puntos* — son *{value}* de descuento en un pedido, cuando quiera.',
     points_use_hint: 'Solo diga *usar mis puntos*.',
@@ -500,6 +504,8 @@ const STRINGS: Record<Language, Dictionary> = {
     pick_which_place: 'Hay más de un *{said}*, y no cuestan lo mismo. ¿Cuál es?',
     checkout_street_ask: '¿Cuál es la dirección en {place}? Número de lote y calle — o una referencia, como frente a la escuela o el tercer portón después de la iglesia. Lo que sirva para llegar a la puerta correcta.',
     checkout_name_ask: '¿A nombre de quién va la entrega?',
+    checkout_name_ask_welcome:
+      '¿A nombre de quién va la entrega? Es su primer pedido, así que le abonamos *{points} puntos* cuando llegue esta entrega — *{reward} puntos* son *{value}* de descuento en un pedido.',
     checkout_gate_parcel: '📦 {contents}{nl}Para *{to}* en {where}{nl}*Envío {fee}*, se cobra a usted en la recogida.{nl}{nl}¿Lo reservo?',
     checkout_gate: '{items}{nl}Envío a {place} — {fee}{nl}*Total {total}*, en efectivo al asociado en su puerta.{nl}{nl}A nombre de *{name}*, en {where}.{spot}{nl}{nl}¿Hago el pedido?',
     checkout_no_spot: 'No envió la ubicación exacta — su asociado le llamará cuando esté cerca.',
@@ -656,6 +662,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_driver_outside: 'O seu chofer está lá fora 🚕 Vai dizer-lhe o seu código de segurança *{code}* antes de entrar.',
     taxi_safety_code: '🔐 O seu código de segurança é *{code}*. O chofer vai dizer-lhe estes quatro algarismos antes de entrar. Se disser outros, não entre no carro — escreva-nos.',
     points_earned: '⭐ *+{points} pontos* por esta entrega.',
+    points_welcome: '🎁 *+{points} pontos* de boas-vindas — obrigado pelo seu primeiro pedido.',
     points_to_go: 'Tem *{points} pontos* — *faltam {togo}* para {value} de desconto.',
     points_ready: 'Tem *{points} pontos* — são *{value}* de desconto num pedido, quando quiser.',
     points_use_hint: 'Basta dizer *usar os meus pontos*.',
@@ -727,6 +734,8 @@ const STRINGS: Record<Language, Dictionary> = {
     pick_which_place: 'Há mais do que um *{said}*, e não custam o mesmo. Qual deles?',
     checkout_street_ask: 'Qual é a morada em {place}? Número do lote e rua — ou uma referência, como em frente à escola ou o terceiro portão depois da igreja. O que servir para chegarem à porta certa.',
     checkout_name_ask: 'E em que nome fica a entrega?',
+    checkout_name_ask_welcome:
+      'E em que nome fica a entrega? É o seu primeiro pedido, por isso creditamos *{points} pontos* quando esta entrega chegar — *{reward} pontos* são *{value}* de desconto num pedido.',
     checkout_gate_parcel: '📦 {contents}{nl}Para *{to}* em {where}{nl}*Entrega {fee}*, cobrada a si no levantamento.{nl}{nl}Reservo?',
     checkout_gate: '{items}{nl}Entrega para {place} — {fee}{nl}*Total {total}*, em dinheiro ao associado à sua porta.{nl}{nl}Em nome de *{name}*, em {where}.{spot}{nl}{nl}Faço o pedido?',
     checkout_no_spot: 'Não enviou o local exato — o seu associado liga quando estiver perto.',
@@ -881,6 +890,7 @@ const STRINGS: Record<Language, Dictionary> = {
     taxi_driver_outside: '专车司机已在外面等候 🚕 上车前他会先告知您安全码 *{code}*。',
     taxi_safety_code: '🔐 您的安全码是 *{code}*。上车前专车司机会把这四位数字告诉您。如果数字不符，请不要上车，并立即联系我们。',
     points_earned: '⭐ 本次配送获得 *+{points} 积分*。',
+    points_welcome: '🎁 欢迎您 *+{points} 积分*——感谢您的首次下单。',
     points_to_go: '您现有 *{points} 积分*——再 *{togo} 分*即可减 {value}。',
     points_ready: '您现有 *{points} 积分*——相当于订单减 *{value}*，随时可用。',
     points_use_hint: '告诉我们*使用积分*即可。',
@@ -951,6 +961,8 @@ const STRINGS: Record<Language, Dictionary> = {
     pick_which_place: '有多个 *{said}*，价格不同。是哪一个？',
     checkout_street_ask: '{place} 的详细地址是？门牌号和街道 — 或者一个地标，比如学校对面，或教堂过去第三个门。只要能送到正确的门口就行。',
     checkout_name_ask: '这次配送用什么名字？',
+    checkout_name_ask_welcome:
+      '这次配送用什么名字？首次下单，本单送到后即为您存入 *{points} 积分*——*{reward} 积分* 可抵订单 *{value}*。',
     checkout_gate_parcel: '📦 {contents}{nl}送给 *{to}*，地址 {where}{nl}*运费 {fee}*，取件时向您收取。{nl}{nl}要下单吗？',
     checkout_gate: '{items}{nl}配送至 {place} — {fee}{nl}*合计 {total}*，到门后以现金支付给配送员。{nl}{nl}收件人 *{name}*，地址 {where}。{spot}{nl}{nl}要下单吗？',
     checkout_no_spot: '未发送精确位置 — 配送员快到时会打电话给您。',

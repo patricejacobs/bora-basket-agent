@@ -623,10 +623,12 @@ export function deliveredMessage(order: repo.OrderRecord, lang: Language): strin
   // standing on a pavement should get one thing to read, not three.
   const lines = receiptLines(order, lang);
   const earned = isTaxi ? repo.pointsEarnedOn(order.orderNo) : 0;
+  const gift = isTaxi ? repo.welcomePointsOn(order.orderNo) : 0;
   const head = [
     receipt,
     ...(lines.length > 0 ? ['', ...lines] : []),
     ...(earned > 0 ? ['', t('receipt_points', lang, { points: String(earned) })] : []),
+    ...(gift > 0 ? [t('points_welcome', lang, { points: String(gift) })] : []),
     '',
     thanksFor(order, lang),
   ].join(nl);
@@ -707,13 +709,18 @@ export async function notifyCustomerOfStatus(
     // this one would be the same news twice.
     if (status === 'delivered' && order.kind !== 'taxi') {
       const earned = repo.pointsEarnedOn(order.orderNo);
-      if (earned > 0) {
+      const gift = repo.welcomePointsOn(order.orderNo);
+      if (earned > 0 || gift > 0) {
         const { balanceLines, deliveryOn, usualDelivery } = await import('./rewards.ts');
         const nl = String.fromCharCode(10);
         await sendText(
           order.phone,
           [
-            t('points_earned', lang, { points: String(earned) }),
+            ...(earned > 0 ? [t('points_earned', lang, { points: String(earned) })] : []),
+            // The welcome on its own line, because it is a different thing
+            // from what the delivery earned and folding the two together
+            // would read as one generous delivery.
+            ...(gift > 0 ? [t('points_welcome', lang, { points: String(gift) })] : []),
             // THIS delivery, not the one on their record. The order in hand
             // is where it actually went — a customer who redirected it mid-
             // flight was being told how many more deliveries to the village

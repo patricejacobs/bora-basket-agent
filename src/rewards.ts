@@ -144,6 +144,22 @@ export function usualDelivery(phone: string): { zone: string; fee: number } | nu
  * What they can do is order again, which is what the deliveries line says,
  * priced from the zone already on their record.
  */
+/**
+ * The welcome gift this customer still has coming, or 0.
+ *
+ * Offered to somebody the base has no name for and who has never had it.
+ * The name is the whole of what registering ever meant here — the number
+ * came with WhatsApp — so the offer belongs on the question that asks for
+ * it, and nowhere else. There is no sign-up screen to put it on.
+ */
+export function welcomeOnOffer(phone: string): number {
+  const points = config.store.welcomePoints;
+  if (points <= 0) return 0;
+  if (repo.welcomePointsGiven(phone)) return 0;
+  if ((repo.getCustomer(phone).name ?? '').trim() !== '') return 0;
+  return points;
+}
+
 export function balanceLines(
   points: number,
   lang: Language = 'en',

@@ -3503,6 +3503,63 @@ export function awardPoints(orderNo: string): number {
 }
 
 /**
+ * The welcome gift, credited once per number, on the first delivery that
+ * actually arrived.
+ *
+ * Paid for a NAME. The base already had their number from WhatsApp, so the
+ * name is the one thing it could not know and the only thing registration
+ * ever meant here — which is why there is no sign-up screen to go with it.
+ *
+ * On arrival rather than on the name, for the same reason every other point
+ * in this scheme waits: a gift that pays out on a word typed into a chat is
+ * a gift to anybody with a spare SIM. On arrival it costs nothing that was
+ * not already spent serving a real customer at a real door.
+ *
+ * Once per number for ever, enforced by the ledger's own unique index over
+ * (order_no, reason) rather than by a flag somebody has to remember to set.
+ * The row's order_no is a sentinel carrying the phone, so the index itself
+ * does the counting; the delivery that triggered it goes in `on_order`.
+ */
+export function awardWelcomePoints(orderNo: string, points: number): number {
+  if (points <= 0) return 0;
+  const order = findOrder(orderNo);
+  if (!order || order.status !== 'delivered') return 0;
+
+  const customer = getCustomer(order.phone);
+  if (!(customer.name ?? '').trim()) return 0;
+
+  const digits = order.phone.replace(/[^0-9]/g, '');
+  if (!digits) return 0;
+
+  const done = db
+    .prepare(
+      `INSERT OR IGNORE INTO points_ledger
+         (phone, order_no, points, reason, on_order, created_at)
+       VALUES (?, ?, ?, 'welcome', ?, ?)`,
+    )
+    .run(digits, `WELCOME-${digits}`, points, orderNo, nowIso());
+  return done.changes > 0 ? points : 0;
+}
+
+/** What the welcome gift put on this delivery, if it landed on this one. */
+export function welcomePointsOn(orderNo: string): number {
+  const row = db
+    .prepare(`SELECT points FROM points_ledger WHERE on_order = ? AND reason = 'welcome'`)
+    .get(orderNo) as { points: number } | undefined;
+  return row?.points ?? 0;
+}
+
+/** Whether this number has already had it. */
+export function welcomePointsGiven(phone: string): boolean {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (!digits) return false;
+  const row = db
+    .prepare(`SELECT 1 FROM points_ledger WHERE order_no = ? AND reason = 'welcome'`)
+    .get(`WELCOME-${digits}`) as unknown;
+  return Boolean(row);
+}
+
+/**
  * Takes points off a customer for an order, refusing to overdraw.
  *
  * Checked and written in one transaction. Two orders placed in the same
@@ -4985,7 +5042,14 @@ export function setOrderStatus(orderNo: string, status: OrderStatus): void {
   // pays before the shopping arrives pays for orders that did not happen.
   // And a reward spent on an order that then came back has to go back to the
   // customer, or they have paid five hundred dollars for nothing.
-  if (status === 'delivered') awardPoints(orderNo);
+  if (status === 'delivered') {
+    awardPoints(orderNo);
+    // Beside the order's own points rather than inside them, so the message
+    // that goes out can name the gift separately. Folded into the earned
+    // figure it would read as a generous delivery and the welcome would
+    // never be mentioned at all.
+    awardWelcomePoints(orderNo, config.store.welcomePoints);
+  }
   if (status === 'cancelled' || status === 'returned') refundPoints(orderNo);
 }
 

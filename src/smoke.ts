@@ -12354,6 +12354,14 @@ section('Points come off the delivery charge');
 
   const spender = '5926800001';
   repo.saveCustomer(spender, { name: 'Points Tester', address: 'Lot 1 Parika', contactPhone: spender });
+
+  // Not a first-timer, so the welcome gift cannot land in the middle of the
+  // arithmetic being checked here. The gift has a section of its own, which
+  // is also where its interaction with a first delivery is proved.
+  db.prepare(
+    `INSERT OR IGNORE INTO points_ledger (phone, order_no, points, reason, on_order, created_at)
+     VALUES (?, ?, 0, 'welcome', '', ?)`,
+  ).run(spender, `WELCOME-${spender}`, new Date().toISOString());
   const made: string[] = [];
   const order = (no: string, goods: number, fee: number, kind = 'grocery') => {
     db.prepare(
@@ -15658,6 +15666,111 @@ section('An associate can tell the shop where a street is');
   check('the worklist reads as work', /cannot place/.test(worklist), worklist.slice(0, 70));
   check('and tells them how to clear a line',
     /street Garnet Street = Kitty/.test(worklist), worklist.slice(-60));
+}
+section('The name is the registration');
+{
+  const { welcomeOnOffer, valueOf: worth } = await import('./rewards.ts');
+  const { askName } = await import('./delivery-checkout.ts');
+  const gift = config.store.welcomePoints;
+
+  const newcomer = '5926800101';
+  const order9 = (no: string, fee: number, phone: string, name: string): string => {
+    db.prepare(
+      `INSERT INTO orders (order_no, phone, customer_name, address, contact_phone, delivery_note,
+         kind, delivery_code, subtotal, delivery_fee, total, payment_method, status, created_at)
+       VALUES (?, ?, ?, 'Lot 1 Kitty', ?, '', 'grocery', '', 4000, ?, ?, 'cash', 'pending', ?)`,
+    ).run(no, phone, name, phone, fee, 4000 + fee, new Date().toISOString());
+    return no;
+  };
+
+  // There is no sign-up screen, because there was never anything to sign up
+  // to. The base has had their number since their first message; the name
+  // is the one thing it cannot know, and it already asks for it at
+  // checkout. So the gift is paid for that, on the question that asks it.
+  check('the gift is worth saying out loud', gift > 0, String(gift));
+
+  // And it must not pretend to be money. Points convert in whole rewards
+  // only — 1,000 for $500 off — so the gift on its own buys nothing at all,
+  // and an offer of "$25 off" would promise what the scheme cannot pay.
+  check('the gift is not spendable money on its own', worth(gift) === 0, String(worth(gift)));
+
+  check('somebody with no name on file is offered it',
+    welcomeOnOffer(newcomer) === gift, String(welcomeOnOffer(newcomer)));
+  const asked9 = askName(newcomer, 'en');
+  check('and the question that asks their name says so',
+    /First order with us/.test(asked9.text ?? ''), (asked9.text ?? '').slice(0, 90));
+  check('with the gift and the rate that makes sense of it',
+    (asked9.text ?? '').includes(String(gift)) && /1,?000 points/.test(asked9.text ?? ''),
+    (asked9.text ?? '').slice(0, 150));
+
+  // Nothing is credited for the name itself. A gift that pays out on a word
+  // typed into a chat is a gift to anybody with a spare SIM.
+  repo.saveCustomer(newcomer, { name: 'Brand New', address: 'Lot 1 Kitty', contactPhone: newcomer });
+  check('giving the name earns nothing by itself',
+    repo.pointsBalance(newcomer) === 0, String(repo.pointsBalance(newcomer)));
+  check('and the offer is off the table once they have a name',
+    welcomeOnOffer(newcomer) === 0, String(welcomeOnOffer(newcomer)));
+  const asked9b = askName(newcomer, 'en');
+  check('so the question goes back to being one question',
+    !/First order with us/.test(asked9b.text ?? ''), (asked9b.text ?? '').slice(0, 60));
+
+  // An order that is placed and never arrives is worth nothing, which is how
+  // every other point in this scheme already behaves.
+  const placed9 = order9('ORD-97501', 500, newcomer, 'Brand New');
+  check('a placed order credits nothing', repo.pointsBalance(newcomer) === 0,
+    String(repo.pointsBalance(newcomer)));
+
+  // On arrival, both: what the delivery earned, and the welcome.
+  repo.setOrderStatus(placed9, 'delivered');
+  check('the delivery earns its own points', repo.pointsEarnedOn(placed9) === 50,
+    String(repo.pointsEarnedOn(placed9)));
+  check('and the welcome lands on that same delivery',
+    repo.welcomePointsOn(placed9) === gift, String(repo.welcomePointsOn(placed9)));
+  check('both are in the balance', repo.pointsBalance(newcomer) === 50 + gift,
+    String(repo.pointsBalance(newcomer)));
+  check('and it is written down as a welcome, not as earnings',
+    repo.pointsHistory(newcomer, 5).some((l) => l.reason === 'welcome'),
+    JSON.stringify(repo.pointsHistory(newcomer, 5)));
+
+  // Once per number, for ever. Enforced by the ledger's own unique index
+  // rather than by a flag somebody has to remember to set, so a re-sent
+  // delivery notice, a status re-applied by a dispatcher and a retry after a
+  // crash all land on the same row.
+  check('this number has had it', repo.welcomePointsGiven(newcomer));
+  const second9 = order9('ORD-97502', 500, newcomer, 'Brand New');
+  repo.setOrderStatus(second9, 'delivered');
+  check('a second delivery earns but is not welcomed again',
+    repo.welcomePointsOn(second9) === 0 && repo.pointsBalance(newcomer) === 100 + gift,
+    String(repo.pointsBalance(newcomer)));
+  repo.setOrderStatus(second9, 'delivered');
+  check('and re-applying the status changes nothing',
+    repo.pointsBalance(newcomer) === 100 + gift, String(repo.pointsBalance(newcomer)));
+
+  // Somebody who never gave a name gets nothing, because there is nothing
+  // to pay for: a delivery can be placed by the agent with a name on the
+  // order and none on the customer.
+  const nameless = '5926800102';
+  const theirs = order9('ORD-97503', 500, nameless, 'Walk Up');
+  repo.setOrderStatus(theirs, 'delivered');
+  check('no name on file, no welcome', repo.welcomePointsOn(theirs) === 0,
+    String(repo.welcomePointsOn(theirs)));
+  check('though the delivery still earns', repo.pointsEarnedOn(theirs) === 50,
+    String(repo.pointsEarnedOn(theirs)));
+
+  // And the customer is told, in the message that was already going out.
+  const { t: t9 } = await import('./language.ts');
+  for (const lang of ['en', 'es', 'pt', 'zh'] as const) {
+    const line = t9('points_welcome', lang, { points: String(gift) });
+    check(`the welcome has words in ${lang}`,
+      line.includes(String(gift)) && !/points_welcome/.test(line), line.slice(0, 60));
+    const ask = t9('checkout_name_ask_welcome', lang, {
+      points: String(gift), reward: '1000', value: money(50000),
+    });
+    check(`and so does the offer in ${lang}`,
+      ask.includes(String(gift)) && !/checkout_name_ask_welcome/.test(ask), ask.slice(0, 70));
+    check(`and it promises no money it cannot pay in ${lang}`,
+      !ask.includes(money(worth(gift))) || worth(gift) > 0, ask.slice(0, 90));
+  }
 }
 section('What the customer said is not thrown away');
 {
