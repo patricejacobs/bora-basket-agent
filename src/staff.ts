@@ -2374,12 +2374,24 @@ export async function handleDriverMessage(
     void notifyPassengerDriverOutside(order.orderNo).catch((err: unknown) =>
       console.error('[staff] could not tell the passenger:', err),
     );
+    // The reminder only where there is something to remind them of. An order
+    // with no code on it had the associate told to say one anyway, which is
+    // the same fault the passenger's own message had: two people sent to the
+    // same kerb to exchange something neither of them has.
+    //
+    // The digits are deliberately NOT repeated here. They were on the card
+    // that offered them the job, and the code is said once — a gate shown
+    // twice is a decoration.
+    const theirCode = repo.safetyCodeFor(order.orderNo);
+    const firstName = order.customerName.split(/\s+/)[0] || 'them';
     return [
       {
         kind: 'buttons',
         text: [
           `🚕 *${order.orderNo}* — at the pickup, ${clock}.`,
-          `Say the safety code to ${order.customerName.split(/\s+/)[0] || 'them'} before they get in.`,
+          ...(theirCode
+            ? [`Say the safety code to ${firstName} before they get in.`]
+            : []),
         ].join(chr10),
         buttons: nextActions(order.orderNo, 'confirmed', 'driver', {
           selfAccepted: true,

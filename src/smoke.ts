@@ -4357,6 +4357,33 @@ section('A car, and no fare anywhere');
           'Passenger onboard|Passenger not found|Passenger cancelled',
       JSON.stringify(atKerb[0]?.kind === 'buttons' ? atKerb[0].buttons.map((b) => b.title) : atKerb[0]?.kind));
     check('it reminds them to say the code', /safety code/i.test(atKerb[0]?.text ?? ''), atKerb[0]?.text);
+
+    // And an order carrying no code says nothing about one, to either side.
+    // Found by driving the real thing over the webhook: the passenger's
+    // message filled the gap with a dash — "your safety code — before you
+    // get in" — and the associate's card told them to say one anyway. Two
+    // people sent to the same kerb to exchange something neither of them
+    // has, which is worse than silence because both of them act on it.
+    {
+      const codeless = repo.createTaxiJob({
+        phone: '5926100049', passengerName: 'G Passenger', passengerPhone: '5926100049',
+        pickup: null, pickupAddress: 'Stabroek Market', destination: null,
+        destinationAddress: 'Kitty', note: '', wantedAt: '', wantedNote: '', fare: 500,
+      });
+      db.prepare(`UPDATE orders SET safety_code = '' WHERE order_no = ?`).run(codeless.orderNo);
+      const cn = String(Number(codeless.orderNo.replace(/\D/g, '')));
+      await handleDriverMessage(`${cn} confirm`, rider);
+      const bare = await handleDriverMessage(`${cn} at pickup`, rider);
+      check('with no code the associate is not told to say one',
+        !/safety code/i.test(bare[0]?.text ?? ''), bare[0]?.text);
+      check('but the arrival is still on the card',
+        /at the pickup/.test(bare[0]?.text ?? ''), bare[0]?.text);
+      check('and the arrival is still recorded',
+        Boolean(repo.findOrder(codeless.orderNo)?.arrivedAt),
+        repo.findOrder(codeless.orderNo)?.arrivedAt);
+      db.prepare(`DELETE FROM order_events WHERE order_no = ?`).run(codeless.orderNo);
+      db.prepare(`DELETE FROM orders WHERE order_no = ?`).run(codeless.orderNo);
+    }
     // Tapping twice must not move the time they arrived.
     const first = repo.findOrder(toPickup.orderNo)!.arrivedAt;
     await handleDriverMessage(`${pn} at pickup`, rider);

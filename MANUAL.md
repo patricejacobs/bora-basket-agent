@@ -4289,7 +4289,27 @@ The passenger gets:
 
 A car at a kerb that nobody has mentioned is a car the passenger does not know
 is theirs — and this is the minute before they get in, which is the minute the
-code is for.
+code is for. One sentence, because that is how it reads standing on a
+pavement.
+
+**An order with no code says nothing about one, to either side.** Found by
+driving the real thing over the webhook: the passenger's message filled the
+gap with a dash — *"will say your safety code — before you get in"* — and
+the associate's own card told them to say one anyway. Two people were sent
+to the same kerb to exchange something neither of them had, which is worse
+than silence because both of them act on it. Now:
+
+```
+🚕 Your chauffeur is outside.
+```
+
+```
+🚕 *TXI-00902* — at the pickup, 22:59.
+```
+
+The digits are not repeated on the arrival card even when there are some.
+They were on the card that offered the job, and **the code is said once** — a
+gate shown twice is a decoration.
 
 **"Arrived" means two different things on a taxi, and the status tells them
 apart.** At the kerb it means *I am here*; with somebody in the car it ends
